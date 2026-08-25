@@ -1,11 +1,73 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
 
 const optionalText = z.string().optional();
+
+/**
+ * A project has one durable creative intent.  It is deliberately not a UI
+ * preference: changing it would leave writing, production and media records
+ * with ambiguous ownership, so a different intent is created as a derivation.
+ */
+export const ProjectModeSchema = z.enum([
+  "series_longform",
+  "single_season",
+  "personal_theater",
+  "creator_channel",
+]);
+export type ProjectMode = z.infer<typeof ProjectModeSchema>;
+
+export const SeriesLongformModeConfigSchema = z.object({
+  mode: z.literal("series_longform"),
+  targetChapterCount: z.number().int().positive().optional(),
+  targetSeasonCount: z.number().int().positive().optional(),
+  targetEpisodesPerSeason: z.number().int().positive().optional(),
+});
+export const SingleSeasonModeConfigSchema = z.object({
+  mode: z.literal("single_season"),
+  entryPath: z.enum(["novel", "source-import", "script"]),
+  targetEpisodeCount: z.number().int().positive().optional(),
+});
+export const PersonalTheaterModeConfigSchema = z.object({
+  mode: z.literal("personal_theater"),
+  storyMethod: z.enum(["template", "freeform"]),
+  episodeCount: z.number().int().positive().optional(),
+  episodeDurationMinutes: z.number().positive().optional(),
+});
+export const CreatorChannelModeConfigSchema = z.object({
+  mode: z.literal("creator_channel"),
+  topic: z.string().trim().min(1).max(160),
+  positioning: z.string().trim().max(1_000).optional(),
+  audience: z.string().trim().max(500).optional(),
+  platforms: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  riskDomain: z.enum(["general", "finance", "health", "legal"]).optional(),
+});
+
+export const ProjectModeConfigSchema = z.discriminatedUnion("mode", [
+  SeriesLongformModeConfigSchema,
+  SingleSeasonModeConfigSchema,
+  PersonalTheaterModeConfigSchema,
+  CreatorChannelModeConfigSchema,
+]);
+export type ProjectModeConfig = z.infer<typeof ProjectModeConfigSchema>;
+
+export const ProjectLifecycleStatusSchema = z.enum([
+  "initializing",
+  "ready",
+  "failed",
+]);
+export type ProjectLifecycleStatus = z.infer<
+  typeof ProjectLifecycleStatusSchema
+>;
 
 export const ProjectSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1).max(160),
-  shortDramaType: z.string().min(1).max(160),
+  /** Compatibility metadata for projects created before the four-mode model. */
+  shortDramaType: z.string().min(1).max(160).optional(),
+  mode: ProjectModeSchema,
+  modeConfig: ProjectModeConfigSchema,
+  lifecycleStatus: ProjectLifecycleStatusSchema,
+  derivedFromProjectId: z.string().uuid().optional(),
   targetAudience: optionalText,
   targetWordCount: z.number().int().optional(),
   targetEpisodeCount: z.number().int().optional(),
@@ -40,11 +102,72 @@ export const ProjectInputSchema = ProjectSchema.pick({
   visualStyleDirection: true,
   genreOpportunity: true,
   productionBrief: true,
-}).extend({ synopsis: z.string().optional() });
-
-export const ProjectPatchSchema = ProjectInputSchema.partial().extend({
-  version: z.number().int().nonnegative(),
+}).extend({
+  /** Missing mode is accepted only for pre-v2 clients and migrates to series. */
+  mode: ProjectModeSchema.optional().default("series_longform"),
+  modeConfig: ProjectModeConfigSchema.optional(),
+  synopsis: z.string().optional(),
 });
+
+export const ProjectInitializationStepSchema = z.object({
+  key: z.string().min(1).max(120),
+  pluginId: z.string().min(1).max(80),
+  status: z.enum(["pending", "running", "ready", "failed"]),
+  message: z.string().optional(),
+  error: z.string().optional(),
+  attempts: z.number().int().nonnegative(),
+  updatedAt: z.string().datetime(),
+});
+
+export const ProjectInitializationSchema = z.object({
+  projectId: z.string().uuid(),
+  status: ProjectLifecycleStatusSchema,
+  steps: z.array(ProjectInitializationStepSchema),
+  updatedAt: z.string().datetime(),
+});
+export type ProjectInitialization = z.infer<typeof ProjectInitializationSchema>;
+
+export const ProjectCreationResultSchema = z.object({
+  project: ProjectSchema,
+  initialization: ProjectInitializationSchema,
+});
+
+export const ProjectDerivationInputSchema = z.object({
+  targetMode: ProjectModeSchema,
+  title: z.string().trim().min(1).max(160).optional(),
+  seasonId: z.string().uuid().optional(),
+  targetModeConfig: ProjectModeConfigSchema.optional(),
+});
+export type ProjectDerivationInput = z.infer<
+  typeof ProjectDerivationInputSchema
+>;
+
+export const ProjectDerivationPreviewSchema = z.object({
+  id: z.string().uuid(),
+  sourceProjectId: z.string().uuid(),
+  targetMode: ProjectModeSchema,
+  targetModeConfig: ProjectModeConfigSchema,
+  title: z.string().min(1).max(160),
+  supported: z.boolean(),
+  reason: z.string().optional(),
+  expiresAt: z.string().datetime(),
+});
+
+export const ProjectDerivationCommitInputSchema = z.object({
+  previewId: z.string().uuid(),
+});
+
+export const ProjectDerivationCommitResultSchema = z.object({
+  project: ProjectSchema,
+  initialization: ProjectInitializationSchema,
+  derivationId: z.string().uuid(),
+});
+
+export const ProjectPatchSchema = ProjectInputSchema.partial()
+  .extend({
+    version: z.number().int().nonnegative(),
+  })
+  .omit({ mode: true, modeConfig: true });
 
 export const ProjectPurgeSchema = z.object({ confirmationTitle: z.string() });
 
@@ -115,7 +238,14 @@ export type ProjectInput = z.infer<typeof ProjectInputSchema>;
 export type ProjectPatch = z.infer<typeof ProjectPatchSchema>;
 export type Series = z.infer<typeof SeriesSchema>;
 
-export const WORKSPACE_PROJECT_SERVICE = "workspace.projects.v1" as const;
+export const WORKSPACE_PROJECT_SERVICE =
+  defineServiceContract<WorkspaceProjectService>({
+    id: "workspace.projects.v1",
+    owner: "workspace",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
 
 export interface WorkspaceProjectService {
   create(input: ProjectInput): Project;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
 
 export const TimelineTrackKindSchema = z.enum([
   "video",
@@ -196,7 +197,13 @@ export type TimelineClip = z.infer<typeof TimelineClipSchema>;
 export type TimelineEditCommand = z.infer<typeof TimelineEditCommandSchema>;
 export type AudioAssemblyPreview = z.infer<typeof AudioAssemblyPreviewSchema>;
 
-export const TIMELINE_SERVICE = "timeline.canonical.v1" as const;
+export const TIMELINE_SERVICE = defineServiceContract<TimelineService>({
+  id: "timeline.canonical.v1",
+  owner: "timeline",
+  major: 1,
+  capabilities: ["read", "write", "export"],
+  degradable: true,
+});
 
 export interface TimelineService {
   get(episodeId: string): TimelineManifest | undefined;

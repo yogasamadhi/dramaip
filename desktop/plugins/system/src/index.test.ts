@@ -19,10 +19,16 @@ async function installSystemRoutes(
         return () => undefined;
       },
     },
-    effect: () => undefined,
+    effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
   } as unknown as PluginContext);
   const app = new OpenAPIHono();
-  for (const route of routes) route.install(app);
+  for (const route of routes) {
+    const register = app.openapi as unknown as (
+      declaration: unknown,
+      handler: (...args: never[]) => unknown,
+    ) => void;
+    register.call(app, route.declaration, route.handler);
+  }
   return app;
 }
 

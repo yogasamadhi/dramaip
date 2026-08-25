@@ -11,6 +11,7 @@ interface StartCommand {
   profilePath: string;
   hostname: string;
   port: number;
+  runtimeGeneration: number;
   accessToken: string;
   allowedOrigins: readonly string[];
   engineMcpTokens?: readonly string[];
@@ -19,11 +20,20 @@ interface StartCommand {
     backupDirectory: string;
     alpha2Version?: string;
   };
+  migrationWorkerEntry: string;
 }
 
 const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
   .parentPort;
-if (!parentPort)
+const runtimeVersions = process.versions as Record<string, string | undefined>;
+const electronVersion = runtimeVersions.electron;
+const nodeVersion = runtimeVersions.node;
+if (
+  !parentPort ||
+  !electronVersion ||
+  !nodeVersion ||
+  Boolean(runtimeVersions.bun)
+)
   throw new Error("Core Runtime must run in an Electron utilityProcess");
 
 let runtime: RuntimeHandle | undefined;
@@ -56,18 +66,33 @@ async function start(command: StartCommand): Promise<void> {
       allowedOrigins: command.allowedOrigins,
       engineMcpTokens: command.engineMcpTokens,
       host: command.host,
-      runtimeKind: "node",
+      runtimeKind: "electron-node",
       mode: command.host ? "desktop" : "headless",
+      runtimeGeneration: command.runtimeGeneration,
       alpha3AgentCutover: command.alpha3AgentCutover,
+      migrationWorker: {
+        runtimeKind: "electron-node",
+        executable: process.execPath,
+        entry: command.migrationWorkerEntry,
+      },
     });
-    runtime.start({ hostname: command.hostname, port: command.port });
-    await verifyHealth(command.hostname, command.port);
+    const server = await runtime.start({
+      hostname: command.hostname,
+      port: command.port,
+    });
+    await verifyHealth(command.hostname, server.port);
     runtime.finalizeCutover();
     parentPort!.postMessage({
       type: "runtime:ready",
       runtimeId: runtime.runtimeInfo.runtimeId,
+      runtimeGeneration: runtime.runtimeInfo.runtimeGeneration,
+      graphRevision: runtime.runtimeInfo.graphRevision,
+      port: server.port,
       runtimeVersion: runtime.runtimeInfo.runtimeVersion,
       apiVersion: runtime.runtimeInfo.apiVersion,
+      runtimeKind: runtime.runtimeInfo.runtimeKind,
+      electronVersion,
+      nodeVersion,
     });
   } catch (error) {
     await runtime?.stop().catch(() => undefined);

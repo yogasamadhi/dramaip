@@ -3,7 +3,7 @@
   "productBaseline": "desktop/legacy/desktop (read-only)",
   "sourceOfTruth": "studio/e2e Effective Runtime Graph OpenAPI",
   "baselineSha256": "57eadb81adbda208978d5f46ca36c26a5a128ab303dbae2cff789bdd372cab3c",
-  "effectiveOpenApiSha256": "3692298fd66c71e976816adf6d67dfcd9a28a91266acd653f90105647cfe7633",
+  "effectiveOpenApiSha256": "e3e288e6feaf71afc608c5cb11c4454e1dd0879de68421fb3ffdf1be7e5e1eed",
   "expected": {
     "legacyOperations": 217,
     "retiredGenericOperations": 5,
@@ -11,10 +11,10 @@
     "visualBaselines": 12
   },
   "actual": {
-    "effectiveOperations": 443,
-    "uniqueOperationIds": 443,
-    "uniqueMethodPaths": 443,
-    "newV2Operations": 231
+    "effectiveOperations": 503,
+    "uniqueOperationIds": 503,
+    "uniqueMethodPaths": 503,
+    "newV2Operations": 291
   },
   "summary": {
     "implemented": 211,
@@ -5679,14 +5679,6 @@
       ]
     },
     {
-      "operationId": "agent-engines.restoreConfiguration",
-      "method": "POST",
-      "path": "/api/v2/agent-engines/restore-configuration",
-      "tags": [
-        "agents"
-      ]
-    },
-    {
       "operationId": "agent-experiments.reveal",
       "method": "POST",
       "path": "/api/v2/agent-experiments/{id}/reveal",
@@ -6055,6 +6047,150 @@
       ]
     },
     {
+      "operationId": "creator.calendar.create",
+      "method": "POST",
+      "path": "/api/v2/creator/calendar",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.calendar.list",
+      "method": "GET",
+      "path": "/api/v2/creator/calendar",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.calendar.update",
+      "method": "PATCH",
+      "path": "/api/v2/creator/calendar/{id}",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.column.create",
+      "method": "POST",
+      "path": "/api/v2/creator/column",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.column.list",
+      "method": "GET",
+      "path": "/api/v2/creator/column",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.column.update",
+      "method": "PATCH",
+      "path": "/api/v2/creator/column/{id}",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.draft.create",
+      "method": "POST",
+      "path": "/api/v2/creator/draft",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.draft.list",
+      "method": "GET",
+      "path": "/api/v2/creator/draft",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.draft.update",
+      "method": "PATCH",
+      "path": "/api/v2/creator/draft/{id}",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.idea.create",
+      "method": "POST",
+      "path": "/api/v2/creator/idea",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.idea.list",
+      "method": "GET",
+      "path": "/api/v2/creator/idea",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.idea.update",
+      "method": "PATCH",
+      "path": "/api/v2/creator/idea/{id}",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.profile.create",
+      "method": "POST",
+      "path": "/api/v2/creator/profile",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.profile.list",
+      "method": "GET",
+      "path": "/api/v2/creator/profile",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.profile.update",
+      "method": "PATCH",
+      "path": "/api/v2/creator/profile/{id}",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.variant.create",
+      "method": "POST",
+      "path": "/api/v2/creator/variant",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.variant.list",
+      "method": "GET",
+      "path": "/api/v2/creator/variant",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "creator.variant.update",
+      "method": "PATCH",
+      "path": "/api/v2/creator/variant/{id}",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
       "operationId": "delivery.records.create",
       "method": "POST",
       "path": "/api/v2/delivery",
@@ -6415,6 +6551,54 @@
       ]
     },
     {
+      "operationId": "likenessSubjects.attachPhoto",
+      "method": "POST",
+      "path": "/api/v2/likeness-subjects/{id}/photos",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "likenessSubjects.consent",
+      "method": "POST",
+      "path": "/api/v2/likeness-subjects/{id}/consent",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "likenessSubjects.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/likeness-subjects",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "likenessSubjects.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/likeness-subjects",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "likenessSubjects.referencePreflight",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/likeness-reference-preflight",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "likenessSubjects.revoke",
+      "method": "POST",
+      "path": "/api/v2/likeness-subjects/{id}/revoke",
+      "tags": [
+        "media"
+      ]
+    },
+    {
       "operationId": "localization.records.create",
       "method": "POST",
       "path": "/api/v2/localization",
@@ -6575,6 +6759,38 @@
       ]
     },
     {
+      "operationId": "projects.commitDerivation",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/derivations",
+      "tags": [
+        "projects"
+      ]
+    },
+    {
+      "operationId": "projects.initialization",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/initialization",
+      "tags": [
+        "projects"
+      ]
+    },
+    {
+      "operationId": "projects.previewDerivation",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/derivations/preview",
+      "tags": [
+        "projects"
+      ]
+    },
+    {
+      "operationId": "projects.retryInitialization",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/initialization/retry",
+      "tags": [
+        "projects"
+      ]
+    },
+    {
       "operationId": "providers.create",
       "method": "POST",
       "path": "/api/v2/providers",
@@ -6692,6 +6908,62 @@
       "path": "/api/v2/renders/{id}",
       "tags": [
         "media"
+      ]
+    },
+    {
+      "operationId": "research.findings.create",
+      "method": "POST",
+      "path": "/api/v2/research-topics/{id}/findings",
+      "tags": [
+        "research"
+      ]
+    },
+    {
+      "operationId": "research.findings.list",
+      "method": "GET",
+      "path": "/api/v2/research-topics/{id}/findings",
+      "tags": [
+        "research"
+      ]
+    },
+    {
+      "operationId": "research.search",
+      "method": "POST",
+      "path": "/api/v2/research-topics/{id}/search",
+      "tags": [
+        "research"
+      ]
+    },
+    {
+      "operationId": "research.sources.create",
+      "method": "POST",
+      "path": "/api/v2/research-topics/{id}/sources",
+      "tags": [
+        "research"
+      ]
+    },
+    {
+      "operationId": "research.sources.list",
+      "method": "GET",
+      "path": "/api/v2/research-topics/{id}/sources",
+      "tags": [
+        "research"
+      ]
+    },
+    {
+      "operationId": "research.topics.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/research-topics",
+      "tags": [
+        "research"
+      ]
+    },
+    {
+      "operationId": "research.topics.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/research-topics",
+      "tags": [
+        "research"
       ]
     },
     {
@@ -6850,6 +7122,38 @@
       "operationId": "scripts.update",
       "method": "PATCH",
       "path": "/api/v2/scripts/{id}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "seasons.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/seasons",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "seasons.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/seasons",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "seasons.mapChapter",
+      "method": "POST",
+      "path": "/api/v2/seasons/{id}/chapter-mappings",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "seasons.update",
+      "method": "PATCH",
+      "path": "/api/v2/seasons/{id}",
       "tags": [
         "production"
       ]
@@ -7141,33 +7445,135 @@
       "tags": []
     },
     {
+      "operationId": "system.credentials.createCaptureSession",
+      "method": "POST",
+      "path": "/api/v2/system/host/credentials/capture-sessions",
+      "tags": []
+    },
+    {
+      "operationId": "system.credentials.getCaptureSession",
+      "method": "GET",
+      "path": "/api/v2/system/host/credentials/capture-sessions/{captureSessionId}",
+      "tags": []
+    },
+    {
       "operationId": "system.credentials.remove",
       "method": "DELETE",
       "path": "/api/v2/system/host/credentials/{credentialRef}",
-      "tags": [
-        "system"
-      ]
+      "tags": []
     },
     {
       "operationId": "system.credentials.status",
       "method": "GET",
       "path": "/api/v2/system/host/credentials/status",
-      "tags": [
-        "system"
-      ]
-    },
-    {
-      "operationId": "system.credentials.store",
-      "method": "POST",
-      "path": "/api/v2/system/host/credentials",
-      "tags": [
-        "system"
-      ]
+      "tags": []
     },
     {
       "operationId": "system.events.subscribe",
       "method": "GET",
       "path": "/api/v2/events",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.catalog",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/catalog",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.disable",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/{pluginId}/disable",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.effectiveOpenApi",
+      "method": "GET",
+      "path": "/api/v2/system/extensions/effective-openapi",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.enable",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/{pluginId}/enable",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.installCommit",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/install-commit",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.installed",
+      "method": "GET",
+      "path": "/api/v2/system/extensions/installed",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.installPreview",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/install-preview",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.invokeCommand",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/{pluginId}/commands/{commandId}",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.invokeRoute.delete",
+      "method": "DELETE",
+      "path": "/api/v2/extensions/{pluginId}/*",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.invokeRoute.get",
+      "method": "GET",
+      "path": "/api/v2/extensions/{pluginId}/*",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.invokeRoute.patch",
+      "method": "PATCH",
+      "path": "/api/v2/extensions/{pluginId}/*",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.invokeRoute.post",
+      "method": "POST",
+      "path": "/api/v2/extensions/{pluginId}/*",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.invokeRoute.put",
+      "method": "PUT",
+      "path": "/api/v2/extensions/{pluginId}/*",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.retry",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/{pluginId}/retry",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.rollback",
+      "method": "POST",
+      "path": "/api/v2/system/extensions/{pluginId}/rollback",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.uiContributions",
+      "method": "GET",
+      "path": "/api/v2/system/extensions/ui-contributions",
+      "tags": []
+    },
+    {
+      "operationId": "system.extensions.uninstall",
+      "method": "DELETE",
+      "path": "/api/v2/system/extensions/{pluginId}",
       "tags": []
     },
     {
@@ -7180,33 +7586,31 @@
       "operationId": "system.host.openExternal",
       "method": "POST",
       "path": "/api/v2/system/host/open-external",
-      "tags": [
-        "system"
-      ]
+      "tags": []
     },
     {
-      "operationId": "system.host.revealPath",
+      "operationId": "system.host.revealArtifact",
       "method": "POST",
-      "path": "/api/v2/system/host/reveal-path",
-      "tags": [
-        "system"
-      ]
+      "path": "/api/v2/system/host/reveal-artifact",
+      "tags": []
+    },
+    {
+      "operationId": "system.host.revealGrant",
+      "method": "POST",
+      "path": "/api/v2/system/host/reveal-grant",
+      "tags": []
     },
     {
       "operationId": "system.hostFiles.pick",
       "method": "POST",
       "path": "/api/v2/system/host/files/pick",
-      "tags": [
-        "system"
-      ]
+      "tags": []
     },
     {
       "operationId": "system.hostFiles.saveText",
       "method": "POST",
       "path": "/api/v2/system/host/files/save-text",
-      "tags": [
-        "system"
-      ]
+      "tags": []
     },
     {
       "operationId": "system.runtime",
@@ -7224,9 +7628,7 @@
       "operationId": "system.window.setTheme",
       "method": "POST",
       "path": "/api/v2/system/host/window/theme",
-      "tags": [
-        "system"
-      ]
+      "tags": []
     },
     {
       "operationId": "template-runs.list",
@@ -7474,6 +7876,30 @@
       "path": "/api/v2/visual-settings/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "volumes.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/volumes",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "volumes.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/volumes",
+      "tags": [
+        "chapters"
+      ]
+    },
+    {
+      "operationId": "volumes.update",
+      "method": "PATCH",
+      "path": "/api/v2/volumes/{id}",
+      "tags": [
+        "chapters"
       ]
     }
   ]

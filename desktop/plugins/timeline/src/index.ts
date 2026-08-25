@@ -29,6 +29,7 @@ import {
   type TimelineTrack,
 } from "@dramaip/contracts/timeline";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -130,20 +131,11 @@ function openapi(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: RouteHandler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function duration(record: ProductionRecord): number {
@@ -1108,12 +1100,12 @@ export const timelinePlugin = defineFirstPartyPlugin({
   ],
   migrations: timelineMigrations,
   activate: (context) => {
-    const production = context.services.get<ProductionRecordService>(
+    const production = context.services.optional<ProductionRecordService>(
       PRODUCTION_RECORD_SERVICE,
     );
     const media =
-      context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE);
-    const audioTracks = context.services.get<MediaAudioTrackService>(
+      context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
+    const audioTracks = context.services.optional<MediaAudioTrackService>(
       MEDIA_AUDIO_TRACK_SERVICE,
     );
     if (!production || !media || !audioTracks)
@@ -1121,9 +1113,8 @@ export const timelinePlugin = defineFirstPartyPlugin({
     const service: TimelineService = {
       get: (episodeId) => getOrCreate(context, episodeId, production),
     };
-    context.effect(
+    context.effect(`service:${TIMELINE_SERVICE}`, () =>
       context.services.provide(TIMELINE_SERVICE, service),
-      `service:${TIMELINE_SERVICE}`,
     );
     for (const contribution of timelineRoutes(
       context,
@@ -1131,9 +1122,8 @@ export const timelinePlugin = defineFirstPartyPlugin({
       media,
       audioTracks,
     ))
-      context.effect(
+      context.effect(`route:${contribution.id}`, () =>
         context.http.register(contribution),
-        `route:${contribution.id}`,
       );
   },
 });

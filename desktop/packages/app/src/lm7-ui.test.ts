@@ -4,6 +4,21 @@ import { readFileSync } from "node:fs";
 const read = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
+const featureSources = [
+  "./studio-shared.tsx",
+  "./features/studio-widgets.tsx",
+  "./features/workspace/impl.tsx",
+  "./features/writing/impl.tsx",
+  "./features/creative/impl.tsx",
+  "./features/automation/impl.tsx",
+  "./features/production/impl.tsx",
+  "./features/media/impl.tsx",
+  "./features/review-delivery/impl.tsx",
+  "./features/insights/impl.tsx",
+  "./features/settings/impl.tsx",
+  "./features/agents/impl.tsx",
+].map(read);
+
 describe("LM7 desktop UI architecture", () => {
   test("theme initializes before React render and the entry stays startup-only", () => {
     const source = read("./main.tsx");
@@ -16,7 +31,7 @@ describe("LM7 desktop UI architecture", () => {
 
   test("business UI has no raw buttons, class-fragment overrides or arbitrary colors", () => {
     const source = [
-      read("./studio-app.tsx"),
+      ...featureSources,
       read("./app-shell.tsx"),
       read("./features/novel/NovelChapterWorkspace.tsx"),
       read("./features/novel/NovelProjectSections.tsx"),
@@ -29,7 +44,7 @@ describe("LM7 desktop UI architecture", () => {
 
   test("navigation and design-token limits remain stable", () => {
     const shell = read("./app-shell.tsx");
-    const studio = read("./studio-app.tsx");
+    const studio = read("./studio-shell.tsx");
     const workspace = read("../../../plugins/workspace/src/index.ts");
     const writing = read("../../../plugins/writing/src/index.ts");
     expect(shell).toContain("props.navigation");
@@ -43,7 +58,7 @@ describe("LM7 desktop UI architecture", () => {
     );
 
     const sources = [
-      read("./studio-app.tsx"),
+      ...featureSources,
       read("./app-shell.tsx"),
       read("./ui-showcase.tsx"),
       read("./features/novel/NovelChapterWorkspace.tsx"),

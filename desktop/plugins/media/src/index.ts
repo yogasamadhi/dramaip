@@ -28,6 +28,14 @@ import {
   EpisodeRenderPreflightSchema,
   ImageGenerationInputSchema,
   ImageGenerationRunSchema,
+  LikenessConsentInputSchema,
+  LikenessPhotoAttachInputSchema,
+  LikenessPhotoSchema,
+  LikenessReferencePreflightInputSchema,
+  LikenessReferencePreflightSchema,
+  LikenessSubjectInputSchema,
+  LikenessSubjectSchema,
+  MEDIA_LIKENESS_SERVICE,
   MEDIA_AUDIO_TRACK_SERVICE,
   MEDIA_RECORD_SERVICE,
   MediaRecordInputSchema,
@@ -55,6 +63,9 @@ import {
   type MediaRecordInput,
   type MediaRecordKind,
   type MediaRecordService,
+  type MediaLikenessService,
+  type LikenessPhoto,
+  type LikenessSubject,
   type VideoGenerationInput,
   type VideoGenerationJob,
   type VideoGenerationPreflight,
@@ -73,6 +84,7 @@ import {
   type WorkspaceProjectService,
 } from "@dramaip/contracts/workspace";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -90,6 +102,33 @@ interface MediaRow {
   version: number;
   created_at: string;
   updated_at: string;
+}
+
+interface LikenessSubjectRow {
+  id: string;
+  project_id: string;
+  display_name: string;
+  relationship: LikenessSubject["relationship"];
+  age_band: LikenessSubject["ageBand"];
+  consent_status: LikenessSubject["consentStatus"];
+  content_restrictions: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface LikenessPhotoRow {
+  id: string;
+  subject_id: string;
+  media_ref: string;
+  sha256: string;
+  mime_type: "image/png";
+  width: number;
+  height: number;
+  size: number;
+  status: LikenessPhoto["status"];
+  created_at: string;
+  removed_at: string | null;
 }
 
 interface AudioTrackRow {
@@ -190,6 +229,39 @@ function toRecord(row: MediaRow): MediaRecord {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function likenessSubject(row: LikenessSubjectRow): LikenessSubject {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    displayName: row.display_name,
+    relationship: row.relationship,
+    ageBand: row.age_band,
+    consentStatus: row.consent_status,
+    ...(row.content_restrictions
+      ? { contentRestrictions: row.content_restrictions }
+      : {}),
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function likenessPhoto(row: LikenessPhotoRow): LikenessPhoto {
+  return {
+    id: row.id,
+    subjectId: row.subject_id,
+    mediaRef: row.media_ref,
+    sha256: row.sha256,
+    mimeType: row.mime_type,
+    width: row.width,
+    height: row.height,
+    size: row.size,
+    status: row.status,
+    createdAt: row.created_at,
+    ...(row.removed_at ? { removedAt: row.removed_at } : {}),
   };
 }
 
@@ -361,6 +433,69 @@ function listRecords(
   );
 }
 
+function likenessPreflight(
+  context: PluginContext,
+  subjectIds: readonly string[],
+): z.infer<typeof LikenessReferencePreflightSchema> {
+  return context.uow.execute((transaction) => {
+    const subjects = subjectIds.map((id) =>
+      transaction.get<LikenessSubjectRow>(
+        "SELECT * FROM media_likeness_subjects WHERE id = ?",
+        id,
+      ),
+    );
+    const blockers: string[] = [];
+    const mediaRefs: string[] = [];
+    for (let index = 0; index < subjectIds.length; index += 1) {
+      const id = subjectIds[index]!;
+      const subject = subjects[index];
+      if (!subject) {
+        blockers.push(`未找到照片人物 ${id}。`);
+        continue;
+      }
+      if (subject.consent_status !== "active") {
+        blockers.push(`${subject.display_name} 的肖像授权未生效。`);
+        continue;
+      }
+      const consent = transaction.get<{
+        valid_until: string;
+        revoked_at: string | null;
+      }>(
+        `SELECT valid_until, revoked_at FROM media_likeness_consents
+         WHERE subject_id = ? ORDER BY created_at DESC LIMIT 1`,
+        subject.id,
+      );
+      if (
+        !consent ||
+        consent.revoked_at ||
+        Date.parse(consent.valid_until) <= Date.now()
+      ) {
+        blockers.push(`${subject.display_name} 的肖像授权已撤回或过期。`);
+        continue;
+      }
+      const photos = transaction.all<LikenessPhotoRow>(
+        `SELECT * FROM media_likeness_photos
+         WHERE subject_id = ? AND status = 'active' ORDER BY created_at`,
+        subject.id,
+      );
+      if (!photos.length) {
+        blockers.push(`${subject.display_name} 尚未附加可用照片。`);
+        continue;
+      }
+      mediaRefs.push(...photos.map((photo) => photo.media_ref));
+    }
+    return {
+      ok: blockers.length === 0,
+      subjectIds: [...subjectIds],
+      mediaRefs,
+      blockers,
+      warnings: [
+        "照片仅以 Host 受控的不透明引用参与生成；不会写入项目数据库、日志或项目包。",
+      ],
+    };
+  });
+}
+
 function problem(
   context: RouteContext,
   status: number,
@@ -434,20 +569,11 @@ function openapi(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: RouteHandler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function category(
@@ -705,6 +831,386 @@ function resourceRoutes(
     );
   }
   return result;
+}
+
+function likenessRoutes(
+  context: PluginContext,
+  workspace: WorkspaceProjectService,
+  host: DesktopHostClient | undefined,
+): readonly RouteContribution[] {
+  const projectParams = z.object({ projectId: z.string().uuid() });
+  const subjectParams = z.object({ id: z.string().uuid() });
+  const subject = (id: string) =>
+    context.uow.execute((transaction) =>
+      transaction.get<LikenessSubjectRow>(
+        "SELECT * FROM media_likeness_subjects WHERE id = ?",
+        id,
+      ),
+    );
+  return [
+    route(
+      {
+        id: "media:likeness-subjects-list",
+        pluginId: "media",
+        method: "get",
+        path: "/api/v2/projects/{projectId}/likeness-subjects",
+        operationId: "likenessSubjects.list",
+      },
+      openapi({
+        method: "get",
+        path: "/api/v2/projects/{projectId}/likeness-subjects",
+        operationId: "likenessSubjects.list",
+        params: projectParams,
+        response: z.array(LikenessSubjectSchema),
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        if (!workspace.get(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        return requestContext.json(
+          context.uow.execute((transaction) =>
+            transaction
+              .all<LikenessSubjectRow>(
+                "SELECT * FROM media_likeness_subjects WHERE project_id = ? ORDER BY created_at, id",
+                projectId,
+              )
+              .map(likenessSubject),
+          ),
+        );
+      },
+    ),
+    route(
+      {
+        id: "media:likeness-subjects-create",
+        pluginId: "media",
+        method: "post",
+        path: "/api/v2/projects/{projectId}/likeness-subjects",
+        operationId: "likenessSubjects.create",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/projects/{projectId}/likeness-subjects",
+        operationId: "likenessSubjects.create",
+        params: projectParams,
+        body: LikenessSubjectInputSchema.omit({ projectId: true }),
+        response: LikenessSubjectSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        const input = LikenessSubjectInputSchema.omit({
+          projectId: true,
+        }).safeParse(await requestContext.req.json());
+        if (!input.success || !workspace.get(projectId))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "人物信息无效。",
+          );
+        if (
+          (input.data.relationship === "minor") !==
+          (input.data.ageBand !== "adult")
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "未成年人必须标记为未成年人关系；成年人不能使用该关系。",
+          );
+        const now = new Date().toISOString();
+        const id = crypto.randomUUID();
+        const value = context.uow.execute((transaction) => {
+          transaction.run(
+            `INSERT INTO media_likeness_subjects(
+              id, project_id, display_name, relationship, age_band,
+              consent_status, content_restrictions, version, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, 'missing', ?, 0, ?, ?)`,
+            id,
+            projectId,
+            input.data.displayName.trim(),
+            input.data.relationship,
+            input.data.ageBand,
+            input.data.contentRestrictions ?? null,
+            now,
+            now,
+          );
+          const created = likenessSubject(
+            transaction.get<LikenessSubjectRow>(
+              "SELECT * FROM media_likeness_subjects WHERE id = ?",
+              id,
+            )!,
+          );
+          transaction.append({
+            type: "media.likeness-subject-created.v1",
+            pluginId: "media",
+            aggregateType: "likeness-subject",
+            aggregateId: id,
+            aggregateVersion: created.version,
+            payload: JSON.parse(JSON.stringify(created)),
+          });
+          return created;
+        });
+        return requestContext.json(value, 201);
+      },
+    ),
+    route(
+      {
+        id: "media:likeness-subjects-consent",
+        pluginId: "media",
+        method: "post",
+        path: "/api/v2/likeness-subjects/{id}/consent",
+        operationId: "likenessSubjects.consent",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/likeness-subjects/{id}/consent",
+        operationId: "likenessSubjects.consent",
+        params: subjectParams,
+        body: LikenessConsentInputSchema,
+        response: LikenessSubjectSchema,
+      }),
+      async (requestContext) => {
+        const input = LikenessConsentInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        const current = subject(requestContext.req.param("id"));
+        if (!input.success || !current)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到照片人物。");
+        if (
+          !input.data.participantConfirmed ||
+          Date.parse(input.data.validUntil) <= Date.now() ||
+          (current.age_band !== "adult" && !input.data.guardianConfirmed) ||
+          (current.age_band === "under_14" &&
+            !input.data.under14SeparateConsentConfirmed)
+        )
+          return problem(
+            requestContext,
+            400,
+            "CONSENT_REQUIRED",
+            "授权必须确认用途、有效期；所有未成年人需监护人确认，未满14岁还需单独确认。",
+          );
+        const now = new Date().toISOString();
+        const value = context.uow.execute((transaction) => {
+          transaction.run(
+            `INSERT INTO media_likeness_consents(
+              id, subject_id, purpose_scopes_json, valid_until,
+              participant_confirmed, guardian_confirmed, under14_confirmed,
+              created_at, revoked_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+            crypto.randomUUID(),
+            current.id,
+            JSON.stringify(input.data.purposeScopes),
+            input.data.validUntil,
+            input.data.participantConfirmed ? 1 : 0,
+            input.data.guardianConfirmed ? 1 : 0,
+            input.data.under14SeparateConsentConfirmed ? 1 : 0,
+            now,
+          );
+          transaction.run(
+            `UPDATE media_likeness_subjects
+             SET consent_status = 'active', version = version + 1, updated_at = ?
+             WHERE id = ?`,
+            now,
+            current.id,
+          );
+          return likenessSubject(
+            transaction.get<LikenessSubjectRow>(
+              "SELECT * FROM media_likeness_subjects WHERE id = ?",
+              current.id,
+            )!,
+          );
+        });
+        return requestContext.json(value);
+      },
+    ),
+    route(
+      {
+        id: "media:likeness-subjects-attach-photo",
+        pluginId: "media",
+        method: "post",
+        path: "/api/v2/likeness-subjects/{id}/photos",
+        operationId: "likenessSubjects.attachPhoto",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/likeness-subjects/{id}/photos",
+        operationId: "likenessSubjects.attachPhoto",
+        params: subjectParams,
+        body: LikenessPhotoAttachInputSchema,
+        response: LikenessPhotoSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        const input = LikenessPhotoAttachInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        const current = subject(requestContext.req.param("id"));
+        if (!current || !input.success)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到照片人物。");
+        if (!host)
+          return problem(
+            requestContext,
+            409,
+            "CAPABILITY_UNAVAILABLE",
+            "当前运行模式没有可用的 Desktop Host 媒体库。",
+          );
+        let managed;
+        try {
+          managed = await host.importPortraitMedia(input.data.grantId);
+        } catch {
+          return problem(
+            requestContext,
+            400,
+            "INVALID_PORTRAIT_MEDIA",
+            "照片格式、大小、尺寸或短期文件授权不符合安全要求。",
+          );
+        }
+        const now = new Date().toISOString();
+        const value = context.uow.execute((transaction) => {
+          const id = crypto.randomUUID();
+          transaction.run(
+            `INSERT INTO media_likeness_photos(
+              id, subject_id, media_ref, sha256, mime_type, width, height,
+              size, status, created_at, removed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NULL)`,
+            id,
+            current.id,
+            managed.mediaRef,
+            managed.sha256,
+            managed.mimeType,
+            managed.width,
+            managed.height,
+            managed.size,
+            now,
+          );
+          return likenessPhoto(
+            transaction.get<LikenessPhotoRow>(
+              "SELECT * FROM media_likeness_photos WHERE id = ?",
+              id,
+            )!,
+          );
+        });
+        return requestContext.json(value, 201);
+      },
+    ),
+    route(
+      {
+        id: "media:likeness-reference-preflight",
+        pluginId: "media",
+        method: "post",
+        path: "/api/v2/projects/{projectId}/likeness-reference-preflight",
+        operationId: "likenessSubjects.referencePreflight",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/projects/{projectId}/likeness-reference-preflight",
+        operationId: "likenessSubjects.referencePreflight",
+        params: projectParams,
+        body: LikenessReferencePreflightInputSchema,
+        response: LikenessReferencePreflightSchema,
+      }),
+      async (requestContext) => {
+        const input = LikenessReferencePreflightInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        const projectId = requestContext.req.param("projectId");
+        if (!input.success || !workspace.get(projectId))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "肖像预检参数无效。",
+          );
+        const ownership = context.uow.execute((transaction) =>
+          input.data.subjectIds.every(
+            (id) =>
+              transaction.get<{ project_id: string }>(
+                "SELECT project_id FROM media_likeness_subjects WHERE id = ?",
+                id,
+              )?.project_id === projectId,
+          ),
+        );
+        if (!ownership)
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "照片人物不属于当前项目。",
+          );
+        return requestContext.json(
+          likenessPreflight(context, input.data.subjectIds),
+        );
+      },
+    ),
+    route(
+      {
+        id: "media:likeness-subjects-revoke",
+        pluginId: "media",
+        method: "post",
+        path: "/api/v2/likeness-subjects/{id}/revoke",
+        operationId: "likenessSubjects.revoke",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/likeness-subjects/{id}/revoke",
+        operationId: "likenessSubjects.revoke",
+        params: subjectParams,
+        response: LikenessSubjectSchema,
+      }),
+      async (requestContext) => {
+        const current = subject(requestContext.req.param("id"));
+        if (!current)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到照片人物。");
+        const photos = context.uow.execute((transaction) =>
+          transaction.all<LikenessPhotoRow>(
+            "SELECT * FROM media_likeness_photos WHERE subject_id = ? AND status = 'active'",
+            current.id,
+          ),
+        );
+        const now = new Date().toISOString();
+        const value = context.uow.execute((transaction) => {
+          transaction.run(
+            "UPDATE media_likeness_consents SET revoked_at = ? WHERE subject_id = ? AND revoked_at IS NULL",
+            now,
+            current.id,
+          );
+          transaction.run(
+            `UPDATE media_likeness_subjects
+             SET consent_status = 'revoked', version = version + 1, updated_at = ?
+             WHERE id = ?`,
+            now,
+            current.id,
+          );
+          transaction.run(
+            "UPDATE media_likeness_photos SET status = 'removed', removed_at = ? WHERE subject_id = ? AND status = 'active'",
+            now,
+            current.id,
+          );
+          const updated = likenessSubject(
+            transaction.get<LikenessSubjectRow>(
+              "SELECT * FROM media_likeness_subjects WHERE id = ?",
+              current.id,
+            )!,
+          );
+          transaction.append({
+            type: "media.likeness-consent-revoked.v1",
+            pluginId: "media",
+            aggregateType: "likeness-subject",
+            aggregateId: updated.id,
+            aggregateVersion: updated.version,
+            payload: { subjectId: updated.id, status: "revoked" },
+          });
+          return updated;
+        });
+        if (host)
+          await Promise.all(
+            photos.map((photo) => host.removeManagedMedia(photo.media_ref)),
+          );
+        return requestContext.json(value);
+      },
+    ),
+  ];
 }
 
 function assetCenterRoutes(
@@ -1552,7 +2058,7 @@ function providerFor(
   id: string,
 ): ConfiguredProvider | undefined {
   return context.services
-    .get<ConfiguredProviderService>(CONFIGURED_PROVIDER_SERVICE)
+    .optional<ConfiguredProviderService>(CONFIGURED_PROVIDER_SERVICE)
     ?.get(id);
 }
 
@@ -1669,7 +2175,7 @@ function recordGeneration(
   input: Parameters<InsightsGenerationService["record"]>[0],
 ): void {
   context.services
-    .get<InsightsGenerationService>(INSIGHTS_GENERATION_SERVICE)
+    .optional<InsightsGenerationService>(INSIGHTS_GENERATION_SERVICE)
     ?.record(input);
 }
 
@@ -1682,6 +2188,26 @@ async function runImageGeneration(input: {
 }) {
   const provider = providerFor(input.context, input.value.providerId);
   if (!provider?.baseUrl) throw new Error("图片服务商配置不完整。");
+  const referenceMedia = input.value.referenceSubjectIds
+    ? likenessPreflight(input.context, input.value.referenceSubjectIds)
+    : undefined;
+  if (
+    input.value.referenceSubjectIds &&
+    !input.value.portraitPreflightConfirmed
+  )
+    throw new Error("肖像参考图生成需要先完成并确认预检。");
+  if (referenceMedia && !referenceMedia.ok)
+    throw new Error(
+      `肖像参考图生成被阻止：${referenceMedia.blockers.join("；")}`,
+    );
+  if (
+    referenceMedia &&
+    provider.serviceType !== "image-reference" &&
+    provider.protocol !== "image-reference"
+  )
+    throw new Error(
+      "CAPABILITY_UNAVAILABLE：所选图片服务商未声明支持参考图，不能降级为无参考图生成。",
+    );
   const task = input.tasks.start({
     kind: "image-generation",
     title: "图片候选生成",
@@ -1705,6 +2231,7 @@ async function runImageGeneration(input: {
       },
       accept: "json",
       maximumBytes: 48 * 1024 * 1024,
+      ...(referenceMedia ? { mediaRefs: referenceMedia.mediaRefs } : {}),
     });
     const outputs = imageOutputs(upstream(response));
     if (!outputs.length) throw new Error("服务商未返回可归档的图片候选。");
@@ -2853,6 +3380,59 @@ const mediaMigrations = [
       );
     `,
   },
+  {
+    id: "media.0004.personal-theater-likeness",
+    pluginId: "media",
+    version: "3.0.0-alpha.3",
+    dependsOn: [
+      "media.0003.provider-generation",
+      "workspace.0005.project-modes",
+    ],
+    sql: `
+      CREATE TABLE IF NOT EXISTS media_likeness_subjects (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        display_name TEXT NOT NULL,
+        relationship TEXT NOT NULL CHECK(relationship IN ('self', 'adult_relative_or_friend', 'minor')),
+        age_band TEXT NOT NULL CHECK(age_band IN ('adult', 'minor_14_to_17', 'under_14')),
+        consent_status TEXT NOT NULL CHECK(consent_status IN ('missing', 'active', 'revoked', 'expired')),
+        content_restrictions TEXT,
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS media_likeness_subjects_project
+        ON media_likeness_subjects(project_id, created_at, id);
+      CREATE TABLE IF NOT EXISTS media_likeness_consents (
+        id TEXT PRIMARY KEY,
+        subject_id TEXT NOT NULL REFERENCES media_likeness_subjects(id) ON DELETE CASCADE,
+        purpose_scopes_json TEXT NOT NULL,
+        valid_until TEXT NOT NULL,
+        participant_confirmed INTEGER NOT NULL,
+        guardian_confirmed INTEGER NOT NULL DEFAULT 0,
+        under14_confirmed INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS media_likeness_consents_subject
+        ON media_likeness_consents(subject_id, created_at DESC, id);
+      CREATE TABLE IF NOT EXISTS media_likeness_photos (
+        id TEXT PRIMARY KEY,
+        subject_id TEXT NOT NULL REFERENCES media_likeness_subjects(id) ON DELETE CASCADE,
+        media_ref TEXT NOT NULL UNIQUE,
+        sha256 TEXT NOT NULL,
+        mime_type TEXT NOT NULL CHECK(mime_type = 'image/png'),
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        size INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('active', 'removed')),
+        created_at TEXT NOT NULL,
+        removed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS media_likeness_photos_subject
+        ON media_likeness_photos(subject_id, status, created_at, id);
+    `,
+  },
 ] as const;
 
 export function createMediaPlugin(host?: DesktopHostClient) {
@@ -2887,15 +3467,15 @@ export function createMediaPlugin(host?: DesktopHostClient) {
     ],
     migrations: mediaMigrations,
     activate: (context) => {
-      const workspace = context.services.get<WorkspaceProjectService>(
+      const workspace = context.services.optional<WorkspaceProjectService>(
         WORKSPACE_PROJECT_SERVICE,
       );
-      const production = context.services.get<ProductionRecordService>(
+      const production = context.services.optional<ProductionRecordService>(
         PRODUCTION_RECORD_SERVICE,
       );
       if (!workspace || !production)
         throw new Error("media requires workspace and production services");
-      const tasks = context.services.get<AutomationTaskService>(
+      const tasks = context.services.optional<AutomationTaskService>(
         AUTOMATION_TASK_SERVICE,
       );
       if (!tasks) throw new Error("media requires automation task service");
@@ -2960,9 +3540,31 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return true;
           }),
       };
-      context.effect(
+      context.effect(`service:${MEDIA_RECORD_SERVICE}`, () =>
         context.services.provide(MEDIA_RECORD_SERVICE, service),
-        `service:${MEDIA_RECORD_SERVICE}`,
+      );
+      const likeness: MediaLikenessService = {
+        getSubject: (id) =>
+          context.uow.execute((transaction) => {
+            const row = transaction.get<LikenessSubjectRow>(
+              "SELECT * FROM media_likeness_subjects WHERE id = ?",
+              id,
+            );
+            return row ? likenessSubject(row) : undefined;
+          }),
+        listSubjects: (projectId) =>
+          context.uow.execute((transaction) =>
+            transaction
+              .all<LikenessSubjectRow>(
+                "SELECT * FROM media_likeness_subjects WHERE project_id = ? ORDER BY created_at, id",
+                projectId,
+              )
+              .map(likenessSubject),
+          ),
+        preflight: (input) => likenessPreflight(context, input.subjectIds),
+      };
+      context.effect(`service:${MEDIA_LIKENESS_SERVICE}`, () =>
+        context.services.provide(MEDIA_LIKENESS_SERVICE, likeness),
       );
       const audioTracks: MediaAudioTrackService = {
         list: (episodeId) =>
@@ -3006,9 +3608,8 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return value;
           }),
       };
-      context.effect(
+      context.effect(`service:${MEDIA_AUDIO_TRACK_SERVICE}`, () =>
         context.services.provide(MEDIA_AUDIO_TRACK_SERVICE, audioTracks),
-        `service:${MEDIA_AUDIO_TRACK_SERVICE}`,
       );
       if (host) {
         const executor: ProviderActionExecutorService = {
@@ -3080,13 +3681,13 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return { taskId: accepted.id };
           },
         };
-        context.effect(
+        context.effect(`service:${PROVIDER_ACTION_EXECUTOR_SERVICE}`, () =>
           context.services.provide(PROVIDER_ACTION_EXECUTOR_SERVICE, executor),
-          `service:${PROVIDER_ACTION_EXECUTOR_SERVICE}`,
         );
       }
       for (const contribution of [
         ...resourceRoutes(workspace, service),
+        ...likenessRoutes(context, workspace, host),
         ...assetCenterRoutes(service, production),
         ...visualActionRoutes(service),
         ...audioTrackRoutes(workspace, production, audioTracks),
@@ -3099,9 +3700,8 @@ export function createMediaPlugin(host?: DesktopHostClient) {
         ),
         ...generationRoutes(context, host, production, service, tasks),
       ])
-        context.effect(
+        context.effect(`route:${contribution.id}`, () =>
           context.http.register(contribution),
-          `route:${contribution.id}`,
         );
     },
   });

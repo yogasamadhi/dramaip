@@ -69,24 +69,40 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   await expect(
     page.getByText("Grok Build", { exact: true }).first(),
   ).toBeVisible();
+  await expect(
+    page.getByText("LangGraph.js", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("测试版", { exact: true })).toHaveCount(0);
   await expect(
     page.getByLabel("智能引擎状态").locator("article > div > p"),
-  ).toHaveText(["Pi", "Codex", "Grok Build"]);
+  ).toHaveText(["Pi", "Codex", "Grok Build", "LangGraph.js"]);
   await expect(page.getByLabel("全局默认引擎").locator("option")).toHaveText([
     "Pi",
     "Codex",
     "Grok Build",
+    "LangGraph.js",
   ]);
 });
 
-test("Renderer 只暴露不可调用的 Runtime bootstrap", async () => {
+test("Renderer 只暴露一次性 Runtime bootstrap resolver", async () => {
   const keys = await page.evaluate(() =>
     Object.keys(window.runtimeBootstrap).sort(),
   );
-  expect(keys).toEqual(
-    ["accessToken", "apiVersion", "appVersion", "baseUrl"].sort(),
+  expect(keys).toEqual(["resolve"]);
+});
+
+test("Core Runtime 使用 Electron 内嵌 Node", async () => {
+  const bootstrap = await page.evaluate(() =>
+    window.runtimeBootstrap.resolve(),
   );
+  const response = await fetch(`${bootstrap.baseUrl}/api/v2/runtime`, {
+    headers: { Authorization: `Bearer ${bootstrap.accessToken}` },
+  });
+  expect(response.ok).toBe(true);
+  await expect(response.json()).resolves.toMatchObject({
+    runtimeKind: "electron-node",
+    mode: "desktop",
+  });
 });
 
 test("主题跟随系统并持久化手动选择", async () => {
@@ -139,6 +155,7 @@ test("智能助手只在用户打开弹窗后显示", async () => {
     /Pi/,
     /Codex/,
     /Grok Build/,
+    /LangGraph\.js/,
   ]);
   await expect(
     dialog.getByRole("textbox", { name: "给 AI 办事助手发消息" }),
@@ -252,7 +269,7 @@ test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", as
   await expect(page.getByLabel("项目辅助区")).toHaveCount(0);
 });
 
-test("模型服务商置顶并提供常用厂商与模型级联选择", async () => {
+test("模型服务商置顶、模型级联并通过独立安全窗口采集密钥", async () => {
   await page.getByRole("button", { name: "更多", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置", exact: true }).click();
   const providerHeading = page.getByText("模型服务商", { exact: true }).first();
@@ -276,6 +293,12 @@ test("模型服务商置顶并提供常用厂商与模型级联选择", async ()
   await expect(modelSelect).toHaveValue("claude-opus-5");
   await expect(
     page.getByRole("textbox", { name: "接口密钥（API Key）", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "保存时在独立安全窗口输入密钥",
+      exact: true,
+    }),
   ).toBeVisible();
 
   await providerSelect.selectOption("other");
@@ -291,10 +314,19 @@ test("模型服务商置顶并提供常用厂商与模型级联选择", async ()
 
   await providerSelect.selectOption("deepseek");
   await modelSelect.selectOption("deepseek-v4-flash");
-  await page
-    .getByRole("textbox", { name: "接口密钥（API Key）", exact: true })
-    .fill("仅用于端到端测试的临时密钥");
+  const captureWindowPromise = application.waitForEvent("window");
   await page.getByRole("button", { name: "添加模型服务商" }).click();
+  const captureWindow = await captureWindowPromise;
+  await captureWindow.waitForLoadState("domcontentloaded");
+  await captureWindow
+    .getByRole("textbox", { name: "安全凭据", exact: true })
+    .fill("仅用于端到端测试的临时密钥");
+  await Promise.all([
+    captureWindow.waitForEvent("close"),
+    captureWindow
+      .getByRole("button", { name: "安全保存", exact: true })
+      .click(),
+  ]);
   await expect(
     page.getByText("已保存 DeepSeek", { exact: false }),
   ).toBeVisible();
@@ -314,8 +346,11 @@ test("模型服务商置顶并提供常用厂商与模型级联选择", async ()
   await expect(providerSelect).toBeFocused();
   await expect(modelSelect).toHaveValue("deepseek-v4-flash");
   await expect(
-    page.getByRole("textbox", { name: "接口密钥（API Key）", exact: true }),
-  ).toHaveAttribute("placeholder", "留空表示继续使用已保存密钥");
+    page.getByRole("button", {
+      name: "继续使用已保存密钥（点击以更换）",
+      exact: true,
+    }),
+  ).toBeVisible();
   await modelSelect.selectOption("deepseek-v4-pro");
   await page
     .getByRole("button", { name: "保存服务商修改", exact: true })

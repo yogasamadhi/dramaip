@@ -1,6 +1,6 @@
 # Desktop 3.0 alpha.3 功能迁移账本
 
-产品行为基线固定为只读的 `legacy/desktop`，技术实现以根目录 `docs/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md` 为准。正式代码不得导入、运行或打包归档模块。
+产品行为基线固定为只读的 `legacy/desktop`，技术实现以根目录 `docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md` 为准。正式代码不得导入、运行或打包归档模块。
 
 机器可执行的权威账本是：
 
@@ -18,11 +18,11 @@
 | 被新 Agent Run 接口替代      |    1 |
 | 按架构明确退役               |    5 |
 | `not_migrated`               |    0 |
-| Effective Graph OpenAPI 操作 |  443 |
-| 唯一 operationId             |  443 |
-| 唯一 method/path             |  443 |
+| Effective Graph OpenAPI 操作 |  444 |
+| 唯一 operationId             |  444 |
+| 唯一 method/path             |  444 |
 
-退役项仅包括旧五个 `/{domain}` 通用 CRUD 操作；对应产品行为已经由各 bounded-context 插件的类型化 Route Contribution 承担。OpenCode、DeepSeek Harness、LangGraph、`/api/v1` 和旧数据库自动导入不属于需要恢复的产品能力。
+退役项仅包括旧五个 `/{domain}` 通用 CRUD 操作；对应产品行为已经由各 bounded-context 插件的类型化 Route Contribution 承担。OpenCode、DeepSeek Harness、`/api/v1` 和旧数据库自动导入不属于需要恢复的产品能力。LangGraph.js 已作为第四个 external-benchmark Engine 恢复，但不是 Core Runtime workflow runtime。
 
 固定 owner 为 `foundation/system`、`workspace`、`automation`、`writing`、`knowledge`、`agents`、`creative-quality`、`production`、`media`、`timeline`、`review`、`delivery`、`insights`。每个完成项必须同时具备唯一 owner、Contract、实际路由、插件 migration、事务事件、生成 Client、UI Contribution 和自动化证据。
 

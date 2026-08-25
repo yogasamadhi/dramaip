@@ -1,10 +1,11 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import {
   DRAMAIP_HTTP_API_VERSION,
   DRAMAIP_PLUGIN_API_VERSION,
+  type EventStreamEnvelope,
   type ProblemDetails,
   type RuntimeInfo,
 } from "@dramaip/contracts";
@@ -17,6 +18,41 @@ import type {
 
 interface RuntimeVariables {
   requestId: string;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const SENSITIVE_DIAGNOSTIC_KEY =
+  /(?:authorization|password|secret|token|credential|api.?key|prompt|(?:^|_)path$|Path$)/iu;
+const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u;
+
+/** Recursively makes diagnostics safe to cross the Runtime HTTP boundary. */
+export function redactDiagnostics(
+  value: unknown,
+  key = "",
+  depth = 0,
+): unknown {
+  if (SENSITIVE_DIAGNOSTIC_KEY.test(key)) return "[REDACTED]";
+  if (depth > 20) return "[MAX_DEPTH]";
+  if (typeof value === "string") {
+    if (ABSOLUTE_PATH.test(value)) return "[REDACTED_PATH]";
+    return value
+      .replace(/Bearer\s+[A-Za-z0-9._~-]+/giu, "Bearer [REDACTED]")
+      .replace(
+        /((?:accessToken|apiKey|credential|secret|password))\s*[:=]\s*[^\s,}]+/giu,
+        "$1=[REDACTED]",
+      );
+  }
+  if (Array.isArray(value))
+    return value.map((entry) => redactDiagnostics(entry, key, depth + 1));
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => [
+        entryKey,
+        redactDiagnostics(entryValue, entryKey, depth + 1),
+      ]),
+    );
+  return value;
 }
 
 export class HttpProblem extends Error {
@@ -76,6 +112,11 @@ export interface RuntimeHttpOptions {
    * accepted only by the private read-only MCP boundary, never by /api/v2.
    */
   capabilityGrantAuthorized?(authorization: string | undefined): boolean;
+  extensionCapabilityHandler?(
+    authorization: string | undefined,
+    call: unknown,
+    traceId: string,
+  ): Promise<unknown>;
   events: EventRuntime;
   version: string;
   runtimeInfo(): RuntimeInfo | Promise<RuntimeInfo>;
@@ -90,30 +131,191 @@ export interface RuntimeHttp {
 
 export class RuntimeRouteRegistry implements HttpRouteRegistry {
   private readonly contributions = new Map<string, RouteContribution>();
-
-  constructor(readonly app: OpenAPIHono<{ Variables: RuntimeVariables }>) {}
+  private readonly idempotentResponses = new Map<
+    string,
+    { bodyHash: string; response: Response; storedAt: number }
+  >();
+  private active = {
+    router: new OpenAPIHono(),
+    revision: 0,
+    inFlight: 0,
+    contributions: [] as readonly RouteContribution[],
+  };
+  private readonly draining = new Set<typeof this.active>();
+  private published = false;
 
   register(contribution: RouteContribution): Cleanup {
     if (this.contributions.has(contribution.id))
       throw new Error(`duplicate HTTP route contribution: ${contribution.id}`);
-    if (contribution.method && contribution.path && contribution.operationId)
-      this.app.openAPIRegistry.registerPath({
-        method: contribution.method,
-        path: contribution.path,
-        operationId: contribution.operationId,
-        tags: [contribution.pluginId],
-        responses: {
-          200: {
-            description:
-              "Response schema is declared by the owning first-party contribution",
-          },
-        },
-      });
-    contribution.install(this.app);
+    if (!contribution.method || !contribution.path || !contribution.operationId)
+      throw new Error(
+        `HTTP contribution is not declarative: ${contribution.id}`,
+      );
+    if (
+      !contribution.declaration ||
+      !contribution.handler ||
+      !contribution.policy
+    )
+      throw new Error(`HTTP contribution is incomplete: ${contribution.id}`);
     this.contributions.set(contribution.id, contribution);
+    if (this.published) this.rebuild();
     return () => {
       this.contributions.delete(contribution.id);
+      if (this.published) this.rebuild();
     };
+  }
+
+  publish(): void {
+    this.published = true;
+    this.rebuild();
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const snapshot = this.active;
+    snapshot.inFlight += 1;
+    try {
+      const contribution = snapshot.contributions.find((candidate) =>
+        routeMatches(candidate, request),
+      );
+      if (!contribution) return await snapshot.router.fetch(request);
+      const policyFailure = routePolicyFailure(contribution, request);
+      if (policyFailure) return policyFailure;
+      const contentLength = Number(
+        request.headers.get("Content-Length") ?? "0",
+      );
+      if (
+        Number.isFinite(contentLength) &&
+        contentLength > contribution.policy.bodyLimitBytes
+      )
+        return routePolicyProblem(
+          413,
+          "BODY_TOO_LARGE",
+          "Request body is too large",
+        );
+      let bodyHash = "";
+      const idempotencyKey = request.headers.get("Idempotency-Key");
+      const idempotencyCacheKey = idempotencyKey
+        ? `${contribution.operationId}:${idempotencyKey}`
+        : undefined;
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        const bytes = new Uint8Array(await request.clone().arrayBuffer());
+        if (bytes.byteLength > contribution.policy.bodyLimitBytes)
+          return routePolicyProblem(
+            413,
+            "BODY_TOO_LARGE",
+            "Request body is too large",
+          );
+        bodyHash = createHash("sha256").update(bytes).digest("hex");
+      }
+      if (idempotencyCacheKey) {
+        const cached = this.idempotentResponses.get(idempotencyCacheKey);
+        if (cached) {
+          if (cached.bodyHash !== bodyHash)
+            return routePolicyProblem(
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "Idempotency-Key was reused with a different request",
+            );
+          return cached.response.clone();
+        }
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(new Error("Route timed out")),
+        contribution.policy.timeoutMs,
+      );
+      timeout.unref?.();
+      let response: Response;
+      try {
+        response = await Promise.race([
+          snapshot.router.fetch(
+            new Request(request, { signal: controller.signal }),
+          ),
+          new Promise<Response>((resolve) => {
+            controller.signal.addEventListener(
+              "abort",
+              () =>
+                resolve(
+                  routePolicyProblem(
+                    504,
+                    "ROUTE_TIMEOUT",
+                    "Route execution timed out",
+                  ),
+                ),
+              { once: true },
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (idempotencyCacheKey && response.status < 500) {
+        this.idempotentResponses.set(idempotencyCacheKey, {
+          bodyHash,
+          response: response.clone(),
+          storedAt: Date.now(),
+        });
+        this.trimIdempotencyCache();
+      }
+      return response;
+    } finally {
+      snapshot.inFlight -= 1;
+      if (snapshot.inFlight === 0) this.draining.delete(snapshot);
+    }
+  }
+
+  document(version: string): ReturnType<OpenAPIHono["getOpenAPI31Document"]> {
+    return this.active.router.getOpenAPI31Document({
+      openapi: "3.1.0",
+      info: { title: "DramaIP Runtime Plugin API", version },
+    });
+  }
+
+  diagnostics(): {
+    activeRevision: number;
+    activeInFlight: number;
+    draining: readonly { revision: number; inFlight: number }[];
+  } {
+    return {
+      activeRevision: this.active.revision,
+      activeInFlight: this.active.inFlight,
+      draining: [...this.draining].map((entry) => ({
+        revision: entry.revision,
+        inFlight: entry.inFlight,
+      })),
+    };
+  }
+
+  private rebuild(): void {
+    const router = new OpenAPIHono();
+    for (const contribution of this.contributions.values()) {
+      const register = router.openapi as unknown as (
+        declaration: unknown,
+        handler: (...args: never[]) => unknown,
+      ) => void;
+      register.call(router, contribution.declaration, contribution.handler);
+    }
+    const previous = this.active;
+    this.active = {
+      router,
+      revision: previous.revision + 1,
+      inFlight: 0,
+      contributions: [...this.contributions.values()],
+    };
+    if (previous.inFlight > 0) {
+      this.draining.add(previous);
+      setTimeout(() => this.draining.delete(previous), 30_000).unref?.();
+    }
+  }
+
+  private trimIdempotencyCache(): void {
+    const cutoff = Date.now() - 24 * 60 * 60_000;
+    for (const [key, entry] of this.idempotentResponses)
+      if (entry.storedAt < cutoff) this.idempotentResponses.delete(key);
+    while (this.idempotentResponses.size > 1_000)
+      this.idempotentResponses.delete(
+        this.idempotentResponses.keys().next().value!,
+      );
   }
 
   get routeIds(): readonly string[] {
@@ -124,11 +326,79 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
     return [...this.contributions.values()];
   }
 
-  get routeDetails(): readonly Omit<RouteContribution, "install">[] {
+  get routeDetails(): readonly Omit<
+    RouteContribution,
+    "declaration" | "handler"
+  >[] {
     return [...this.contributions.values()].map(
-      ({ install: _install, ...metadata }) => metadata,
+      ({ declaration: _declaration, handler: _handler, ...metadata }) =>
+        metadata,
     );
   }
+}
+
+function routePattern(path: string): RegExp {
+  const source = path
+    .split("/")
+    .map((segment) =>
+      /^\{[^}]+\}$/u.test(segment)
+        ? "[^/]+"
+        : segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"),
+    )
+    .join("/");
+  return new RegExp(`^${source}/?$`, "u");
+}
+
+function routeMatches(
+  contribution: RouteContribution,
+  request: Request,
+): boolean {
+  return (
+    contribution.method.toUpperCase() === request.method.toUpperCase() &&
+    routePattern(contribution.path).test(new URL(request.url).pathname)
+  );
+}
+
+function routePolicyProblem(
+  status: number,
+  code: string,
+  title: string,
+): Response {
+  return Response.json(
+    {
+      type: `https://dramaip.local/problems/${code.toLowerCase()}`,
+      title,
+      status,
+      code,
+      traceId: randomUUID(),
+    },
+    { status, headers: { "Content-Type": "application/problem+json" } },
+  );
+}
+
+function routePolicyFailure(
+  contribution: RouteContribution,
+  request: Request,
+): Response | undefined {
+  const idempotency = request.headers.get("Idempotency-Key");
+  if (contribution.policy.idempotency === "required" && !idempotency)
+    return routePolicyProblem(
+      428,
+      "IDEMPOTENCY_KEY_REQUIRED",
+      "Idempotency-Key is required",
+    );
+  if (contribution.policy.idempotency === "forbidden" && idempotency)
+    return routePolicyProblem(
+      400,
+      "IDEMPOTENCY_KEY_FORBIDDEN",
+      "Idempotency-Key is not allowed",
+    );
+  if (
+    contribution.policy.concurrency === "if-match-required" &&
+    !request.headers.has("If-Match")
+  )
+    return routePolicyProblem(428, "IF_MATCH_REQUIRED", "If-Match is required");
+  return undefined;
 }
 
 const healthRoute = createRoute({
@@ -227,16 +497,24 @@ const eventsRoute = createRoute({
 
 export function createRuntimeHttp(options: RuntimeHttpOptions): RuntimeHttp {
   const app = new OpenAPIHono<{ Variables: RuntimeVariables }>();
-  const registry = new RuntimeRouteRegistry(app);
+  const registry = new RuntimeRouteRegistry();
   const engineMcpAuthorized = (authorization: string | undefined) =>
     (options.engineMcpTokens ?? []).some((token) =>
       constantTimeMatches(authorization, `Bearer ${token}`),
     ) || options.capabilityGrantAuthorized?.(authorization) === true;
   // Deliberately the only unauthenticated endpoint: it cannot disclose profile,
   // paths, plugins, versions or tokens and is used for connection discovery.
-  app.get("/health", (context) =>
-    context.json({ healthy: true, apiVersion: DRAMAIP_HTTP_API_VERSION }),
-  );
+  app.get("/health", (context) => {
+    const origin = context.req.header("Origin");
+    if (origin && options.allowedOrigins.includes(origin)) {
+      context.header("Access-Control-Allow-Origin", origin);
+      context.header("Vary", "Origin");
+    }
+    return context.json({
+      healthy: true,
+      apiVersion: DRAMAIP_HTTP_API_VERSION,
+    });
+  });
   app.get("/engine/v1/mcp", (context) => {
     if (!engineMcpAuthorized(context.req.header("Authorization")))
       return context.json(
@@ -311,7 +589,35 @@ export function createRuntimeHttp(options: RuntimeHttpOptions): RuntimeHttp {
       },
     });
   });
+  app.post("/extensions/v1/capabilities", async (context) => {
+    if (!options.extensionCapabilityHandler)
+      return context.json({ code: "EXTENSIONS_UNAVAILABLE" }, 503);
+    const traceId = randomUUID();
+    try {
+      const result = await options.extensionCapabilityHandler(
+        context.req.header("Authorization"),
+        await context.req.json().catch(() => undefined),
+        traceId,
+      );
+      return context.json(result ?? null);
+    } catch (error) {
+      return context.json(
+        {
+          code: "EXTENSION_CAPABILITY_REJECTED",
+          title: error instanceof Error ? error.message : "Capability rejected",
+          traceId,
+        },
+        403,
+      );
+    }
+  });
   app.use("/api/v2/*", async (context, next) => {
+    const suppliedTraceId = context.req.header("X-Trace-Id");
+    const requestId =
+      suppliedTraceId && UUID_PATTERN.test(suppliedTraceId)
+        ? suppliedTraceId
+        : randomUUID();
+    context.set("requestId", requestId);
     if (context.req.method === "OPTIONS") return next();
     const origin = context.req.header("Origin");
     if (origin && !options.allowedOrigins.includes(origin))
@@ -319,11 +625,11 @@ export function createRuntimeHttp(options: RuntimeHttpOptions): RuntimeHttp {
     const authorization = context.req.header("Authorization");
     if (!constantTimeMatches(authorization, `Bearer ${options.accessToken}`))
       throw new HttpProblem(401, "UNAUTHORIZED", "Runtime token is invalid");
-    context.set("requestId", randomUUID());
     await next();
   });
   app.use("/api/v2/*", async (context, next) => {
     await next();
+    context.header("X-Trace-Id", context.get("requestId"));
     const origin = context.req.header("Origin");
     if (origin && options.allowedOrigins.includes(origin)) {
       context.header("Access-Control-Allow-Origin", origin);
@@ -337,7 +643,7 @@ export function createRuntimeHttp(options: RuntimeHttpOptions): RuntimeHttp {
       context.header("Vary", "Origin");
       context.header(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, Idempotency-Key, If-Match",
+        "Authorization, Content-Type, Idempotency-Key, If-Match, X-Trace-Id",
       );
       context.header(
         "Access-Control-Allow-Methods",
@@ -383,9 +689,12 @@ export function createRuntimeHttp(options: RuntimeHttpOptions): RuntimeHttp {
       (await options.runtimeInfo()) as unknown as Record<string, unknown>,
     ),
   );
-  app.openapi(diagnosticsRoute, async (context) =>
-    context.json(await options.onDiagnostics()),
-  );
+  app.openapi(diagnosticsRoute, async (context) => {
+    const diagnostic = redactDiagnostics(
+      await options.onDiagnostics(),
+    ) as Record<string, unknown>;
+    return context.json({ traceId: context.get("requestId"), ...diagnostic });
+  });
   app.openapi(eventsRoute, async (context) => {
     const query = context.req.valid("query");
     const headerCursor = Number(context.req.header("Last-Event-ID") ?? "0");
@@ -394,30 +703,117 @@ export function createRuntimeHttp(options: RuntimeHttpOptions): RuntimeHttp {
         ? headerCursor
         : (query.cursor ?? 0);
     return streamSSE(context, async (stream) => {
-      for (const event of options.events.replay(afterCursor))
-        await stream.writeSSE({
-          event: event.type,
-          id: String(event.cursor),
-          data: JSON.stringify(event),
-        });
-      await new Promise<void>((resolve) => {
-        const unsubscribe = options.events.subscribeLive((event) => {
-          void stream.writeSSE({
-            event: event.type,
-            id: event.id,
-            data: JSON.stringify(event),
-          });
-        });
-        stream.onAbort(() => {
-          void unsubscribe();
-          resolve();
-        });
+      const queued: EventStreamEnvelope[] = [];
+      let queuedBytes = 0;
+      let overflowed = false;
+      let aborted = false;
+      let wake: (() => void) | undefined;
+      const enqueue = (envelope: EventStreamEnvelope): void => {
+        if (aborted || overflowed) return;
+        const bytes = Buffer.byteLength(JSON.stringify(envelope), "utf8");
+        if (queued.length >= 1_000 || queuedBytes + bytes > 4 * 1024 * 1024) {
+          overflowed = true;
+          wake?.();
+          return;
+        }
+        queued.push(envelope);
+        queuedBytes += bytes;
+        wake?.();
+      };
+      const stopDomain = options.events.subscribeDomain((event) =>
+        enqueue({ kind: "domain", cursor: event.cursor, event }),
+      );
+      const stopRealtime = options.events.subscribeLive((event) =>
+        enqueue({ kind: "realtime", event }),
+      );
+      stream.onAbort(() => {
+        aborted = true;
+        wake?.();
       });
+      let lastDomainCursor = afterCursor;
+      try {
+        for (const event of options.events.replay(afterCursor)) {
+          lastDomainCursor = Math.max(lastDomainCursor, event.cursor);
+          await stream.writeSSE({
+            event: event.type,
+            id: String(event.cursor),
+            data: JSON.stringify({
+              kind: "domain",
+              cursor: event.cursor,
+              event,
+            } satisfies EventStreamEnvelope),
+          });
+        }
+        while (!aborted && !overflowed) {
+          const envelope = queued.shift();
+          if (envelope) {
+            queuedBytes -= Buffer.byteLength(JSON.stringify(envelope), "utf8");
+            if (
+              envelope.kind === "domain" &&
+              envelope.cursor <= lastDomainCursor
+            )
+              continue;
+            if (envelope.kind === "domain") lastDomainCursor = envelope.cursor;
+            await stream.writeSSE({
+              event: envelope.event.type,
+              ...(envelope.kind === "domain"
+                ? { id: String(envelope.cursor) }
+                : {}),
+              data: JSON.stringify(envelope),
+            });
+            continue;
+          }
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(() => {
+              wake = undefined;
+              resolve();
+            }, 15_000);
+            wake = () => {
+              clearTimeout(timer);
+              wake = undefined;
+              resolve();
+            };
+          });
+          if (!aborted && queued.length === 0)
+            await stream.write(": heartbeat\n\n");
+        }
+        if (overflowed)
+          await stream.writeSSE({
+            event: "system.stream-overflow",
+            data: JSON.stringify({
+              kind: "realtime",
+              event: {
+                id: randomUUID(),
+                type: "system.stream-overflow",
+                payload: { reconnect: true },
+                occurredAt: new Date().toISOString(),
+              },
+            } satisfies EventStreamEnvelope),
+          });
+      } finally {
+        await stopRealtime();
+        await stopDomain();
+      }
     });
   });
-  app.doc31("/api/v2/openapi.json", {
-    openapi: "3.1.0",
-    info: { title: "DramaIP Runtime API", version: options.version },
+  app.get("/api/v2/openapi.json", (context) => {
+    const core = app.getOpenAPI31Document({
+      openapi: "3.1.0",
+      info: { title: "DramaIP Runtime API", version: options.version },
+    });
+    const plugins = registry.document(options.version);
+    return context.json({
+      ...core,
+      paths: {
+        ...core.paths,
+        ...plugins.paths,
+      },
+      components: {
+        ...core.components,
+        ...plugins.components,
+      },
+    });
   });
+  app.all("/api/v2/*", (context) => registry.fetch(context.req.raw));
   return { app, registry, fetch: async (request) => app.fetch(request) };
 }

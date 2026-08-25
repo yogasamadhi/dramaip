@@ -7,11 +7,12 @@
     ".": "./src/main.tsx"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun --bun run tsc --noEmit"
   },
   "dependencies": {
     "@dramaip/client": "workspace:*",
     "@dramaip/contracts": "workspace:*",
+    "@dramaip/server-connection": "workspace:*",
     "@dramaip/ui-runtime": "workspace:*",
     "@dramaip/ui-shared": "workspace:*",
     "@tanstack/react-query": "catalog:",

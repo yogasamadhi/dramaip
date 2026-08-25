@@ -1,12 +1,16 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import type { AgentEngineKind } from "@dramaip/contracts";
+import type {
+  AgentEngineDescriptor,
+  AgentEngineKind,
+} from "@dramaip/contracts";
 import {
   AgentRuntimeError,
   type AgentRunRef,
   type AgentRuntime,
   type AgentRuntimeEvent,
+  type AgentRuntimeHealth,
   type AgentSessionInput,
   type AgentSessionRef,
 } from "@dramaip/agent-runtime";
@@ -36,6 +40,8 @@ export interface ProviderHttpRequest {
   accept?: "json" | "binary";
   maximumBytes?: number;
   timeoutMs?: number;
+  /** Opaque Host media references only; Runtime never receives source bytes. */
+  mediaRefs?: readonly string[];
 }
 
 export interface ProviderHttpResponse {
@@ -43,6 +49,19 @@ export interface ProviderHttpResponse {
   contentType: string;
   json?: unknown;
   base64?: string;
+}
+
+export interface PublicSearchResult {
+  title: string;
+  url: string;
+  excerpt?: string;
+  publishedAt?: string;
+}
+
+export interface PublicSearchResponse {
+  source: "duckduckgo" | "gdelt" | "wikimedia";
+  results: readonly PublicSearchResult[];
+  coverage: string;
 }
 
 export interface CodexAuthenticationProvider {
@@ -74,6 +93,59 @@ export interface CodexAuthenticationLoginResult {
   verificationUrl?: string;
   userCode?: string;
   message?: string;
+}
+
+export interface CredentialCaptureRequest {
+  purpose: string;
+  label?: string;
+  policyId?: string;
+  allowedOrigin?: string;
+}
+
+export interface CredentialCaptureResult {
+  captureSessionId: string;
+  status: "pending" | "completed" | "canceled" | "expired";
+  credentialRef?: string;
+  expiresAt: string;
+}
+
+export interface HostExtensionRegistryRequest {
+  url: string;
+  keyId: string;
+  rootPublicKey: string;
+}
+
+export interface HostExtensionPackageStageRequest {
+  packageUrl: string;
+  expectedSha256: string;
+  publisherPublicKey: string;
+}
+
+export interface HostExtensionPackageDescriptor {
+  packageRef: string;
+  contentHash: string;
+  manifest: Record<string, unknown>;
+}
+
+export interface HostExtensionActivationRequest {
+  pluginId: string;
+  packageRef: string;
+  publisherPublicKey: string;
+  capabilityEndpoint: string;
+  capabilityToken: string;
+  permissionRevision: number;
+}
+
+export interface HostExtensionInvocationRequest {
+  pluginId: string;
+  handlerId: string;
+  payload: unknown;
+}
+
+export interface HostExtensionNetworkRequest {
+  url: string;
+  method: "GET" | "POST";
+  body?: Record<string, unknown>;
 }
 
 /**
@@ -146,11 +218,11 @@ export class DesktopHostClient {
   }
 
   readGrantedText(
-    token: string,
+    grantId: string,
     maximumBytes = 16 * 1024 * 1024,
   ): Promise<{ name: string; content: string; size: number }> {
     return this.request(
-      `/host/v1/files/grants/${encodeURIComponent(token)}/text`,
+      `/host/v1/files/grants/${encodeURIComponent(grantId)}/text`,
       {
         method: "POST",
         body: JSON.stringify({ maximumBytes }),
@@ -158,10 +230,36 @@ export class DesktopHostClient {
     );
   }
 
+  importPortraitMedia(grantId: string): Promise<HostManagedMedia> {
+    return this.request("/host/v1/media-library/import", {
+      method: "POST",
+      body: JSON.stringify({ grantId }),
+    });
+  }
+
+  removeManagedMedia(mediaRef: string): Promise<void> {
+    return this.request(
+      `/host/v1/media-library/${encodeURIComponent(mediaRef)}`,
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
+  publicSearch(input: {
+    source: "duckduckgo" | "gdelt" | "wikimedia";
+    query: string;
+  }): Promise<PublicSearchResponse> {
+    return this.request("/host/v1/public-search", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   saveTextFile(input: {
     suggestedName: string;
     content: string;
-  }): Promise<{ saved: boolean }> {
+  }): Promise<{ saved: boolean; artifactRef?: string }> {
     return this.request("/host/v1/files/save-text", {
       method: "POST",
       body: JSON.stringify(input),
@@ -175,17 +273,17 @@ export class DesktopHostClient {
     });
   }
 
-  revealPath(path: string): Promise<void> {
-    return this.request("/host/v1/shell/reveal", {
+  revealGrant(grantId: string): Promise<void> {
+    return this.request("/host/v1/shell/reveal-grant", {
       method: "POST",
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ grantId }),
     });
   }
 
-  storeCredential(secret: string): Promise<{ credentialRef: string }> {
-    return this.request("/host/v1/credentials", {
+  revealArtifact(artifactRef: string): Promise<void> {
+    return this.request("/host/v1/shell/reveal-artifact", {
       method: "POST",
-      body: JSON.stringify({ secret }),
+      body: JSON.stringify({ artifactRef }),
     });
   }
 
@@ -202,6 +300,23 @@ export class DesktopHostClient {
     message?: string;
   }> {
     return this.request("/host/v1/credentials/status");
+  }
+
+  createCredentialCaptureSession(
+    input: CredentialCaptureRequest,
+  ): Promise<CredentialCaptureResult> {
+    return this.request("/host/v1/credentials/capture-sessions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  credentialCaptureStatus(
+    captureSessionId: string,
+  ): Promise<CredentialCaptureResult> {
+    return this.request(
+      `/host/v1/credentials/capture-sessions/${encodeURIComponent(captureSessionId)}`,
+    );
   }
 
   activateAgentProvider(
@@ -251,6 +366,67 @@ export class DesktopHostClient {
     });
   }
 
+  fetchExtensionRegistry(
+    input: HostExtensionRegistryRequest,
+  ): Promise<unknown> {
+    return this.request("/host/v1/extensions/registry", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  stageExtensionPackage(
+    input: HostExtensionPackageStageRequest,
+  ): Promise<HostExtensionPackageDescriptor> {
+    return this.request("/host/v1/extensions/packages", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  activateExtension(input: HostExtensionActivationRequest): Promise<void> {
+    return this.request("/host/v1/extensions/activate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  invokeExtension(input: HostExtensionInvocationRequest): Promise<unknown> {
+    return this.request("/host/v1/extensions/invoke", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  stopExtension(pluginId: string): Promise<void> {
+    return this.request(
+      `/host/v1/extensions/${encodeURIComponent(pluginId)}/stop`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  retryExtension(pluginId: string): Promise<void> {
+    return this.request(
+      `/host/v1/extensions/${encodeURIComponent(pluginId)}/retry`,
+      { method: "POST" },
+    );
+  }
+
+  extensionDiagnostics(): Promise<readonly Record<string, unknown>[]> {
+    return this.request("/host/v1/extensions/diagnostics");
+  }
+
+  extensionNetworkRequest(
+    input: HostExtensionNetworkRequest,
+  ): Promise<ProviderHttpResponse> {
+    return this.request("/host/v1/extensions/network", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   engineOperation(
     engine: AgentEngineKind,
     operation:
@@ -261,6 +437,7 @@ export class DesktopHostClient {
       | "steer"
       | "resume"
       | "fork"
+      | "recoverRun"
       | "destroy"
       | "health",
     payload: Record<string, unknown> = {},
@@ -331,22 +508,37 @@ export class DesktopHostClient {
 export interface HostCapabilityDescriptor {
   id:
     | "files"
+    | "media-library"
     | "credentials"
     | "window"
     | "shell"
     | "engines"
     | "agent-provider"
     | "provider-http"
+    | "public-search"
     | "codex-auth"
     | "notifications"
+    | "extensions"
     | "updater";
   available: boolean;
 }
 
 export interface HostFileGrant {
-  token: string;
-  name: string;
-  expiresAt: number;
+  grantId: string;
+  kind: "file" | "directory";
+  displayName: string;
+  expiresAt: string;
+  generation: number;
+}
+
+/** Opaque reference to a Host-owned, EXIF-stripped portrait derivative. */
+export interface HostManagedMedia {
+  mediaRef: string;
+  sha256: string;
+  mimeType: "image/png";
+  width: number;
+  height: number;
+  size: number;
 }
 
 export interface DesktopHostActions {
@@ -356,22 +548,34 @@ export interface DesktopHostActions {
   }): Promise<readonly HostFileGrant[] | null>;
   pickDirectory?(): Promise<HostFileGrant | null>;
   readGrantedText?(
-    token: string,
+    grantId: string,
     maximumBytes: number,
   ): Promise<{ name: string; content: string; size: number }>;
+  importPortraitMedia?(grantId: string): Promise<HostManagedMedia>;
+  removeManagedMedia?(mediaRef: string): Promise<void>;
+  publicSearch?(input: {
+    source: "duckduckgo" | "gdelt" | "wikimedia";
+    query: string;
+  }): Promise<PublicSearchResponse>;
   saveTextFile(input: {
     suggestedName: string;
     content: string;
-  }): Promise<{ saved: boolean }>;
+  }): Promise<{ saved: boolean; artifactRef?: string }>;
   openExternal(url: string): Promise<void>;
-  revealPath(path: string): Promise<void>;
-  storeCredential(secret: string): Promise<{ credentialRef: string }>;
+  revealGrant(grantId: string): Promise<void>;
+  revealArtifact(artifactRef: string): Promise<void>;
   removeCredential(credentialRef: string): Promise<void>;
   credentialStorageStatus(): Promise<{
     available: boolean;
     storage: "local_encrypted_file";
     message?: string;
   }>;
+  createCredentialCaptureSession?(
+    input: CredentialCaptureRequest,
+  ): Promise<CredentialCaptureResult>;
+  credentialCaptureStatus?(
+    captureSessionId: string,
+  ): Promise<CredentialCaptureResult | undefined>;
   activateAgentProvider?(
     input: AgentProviderActivationInput,
   ): Promise<AgentProviderActivationResult>;
@@ -396,6 +600,20 @@ export interface DesktopHostActions {
   notify?(input: { title: string; body?: string }): Promise<void>;
   focusWindow?(): Promise<void>;
   checkForUpdates?(): Promise<{ available: boolean }>;
+  fetchExtensionRegistry?(
+    input: HostExtensionRegistryRequest,
+  ): Promise<unknown>;
+  stageExtensionPackage?(
+    input: HostExtensionPackageStageRequest,
+  ): Promise<HostExtensionPackageDescriptor>;
+  activateExtension?(input: HostExtensionActivationRequest): Promise<void>;
+  invokeExtension?(input: HostExtensionInvocationRequest): Promise<unknown>;
+  stopExtension?(pluginId: string): Promise<void>;
+  retryExtension?(pluginId: string): Promise<void>;
+  extensionDiagnostics?(): Promise<readonly Record<string, unknown>[]>;
+  extensionNetworkRequest?(
+    input: HostExtensionNetworkRequest,
+  ): Promise<ProviderHttpResponse>;
 }
 
 export interface DesktopHostOptions {
@@ -406,7 +624,11 @@ export interface DesktopHostOptions {
 
 export interface DesktopHostServer {
   readonly accessToken: string;
-  start(options: { hostname: string; port: number }): { close(): void };
+  start(options: { hostname: string; port: number }): Promise<{
+    readonly hostname: string;
+    readonly port: number;
+    close(): void;
+  }>;
 }
 
 function isAuthorised(value: string | undefined, expected: string): boolean {
@@ -417,7 +639,7 @@ function isAuthorised(value: string | undefined, expected: string): boolean {
 }
 
 function engineKind(value: string): AgentEngineKind | undefined {
-  return ["pi", "codex", "grok"].includes(value)
+  return ["pi", "codex", "grok", "langgraph"].includes(value)
     ? (value as AgentEngineKind)
     : undefined;
 }
@@ -520,6 +742,9 @@ function providerHttpRequest(
     return undefined;
   const maximumBytes = Number(value.maximumBytes ?? 16 * 1024 * 1024);
   const timeoutMs = Number(value.timeoutMs ?? 90_000);
+  const mediaRefs = Array.isArray(value.mediaRefs)
+    ? value.mediaRefs
+    : undefined;
   if (
     !Number.isInteger(maximumBytes) ||
     maximumBytes < 1 ||
@@ -527,6 +752,18 @@ function providerHttpRequest(
     !Number.isInteger(timeoutMs) ||
     timeoutMs < 1_000 ||
     timeoutMs > 180_000
+  )
+    return undefined;
+  if (
+    mediaRefs &&
+    (mediaRefs.length > 12 ||
+      mediaRefs.some(
+        (reference) =>
+          typeof reference !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(
+            reference,
+          ),
+      ))
   )
     return undefined;
   return {
@@ -537,6 +774,7 @@ function providerHttpRequest(
     accept: value.accept === "binary" ? "binary" : "json",
     maximumBytes,
     timeoutMs,
+    ...(mediaRefs ? { mediaRefs } : {}),
   };
 }
 
@@ -619,7 +857,7 @@ export function createDesktopHost(
       return unavailable(context, "files.directory");
     return context.json(await options.actions.pickDirectory());
   });
-  app.post("/host/v1/files/grants/:token/text", async (context) => {
+  app.post("/host/v1/files/grants/:grantId/text", async (context) => {
     if (!options.actions.readGrantedText)
       return unavailable(context, "files.read");
     const body = readObject(await context.req.json());
@@ -632,9 +870,45 @@ export function createDesktopHost(
       return context.json({ code: "INVALID_FILE_LIMIT" }, 400);
     return context.json(
       await options.actions.readGrantedText(
-        context.req.param("token"),
+        context.req.param("grantId"),
         maximumBytes,
       ),
+    );
+  });
+  app.post("/host/v1/media-library/import", async (context) => {
+    if (!options.actions.importPortraitMedia)
+      return unavailable(context, "media-library.import");
+    const body = readObject(await context.req.json());
+    if (typeof body.grantId !== "string" || !body.grantId)
+      return context.json({ code: "INVALID_FILE_GRANT" }, 400);
+    return context.json(
+      await options.actions.importPortraitMedia(body.grantId),
+    );
+  });
+  app.delete("/host/v1/media-library/:mediaRef", async (context) => {
+    if (!options.actions.removeManagedMedia)
+      return unavailable(context, "media-library.remove");
+    const mediaRef = context.req.param("mediaRef");
+    if (!mediaRef) return context.json({ code: "INVALID_MEDIA_REF" }, 400);
+    await options.actions.removeManagedMedia(mediaRef);
+    return context.body(null, 204);
+  });
+  app.post("/host/v1/public-search", async (context) => {
+    if (!options.actions.publicSearch)
+      return unavailable(context, "public-search");
+    const body = readObject(await context.req.json());
+    if (
+      typeof body.query !== "string" ||
+      !body.query.trim() ||
+      body.query.length > 500 ||
+      !["duckduckgo", "gdelt", "wikimedia"].includes(String(body.source))
+    )
+      return context.json({ code: "INVALID_PUBLIC_SEARCH" }, 400);
+    return context.json(
+      await options.actions.publicSearch({
+        source: body.source as "duckduckgo" | "gdelt" | "wikimedia",
+        query: body.query.trim(),
+      }),
     );
   });
   app.post("/host/v1/files/save-text", async (context) => {
@@ -661,22 +935,63 @@ export function createDesktopHost(
     await options.actions.openExternal(parsed.toString());
     return context.body(null, 204);
   });
-  app.post("/host/v1/shell/reveal", async (context) => {
+  app.post("/host/v1/shell/reveal-grant", async (context) => {
     const body = readObject(await context.req.json());
-    if (typeof body.path !== "string" || !body.path)
-      return context.json({ code: "INVALID_REVEAL_PATH" }, 400);
-    await options.actions.revealPath(body.path);
+    if (typeof body.grantId !== "string" || !body.grantId)
+      return context.json({ code: "INVALID_FILE_GRANT" }, 400);
+    await options.actions.revealGrant(body.grantId);
+    return context.body(null, 204);
+  });
+  app.post("/host/v1/shell/reveal-artifact", async (context) => {
+    const body = readObject(await context.req.json());
+    if (typeof body.artifactRef !== "string" || !body.artifactRef)
+      return context.json({ code: "INVALID_ARTIFACT_REF" }, 400);
+    await options.actions.revealArtifact(body.artifactRef);
     return context.body(null, 204);
   });
   app.get("/host/v1/credentials/status", async (context) =>
     context.json(await options.actions.credentialStorageStatus()),
   );
-  app.post("/host/v1/credentials", async (context) => {
+  app.post("/host/v1/credentials/capture-sessions", async (context) => {
+    if (!options.actions.createCredentialCaptureSession)
+      return unavailable(context, "credentials.capture");
     const body = readObject(await context.req.json());
-    if (typeof body.secret !== "string" || !body.secret)
-      return context.json({ code: "INVALID_CREDENTIAL" }, 400);
-    return context.json(await options.actions.storeCredential(body.secret));
+    if (
+      typeof body.purpose !== "string" ||
+      !body.purpose.trim() ||
+      (typeof body.label !== "undefined" && typeof body.label !== "string") ||
+      (typeof body.policyId !== "undefined" &&
+        typeof body.policyId !== "string") ||
+      (typeof body.allowedOrigin !== "undefined" &&
+        typeof body.allowedOrigin !== "string")
+    )
+      return context.json({ code: "INVALID_CREDENTIAL_CAPTURE" }, 400);
+    return context.json(
+      await options.actions.createCredentialCaptureSession({
+        purpose: body.purpose,
+        ...(typeof body.label === "string" ? { label: body.label } : {}),
+        ...(typeof body.policyId === "string"
+          ? { policyId: body.policyId }
+          : {}),
+        ...(typeof body.allowedOrigin === "string"
+          ? { allowedOrigin: body.allowedOrigin }
+          : {}),
+      }),
+    );
   });
+  app.get(
+    "/host/v1/credentials/capture-sessions/:captureSessionId",
+    async (context) => {
+      if (!options.actions.credentialCaptureStatus)
+        return unavailable(context, "credentials.capture");
+      const result = await options.actions.credentialCaptureStatus(
+        context.req.param("captureSessionId"),
+      );
+      return result
+        ? context.json(result)
+        : context.json({ code: "CREDENTIAL_CAPTURE_NOT_FOUND" }, 404);
+    },
+  );
   app.delete("/host/v1/credentials/:credentialRef", async (context) => {
     await options.actions.removeCredential(context.req.param("credentialRef"));
     return context.body(null, 204);
@@ -738,6 +1053,113 @@ export function createDesktopHost(
       ...(typeof body.body === "string" ? { body: body.body } : {}),
     });
     return context.body(null, 204);
+  });
+  app.post("/host/v1/extensions/registry", async (context) => {
+    if (!options.actions.fetchExtensionRegistry)
+      return unavailable(context, "extensions.registry");
+    const input = readObject(await context.req.json().catch(() => ({})));
+    if (
+      typeof input.url !== "string" ||
+      typeof input.keyId !== "string" ||
+      typeof input.rootPublicKey !== "string"
+    )
+      return context.json({ code: "INVALID_EXTENSION_REGISTRY_REQUEST" }, 400);
+    return context.json(
+      await options.actions.fetchExtensionRegistry({
+        url: input.url,
+        keyId: input.keyId,
+        rootPublicKey: input.rootPublicKey,
+      }),
+    );
+  });
+  app.post("/host/v1/extensions/packages", async (context) => {
+    if (!options.actions.stageExtensionPackage)
+      return unavailable(context, "extensions.packages");
+    const input = readObject(await context.req.json().catch(() => ({})));
+    if (
+      typeof input.packageUrl !== "string" ||
+      typeof input.expectedSha256 !== "string" ||
+      typeof input.publisherPublicKey !== "string"
+    )
+      return context.json({ code: "INVALID_EXTENSION_PACKAGE_REQUEST" }, 400);
+    return context.json(
+      await options.actions.stageExtensionPackage({
+        packageUrl: input.packageUrl,
+        expectedSha256: input.expectedSha256,
+        publisherPublicKey: input.publisherPublicKey,
+      }),
+    );
+  });
+  app.post("/host/v1/extensions/activate", async (context) => {
+    if (!options.actions.activateExtension)
+      return unavailable(context, "extensions.activate");
+    const input = readObject(await context.req.json().catch(() => ({})));
+    if (
+      typeof input.pluginId !== "string" ||
+      typeof input.packageRef !== "string" ||
+      typeof input.publisherPublicKey !== "string" ||
+      typeof input.capabilityEndpoint !== "string" ||
+      typeof input.capabilityToken !== "string" ||
+      typeof input.permissionRevision !== "number"
+    )
+      return context.json({ code: "INVALID_EXTENSION_ACTIVATION" }, 400);
+    await options.actions.activateExtension(
+      input as unknown as HostExtensionActivationRequest,
+    );
+    return context.body(null, 204);
+  });
+  app.post("/host/v1/extensions/invoke", async (context) => {
+    if (!options.actions.invokeExtension)
+      return unavailable(context, "extensions.invoke");
+    const input = readObject(await context.req.json().catch(() => ({})));
+    if (
+      typeof input.pluginId !== "string" ||
+      typeof input.handlerId !== "string"
+    )
+      return context.json({ code: "INVALID_EXTENSION_INVOCATION" }, 400);
+    return context.json(
+      await options.actions.invokeExtension({
+        pluginId: input.pluginId,
+        handlerId: input.handlerId,
+        payload: input.payload,
+      }),
+    );
+  });
+  app.post("/host/v1/extensions/:pluginId/stop", async (context) => {
+    if (!options.actions.stopExtension)
+      return unavailable(context, "extensions.stop");
+    await options.actions.stopExtension(context.req.param("pluginId"));
+    return context.body(null, 204);
+  });
+  app.post("/host/v1/extensions/:pluginId/retry", async (context) => {
+    if (!options.actions.retryExtension)
+      return unavailable(context, "extensions.retry");
+    await options.actions.retryExtension(context.req.param("pluginId"));
+    return context.body(null, 204);
+  });
+  app.get("/host/v1/extensions/diagnostics", async (context) => {
+    if (!options.actions.extensionDiagnostics)
+      return unavailable(context, "extensions.diagnostics");
+    return context.json(await options.actions.extensionDiagnostics());
+  });
+  app.post("/host/v1/extensions/network", async (context) => {
+    if (!options.actions.extensionNetworkRequest)
+      return unavailable(context, "extensions.network");
+    const input = readObject(await context.req.json().catch(() => ({})));
+    if (
+      typeof input.url !== "string" ||
+      (input.method !== "GET" && input.method !== "POST") ||
+      (input.body !== undefined &&
+        (!input.body ||
+          typeof input.body !== "object" ||
+          Array.isArray(input.body)))
+    )
+      return context.json({ code: "INVALID_EXTENSION_NETWORK_REQUEST" }, 400);
+    return context.json(
+      await options.actions.extensionNetworkRequest(
+        input as unknown as HostExtensionNetworkRequest,
+      ),
+    );
   });
   app.post("/host/v1/updater/check", async (context) => {
     if (!options.actions.checkForUpdates)
@@ -801,6 +1223,7 @@ export function createDesktopHost(
         "steer",
         "resume",
         "fork",
+        "recoverRun",
         "destroy",
         "health",
       ].includes(operation)
@@ -816,19 +1239,37 @@ export function createDesktopHost(
   let server: { close(): void } | undefined;
   return {
     accessToken: options.accessToken,
-    start(serverOptions) {
+    async start(serverOptions) {
       if (server) throw new Error("Desktop Host is already running");
-      server = serve({
-        fetch: app.fetch,
-        hostname: serverOptions.hostname,
-        port: serverOptions.port,
+      return new Promise((resolvePromise, reject) => {
+        const nodeServer = serve(
+          {
+            fetch: app.fetch,
+            hostname: serverOptions.hostname,
+            port: serverOptions.port,
+          },
+          (address) => {
+            nodeServer.off("error", onError);
+            resolvePromise({
+              hostname: serverOptions.hostname,
+              port: address.port,
+              close: () => nodeServer.close(),
+            });
+          },
+        );
+        const onError = (error: Error) => {
+          nodeServer.close();
+          server = undefined;
+          reject(error);
+        };
+        nodeServer.once("error", onError);
+        server = nodeServer;
       });
-      return server;
     },
   };
 }
 
-const AGENT_RUNTIME_DESCRIPTORS = {
+export const AGENT_RUNTIME_DESCRIPTORS = {
   pi: {
     kind: "pi",
     role: "embedded-default",
@@ -877,7 +1318,23 @@ const AGENT_RUNTIME_DESCRIPTORS = {
       readOnlyTools: true,
     },
   },
-} as const;
+  langgraph: {
+    kind: "langgraph",
+    role: "external-benchmark",
+    name: "LangGraph.js",
+    version: "1.4.9",
+    capabilities: {
+      prompt: true,
+      streaming: true,
+      steer: false,
+      abort: true,
+      resume: true,
+      fork: true,
+      compaction: false,
+      readOnlyTools: true,
+    },
+  },
+} as const satisfies Readonly<Record<AgentEngineKind, AgentEngineDescriptor>>;
 
 /**
  * Projects the private Host HTTP protocol onto the Core Runtime's stable
@@ -907,6 +1364,30 @@ export function createHostAgentRuntime(
   };
   return {
     descriptor,
+    runRecoveryMode: "snapshot",
+    async health(): Promise<AgentRuntimeHealth> {
+      const raw = await host.engineHealth(kind).catch(() => undefined);
+      const value = raw as Record<string, unknown> | undefined;
+      return {
+        available: value?.available === true,
+        healthy: value?.healthy === true,
+        configured: value?.configured === true,
+        authenticated: value?.authenticated === true || kind !== "codex",
+        generation:
+          typeof value?.generation === "number" &&
+          Number.isSafeInteger(value.generation)
+            ? value.generation
+            : 0,
+        pendingRequestCount:
+          typeof value?.pendingRequestCount === "number" &&
+          Number.isSafeInteger(value.pendingRequestCount)
+            ? value.pendingRequestCount
+            : 0,
+        ...(typeof value?.message === "string"
+          ? { detail: value.message }
+          : {}),
+      };
+    },
     async availability() {
       const health = await host.engineHealth(kind).catch(() => undefined);
       const value = health as Record<string, unknown> | undefined;
@@ -939,11 +1420,12 @@ export function createHostAgentRuntime(
         engineSessionId: session.engineSessionId,
         runId: input.runId,
         prompt: input.prompt,
+        ...(input.responseMode ? { responseMode: input.responseMode } : {}),
         ...(input.capabilityGrant
           ? { capabilityGrant: input.capabilityGrant }
           : {}),
       });
-      return { runId: input.runId };
+      return { runId: input.runId, engineRunId: input.runId };
     },
     async steer(run, prompt) {
       if (!descriptor.capabilities.steer)
@@ -997,44 +1479,85 @@ export function createHostAgentRuntime(
       pendingRuns.delete(run.runId);
       const record = prior ?? { events: [], complete: false };
       recordedRuns.set(run.runId, record);
-      for await (const event of host.engineStream(kind, payload)) {
-        const cursor = record.events.length + 1;
-        const mapped: AgentRuntimeEvent =
-          event.type === "content.delta"
-            ? { cursor, type: "content.delta", delta: event.delta }
-            : event.type === "tool"
-              ? {
-                  cursor,
-                  type: "tool",
-                  status: event.status,
-                  tool: event.tool,
-                  ...(event.itemId ? { itemId: event.itemId } : {}),
-                }
-              : event.type === "usage"
+      try {
+        for await (const event of host.engineStream(kind, payload)) {
+          const cursor = record.events.length + 1;
+          const mapped: AgentRuntimeEvent =
+            event.type === "content.delta"
+              ? { cursor, type: "content.delta", delta: event.delta }
+              : event.type === "tool"
                 ? {
                     cursor,
-                    type: "usage",
-                    usage: {
-                      inputTokens: event.inputTokens,
-                      outputTokens: event.outputTokens,
-                      cachedTokens: event.cachedTokens,
-                      estimatedCost: event.estimatedCost,
-                      currency: event.currency,
-                    },
+                    type: "tool",
+                    status: event.status,
+                    tool: event.tool,
+                    ...(event.itemId ? { itemId: event.itemId } : {}),
                   }
-                : event.type === "result"
-                  ? { cursor, type: "result", result: event.result as never }
-                  : {
+                : event.type === "usage"
+                  ? {
                       cursor,
-                      type: "error",
-                      code: "PROVIDER_REJECTED",
-                      message: event.message,
-                      retryable: false,
-                    };
-        record.events.push(mapped);
-        if (mapped.cursor > after) yield mapped;
+                      type: "usage",
+                      usage: {
+                        inputTokens: event.inputTokens,
+                        outputTokens: event.outputTokens,
+                        cachedTokens: event.cachedTokens,
+                        estimatedCost: event.estimatedCost,
+                        currency: event.currency,
+                      },
+                    }
+                  : event.type === "result"
+                    ? { cursor, type: "result", result: event.result as never }
+                    : {
+                        cursor,
+                        type: "error",
+                        code: "PROVIDER_REJECTED",
+                        message: event.message,
+                        retryable: false,
+                      };
+          record.events.push(mapped);
+          if (mapped.cursor > after) yield mapped;
+        }
+      } catch {
+        const interrupted: AgentRuntimeEvent = {
+          cursor: record.events.length + 1,
+          type: "error",
+          code: "RUN_INTERRUPTED",
+          message: "Agent engine stream was interrupted.",
+          retryable: true,
+        };
+        record.events.push(interrupted);
+        if (interrupted.cursor > after) yield interrupted;
       }
       record.complete = true;
+    },
+    async recoverRun(input) {
+      const result = await host.engineOperation(kind, "recoverRun", {
+        engineSessionId: input.session.engineSessionId,
+        runId: input.run.runId,
+        ...(input.run.engineRunId
+          ? { engineRunId: input.run.engineRunId }
+          : {}),
+        afterCursor: input.afterCursor,
+      });
+      if (!result || typeof result !== "object")
+        return { disposition: "missing" };
+      const value = result as Record<string, unknown>;
+      if (value.disposition === "completed")
+        return {
+          disposition: "completed",
+          result: value.result as never,
+          finalCursor:
+            typeof value.finalCursor === "number"
+              ? value.finalCursor
+              : input.afterCursor + 1,
+        };
+      if (value.disposition === "resumed")
+        return {
+          disposition: "resumed",
+          session: input.session,
+          run: input.run,
+        };
+      return { disposition: "missing" };
     },
     async dispose(session) {
       await host.engineOperation(kind, "destroy", {

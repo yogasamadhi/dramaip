@@ -1,4 +1,6 @@
 import { Context } from "@deepseek-ai/cordis";
+import { createHash } from "node:crypto";
+import type { ServiceContract } from "@dramaip/contracts";
 import type {
   Cleanup,
   FirstPartyPlugin,
@@ -84,7 +86,17 @@ export class ContributionRegistry implements UiRegistry {
     for (const contribution of contributions) {
       if (this.entries.has(contribution.id))
         throw new Error(`duplicate UI contribution: ${contribution.id}`);
-      this.entries.set(contribution.id, contribution);
+      const metadataHash = createHash("sha256")
+        .update(
+          canonicalJson({
+            id: contribution.id,
+            pluginId: contribution.pluginId,
+            kind: contribution.kind,
+            metadata: contribution.metadata,
+          }),
+        )
+        .digest("hex");
+      this.entries.set(contribution.id, { ...contribution, metadataHash });
       ids.push(contribution.id);
     }
     return () => {
@@ -97,34 +109,82 @@ export class ContributionRegistry implements UiRegistry {
   }
 }
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value))
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+      .join(",")}}`;
+  return JSON.stringify(value);
+}
+
 class ServiceRegistry {
   private readonly values = new Map<
     string,
-    { owner: string; service: unknown }
+    {
+      owner: string;
+      major: number;
+      capabilities: readonly string[];
+      service: unknown;
+    }
   >();
 
   forOwner(owner: string): TypedServiceRegistry {
     return {
-      provide: <T>(id: string, service: T): Cleanup => {
-        const existing = this.values.get(id);
+      provide: <T>(contract: ServiceContract<T>, service: T): Cleanup => {
+        if (contract.owner !== owner)
+          throw new Error(
+            `service ${contract.id} is owned by ${contract.owner}, not ${owner}`,
+          );
+        const existing = this.values.get(contract.id);
         if (existing)
           throw new Error(
-            `duplicate typed service: ${id} (${existing.owner}, ${owner})`,
+            `duplicate typed service: ${contract.id} (${existing.owner}, ${owner})`,
           );
-        this.values.set(id, { owner, service });
+        this.values.set(contract.id, {
+          owner,
+          major: contract.major,
+          capabilities: contract.capabilities,
+          service,
+        });
         return () => {
-          if (this.values.get(id)?.service === service) this.values.delete(id);
+          if (this.values.get(contract.id)?.service === service)
+            this.values.delete(contract.id);
         };
       },
-      get: <T>(id: string): T | undefined =>
-        this.values.get(id)?.service as T | undefined,
+      require: <T>(contract: ServiceContract<T>): T => {
+        const value = this.values.get(contract.id);
+        if (!value)
+          throw new Error(`required service is unavailable: ${contract.id}`);
+        if (value.major !== contract.major)
+          throw new Error(`service major mismatch: ${contract.id}`);
+        return value.service as T;
+      },
+      optional: <T>(contract: ServiceContract<T>): T | undefined => {
+        if (!contract.degradable)
+          throw new Error(
+            `service contract is not declared degradable: ${contract.id}`,
+          );
+        const value = this.values.get(contract.id);
+        if (value && value.major !== contract.major)
+          throw new Error(`service major mismatch: ${contract.id}`);
+        return value?.service as T | undefined;
+      },
       entries: () =>
-        [...this.values].map(([id, value]) => ({ id, owner: value.owner })),
+        [...this.values].map(([id, value]) => ({
+          id,
+          owner: value.owner,
+          major: value.major,
+          capabilities: value.capabilities,
+        })),
     };
   }
 }
 
 export interface KernelOptions {
+  graphRevision: string;
   profile: PluginProfile;
   plugins: ReadonlyMap<string, FirstPartyPlugin>;
   context: Omit<
@@ -150,7 +210,9 @@ export interface RunningKernel {
 interface TrackedEffect {
   owner: string;
   label: string;
-  revision: string;
+  pluginVersion: string;
+  graphRevision: string;
+  acquiredAt: string;
   cleanup: Cleanup;
 }
 
@@ -159,19 +221,32 @@ class EffectScope {
 
   effect(
     owner: string,
-    revision: string,
+    pluginVersion: string,
+    graphRevision: string,
     cleanup: Cleanup,
-    label = "effect",
+    label: string,
   ): void {
-    this.entries.push({ owner, revision, cleanup, label });
+    if (!label.trim()) throw new Error("effect label is required");
+    this.entries.push({
+      owner,
+      pluginVersion,
+      graphRevision,
+      acquiredAt: new Date().toISOString(),
+      cleanup,
+      label,
+    });
   }
 
   diagnostics(): readonly Omit<TrackedEffect, "cleanup">[] {
-    return this.entries.map(({ owner, revision, label }) => ({
-      owner,
-      revision,
-      label,
-    }));
+    return this.entries.map(
+      ({ owner, pluginVersion, graphRevision, acquiredAt, label }) => ({
+        owner,
+        pluginVersion,
+        graphRevision,
+        acquiredAt,
+        label,
+      }),
+    );
   }
 
   async disposeOwner(owner: string): Promise<void> {
@@ -210,6 +285,7 @@ export async function bootKernel(
     routeContributions: options.context.http.routeDetails,
     bridgeRouteCount: 0,
     effects: effects.diagnostics(),
+    services: services.forOwner("kernel-diagnostics").entries(),
   });
   try {
     // Cordis owns the runtime composition lifetime while adapters keep its private Context out of plugins.
@@ -225,18 +301,40 @@ export async function bootKernel(
         diagnostics,
         capability: <T>(name: string): T | undefined =>
           capabilities.get(name) as T | undefined,
-        effect: (cleanup, label) =>
-          effects.effect(id, plugin.descriptor.version, cleanup, label),
+        effect: (
+          label: string,
+          acquire: () => Cleanup | Promise<Cleanup>,
+        ): void | Promise<void> => {
+          const acquired = acquire();
+          if (acquired instanceof Promise)
+            return acquired.then((cleanup) =>
+              effects.effect(
+                id,
+                plugin.descriptor.version,
+                options.graphRevision,
+                cleanup,
+                label,
+              ),
+            );
+          effects.effect(
+            id,
+            plugin.descriptor.version,
+            options.graphRevision,
+            acquired,
+            label,
+          );
+        },
       };
       const cleanup = await plugin.activate(context);
-      if (cleanup) context.effect(cleanup, "activation");
+      if (cleanup) context.effect("activation", () => cleanup);
       if (plugin.ui?.length)
-        context.effect(ui.register(plugin.ui), "ui-contributions");
+        context.effect("ui-contributions", () => ui.register(plugin.ui!));
       active.push(id);
     }
   } catch (error) {
     const activeId = order[active.length] ?? "unknown";
     failed.push(activeId);
+    await effects.disposeOwner(activeId);
     for (const id of active.reverse()) await effects.disposeOwner(id);
     throw error;
   }

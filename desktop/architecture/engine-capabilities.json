@@ -1,0 +1,66 @@
+[
+  {
+    "kind": "codex",
+    "role": "external-benchmark",
+    "name": "Codex",
+    "version": "0.147.0",
+    "capabilities": {
+      "prompt": true,
+      "streaming": true,
+      "steer": false,
+      "abort": true,
+      "resume": true,
+      "fork": true,
+      "compaction": false,
+      "readOnlyTools": true
+    }
+  },
+  {
+    "kind": "grok",
+    "role": "external-benchmark",
+    "name": "Grok Build",
+    "version": "1.0.5",
+    "capabilities": {
+      "prompt": true,
+      "streaming": true,
+      "steer": false,
+      "abort": true,
+      "resume": true,
+      "fork": true,
+      "compaction": false,
+      "readOnlyTools": true
+    }
+  },
+  {
+    "kind": "langgraph",
+    "role": "external-benchmark",
+    "name": "LangGraph.js",
+    "version": "1.4.9",
+    "capabilities": {
+      "prompt": true,
+      "streaming": true,
+      "steer": false,
+      "abort": true,
+      "resume": true,
+      "fork": true,
+      "compaction": false,
+      "readOnlyTools": true
+    }
+  },
+  {
+    "kind": "pi",
+    "role": "embedded-default",
+    "name": "Pi",
+    "version": "0.84.2",
+    "capabilities": {
+      "prompt": true,
+      "streaming": true,
+      "steer": true,
+      "abort": true,
+      "resume": true,
+      "fork": true,
+      "compaction": true,
+      "readOnlyTools": true
+    }
+  }
+]

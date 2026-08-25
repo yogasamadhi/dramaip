@@ -11,15 +11,16 @@
     "dramaip": "./bin/dramaip.mjs"
   },
   "scripts": {
-    "serve": "tsx src/cli.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "serve": "bun src/cli.ts",
+    "typecheck": "bun --bun run tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",
     "@dramaip/bundles": "workspace:*",
     "@dramaip/server-connection": "workspace:*",
     "@dramaip/database": "workspace:*",
+    "@dramaip/desktop-host": "workspace:*",
     "@dramaip/events": "workspace:*",
     "@dramaip/http": "workspace:*",
     "@dramaip/kernel": "workspace:*",
@@ -38,8 +39,7 @@
     "@dramaip/review": "workspace:*",
     "@dramaip/delivery": "workspace:*",
     "@dramaip/insights": "workspace:*",
-    "@hono/node-server": "2.1.1",
-    "tsx": "^4.22.4"
+    "@hono/node-server": "2.1.1"
   },
   "devDependencies": {
     "vitest": "4.1.9"

@@ -1,0 +1,18 @@
+{
+  "package": "@langchain/langgraph",
+  "version": "1.4.9",
+  "license": "MIT",
+  "core": {
+    "package": "@langchain/core",
+    "version": "1.2.4",
+    "license": "MIT"
+  },
+  "modelRuntime": {
+    "ai": "6.0.168",
+    "@ai-sdk/anthropic": "3.0.82",
+    "@ai-sdk/google": "3.0.73",
+    "@ai-sdk/openai": "3.0.84",
+    "@ai-sdk/openai-compatible": "2.0.56"
+  },
+  "policy": "npm dependencies are bundled into the Electron utility-process entry; no LangGraph source submodule or SQLite checkpointer is packaged"
+}

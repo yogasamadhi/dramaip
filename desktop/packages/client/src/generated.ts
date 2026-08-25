@@ -1,10 +1,17 @@
-/* 此文件封装由三引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
-import type { RuntimeBootstrap, RuntimeInfo } from "@dramaip/contracts";
+/* 此文件封装由四引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
+import {
+  type DomainEvent,
+  type JsonValue,
+  type RealtimeEvent,
+  type RuntimeInfo,
+} from "@dramaip/contracts";
+import type { RuntimeTransport } from "@dramaip/server-connection";
 import {
   createGeneratedOpenApiClient,
-  openGeneratedEventStream,
   requestGeneratedApi,
 } from "./openapi-client.js";
+import { createEventSubscription } from "./events.js";
+import { asApiError, StudioClientError } from "./errors.js";
 
 import type {
   AgentRunInput,
@@ -28,9 +35,9 @@ import type {
   CodexAuthStatus,
   CodexLoginInput,
   CodexLoginResult,
-  ApiError,
   BackupRecord,
   Chapter,
+  CreatorContentRecord,
   ChapterInput,
   ChapterPatch,
   ChapterReorderInput,
@@ -46,14 +53,23 @@ import type {
   AssetCenter,
   AssetCenterActionInput,
   AssetCenterPreviewMedia,
-  EventEnvelope,
   ExportDocument,
   GlobalSearchResponse,
   GlobalAgentSettings,
   GlobalAgentSettingsInput,
   Project,
+  ProjectCreationResult,
+  ProjectDerivationCommitResult,
+  ProjectDerivationInput,
+  ProjectDerivationPreview,
+  ProjectInitialization,
   ProjectInput,
   ProjectPatch,
+  LikenessSubject,
+  LikenessPhoto,
+  LikenessReferencePreflight,
+  ResearchTopic,
+  ResearchSearchResponse,
   Series,
   SeriesInput,
   ProjectSeriesInput,
@@ -185,40 +201,25 @@ import type {
   TaskRetryInput,
 } from "@dramaip/contracts/product";
 
-export type StudioClientOptions = RuntimeBootstrap;
-
-export class StudioClientError extends Error {
-  readonly status: number;
-  readonly body: ApiError;
-  constructor(status: number, body: ApiError) {
-    super(body.message);
-    this.name = "StudioClientError";
-    this.status = status;
-    this.body = body;
-  }
-}
-
-function asApiError(value: unknown): ApiError {
-  const source = value as Partial<ApiError> & {
-    title?: string;
-    detail?: string;
-    traceId?: string;
-  };
-  return {
-    code: source.code ?? "INTERNAL_ERROR",
-    message: source.message ?? source.detail ?? source.title ?? "请求失败",
-    requestId: source.requestId ?? source.traceId ?? crypto.randomUUID(),
-    ...(source.details === undefined ? {} : { details: source.details }),
-  };
-}
+export type StudioClientOptions = RuntimeTransport;
 
 export interface StudioClient {
   runtime: { info(): Promise<RuntimeInfo> };
   projects: {
     list(): Promise<Project[]>;
     get(id: string): Promise<Project>;
-    create(input: ProjectInput): Promise<Project>;
+    create(input: ProjectInput): Promise<ProjectCreationResult>;
     update(id: string, input: ProjectPatch): Promise<Project>;
+    initialization(id: string): Promise<ProjectInitialization>;
+    retryInitialization(id: string): Promise<ProjectInitialization>;
+    previewDerivation(
+      id: string,
+      input: ProjectDerivationInput,
+    ): Promise<ProjectDerivationPreview>;
+    commitDerivation(
+      id: string,
+      previewId: string,
+    ): Promise<ProjectDerivationCommitResult>;
     listTrash(): Promise<Project[]>;
     trash(id: string): Promise<Project>;
     restore(id: string): Promise<Project>;
@@ -258,6 +259,70 @@ export interface StudioClient {
     update(id: string, input: ChapterPatch): Promise<Chapter>;
     reorder(projectId: string, input: ChapterReorderInput): Promise<Chapter[]>;
     remove(id: string): Promise<void>;
+  };
+  likenessSubjects: {
+    list(projectId: string): Promise<LikenessSubject[]>;
+    create(
+      projectId: string,
+      input: {
+        displayName: string;
+        relationship: "self" | "adult_relative_or_friend" | "minor";
+        ageBand: "adult" | "minor_14_to_17" | "under_14";
+        contentRestrictions?: string;
+      },
+    ): Promise<LikenessSubject>;
+    consent(
+      id: string,
+      input: {
+        purposeScopes: string[];
+        validUntil: string;
+        participantConfirmed: boolean;
+        guardianConfirmed?: boolean;
+        under14SeparateConsentConfirmed?: boolean;
+      },
+    ): Promise<LikenessSubject>;
+    attachPhoto(id: string, grantId: string): Promise<LikenessPhoto>;
+    preflight(
+      projectId: string,
+      subjectIds: string[],
+    ): Promise<LikenessReferencePreflight>;
+    revoke(id: string): Promise<LikenessSubject>;
+  };
+  creatorContent: {
+    list(
+      kind: "profile" | "column" | "idea" | "draft" | "variant" | "calendar",
+      projectId: string,
+    ): Promise<{ items: CreatorContentRecord[]; nextCursor?: string }>;
+    create(
+      kind: "profile" | "column" | "idea" | "draft" | "variant" | "calendar",
+      input: {
+        projectId: string;
+        title: string;
+        parentId?: string;
+        status?:
+          | "draft"
+          | "researching"
+          | "review_required"
+          | "ready"
+          | "scheduled"
+          | "archived";
+        payload?: Record<string, unknown>;
+      },
+    ): Promise<CreatorContentRecord>;
+  };
+  research: {
+    listTopics(
+      projectId: string,
+    ): Promise<{ items: ResearchTopic[]; nextCursor?: string }>;
+    createTopic(
+      projectId: string,
+      input: {
+        title: string;
+        query: string;
+        riskDomain?: "general" | "finance" | "health" | "legal";
+      },
+    ): Promise<ResearchTopic>;
+    search(id: string, query?: string): Promise<ResearchSearchResponse>;
   };
   novelWorkspace: {
     get(projectId: string): Promise<NovelWorkspace>;
@@ -574,7 +639,11 @@ export interface StudioClient {
     ): Promise<VideoGenerationJob>;
   };
   analysis: { runChapter(id: string): Promise<ChapterAnalysisRunResult> };
-  events: { subscribe(onEvent: (event: EventEnvelope) => void): () => void };
+  events: {
+    subscribe(
+      onEvent: (event: DomainEvent | RealtimeEvent) => void,
+    ): () => void;
+  };
   search: { global(query: string): Promise<GlobalSearchResponse> };
   backups: {
     list(): Promise<BackupRecord[]>;
@@ -725,17 +794,25 @@ export interface StudioClient {
       multiple?: boolean;
       extensions?: string[];
     }): Promise<Array<{
-      token: string;
-      name: string;
-      expiresAt: number;
+      grantId: string;
+      kind: "file" | "directory";
+      displayName: string;
+      expiresAt: string;
+      generation: number;
     }> | null>;
     saveTextFile(input: {
       suggestedName: string;
       content: string;
-    }): Promise<{ saved: boolean }>;
+    }): Promise<{ saved: boolean; artifactRef?: string }>;
     openExternal(url: string): Promise<void>;
-    revealPath(path: string): Promise<void>;
-    storeCredential(secret: string): Promise<{ credentialRef: string }>;
+    revealGrant(grantId: string): Promise<void>;
+    revealArtifact(artifactRef: string): Promise<void>;
+    captureCredential(input: {
+      purpose: string;
+      label?: string;
+      policyId?: string;
+      allowedOrigin?: string;
+    }): Promise<{ credentialRef: string }>;
     removeCredential(credentialRef: string): Promise<void>;
     getCredentialStorageStatus(): Promise<{
       available: boolean;
@@ -743,6 +820,44 @@ export interface StudioClient {
       message?: string;
     }>;
     setWindowTheme(theme: "light" | "dark"): Promise<void>;
+  };
+  extensions: {
+    installed(): Promise<unknown[]>;
+    catalog(input: {
+      registryId: string;
+      url: string;
+      keyId: string;
+      rootPublicKey: string;
+    }): Promise<unknown>;
+    installPreview(input: {
+      registryId: string;
+      pluginId: string;
+      version?: string;
+    }): Promise<unknown>;
+    installCommit(
+      input: {
+        previewId: string;
+        approvedPermissions: string[];
+        approvedPublisherChange?: boolean;
+        approvedScopes?: Record<string, JsonValue>;
+      },
+      idempotencyKey: string,
+    ): Promise<unknown>;
+    enable(pluginId: string): Promise<unknown>;
+    disable(pluginId: string): Promise<void>;
+    retry(pluginId: string): Promise<unknown>;
+    rollback(pluginId: string, idempotencyKey: string): Promise<unknown>;
+    uninstall(
+      pluginId: string,
+      data: "delete" | "export" | "keep",
+      idempotencyKey: string,
+    ): Promise<unknown>;
+    uiContributions(): Promise<unknown[]>;
+    invokeCommand(
+      pluginId: string,
+      commandId: string,
+      payload: unknown,
+    ): Promise<unknown>;
   };
 }
 
@@ -759,65 +874,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       throw new StudioClientError(response.status, asApiError(error));
     return data as T;
   };
-  const subscribe = (onEvent: (event: EventEnvelope) => void): (() => void) => {
-    let disposed = false;
-    let cursor = 0;
-    let controller: AbortController | undefined;
-    const delivered = new Set<number>();
-    const connect = async (): Promise<void> => {
-      while (!disposed) {
-        controller = new AbortController();
-        try {
-          const response = await openGeneratedEventStream(
-            options,
-            cursor,
-            controller.signal,
-          );
-          if (!response.ok || !response.body)
-            throw new StudioClientError(
-              response.status,
-              asApiError(await response.json()),
-            );
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          while (!disposed) {
-            const next = await reader.read();
-            if (next.done) break;
-            buffer += decoder.decode(next.value, { stream: true });
-            const frames = buffer.split("\n\n");
-            buffer = frames.pop() ?? "";
-            for (const frame of frames) {
-              const data = frame
-                .split("\n")
-                .find((line) => line.startsWith("data: "))
-                ?.slice(6);
-              if (!data) continue;
-              const event = JSON.parse(data) as EventEnvelope;
-              cursor = Math.max(cursor, event.id);
-              if (delivered.has(event.id)) continue;
-              delivered.add(event.id);
-              if (delivered.size > 1_000)
-                delivered.delete(Math.min(...delivered));
-              onEvent(event);
-            }
-          }
-        } catch (error) {
-          if (
-            disposed ||
-            (error instanceof DOMException && error.name === "AbortError")
-          )
-            break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
-      }
-    };
-    void connect();
-    return () => {
-      disposed = true;
-      controller?.abort();
-    };
-  };
+  const subscribe = createEventSubscription(options);
   return {
     runtime: { info: () => request("/api/v2/runtime") },
     host: {
@@ -836,16 +893,38 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "POST",
           body: JSON.stringify({ url }),
         }),
-      revealPath: (path) =>
-        request("/api/v2/system/host/reveal-path", {
+      revealGrant: (grantId) =>
+        request("/api/v2/system/host/reveal-grant", {
           method: "POST",
-          body: JSON.stringify({ path }),
+          body: JSON.stringify({ grantId }),
         }),
-      storeCredential: (secret) =>
-        request("/api/v2/system/host/credentials", {
+      revealArtifact: (artifactRef) =>
+        request("/api/v2/system/host/reveal-artifact", {
           method: "POST",
-          body: JSON.stringify({ secret }),
+          body: JSON.stringify({ artifactRef }),
         }),
+      captureCredential: async (input) => {
+        const session = await request<{
+          captureSessionId: string;
+          status: "pending" | "completed" | "canceled" | "expired";
+          credentialRef?: string;
+          expiresAt: string;
+        }>("/api/v2/system/host/credentials/capture-sessions", {
+          method: "POST",
+          body: JSON.stringify(input),
+        });
+        while (Date.parse(session.expiresAt) > Date.now()) {
+          const current = await request<typeof session>(
+            `/api/v2/system/host/credentials/capture-sessions/${encodeURIComponent(session.captureSessionId)}`,
+          );
+          if (current.status === "completed" && current.credentialRef)
+            return { credentialRef: current.credentialRef };
+          if (current.status !== "pending")
+            throw new Error("凭据输入已取消或过期。");
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        throw new Error("凭据输入已过期。");
+      },
       removeCredential: (credentialRef) =>
         request(
           `/api/v2/system/host/credentials/${encodeURIComponent(credentialRef)}`,
@@ -865,12 +944,35 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       create: (input) =>
         request("/api/v2/projects", {
           method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify(input),
         }),
       update: (id, input) =>
         request(`/api/v2/projects/${id}`, {
           method: "PATCH",
+          headers: { "If-Match": `"${input.version}"` },
           body: JSON.stringify(input),
+        }),
+      initialization: (id) =>
+        request(`/api/v2/projects/${encodeURIComponent(id)}/initialization`),
+      retryInitialization: (id) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(id)}/initialization/retry`,
+          { method: "POST" },
+        ),
+      previewDerivation: (id, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(id)}/derivations/preview`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      commitDerivation: (id, previewId) =>
+        request(`/api/v2/projects/${encodeURIComponent(id)}/derivations`, {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify({ previewId }),
         }),
       listTrash: () => request("/api/v2/projects/trash"),
       trash: (id) =>
@@ -942,6 +1044,72 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           body: JSON.stringify(input),
         }),
       remove: (id) => request(`/api/v2/chapters/${id}`, { method: "DELETE" }),
+    },
+    likenessSubjects: {
+      list: (projectId) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/likeness-subjects`,
+        ),
+      create: (projectId, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/likeness-subjects`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      consent: (id, input) =>
+        request(`/api/v2/likeness-subjects/${encodeURIComponent(id)}/consent`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      attachPhoto: (id, grantId) =>
+        request(`/api/v2/likeness-subjects/${encodeURIComponent(id)}/photos`, {
+          method: "POST",
+          body: JSON.stringify({ grantId }),
+        }),
+      preflight: (projectId, subjectIds) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/likeness-reference-preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify({ subjectIds, confirmed: true }),
+          },
+        ),
+      revoke: (id) =>
+        request(`/api/v2/likeness-subjects/${encodeURIComponent(id)}/revoke`, {
+          method: "POST",
+        }),
+    },
+    creatorContent: {
+      list: (kind, projectId) =>
+        request(
+          `/api/v2/creator/${kind}?projectId=${encodeURIComponent(projectId)}`,
+        ),
+      create: (kind, input) =>
+        request(`/api/v2/creator/${kind}`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+    },
+    research: {
+      listTopics: (projectId) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/research-topics`,
+        ),
+      createTopic: (projectId, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/research-topics`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      search: (id, query) =>
+        request(`/api/v2/research-topics/${encodeURIComponent(id)}/search`, {
+          method: "POST",
+          body: JSON.stringify(query ? { query } : {}),
+        }),
     },
     novelWorkspace: {
       get: (projectId) =>
@@ -1869,6 +2037,64 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(
           `/api/v2/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
           { method: "DELETE" },
+        ),
+    },
+    extensions: {
+      installed: () => request("/api/v2/system/extensions/installed"),
+      catalog: (input) =>
+        request("/api/v2/system/extensions/catalog", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      installPreview: (input) =>
+        request("/api/v2/system/extensions/install-preview", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      installCommit: (input, idempotencyKey) =>
+        request("/api/v2/system/extensions/install-commit", {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey },
+          body: JSON.stringify(input),
+        }),
+      enable: (pluginId) =>
+        request(
+          `/api/v2/system/extensions/${encodeURIComponent(pluginId)}/enable`,
+          {
+            method: "POST",
+          },
+        ),
+      disable: (pluginId) =>
+        request(
+          `/api/v2/system/extensions/${encodeURIComponent(pluginId)}/disable`,
+          {
+            method: "POST",
+          },
+        ),
+      retry: (pluginId) =>
+        request(
+          `/api/v2/system/extensions/${encodeURIComponent(pluginId)}/retry`,
+          {
+            method: "POST",
+          },
+        ),
+      rollback: (pluginId, idempotencyKey) =>
+        request(
+          `/api/v2/system/extensions/${encodeURIComponent(pluginId)}/rollback`,
+          { method: "POST", headers: { "Idempotency-Key": idempotencyKey } },
+        ),
+      uninstall: (pluginId, data, idempotencyKey) =>
+        request(`/api/v2/system/extensions/${encodeURIComponent(pluginId)}`, {
+          method: "DELETE",
+          headers: { "Idempotency-Key": idempotencyKey },
+          body: JSON.stringify({ data }),
+        }),
+      uiContributions: () =>
+        request("/api/v2/system/extensions/ui-contributions"),
+      invokeCommand: (pluginId, commandId, payload) =>
+        request(
+          `/api/v2/system/extensions/${encodeURIComponent(pluginId)}/commands/${encodeURIComponent(commandId)}`,
+          { method: "POST", body: JSON.stringify(payload) },
         ),
     },
   };

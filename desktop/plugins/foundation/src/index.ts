@@ -14,18 +14,19 @@ export function createFoundationPlugin(
       version: "3.0.0-alpha.3",
       apiVersion: "2",
       requires: [],
-      provides: maintenance ? [FOUNDATION_DATABASE_MAINTENANCE_SERVICE] : [],
+      provides: maintenance ? [FOUNDATION_DATABASE_MAINTENANCE_SERVICE.id] : [],
       stability: "internal",
     },
     migrations: foundationMigrations,
     activate: (context) => {
       if (maintenance)
         context.effect(
-          context.services.provide(
-            FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
-            maintenance,
-          ),
           `service:${FOUNDATION_DATABASE_MAINTENANCE_SERVICE}`,
+          () =>
+            context.services.provide(
+              FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
+              maintenance,
+            ),
         );
     },
   });

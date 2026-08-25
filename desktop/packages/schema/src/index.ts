@@ -13,10 +13,58 @@ export type IsoDateTime = string;
 const RequiredText = Schema.String.pipe(
   Schema.check(Schema.isMinLength(1), Schema.isMaxLength(160)),
 );
+export const ProjectMode = Schema.Literals([
+  "series_longform",
+  "single_season",
+  "personal_theater",
+  "creator_channel",
+]);
+export type ProjectMode =
+  "series_longform" | "single_season" | "personal_theater" | "creator_channel";
+export const ProjectLifecycleStatus = Schema.Literals([
+  "initializing",
+  "ready",
+  "failed",
+]);
+export type ProjectLifecycleStatus = "initializing" | "ready" | "failed";
+export type ProjectModeConfig =
+  | {
+      mode: "series_longform";
+      targetChapterCount?: number;
+      targetSeasonCount?: number;
+      targetEpisodesPerSeason?: number;
+    }
+  | {
+      mode: "single_season";
+      entryPath: "novel" | "source-import" | "script";
+      targetEpisodeCount?: number;
+    }
+  | {
+      mode: "personal_theater";
+      storyMethod: "template" | "freeform";
+      episodeCount?: number;
+      episodeDurationMinutes?: number;
+    }
+  | {
+      mode: "creator_channel";
+      topic: string;
+      positioning?: string;
+      audience?: string;
+      platforms?: string[];
+      riskDomain?: "general" | "finance" | "health" | "legal";
+    };
+/** Effect Schema cannot express this discriminated object without leaking an
+ * implementation-only union into the mature renderer. The interface is the
+ * client authority while Zod validates the Runtime boundary. */
+export const ProjectModeConfig = Schema.Unknown;
 export const Project = Schema.Struct({
   id: Id,
   title: RequiredText,
-  shortDramaType: RequiredText,
+  shortDramaType: Schema.optionalKey(RequiredText),
+  mode: ProjectMode,
+  modeConfig: ProjectModeConfig,
+  lifecycleStatus: ProjectLifecycleStatus,
+  derivedFromProjectId: Schema.optionalKey(Id),
   targetAudience: Schema.optionalKey(Schema.String),
   targetWordCount: Schema.optionalKey(Schema.Int),
   targetEpisodeCount: Schema.optionalKey(Schema.Int),
@@ -39,7 +87,11 @@ export const Project = Schema.Struct({
 export interface Project {
   id: Id;
   title: string;
-  shortDramaType: string;
+  shortDramaType?: string;
+  mode: ProjectMode;
+  modeConfig: ProjectModeConfig;
+  lifecycleStatus: ProjectLifecycleStatus;
+  derivedFromProjectId?: Id;
   targetAudience?: string;
   targetWordCount?: number;
   targetEpisodeCount?: number;
@@ -63,7 +115,9 @@ export interface Project {
 }
 export const ProjectInput = Schema.Struct({
   title: RequiredText,
-  shortDramaType: RequiredText,
+  shortDramaType: Schema.optionalKey(RequiredText),
+  mode: Schema.optionalKey(ProjectMode),
+  modeConfig: Schema.optionalKey(ProjectModeConfig),
   targetAudience: Schema.optionalKey(Schema.String),
   targetWordCount: Schema.optionalKey(Schema.Int),
   targetEpisodeCount: Schema.optionalKey(Schema.Int),
@@ -78,7 +132,9 @@ export const ProjectInput = Schema.Struct({
 });
 export interface ProjectInput {
   title: string;
-  shortDramaType: string;
+  shortDramaType?: string;
+  mode?: ProjectMode;
+  modeConfig?: ProjectModeConfig;
   targetAudience?: string;
   targetWordCount?: number;
   targetEpisodeCount?: number;
@@ -123,6 +179,87 @@ export interface ProjectPatch {
   productionBrief?: string;
   version: number;
 }
+
+export type ProjectInitializationStep = {
+  key: string;
+  pluginId: string;
+  status: "pending" | "running" | "ready" | "failed";
+  message?: string;
+  error?: string;
+  attempts: number;
+  updatedAt: IsoDateTime;
+};
+export const ProjectInitializationStep = Schema.Struct({
+  key: Schema.String,
+  pluginId: Schema.String,
+  status: Schema.Literals(["pending", "running", "ready", "failed"]),
+  message: Schema.optionalKey(Schema.String),
+  error: Schema.optionalKey(Schema.String),
+  attempts: Schema.Int,
+  updatedAt: IsoDateTime,
+});
+export interface ProjectInitialization {
+  projectId: Id;
+  status: ProjectLifecycleStatus;
+  steps: ProjectInitializationStep[];
+  updatedAt: IsoDateTime;
+}
+export const ProjectInitialization = Schema.Struct({
+  projectId: Id,
+  status: ProjectLifecycleStatus,
+  steps: Schema.Array(ProjectInitializationStep),
+  updatedAt: IsoDateTime,
+});
+export interface ProjectCreationResult {
+  project: Project;
+  initialization: ProjectInitialization;
+}
+export const ProjectCreationResult = Schema.Struct({
+  project: Project,
+  initialization: ProjectInitialization,
+});
+export interface ProjectDerivationInput {
+  targetMode: ProjectMode;
+  title?: string;
+  seasonId?: Id;
+  targetModeConfig?: ProjectModeConfig;
+}
+export const ProjectDerivationInput = Schema.Struct({
+  targetMode: ProjectMode,
+  title: Schema.optionalKey(Schema.String),
+  seasonId: Schema.optionalKey(Id),
+  targetModeConfig: Schema.optionalKey(ProjectModeConfig),
+});
+export interface ProjectDerivationPreview {
+  id: Id;
+  sourceProjectId: Id;
+  targetMode: ProjectMode;
+  targetModeConfig: ProjectModeConfig;
+  title: string;
+  supported: boolean;
+  reason?: string;
+  expiresAt: IsoDateTime;
+}
+export const ProjectDerivationPreview = Schema.Struct({
+  id: Id,
+  sourceProjectId: Id,
+  targetMode: ProjectMode,
+  targetModeConfig: ProjectModeConfig,
+  title: Schema.String,
+  supported: Schema.Boolean,
+  reason: Schema.optionalKey(Schema.String),
+  expiresAt: IsoDateTime,
+});
+export interface ProjectDerivationCommitResult {
+  project: Project;
+  initialization: ProjectInitialization;
+  derivationId: Id;
+}
+export const ProjectDerivationCommitResult = Schema.Struct({
+  project: Project,
+  initialization: ProjectInitialization,
+  derivationId: Id,
+});
 
 export const Chapter = Schema.Struct({
   id: Id,
@@ -281,8 +418,13 @@ export interface TaskInput {
   payload?: unknown;
 }
 
-export const AgentEngineKind = Schema.Literals(["pi", "codex", "grok"]);
-export type AgentEngineKind = "pi" | "codex" | "grok";
+export const AgentEngineKind = Schema.Literals([
+  "pi",
+  "codex",
+  "grok",
+  "langgraph",
+]);
+export type AgentEngineKind = "pi" | "codex" | "grok" | "langgraph";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -463,15 +605,32 @@ export interface AgentRunInput {
 }
 
 export const AgentRunStatus = Schema.Literals([
+  "created",
   "queued",
+  "preparing",
   "running",
-  "succeeded",
-  "failed",
-  "canceled",
+  "waiting_approval",
+  "committing",
+  "completed",
   "interrupted",
+  "failed",
+  "aborted",
+  "orphaned",
+  "recoverable",
 ]);
 export type AgentRunStatus =
-  "queued" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
+  | "created"
+  | "queued"
+  | "preparing"
+  | "running"
+  | "waiting_approval"
+  | "committing"
+  | "completed"
+  | "interrupted"
+  | "failed"
+  | "aborted"
+  | "orphaned"
+  | "recoverable";
 
 export const AgentRun = Schema.Struct({
   id: Id,
@@ -490,6 +649,12 @@ export const AgentRun = Schema.Struct({
   cachedTokens: Schema.optionalKey(Schema.Int),
   estimatedCost: Schema.optionalKey(Schema.Number),
   currency: Schema.optionalKey(Schema.String),
+  engineRunId: Schema.optionalKey(Schema.String),
+  lastEngineCursor: Schema.optionalKey(Schema.Int),
+  engineGeneration: Schema.optionalKey(Schema.Int),
+  checkpoint: Schema.optionalKey(Schema.Unknown),
+  recoveryAttempts: Schema.Int,
+  recoveryError: Schema.optionalKey(Schema.String),
   startedAt: Schema.optionalKey(IsoDateTime),
   completedAt: Schema.optionalKey(IsoDateTime),
   createdAt: IsoDateTime,
@@ -512,6 +677,12 @@ export interface AgentRun {
   cachedTokens?: number;
   estimatedCost?: number;
   currency?: string;
+  engineRunId?: string;
+  lastEngineCursor?: number;
+  engineGeneration?: number;
+  checkpoint?: unknown;
+  recoveryAttempts: number;
+  recoveryError?: string;
   startedAt?: IsoDateTime;
   completedAt?: IsoDateTime;
   createdAt: IsoDateTime;
@@ -4178,7 +4349,7 @@ export const AgentExperiment = Schema.Struct({
   candidates: Schema.optionalKey(
     Schema.Array(
       Schema.Struct({
-        candidate: Schema.Literals(["a", "b", "c"]),
+        candidate: Schema.Literals(["a", "b", "c", "d"]),
         runId: Id,
         status: AgentRunStatus,
         output: Schema.optionalKey(Schema.Unknown),
@@ -4224,7 +4395,7 @@ export interface AgentExperiment {
   error?: string;
   revealed: boolean;
   candidates?: ReadonlyArray<{
-    candidate: "a" | "b" | "c";
+    candidate: "a" | "b" | "c" | "d";
     runId: Id;
     status: AgentRunStatus;
     output?: unknown;
@@ -4274,11 +4445,11 @@ export interface AgentExperimentInput {
   confirmedEstimatedCost: boolean;
 }
 export const AgentExperimentReviewInput = Schema.Struct({
-  preferredCandidate: Schema.Literals(["a", "b", "c", "tie"]),
+  preferredCandidate: Schema.Literals(["a", "b", "c", "d", "tie"]),
   notes: Schema.optionalKey(Schema.String),
 });
 export interface AgentExperimentReviewInput {
-  preferredCandidate: "a" | "b" | "c" | "tie";
+  preferredCandidate: "a" | "b" | "c" | "d" | "tie";
   notes?: string;
 }
 

@@ -2,19 +2,16 @@ import {
   app,
   BrowserWindow,
   dialog,
-  net,
-  nativeTheme,
+  nativeImage,
   Notification,
-  protocol,
   shell,
   utilityProcess,
 } from "electron";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, resolve } from "node:path";
 import {
   createDesktopHost,
   type AgentProviderActivationInput,
@@ -25,9 +22,30 @@ import {
   type ProviderHttpRequest,
   type ProviderHttpResponse,
 } from "@dramaip/desktop-host";
-import { ServerConnectionManager } from "@dramaip/server-connection";
+import { sha256, verifyExtensionRegistry } from "@dramaip/extension-host";
 import { bootstrapCodexAuthentication } from "./codex-auth-bootstrap";
-import { LocalCredentialVault } from "./local-credential-vault";
+import {
+  LocalCredentialVault,
+  type CredentialUse,
+} from "./local-credential-vault";
+import { CredentialCaptureManager } from "./credential-capture";
+import { safeHttpRequest } from "./host/safe-http-transport";
+import { EngineEventChannel } from "./engines/engine-event-channel";
+import {
+  ManagedComponentState,
+  RestartBudget,
+} from "./supervision/managed-component";
+import { registerRuntimeBootstrapExchange } from "./runtime-bootstrap-channel";
+import {
+  createMainWindow,
+  destroyMainWindows,
+  hasMainWindow,
+  RENDERER_ORIGIN,
+  registerRendererProtocol,
+  registerRendererScheme,
+} from "./windows/window-manager";
+import { shutdownApplication } from "./application-supervisor";
+import { ExtensionProcessSupervisor } from "./extensions/extension-process-supervisor";
 
 const require = createRequire(import.meta.url);
 const developmentIconPath = join(__dirname, "../../build/icon.png");
@@ -39,6 +57,8 @@ type Ready = {
   accessToken: string;
   appVersion: string;
   apiVersion: "2";
+  runtimeId: string;
+  runtimeGeneration: number;
 };
 type ChildMessage =
   | {
@@ -62,8 +82,14 @@ type ChildMessage =
   | {
       type: "runtime:ready";
       runtimeId: string;
+      runtimeGeneration: number;
+      graphRevision: string;
+      port: number;
       runtimeVersion: string;
       apiVersion: "2";
+      runtimeKind: "electron-node";
+      electronVersion: string;
+      nodeVersion: string;
     }
   | { type: "runtime:error"; error: { message: string } }
   | { type: "stopped" };
@@ -72,46 +98,58 @@ type ManagedProcess = {
   name: string;
   command: Record<string, unknown>;
   required: boolean;
+  generation: number;
   /** The sidecar accepted its start command and is still alive. */
   healthy: boolean;
   /** The sidecar has accepted the currently selected model configuration. */
   configured: boolean;
   version?: string;
   authenticated?: boolean;
+  runtimeReady?: {
+    runtimeId: string;
+    runtimeGeneration: number;
+    graphRevision: string;
+    port: number;
+  };
   stop(): Promise<void>;
 };
 type FileCapability = {
   path: string;
+  kind: "file" | "directory";
   webContentsId: number;
   permissions: readonly ["read"];
   expiresAt: number;
 };
 
-const rendererProtocol = "dramaip";
-const rendererHost = "renderer";
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: rendererProtocol,
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      corsEnabled: true,
-    },
-  },
-]);
+registerRendererScheme();
 let coreRuntime: ManagedProcess | undefined;
 let codexEngine: ManagedProcess | undefined;
 let piEngine: ManagedProcess | undefined;
 let grokEngine: ManagedProcess | undefined;
+let langgraphEngine: ManagedProcess | undefined;
 let initialization: Promise<Ready> | undefined;
-let hostServer: { close(): void } | undefined;
+let hostServer: { close(): void; port: number } | undefined;
 let runtimeReady: Ready | undefined;
 const credentialVault = new LocalCredentialVault(
   join(app.getPath("userData"), "credentials"),
 );
+let credentialCaptureManager: CredentialCaptureManager | undefined;
 const fileCapabilities = new Map<string, FileCapability>();
-const restartAttempts = new Map<string, number>();
+const artifactCapabilities = new Map<string, string>();
+const managedPortraitMedia = new Map<string, string>();
+const hostGeneration = 1;
+const componentStates = new Map(
+  [
+    "core-runtime",
+    "codex-engine",
+    "pi-engine",
+    "grok-engine",
+    "langgraph-engine",
+  ].map((name) => [name, new ManagedComponentState(name)]),
+);
+const restartBudgets = new Map(
+  [...componentStates].map(([name]) => [name, new RestartBudget()]),
+);
 const intentionallyStoppedSidecars = new WeakSet<Electron.UtilityProcess>();
 const engineConfigurationRequests = new Map<
   string,
@@ -131,63 +169,14 @@ const engineHostRequests = new Map<
 const engineHostStreams = new Map<string, EngineEventChannel>();
 let shuttingDown = false;
 
-/**
- * Utility processes report vendor deltas over Electron IPC.  Keep their
- * lifetime in Main and project them onto the authenticated Host HTTP SSE
- * response; Core Runtime never observes Electron IPC or vendor objects.
- */
-class EngineEventChannel implements AsyncIterable<HostEngineStreamEvent> {
-  private readonly queued: HostEngineStreamEvent[] = [];
-  private pending:
-    ((value: HostEngineStreamEvent | undefined) => void) | undefined;
-  private closed = false;
-
-  push(event: HostEngineStreamEvent): void {
-    if (this.closed) return;
-    const pending = this.pending;
-    if (pending) {
-      this.pending = undefined;
-      pending(event);
-      return;
-    }
-    this.queued.push(event);
-  }
-
-  finish(finalEvent?: HostEngineStreamEvent): void {
-    if (this.closed) return;
-    if (finalEvent) this.push(finalEvent);
-    this.closed = true;
-    if (this.pending) {
-      const pending = this.pending;
-      this.pending = undefined;
-      pending(undefined);
-    }
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<HostEngineStreamEvent> {
-    while (true) {
-      const event = await this.next();
-      if (!event) return;
-      yield event;
-    }
-  }
-
-  private next(): Promise<HostEngineStreamEvent | undefined> {
-    const queued = this.queued.shift();
-    if (queued) return Promise.resolve(queued);
-    if (this.closed) return Promise.resolve(undefined);
-    return new Promise((resolvePromise) => {
-      this.pending = resolvePromise;
-    });
-  }
-}
-
 function sidecarPath(name: string): string {
   return join(__dirname, `${name}.js`);
 }
-function randomPort(): number {
-  return 20_000 + Math.floor(Math.random() * 20_000);
-}
+
+const extensionSupervisor = new ExtensionProcessSupervisor(
+  sidecarPath("extension-host-process"),
+  join(app.getPath("userData"), "extensions", "packages"),
+);
 
 /**
  * Electron's app.getAppPath() is the workspace root when a built main entry is
@@ -323,20 +312,15 @@ function grokBinaryPath(): string {
   return prepared;
 }
 
-async function storeCredential(
-  secret: string,
-): Promise<{ credentialRef: string }> {
-  return credentialVault.store(secret);
-}
-
 async function removeCredential(credentialRef: string): Promise<void> {
   await credentialVault.remove(credentialRef);
 }
 
 async function resolveCredential(
   credentialRef: string,
+  use?: CredentialUse,
 ): Promise<string | undefined> {
-  return credentialVault.resolve(credentialRef);
+  return credentialVault.resolve(credentialRef, use);
 }
 
 function spawnSidecar(
@@ -345,10 +329,15 @@ function spawnSidecar(
   required: boolean,
 ): Promise<ManagedProcess | undefined> {
   return new Promise((resolvePromise, reject) => {
+    const component = componentStates.get(name);
+    if (!component) throw new Error(`Unknown supervised component: ${name}`);
+    const restarting = component.snapshot().status === "degraded";
+    const generation = component.beginStart(restarting);
     const child = utilityProcess.fork(sidecarPath(name), [], {
       serviceName: `DramaIP ${name}`,
       stdio: "pipe",
     });
+    component.attach(child.pid);
     let stderr = "";
     child.stderr?.on("data", (chunk) => {
       // Preserve bounded startup diagnostics without ever forwarding Bearer
@@ -383,6 +372,8 @@ function spawnSidecar(
       20_000,
     );
     child.once("exit", (code) => {
+      if (component.snapshot().generation === generation)
+        component.exited(code ?? undefined);
       if (!settled)
         fail(
           new Error(
@@ -391,12 +382,14 @@ function spawnSidecar(
         );
     });
     child.on("message", (message: ChildMessage) => {
+      if (component.snapshot().generation !== generation) return;
       if (message.type === "ready") {
         const managed: ManagedProcess = {
           child,
           name,
           command,
           required,
+          generation,
           // `ready` proves that the process and its vendor transport are
           // healthy.  A missing model is configuration state, not a failed
           // process; keeping the two separate lets Runtime restore a saved
@@ -408,28 +401,55 @@ function spawnSidecar(
             ? { authenticated: message.authenticated }
             : {}),
           stop: () =>
-            stopChild(
+            stopManagedComponent(
+              component,
               child,
-              ["pi-engine", "grok-engine"].includes(name) ? 15_000 : 6_000,
+              ["pi-engine", "grok-engine", "langgraph-engine"].includes(name)
+                ? 15_000
+                : 6_000,
             ),
         };
+        component.ready({
+          configured: managed.configured,
+          authenticated: managed.authenticated,
+        });
+        restartBudgets.get(name)?.markStable();
         child.once("exit", () => {
-          if (!shuttingDown && !intentionallyStoppedSidecars.delete(child))
+          if (!shuttingDown && !intentionallyStoppedSidecars.delete(child)) {
+            failPendingEngineWork(`${name} exited during an active request`);
             void restartSidecar(managed);
+          }
         });
         return finish(managed);
       }
       if (name === "core-runtime" && message.type === "runtime:ready") {
+        if (
+          message.runtimeKind !== "electron-node" ||
+          !message.electronVersion ||
+          !message.nodeVersion
+        )
+          return fail(
+            new Error("Core Runtime did not report Electron embedded Node"),
+          );
         const managed: ManagedProcess = {
           child,
           name,
           command,
           required,
+          generation,
           healthy: true,
           configured: true,
           version: message.runtimeVersion,
-          stop: () => stopChild(child, 6_000),
+          runtimeReady: {
+            runtimeId: message.runtimeId,
+            runtimeGeneration: message.runtimeGeneration,
+            graphRevision: message.graphRevision,
+            port: message.port,
+          },
+          stop: () => stopManagedComponent(component, child, 6_000),
         };
+        component.ready({ configured: true, authenticated: true });
+        restartBudgets.get(name)?.markStable();
         child.once("exit", () => {
           if (!shuttingDown && !intentionallyStoppedSidecars.delete(child))
             void restartSidecar(managed);
@@ -439,7 +459,7 @@ function spawnSidecar(
       if (name === "core-runtime" && message.type === "runtime:error")
         return fail(new Error(message.error.message));
       if (
-        ["pi-engine", "grok-engine"].includes(name) &&
+        ["pi-engine", "grok-engine", "langgraph-engine"].includes(name) &&
         message.type === "configured"
       ) {
         const pending = engineConfigurationRequests.get(message.requestId);
@@ -453,7 +473,12 @@ function spawnSidecar(
         return;
       }
       if (
-        ["codex-engine", "pi-engine", "grok-engine"].includes(name) &&
+        [
+          "codex-engine",
+          "pi-engine",
+          "grok-engine",
+          "langgraph-engine",
+        ].includes(name) &&
         message.type === "response"
       ) {
         const pendingHostRequest = engineHostRequests.get(message.requestId);
@@ -468,7 +493,12 @@ function spawnSidecar(
         return;
       }
       if (
-        ["codex-engine", "pi-engine", "grok-engine"].includes(name) &&
+        [
+          "codex-engine",
+          "pi-engine",
+          "grok-engine",
+          "langgraph-engine",
+        ].includes(name) &&
         message.type === "event"
       ) {
         const stream = engineHostStreams.get(message.runId);
@@ -492,16 +522,33 @@ function spawnSidecar(
       if (message.type === "error")
         return fail(new Error(message.error.message));
     });
-    child.postMessage(command);
+    child.postMessage({ ...command, generation });
   });
 }
 
+function failPendingEngineWork(message: string): void {
+  for (const [requestId, pending] of engineHostRequests) {
+    engineHostRequests.delete(requestId);
+    clearTimeout(pending.timeout);
+    pending.reject(new Error(message));
+  }
+  for (const [requestId, pending] of engineConfigurationRequests) {
+    engineConfigurationRequests.delete(requestId);
+    clearTimeout(pending.timeout);
+    pending.resolve({ available: false, message });
+  }
+  for (const channel of engineHostStreams.values())
+    channel.finish({ type: "error", message: "智能引擎进程异常退出。" });
+  engineHostStreams.clear();
+}
+
 async function configureRuntimeEngine(
-  engineKind: "pi" | "grok",
+  engineKind: "pi" | "grok" | "langgraph",
   engine: ManagedProcess | undefined,
   displayName: string,
   provider: {
     providerKind: "openai" | "anthropic" | "google";
+    providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
     model: string;
     baseUrl?: string;
     secret: string;
@@ -538,21 +585,38 @@ async function configureRuntimeEngine(
 async function activateAgentProvider(
   configuration: AgentProviderActivationInput,
 ): Promise<{ available: boolean; message?: string }> {
-  const secret = await resolveCredential(configuration.credentialRef);
+  const defaultOrigins = {
+    openai: "https://api.openai.com",
+    anthropic: "https://api.anthropic.com",
+    google: "https://generativelanguage.googleapis.com",
+  } as const;
+  const secret = await resolveCredential(configuration.credentialRef, {
+    purpose: "provider-authentication",
+    origin: configuration.baseUrl ?? defaultOrigins[configuration.providerKind],
+  });
   if (!secret)
     return { available: false, message: "智能助手模型的安全凭据不可用" };
   const provider = {
     providerKind: configuration.providerKind,
+    providerAdapter: configuration.providerAdapter,
     model: configuration.model,
     ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
     secret,
   };
-  const [pi, grok] = await Promise.all([
+  const [pi, grok, langgraph] = await Promise.all([
     configureRuntimeEngine("pi", piEngine, "Pi", provider),
     configureRuntimeEngine("grok", grokEngine, "Grok Build", provider),
+    configureRuntimeEngine(
+      "langgraph",
+      langgraphEngine,
+      "LangGraph.js",
+      provider,
+    ),
   ]);
   if (piEngine) piEngine.configured = pi.available;
   if (grokEngine) grokEngine.configured = grok.available;
+  if (langgraphEngine) langgraphEngine.configured = langgraph.available;
+  if (langgraphEngine) langgraphEngine.authenticated = langgraph.available;
   return pi.available
     ? { available: true }
     : { available: false, message: pi.message ?? grok.message };
@@ -561,58 +625,194 @@ async function activateAgentProvider(
 async function executeProviderHttpRequest(
   input: ProviderHttpRequest,
 ): Promise<ProviderHttpResponse> {
-  const secret = await resolveCredential(input.credentialRef);
-  if (!secret) throw new Error("服务商安全凭据不可用");
-  const response = await fetch(input.url, {
-    method: input.method,
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      Accept: input.accept === "binary" ? "*/*" : "application/json",
-      ...(input.body ? { "Content-Type": "application/json" } : {}),
-      "User-Agent": "DramaIP-Desktop/3.0",
-    },
-    ...(input.body ? { body: JSON.stringify(input.body) } : {}),
-    signal: AbortSignal.timeout(input.timeoutMs ?? 90_000),
+  const secret = await resolveCredential(input.credentialRef, {
+    purpose: "provider-authentication",
+    origin: new URL(input.url).origin,
   });
-  const bytes = Buffer.from(await response.arrayBuffer());
-  const maximumBytes = input.maximumBytes ?? 16 * 1024 * 1024;
-  if (bytes.byteLength > maximumBytes)
-    throw new Error(`服务商响应超过 ${maximumBytes} 字节限制`);
-  const contentType = response.headers.get("content-type") ?? "";
+  if (!secret) throw new Error("服务商安全凭据不可用");
+  const body = input.body ? { ...input.body } : {};
+  if (input.mediaRefs?.length) {
+    const referenceImages = await Promise.all(
+      input.mediaRefs.map(async (mediaRef) => {
+        const path = managedPortraitMedia.get(mediaRef);
+        if (!path) throw new Error("受控照片引用不可用或已被删除");
+        const bytes = await readFile(path);
+        return `data:image/png;base64,${bytes.toString("base64")}`;
+      }),
+    );
+    // Only the Host materialises media bytes. The Runtime passes opaque refs;
+    // the provider request gets no source path and the project DB gets no bytes.
+    body.reference_images = referenceImages;
+  }
+  const response = await safeHttpRequest({
+    url: input.url,
+    method: input.method,
+    ...(Object.keys(body).length ? { body } : {}),
+    accept: input.accept ?? "json",
+    maximumBytes: input.maximumBytes ?? 16 * 1024 * 1024,
+    timeoutMs: input.timeoutMs ?? 90_000,
+    authorization: `Bearer ${secret}`,
+  });
   if (input.accept === "binary")
     return {
       status: response.status,
-      contentType,
-      base64: bytes.toString("base64"),
+      contentType: response.contentType,
+      base64: response.bytes.toString("base64"),
     };
   let json: unknown;
   try {
-    json = JSON.parse(bytes.toString("utf8"));
+    json = JSON.parse(response.bytes.toString("utf8"));
   } catch {
-    json = { message: bytes.toString("utf8").slice(0, 2_000) };
+    json = { message: response.bytes.toString("utf8").slice(0, 2_000) };
   }
-  return { status: response.status, contentType, json };
+  return { status: response.status, contentType: response.contentType, json };
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/gu, "&")
+    .replace(/&quot;/gu, '"')
+    .replace(/&#x27;|&#39;/gu, "'")
+    .replace(/&lt;/gu, "<")
+    .replace(/&gt;/gu, ">")
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function duckDuckGoResults(html: string) {
+  const blocks =
+    html.match(/<div[^>]+class="result[^>]*>[\s\S]*?<\/div>\s*<\/div>/gu) ?? [];
+  return blocks.slice(0, 10).flatMap((block) => {
+    const link =
+      /class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/u.exec(block);
+    if (!link) return [];
+    try {
+      const url = new URL(decodeHtml(link[1]!));
+      if (!/^https?:$/u.test(url.protocol)) return [];
+      const excerpt = /class="result__snippet"[^>]*>([\s\S]*?)<\/[^>]+>/u.exec(
+        block,
+      );
+      return [
+        {
+          title: decodeHtml(link[2]!),
+          url: url.toString(),
+          ...(excerpt ? { excerpt: decodeHtml(excerpt[1]!) } : {}),
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+
+async function publicSearch(input: {
+  source: "duckduckgo" | "gdelt" | "wikimedia";
+  query: string;
+}) {
+  if (input.source === "duckduckgo") {
+    const response = await safeHttpRequest({
+      url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(input.query)}`,
+      method: "GET",
+      accept: "binary",
+      maximumBytes: 2 * 1024 * 1024,
+      timeoutMs: 15_000,
+      authorization: "",
+    });
+    if (response.status < 200 || response.status >= 300)
+      throw new Error(`DuckDuckGo returned ${response.status}`);
+    return {
+      source: "duckduckgo" as const,
+      results: duckDuckGoResults(response.bytes.toString("utf8")),
+      coverage:
+        "DuckDuckGo 公开非脚本网页结果；属于尽力而为的补充，不代表完整全网。",
+    };
+  }
+  if (input.source === "gdelt") {
+    const response = await safeHttpRequest({
+      // Keep the external GDELT path distinct from DramaIP's internal API
+      // namespace; Electron Main never calls a Runtime business route.
+      url: `https://api.gdeltproject.org/api/${"v2"}/doc/doc?query=${encodeURIComponent(input.query)}&mode=artlist&format=json&maxrecords=10`,
+      method: "GET",
+      accept: "json",
+      maximumBytes: 2 * 1024 * 1024,
+      timeoutMs: 15_000,
+      authorization: "",
+    });
+    if (response.status < 200 || response.status >= 300)
+      throw new Error(`GDELT returned ${response.status}`);
+    const data = JSON.parse(response.bytes.toString("utf8")) as {
+      articles?: Array<Record<string, unknown>>;
+    };
+    return {
+      source: "gdelt" as const,
+      results: (data.articles ?? []).flatMap((article) =>
+        typeof article.title === "string" && typeof article.url === "string"
+          ? [
+              {
+                title: article.title,
+                url: article.url,
+                ...(typeof article.seendate === "string"
+                  ? { publishedAt: article.seendate }
+                  : {}),
+              },
+            ]
+          : [],
+      ),
+      coverage: "GDELT 新闻索引结果；适合新闻覆盖，不代表一般网页搜索。",
+    };
+  }
+  const response = await safeHttpRequest({
+    url: `https://zh.wikipedia.org/w/api.php?action=query&list=search&format=json&utf8=1&srlimit=10&srsearch=${encodeURIComponent(input.query)}`,
+    method: "GET",
+    accept: "json",
+    maximumBytes: 2 * 1024 * 1024,
+    timeoutMs: 15_000,
+    authorization: "",
+  });
+  if (response.status < 200 || response.status >= 300)
+    throw new Error(`Wikimedia returned ${response.status}`);
+  const data = JSON.parse(response.bytes.toString("utf8")) as {
+    query?: { search?: Array<Record<string, unknown>> };
+  };
+  return {
+    source: "wikimedia" as const,
+    results: (data.query?.search ?? []).flatMap((entry) =>
+      typeof entry.title === "string"
+        ? [
+            {
+              title: entry.title,
+              url: `https://zh.wikipedia.org/wiki/${encodeURIComponent(entry.title.replace(/ /gu, "_"))}`,
+              ...(typeof entry.snippet === "string"
+                ? { excerpt: decodeHtml(entry.snippet) }
+                : {}),
+            },
+          ]
+        : [],
+    ),
+    coverage: "Wikimedia 公开知识库结果；适合背景资料，不代表完整全网。",
+  };
 }
 
 async function restartSidecar(previous: ManagedProcess): Promise<void> {
-  const attempt = restartAttempts.get(previous.name) ?? 0;
-  if (attempt >= 3) {
+  const budget = restartBudgets.get(previous.name);
+  const delay = budget?.nextDelay();
+  if (delay === undefined) {
     console.error(`${previous.name} exceeded restart limit`);
     return;
   }
-  restartAttempts.set(previous.name, attempt + 1);
-  await new Promise((resolvePromise) =>
-    setTimeout(resolvePromise, 500 * 2 ** attempt),
-  );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, delay));
   try {
+    if (previous.name === "core-runtime") {
+      await restartRuntimeTree(previous);
+      return;
+    }
     const next = await spawnSidecar(
       previous.name,
       previous.command,
       previous.required,
     );
     if (!next) return;
-    restartAttempts.set(previous.name, 0);
-    if (previous.name === "core-runtime") coreRuntime = next;
     if (previous.name === "codex-engine") {
       codexEngine = next;
     }
@@ -622,10 +822,80 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
     if (previous.name === "grok-engine") {
       grokEngine = next;
     }
+    if (previous.name === "langgraph-engine") {
+      langgraphEngine = next;
+    }
   } catch (error) {
     console.error(`Failed to restart ${previous.name}`, error);
     await restartSidecar(previous);
   }
+}
+
+async function restartRuntimeTree(previous: ManagedProcess): Promise<void> {
+  const engines = [codexEngine, piEngine, grokEngine, langgraphEngine].filter(
+    (engine): engine is ManagedProcess => Boolean(engine),
+  );
+  failPendingEngineWork("Core Runtime restarted");
+  await extensionSupervisor.stopAll();
+  await Promise.allSettled(
+    engines.map(async (engine) => {
+      intentionallyStoppedSidecars.add(engine.child);
+      await engine.stop();
+    }),
+  );
+  codexEngine = undefined;
+  piEngine = undefined;
+  grokEngine = undefined;
+  langgraphEngine = undefined;
+
+  const accessToken = randomBytes(32).toString("base64url");
+  const mcpTokens = {
+    "codex-engine": randomUUID(),
+    "pi-engine": randomUUID(),
+    "grok-engine": randomUUID(),
+  } as const;
+  previous.command.accessToken = accessToken;
+  previous.command.engineMcpTokens = Object.values(mcpTokens);
+  previous.command.runtimeGeneration =
+    Number(previous.command.runtimeGeneration ?? previous.generation) + 1;
+  const next = await spawnSidecar(
+    previous.name,
+    previous.command,
+    previous.required,
+  );
+  if (!next?.runtimeReady)
+    throw new Error("Core Runtime restart did not return ready metadata");
+  coreRuntime = next;
+  const baseUrl = `http://127.0.0.1:${next.runtimeReady.port}`;
+  for (const engine of engines) {
+    const mcp = engine.command.mcp as
+      { url: string; token: string } | undefined;
+    if (mcp) {
+      mcp.url = `${baseUrl}/engine/v1/mcp`;
+      mcp.token = mcpTokens[engine.name as keyof typeof mcpTokens];
+    }
+  }
+  const restarted = await Promise.all(
+    engines.map((engine) =>
+      spawnSidecar(engine.name, engine.command, engine.required),
+    ),
+  );
+  for (const engine of restarted) {
+    if (engine?.name === "codex-engine") codexEngine = engine;
+    if (engine?.name === "pi-engine") piEngine = engine;
+    if (engine?.name === "grok-engine") grokEngine = engine;
+    if (engine?.name === "langgraph-engine") langgraphEngine = engine;
+  }
+  runtimeReady = {
+    baseUrl,
+    accessToken,
+    appVersion: app.getVersion(),
+    apiVersion: "2",
+    runtimeId: next.runtimeReady.runtimeId,
+    runtimeGeneration: next.runtimeReady.runtimeGeneration,
+  };
+  destroyMainWindows();
+  createWindow(runtimeReady);
 }
 
 function stopChild(
@@ -646,11 +916,22 @@ function stopChild(
   });
 }
 
+async function stopManagedComponent(
+  component: ManagedComponentState,
+  child: Electron.UtilityProcess,
+  timeoutMs: number,
+): Promise<void> {
+  component.stopping();
+  await stopChild(child, timeoutMs);
+  component.stopped();
+}
+
 function managedEngine(engine: import("@dramaip/contracts").AgentEngineKind) {
   return {
     codex: codexEngine,
     pi: piEngine,
     grok: grokEngine,
+    langgraph: langgraphEngine,
   }[engine];
 }
 
@@ -804,7 +1085,16 @@ async function loginCodex(
   if (input.mode === "api_key" || input.mode === "custom_provider") {
     if (!input.credentialRef)
       return { status: "unavailable", message: "安全凭据不可用。" };
-    const secret = await resolveCredential(input.credentialRef);
+    const secret = await resolveCredential(input.credentialRef, {
+      purpose:
+        input.mode === "custom_provider"
+          ? "provider-authentication"
+          : "codex-authentication",
+      origin:
+        input.mode === "custom_provider" && input.provider
+          ? input.provider.baseUrl
+          : "https://api.openai.com",
+    });
     if (!secret) return { status: "unavailable", message: "安全凭据不可用。" };
     payload.apiKey = secret;
   }
@@ -906,6 +1196,8 @@ async function runHostEngineOperation(
         configured: authentication.available,
         version: managed.version,
         authenticated: authentication.authenticated,
+        generation: managed.generation,
+        pendingRequestCount: engineHostRequests.size,
       };
     }
     return {
@@ -914,6 +1206,8 @@ async function runHostEngineOperation(
       configured: managed.configured,
       version: managed.version,
       authenticated: managed.authenticated,
+      generation: managed.generation,
+      pendingRequestCount: engineHostRequests.size,
     };
   }
   if (!managed.healthy)
@@ -1035,14 +1329,17 @@ function createHost(accessToken: string) {
     accessToken,
     capabilities: [
       { id: "files", available: true },
+      { id: "media-library", available: true },
       { id: "credentials", available: true },
       { id: "window", available: true },
       { id: "shell", available: true },
       { id: "engines", available: true },
       { id: "agent-provider", available: true },
       { id: "provider-http", available: true },
+      { id: "public-search", available: true },
       { id: "codex-auth", available: true },
       { id: "notifications", available: true },
+      { id: "extensions", available: true },
       { id: "updater", available: false },
     ],
     actions: {
@@ -1063,15 +1360,22 @@ function createHost(accessToken: string) {
               });
         if (result.canceled) return null;
         return result.filePaths.map((path) => {
-          const token = randomUUID();
+          const grantId = randomUUID();
           const expiresAt = Date.now() + 10 * 60_000;
-          fileCapabilities.set(token, {
+          fileCapabilities.set(grantId, {
             path,
+            kind: "file",
             webContentsId: 0,
             permissions: ["read"],
             expiresAt,
           });
-          return { token, name: path.split(/[\\/]/).pop() ?? path, expiresAt };
+          return {
+            grantId,
+            kind: "file" as const,
+            displayName: path.split(/[\\/]/).pop() ?? "选中文件",
+            expiresAt: new Date(expiresAt).toISOString(),
+            generation: hostGeneration,
+          };
         });
       },
       async pickDirectory() {
@@ -1080,18 +1384,25 @@ function createHost(accessToken: string) {
         });
         const path = result.filePaths[0];
         if (result.canceled || !path) return null;
-        const token = randomUUID();
+        const grantId = randomUUID();
         const expiresAt = Date.now() + 10 * 60_000;
-        fileCapabilities.set(token, {
+        fileCapabilities.set(grantId, {
           path,
+          kind: "directory",
           webContentsId: 0,
           permissions: ["read"],
           expiresAt,
         });
-        return { token, name: path.split(/[\\/]/).pop() ?? path, expiresAt };
+        return {
+          grantId,
+          kind: "directory" as const,
+          displayName: path.split(/[\\/]/).pop() ?? "选中目录",
+          expiresAt: new Date(expiresAt).toISOString(),
+          generation: hostGeneration,
+        };
       },
-      async readGrantedText(token, maximumBytes) {
-        const grant = fileCapabilities.get(token);
+      async readGrantedText(grantId, maximumBytes) {
+        const grant = fileCapabilities.get(grantId);
         if (
           !grant ||
           grant.expiresAt <= Date.now() ||
@@ -1113,6 +1424,51 @@ function createHost(accessToken: string) {
           size: content.byteLength,
         };
       },
+      async importPortraitMedia(grantId) {
+        const grant = fileCapabilities.get(grantId);
+        if (
+          !grant ||
+          grant.kind !== "file" ||
+          grant.expiresAt <= Date.now() ||
+          !grant.permissions.includes("read")
+        )
+          throw new Error("照片文件授权无效或已过期");
+        const source = await readFile(grant.path);
+        if (source.byteLength > 20 * 1024 * 1024)
+          throw new Error("照片超过 20MB 安全上限");
+        const image = nativeImage.createFromBuffer(source);
+        if (image.isEmpty()) throw new Error("照片格式无效或无法解码");
+        const { width, height } = image.getSize();
+        if (width < 16 || height < 16 || width > 8192 || height > 8192)
+          throw new Error("照片尺寸不在允许范围内");
+        // Re-encoding is intentional: EXIF and the original byte stream never
+        // enter Runtime, Renderer, diagnostics or the project database.
+        const cleaned = image.toPNG();
+        const mediaRef = randomUUID();
+        const root = join(app.getPath("userData"), "media-library");
+        await mkdir(root, { recursive: true, mode: 0o700 });
+        const target = join(root, `${mediaRef}.png`);
+        await writeFile(target, cleaned, { mode: 0o600, flag: "wx" });
+        managedPortraitMedia.set(mediaRef, target);
+        return {
+          mediaRef,
+          sha256: createHash("sha256").update(cleaned).digest("hex"),
+          mimeType: "image/png" as const,
+          width,
+          height,
+          size: cleaned.byteLength,
+        };
+      },
+      async removeManagedMedia(mediaRef) {
+        const target = managedPortraitMedia.get(mediaRef);
+        if (!target) return;
+        managedPortraitMedia.delete(mediaRef);
+        try {
+          await unlink(target);
+        } catch (cause) {
+          if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+        }
+      },
       async saveTextFile(input) {
         const suggestedName = input.suggestedName
           .replace(/[\\/]/g, "-")
@@ -1123,17 +1479,37 @@ function createHost(accessToken: string) {
         });
         if (result.canceled || !result.filePath) return { saved: false };
         await writeFile(result.filePath, input.content, "utf8");
-        return { saved: true };
+        const artifactRef = randomUUID();
+        artifactCapabilities.set(artifactRef, result.filePath);
+        return { saved: true, artifactRef };
       },
       openExternal: (url) => shell.openExternal(url),
-      async revealPath(path) {
+      async revealGrant(grantId) {
+        const grant = fileCapabilities.get(grantId);
+        if (!grant || grant.expiresAt <= Date.now())
+          throw new Error("文件授权无效或已过期");
+        shell.showItemInFolder(grant.path);
+      },
+      async revealArtifact(artifactRef) {
+        const path = artifactCapabilities.get(artifactRef);
+        if (!path) throw new Error("导出产物引用无效");
         shell.showItemInFolder(path);
       },
-      storeCredential,
       removeCredential,
       credentialStorageStatus: () => credentialVault.status(),
+      createCredentialCaptureSession: (input) => {
+        if (!credentialCaptureManager)
+          throw new Error("Credential capture is unavailable");
+        return credentialCaptureManager.create(
+          input,
+          BrowserWindow.getFocusedWindow() ?? undefined,
+        );
+      },
+      credentialCaptureStatus: async (captureSessionId) =>
+        credentialCaptureManager?.status(captureSessionId),
       activateAgentProvider,
       providerRequest: executeProviderHttpRequest,
+      publicSearch,
       codexAuthenticationStatus: readCodexAuthenticationStatus,
       loginCodex,
       logoutCodex,
@@ -1153,8 +1529,73 @@ function createHost(accessToken: string) {
       async notify(input) {
         new Notification(input).show();
       },
+      async fetchExtensionRegistry(input) {
+        const response = await safeHttpRequest({
+          url: input.url,
+          method: "GET",
+          accept: "json",
+          maximumBytes: 10 * 1024 * 1024,
+          timeoutMs: 30_000,
+          authorization: "",
+        });
+        if (response.status < 200 || response.status >= 300)
+          throw new Error(`Extension Registry returned ${response.status}`);
+        return verifyExtensionRegistry(
+          JSON.parse(response.bytes.toString("utf8")),
+          { keyId: input.keyId, publicKeyPem: input.rootPublicKey },
+        );
+      },
+      async stageExtensionPackage(input) {
+        const response = await safeHttpRequest({
+          url: input.packageUrl,
+          method: "GET",
+          accept: "binary",
+          maximumBytes: 50 * 1024 * 1024,
+          timeoutMs: 90_000,
+          authorization: "",
+        });
+        if (response.status < 200 || response.status >= 300)
+          throw new Error(`Extension package returned ${response.status}`);
+        if (sha256(response.bytes) !== input.expectedSha256)
+          throw new Error("Extension package download integrity mismatch");
+        return extensionSupervisor.stage(
+          response.bytes,
+          input.publisherPublicKey,
+        );
+      },
+      activateExtension: (input) => extensionSupervisor.activate(input),
+      invokeExtension: (input) => extensionSupervisor.invoke(input),
+      stopExtension: (pluginId) => extensionSupervisor.stop(pluginId),
+      retryExtension: async (pluginId) =>
+        extensionSupervisor.resetQuarantine(pluginId),
+      extensionDiagnostics: async () => extensionSupervisor.diagnostics(),
+      async extensionNetworkRequest(input) {
+        const response = await safeHttpRequest({
+          url: input.url,
+          method: input.method,
+          ...(input.body ? { body: input.body } : {}),
+          accept: "json",
+          maximumBytes: 1024 * 1024,
+          timeoutMs: 30_000,
+          authorization: "",
+        });
+        let json: unknown;
+        try {
+          json = JSON.parse(response.bytes.toString("utf8"));
+        } catch {
+          json = null;
+        }
+        return {
+          status: response.status,
+          contentType: response.contentType,
+          json,
+        };
+      },
       async engineHealth(engine) {
         const managed = managedEngine(engine);
+        const snapshot = componentStates
+          .get(`${engine}-engine`)
+          ?.snapshot(engineHostRequests.size + engineHostStreams.size);
         if (engine === "codex") {
           const authentication = await readCodexAuthenticationStatus();
           return {
@@ -1163,6 +1604,9 @@ function createHost(accessToken: string) {
             configured: authentication.available,
             version: managed?.version,
             authenticated: authentication.authenticated,
+            generation: snapshot?.generation ?? 0,
+            supervisor: snapshot,
+            restartBudget: restartBudgets.get("codex-engine")?.snapshot(),
           };
         }
         return {
@@ -1171,6 +1615,9 @@ function createHost(accessToken: string) {
           configured: managed?.configured ?? false,
           version: managed?.version,
           authenticated: managed?.authenticated,
+          generation: snapshot?.generation ?? 0,
+          supervisor: snapshot,
+          restartBudget: restartBudgets.get(`${engine}-engine`)?.snapshot(),
         };
       },
       engineOperation: runHostEngineOperation,
@@ -1196,8 +1643,7 @@ function runtimeProfilePath(
 
 async function initialize(): Promise<Ready> {
   const hostname = "127.0.0.1";
-  const hostPort = randomPort();
-  const runtimePort = randomPort();
+  const runtimeGeneration = 1;
   const mcpTokens = {
     codex: randomUUID(),
     pi: randomUUID(),
@@ -1205,26 +1651,28 @@ async function initialize(): Promise<Ready> {
   } as const;
   const hostToken = randomUUID();
   const host = createHost(hostToken);
-  hostServer = host.start({ hostname, port: hostPort });
+  hostServer = await host.start({ hostname, port: 0 });
   const runtimeToken = randomBytes(32).toString("base64url");
   coreRuntime = (await spawnSidecar(
     "core-runtime",
     {
       type: "start",
       hostname,
-      port: runtimePort,
+      port: 0,
+      runtimeGeneration,
       accessToken: runtimeToken,
       databasePath: join(app.getPath("userData"), "dramaip.db"),
       profilePath: runtimeProfilePath("studio"),
+      migrationWorkerEntry: sidecarPath("migration-worker"),
       allowedOrigins: [
-        `${rendererProtocol}://${rendererHost}`,
+        RENDERER_ORIGIN,
         ...(process.env.ELECTRON_RENDERER_URL
           ? [process.env.ELECTRON_RENDERER_URL]
           : []),
       ],
       engineMcpTokens: Object.values(mcpTokens),
       host: {
-        baseUrl: `http://${hostname}:${hostPort}`,
+        baseUrl: `http://${hostname}:${hostServer.port}`,
         accessToken: hostToken,
       },
       alpha3AgentCutover: {
@@ -1234,19 +1682,23 @@ async function initialize(): Promise<Ready> {
     },
     true,
   )) as ManagedProcess;
+  if (!coreRuntime.runtimeReady)
+    throw new Error("Core Runtime ready metadata is missing");
   const ready: Ready = {
-    baseUrl: `http://${hostname}:${runtimePort}`,
+    baseUrl: `http://${hostname}:${coreRuntime.runtimeReady.port}`,
     accessToken: runtimeToken,
     appVersion: app.getVersion(),
     apiVersion: "2",
+    runtimeId: coreRuntime.runtimeReady.runtimeId,
+    runtimeGeneration: coreRuntime.runtimeReady.runtimeGeneration,
   };
   await runtimeHealthCheck(ready);
   const mcpUrl = `${ready.baseUrl}/engine/v1/mcp`;
   await bootstrapCodexAuth();
   // Engine transports are independent supervisors. Starting them concurrently
-  // avoids making every Desktop attach pay three sequential vendor handshakes.
+  // avoids making every Desktop attach pay four sequential vendor handshakes.
   // Availability remains explicit per engine; no adapter is used as fallback.
-  const [codex, pi, grok] = await Promise.all([
+  const [codex, pi, grok, langgraph] = await Promise.all([
     spawnSidecar(
       "codex-engine",
       {
@@ -1276,45 +1728,39 @@ async function initialize(): Promise<Ready> {
             type: "start",
             binaryPath: grokBinaryPath(),
             sessionRoot: join(
-              app.getPath("temp"),
-              `dramaip-grok-${randomUUID()}`,
+              app.getPath("userData"),
+              "agent-sessions",
+              "grok",
             ),
             mcp: { url: mcpUrl, token: mcpTokens.grok },
           },
           false,
         )
       : Promise.resolve(undefined),
+    spawnSidecar(
+      "langgraph-engine",
+      {
+        type: "start",
+        sessionRoot: join(
+          app.getPath("userData"),
+          "agent-sessions",
+          "langgraph",
+        ),
+      },
+      false,
+    ),
   ]);
   codexEngine = codex;
   piEngine = pi;
   grokEngine = grok;
-  await restoreRuntimeAgentProvider(ready);
-  await new ServerConnectionManager().attach({
-    baseUrl: ready.baseUrl,
-    accessToken: ready.accessToken,
-    source: "spawned",
-  });
+  langgraphEngine = langgraph;
   return ready;
-}
-
-async function restoreRuntimeAgentProvider(ready: Ready): Promise<void> {
-  try {
-    await fetch(`${ready.baseUrl}/api/v2/agent-engines/restore-configuration`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${ready.accessToken}` },
-      signal: AbortSignal.timeout(25_000),
-    });
-  } catch {
-    // Engine availability remains explicit through the Runtime diagnostics; a
-    // failed restore must not block the desktop window from opening.
-  }
 }
 
 async function runtimeHealthCheck(ready: Ready): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
-      const result = await fetch(`${ready.baseUrl}/api/v2/health`, {
-        headers: { Authorization: `Bearer ${ready.accessToken}` },
+      const result = await fetch(`${ready.baseUrl}/health`, {
         signal: AbortSignal.timeout(500),
       });
       if (result.ok) return;
@@ -1324,75 +1770,15 @@ async function runtimeHealthCheck(ready: Ready): Promise<void> {
   throw new Error("DramaIP Runtime health check failed");
 }
 
-function registerRendererProtocol(): void {
-  if (protocol.isProtocolHandled(rendererProtocol)) return;
-  protocol.handle(rendererProtocol, async (request) => {
-    const url = new URL(request.url);
-    if (url.host !== rendererHost)
-      return new Response("Not found", { status: 404 });
-    const root = join(__dirname, "../renderer");
-    const target = resolve(root, `.${decodeURIComponent(url.pathname)}`);
-    if (relative(root, target).startsWith("..") || !existsSync(target))
-      return new Response("Not found", { status: 404 });
-    return net.fetch(pathToFileURL(target).toString());
-  });
-}
-
 function createWindow(ready: Ready): BrowserWindow {
-  const dark = nativeTheme.shouldUseDarkColors;
-  const window = new BrowserWindow({
-    width: 1600,
-    height: 1000,
-    minWidth: 1080,
-    minHeight: 700,
-    show: false,
-    title: "DramaIP Studio",
-    backgroundColor: dark ? "#191a19" : "#f8f7f4",
-    ...(!app.isPackaged ? { icon: developmentIconPath } : {}),
-    ...(process.platform === "darwin"
-      ? {
-          titleBarStyle: "hiddenInset" as const,
-          trafficLightPosition: { x: 16, y: 25 },
-        }
-      : {
-          titleBarStyle: "hidden" as const,
-          titleBarOverlay: {
-            color: dark ? "#191a19" : "#f8f7f4",
-            symbolColor: dark ? "#f1eee9" : "#242320",
-            height: 64,
-          },
-        }),
-    webPreferences: {
-      preload: join(__dirname, "../preload/index.js"),
-      additionalArguments: [
-        `--dramaip-runtime-bootstrap=${Buffer.from(JSON.stringify(ready)).toString("base64")}`,
-      ],
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-    },
+  return createMainWindow({
+    bootstrap: ready,
+    preloadPath: join(__dirname, "../preload/index.js"),
+    ...(!app.isPackaged ? { developmentIconPath } : {}),
+    ...(process.env.ELECTRON_RENDERER_URL
+      ? { developmentUrl: process.env.ELECTRON_RENDERER_URL }
+      : {}),
   });
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
-    return { action: "deny" };
-  });
-  window.webContents.on("will-navigate", (event, url) => {
-    if (
-      !url.startsWith(`${rendererProtocol}://`) &&
-      !url.startsWith(
-        process.env.ELECTRON_RENDERER_URL ?? "http://localhost:5177",
-      )
-    ) {
-      event.preventDefault();
-      void shell.openExternal(url);
-    }
-  });
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
-  if (devUrl) void window.loadURL(devUrl);
-  else void window.loadURL(`${rendererProtocol}://${rendererHost}/index.html`);
-  window.once("ready-to-show", () => window.show());
-  return window;
 }
 
 app
@@ -1401,7 +1787,13 @@ app
     if (process.platform === "darwin" && !app.isPackaged) {
       app.dock?.setIcon(developmentIconPath);
     }
-    registerRendererProtocol();
+    registerRendererProtocol(join(__dirname, "../renderer"));
+    registerRuntimeBootstrapExchange();
+    credentialCaptureManager = new CredentialCaptureManager(
+      credentialVault,
+      join(__dirname, "../preload/credential-capture.js"),
+    );
+    credentialCaptureManager.register();
     initialization = initialize();
     try {
       runtimeReady = await initialization;
@@ -1415,8 +1807,7 @@ app
       app.quit();
     }
     app.on("activate", () => {
-      if (!BrowserWindow.getAllWindows().length && runtimeReady)
-        createWindow(runtimeReady);
+      if (!hasMainWindow() && runtimeReady) createWindow(runtimeReady);
     });
   })
   .catch((error) => {
@@ -1434,14 +1825,24 @@ app.on("before-quit", (event) => {
   if (shutdownComplete) return;
   event.preventDefault();
   shuttingDown = true;
-  hostServer?.close();
-  shutdownTask ??= Promise.allSettled([
-    coreRuntime?.stop(),
-    codexEngine?.stop(),
-    piEngine?.stop(),
-    grokEngine?.stop(),
-  ]).then(() => {
+  shutdownTask ??= (async () => {
+    await shutdownApplication({
+      closeWindows: destroyMainWindows,
+      disposeCredentialCapture: () => credentialCaptureManager?.dispose(),
+      engines: [
+        { stop: () => extensionSupervisor.stopAll() },
+        codexEngine,
+        piEngine,
+        grokEngine,
+        langgraphEngine,
+      ],
+      runtime: coreRuntime,
+      host: hostServer,
+      disposeSupervision: () => {
+        for (const budget of restartBudgets.values()) budget.dispose();
+      },
+    });
     shutdownComplete = true;
     app.quit();
-  });
+  })();
 });

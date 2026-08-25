@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const REQUIRED_BUN = "1.3.14";
+const REQUIRED_BUN = "1.4.0";
 const MINIMUM_NODE = [22, 12, 0] as const;
 
 const repositoryRoot = dirname(fileURLToPath(import.meta.url));

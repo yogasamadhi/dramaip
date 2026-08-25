@@ -42,7 +42,7 @@
 | `bun run lint`                   | pass | `oxlint --deny-warnings` 通过。                                                        |
 | `bun run test:unit`              | pass | 包级 unit、SQLite conformance、服务端 contract 与 LM6-00 fixture 通过。                |
 | `bun run check:generated`        | pass | Client 与 ai-legacy 生成物一致。                                                       |
-| `bun run check:engine-locks`     | pass | 活动锁定 Pi `0.84.2`、Codex `0.147`、Grok Build `1.0.5`；OpenCode/DSH 仅校验参考快照。 |
+| `bun run check:engine-locks`     | pass | 活动锁定 Pi `0.84.2`、Codex `0.147`、Grok Build `1.0.5`、LangGraph.js `1.4.9`；OpenCode/DSH 仅校验参考快照。 |
 | `bun run check:provider-catalog` | pass | Provider catalog 为 RC `2.0.0`，最近核对日 `2026-08-11`。                              |
 | `bun run build`                  | pass | Desktop bundle 成功。                                                                  |
 | `bun run test:e2e`               | pass | 3 个 Electron smoke 场景通过。                                                         |

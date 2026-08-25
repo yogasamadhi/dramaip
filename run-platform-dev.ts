@@ -63,7 +63,7 @@ export const HOST_PROMETHEUS_TARGETS = join(
 );
 
 const CURRENT_PID = process.pid;
-const REQUIRED_BUN_VERSION = "1.3.14";
+const REQUIRED_BUN_VERSION = "1.4.0";
 const GATEWAY_PORT = 8080;
 const DEFAULT_JAVA_OPTS =
   "-Xmx512m -Xms256m -XX:MaxRAMPercentage=50 -XX:+UseG1GC";

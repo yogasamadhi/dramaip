@@ -1,12 +1,11 @@
 /// <reference types="vite/client" />
 
+import type { RuntimeBootstrap } from "@dramaip/contracts";
+
 declare global {
   interface Window {
     runtimeBootstrap: Readonly<{
-      baseUrl: string;
-      accessToken: string;
-      appVersion: string;
-      apiVersion: "2";
+      resolve(): Promise<Readonly<RuntimeBootstrap>>;
     }>;
   }
 }

@@ -7,8 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "bun --bun run tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

@@ -73,6 +73,7 @@ export interface AgentSessionInput {
 export interface AgentRunInput {
   runId: string;
   prompt: string;
+  responseMode?: "text" | "structured";
   capabilityGrant?: { endpoint: string; token: string; expiresAt: string };
 }
 
@@ -86,12 +87,39 @@ export interface AgentRunRef {
   engineRunId?: string;
 }
 
+export type RunRecoveryMode = "none" | "snapshot" | "stream";
+
+export type AgentRunRecoveryResult =
+  | {
+      disposition: "resumed";
+      session: AgentSessionRef;
+      run: AgentRunRef;
+    }
+  | {
+      disposition: "completed";
+      result: JsonValue;
+      finalCursor: number;
+    }
+  | { disposition: "missing" };
+
+export interface AgentRuntimeHealth {
+  available: boolean;
+  healthy: boolean;
+  configured: boolean;
+  authenticated: boolean;
+  generation: number;
+  pendingRequestCount: number;
+  detail?: string;
+}
+
 /**
  * Vendor-neutral engine contract.  It is intentionally free of Electron,
  * SQLite, Hono and vendor SDK types, so the Core Runtime can be tested alone.
  */
 export interface AgentRuntime {
   readonly descriptor: AgentEngineDescriptor;
+  readonly runRecoveryMode: RunRecoveryMode;
+  health(): Promise<AgentRuntimeHealth>;
   availability(): Promise<{
     available: boolean;
     authenticated: boolean;
@@ -111,6 +139,11 @@ export interface AgentRuntime {
     run: AgentRunRef,
     options?: { cursor?: number; signal?: AbortSignal },
   ): AsyncIterable<AgentRuntimeEvent>;
+  recoverRun(input: {
+    session: AgentSessionRef;
+    run: AgentRunRef;
+    afterCursor: number;
+  }): Promise<AgentRunRecoveryResult>;
   dispose(session: AgentSessionRef): Promise<void>;
 }
 

@@ -11,6 +11,69 @@ const opencode = await readJson(join(root, "vendor/opencode.lock.json"));
 const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
 const pi = await readJson(join(root, "vendor/pi.lock.json"));
 const grok = await readJson(join(root, "vendor/grok-build.lock.json"));
+const langgraph = await readJson(join(root, "vendor/langgraph.lock.json"));
+
+const langgraphPackages = {
+  "@langchain/langgraph": "1.4.9",
+  "@langchain/core": "1.2.4",
+  ai: "6.0.168",
+  "@ai-sdk/anthropic": "3.0.82",
+  "@ai-sdk/google": "3.0.73",
+  "@ai-sdk/openai": "3.0.84",
+  "@ai-sdk/openai-compatible": "2.0.56",
+};
+if (
+  langgraph.package !== "@langchain/langgraph" ||
+  langgraph.version !== langgraphPackages["@langchain/langgraph"] ||
+  langgraph.license !== "MIT" ||
+  langgraph.core?.package !== "@langchain/core" ||
+  langgraph.core?.version !== langgraphPackages["@langchain/core"] ||
+  langgraph.core?.license !== "MIT"
+)
+  throw new Error("LangGraph.js 固定版本必须为 1.4.9（MIT，Core 1.2.4）");
+const expectedModelRuntime = Object.fromEntries(
+  Object.entries(langgraphPackages).filter(
+    ([name]) => name !== "@langchain/langgraph" && name !== "@langchain/core",
+  ),
+);
+if (
+  JSON.stringify(langgraph.modelRuntime) !==
+  JSON.stringify(expectedModelRuntime)
+)
+  throw new Error("LangGraph 模型依赖锁定清单不完整");
+for (const [name, version] of Object.entries(langgraph.modelRuntime ?? {}))
+  if (langgraphPackages[name] !== version)
+    throw new Error(`LangGraph 模型依赖锁定不一致：${name}`);
+const agentAdapterManifest = await readJson(
+  join(root, "packages/ai/package.json"),
+);
+const bunLock = await readFile(join(root, "bun.lock"), "utf8");
+for (const [name, version] of Object.entries(langgraphPackages)) {
+  if (agentAdapterManifest.dependencies?.[name] !== version)
+    throw new Error(`LangGraph 依赖未精确固定：${name}@${version}`);
+  const resolution = bunLock
+    .split("\n")
+    .find(
+      (line) =>
+        line.includes(`"${name}": [`) && line.includes(`${name}@${version}`),
+    );
+  if (!resolution)
+    throw new Error(`bun.lock 缺少 LangGraph 依赖：${name}@${version}`);
+  if (!resolution.includes("sha512-"))
+    throw new Error(`bun.lock 缺少 LangGraph 依赖完整性摘要：${name}`);
+}
+if (/better-sqlite3/iu.test(bunLock))
+  throw new Error("LangGraph 引擎不得引入 better-sqlite3 checkpointer");
+const langgraphNotices = await readFile(
+  join(
+    root,
+    "apps/desktop/build/third-party-notices/LangGraph-and-AI-SDK-NOTICES.md",
+  ),
+  "utf8",
+);
+for (const name of Object.keys(langgraphPackages))
+  if (!langgraphNotices.includes(name))
+    throw new Error(`LangGraph 第三方许可证清单缺少：${name}`);
 
 if (codex.package !== "@openai/codex" || codex.version !== "0.147.0")
   throw new Error("Codex 固定版本必须为 @openai/codex 0.147.0");
@@ -236,5 +299,5 @@ if (!/^[a-f0-9]{64}$/.test(grokBinarySha ?? ""))
   throw new Error("Grok macOS arm64 缺少二进制 SHA-256");
 
 process.stdout.write(
-  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；Grok Build ${grok.version}。归档参考快照完整：OpenCode ${opencode.version}；DSH ${dsh.version}\n`,
+  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；Grok Build ${grok.version}；LangGraph.js ${langgraph.version}。归档参考快照完整：OpenCode ${opencode.version}；DSH ${dsh.version}\n`,
 );

@@ -10,6 +10,7 @@ import type {
   DomainEntity,
   Task,
 } from "@dramaip/contracts/product";
+import { ChangePreviewSchema, TaskSchema } from "@dramaip/contracts/automation";
 import {
   BareButton,
   Button,
@@ -735,7 +736,9 @@ function NovelInsightRunner(props: {
           typeof event.payload !== "object"
         )
           return;
-        const task = event.payload as Task;
+        const parsed = TaskSchema.safeParse(event.payload);
+        if (!parsed.success) return;
+        const task = parsed.data;
         if (task.id !== taskRef.current) return;
         if (task.status === "failed") {
           setBusy(false);
@@ -955,9 +958,13 @@ export function NovelArtifactGenerator(props: {
     () =>
       props.client.events.subscribe((event) => {
         if (!event.payload || typeof event.payload !== "object") return;
-        const payload = event.payload as Record<string, unknown>;
-        if (event.type === "task.updated" && payload.id === taskRef.current) {
-          const value = payload as unknown as Task;
+        const parsed = TaskSchema.safeParse(event.payload);
+        if (
+          event.type === "task.updated" &&
+          parsed.success &&
+          parsed.data.id === taskRef.current
+        ) {
+          const value = parsed.data;
           setTask(value);
           if (value.status === "failed") {
             setBusy(false);
@@ -975,11 +982,15 @@ export function NovelArtifactGenerator(props: {
           }
         }
         if (event.type === "change_preview.created") {
-          const value = payload as unknown as ChangePreview;
+          const preview = ChangePreviewSchema.safeParse(event.payload);
+          if (!preview.success) return;
+          const value = preview.data;
           if (value.taskId !== taskRef.current) return;
-          setPreview(value);
-          setBusy(false);
-          setNotice("智能方案已生成，请核对后采用。");
+          void props.client.changePreviews.get(value.id).then((current) => {
+            setPreview(current);
+            setBusy(false);
+            setNotice("智能方案已生成，请核对后采用。");
+          });
         }
       }),
     [props.client],

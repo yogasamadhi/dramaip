@@ -1,6 +1,14 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
 
-export const DELIVERY_RECORD_SERVICE = "delivery.records.v1" as const;
+export const DELIVERY_RECORD_SERVICE =
+  defineServiceContract<DeliveryRecordService>({
+    id: "delivery.records.v1",
+    owner: "delivery",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
 
 export const DeliveryRecordKindSchema = z.enum([
   "localization",

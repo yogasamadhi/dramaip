@@ -35,6 +35,12 @@ function fakeHost(): DesktopHostClient {
 describe("Host AgentRuntime adapter", () => {
   it("maps a Pi run to cursor-addressable neutral events", async () => {
     const runtime = createHostAgentRuntime(fakeHost(), "pi");
+    await expect(runtime.health()).resolves.toMatchObject({
+      available: true,
+      healthy: true,
+      generation: 0,
+      pendingRequestCount: 0,
+    });
     const session = await runtime.createSession({
       sessionId: "session-1",
       title: "test",

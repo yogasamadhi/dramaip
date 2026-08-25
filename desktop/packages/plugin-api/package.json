@@ -9,7 +9,7 @@
     "./internal": "./src/internal.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun --bun run tsc --noEmit"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

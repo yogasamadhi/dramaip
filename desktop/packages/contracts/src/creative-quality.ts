@@ -1,6 +1,14 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
 
-export const CREATIVE_QUALITY_SERVICE = "creative-quality.records.v1" as const;
+export const CREATIVE_QUALITY_SERVICE =
+  defineServiceContract<CreativeQualityRecordService>({
+    id: "creative-quality.records.v1",
+    owner: "creative-quality",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
 
 export const CreativeQualityRecordKindSchema = z.enum([
   "quality",

@@ -25,6 +25,7 @@ import {
 } from "@dramaip/contracts/workspace";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -167,20 +168,15 @@ function declaration(input: {
   } as never);
 }
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: RouteHandler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 const batch = (row: BatchRow) => ({
@@ -917,29 +913,27 @@ export function createInsightsPlugin(host?: DesktopHostClient) {
     ],
     migrations,
     activate: (context) => {
-      const workspace = context.services.get<WorkspaceProjectService>(
+      const workspace = context.services.optional<WorkspaceProjectService>(
         WORKSPACE_PROJECT_SERVICE,
       );
-      const tasks = context.services.get<AutomationTaskService>(
+      const tasks = context.services.optional<AutomationTaskService>(
         AUTOMATION_TASK_SERVICE,
       );
       if (!workspace || !tasks)
         throw new Error("insights requires workspace and automation services");
       const generationService = createGenerationService(context);
-      context.effect(
+      context.effect(`service:${INSIGHTS_GENERATION_SERVICE}`, () =>
         context.services.provide(
           INSIGHTS_GENERATION_SERVICE,
           generationService,
         ),
-        `service:${INSIGHTS_GENERATION_SERVICE}`,
       );
       for (const contribution of [
         ...feedbackRoutes(context, host, workspace, tasks),
         ...generationRoutes(context, workspace),
       ])
-        context.effect(
+        context.effect(`route:${contribution.id}`, () =>
           context.http.register(contribution),
-          `route:${contribution.id}`,
         );
     },
   });

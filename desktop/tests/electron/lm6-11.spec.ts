@@ -59,6 +59,8 @@ test("导演看板支持键盘、拖拽重排、撤销和资产上下文跳转",
   const secondCard = page.locator("[data-shot-id]").filter({
     hasText: "镜头 2：雨中的来客",
   });
+  await expect(firstCard).toHaveAttribute("draggable", "true");
+  await expect(secondCard).toHaveAttribute("draggable", "true");
   await firstCard.dragTo(secondCard);
   await expect(
     page.getByText("已保存分镜顺序；可在下一次调整前撤销这次重排。"),

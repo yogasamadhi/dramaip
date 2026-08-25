@@ -18,6 +18,12 @@
       ],
       "@dramaip/bundles": ["../../packages/bundles/src/index.ts"],
       "@dramaip/database": ["../../packages/database/src/index.ts"],
+      "@dramaip/database/migration-worker": [
+        "../../packages/database/src/migration-worker.ts"
+      ],
+      "@dramaip/database/migration-worker-runtime": [
+        "../../packages/database/src/migration-worker-runtime.ts"
+      ],
       "@dramaip/events": ["../../packages/events/src/index.ts"],
       "@dramaip/http": ["../../packages/http/src/index.ts"],
       "@dramaip/kernel": ["../../packages/kernel/src/index.ts"],
@@ -49,10 +55,7 @@
     }
   },
   "include": [
-    "electron/main-v3.ts",
-    "electron/preload-v3.ts",
-    "electron/core-runtime.ts",
-    "electron/sidecars/**/*.ts",
+    "electron/**/*.ts",
     "../../packages/{contracts,client,ai}/src/**/*.ts"
   ]
 }

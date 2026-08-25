@@ -14,10 +14,11 @@ import {
   WRITING_CHAPTER_SERVICE,
   type WritingChapterService,
 } from "@dramaip/contracts/writing";
-import type {
-  PluginContext,
-  RouteContribution,
-  UnitOfWorkTransaction,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type RouteContribution,
+  type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z } from "zod";
 
@@ -66,20 +67,11 @@ function problem(
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: Handler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function signature(value: string): string {
@@ -272,10 +264,10 @@ export function pilotRoutes(
   context: PluginContext,
 ): readonly RouteContribution[] {
   const getServices = () => ({
-    writing: context.services.get<WritingChapterService>(
+    writing: context.services.optional<WritingChapterService>(
       WRITING_CHAPTER_SERVICE,
     ),
-    production: context.services.get<ProductionRecordService>(
+    production: context.services.optional<ProductionRecordService>(
       PRODUCTION_RECORD_SERVICE,
     ),
   });

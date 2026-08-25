@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import type { RuntimeKind } from "@dramaip/contracts";
 import {
   ServerConnectionManager,
   type RuntimeConnection,
@@ -18,7 +17,7 @@ export interface RuntimeAdapterStartOptions {
 }
 
 export interface RuntimeAdapter {
-  readonly kind: RuntimeKind;
+  readonly kind: "bun";
   start(options: RuntimeAdapterStartOptions): Promise<RuntimeDescriptor>;
   attach(descriptor: RuntimeDescriptor): Promise<RuntimeConnection>;
   health(descriptor: RuntimeDescriptor): Promise<boolean>;
@@ -27,7 +26,7 @@ export interface RuntimeAdapter {
 
 abstract class ProcessRuntimeAdapter implements RuntimeAdapter {
   private child: ChildProcess | undefined;
-  abstract readonly kind: RuntimeKind;
+  abstract readonly kind: "bun";
   protected abstract command(
     options: RuntimeAdapterStartOptions,
   ): readonly string[];
@@ -43,7 +42,6 @@ abstract class ProcessRuntimeAdapter implements RuntimeAdapter {
       env: {
         ...process.env,
         DRAMAIP_RUNTIME_TOKEN: token,
-        DRAMAIP_RUNTIME_KIND: this.kind,
       },
     });
     const descriptor: RuntimeDescriptor = {
@@ -99,29 +97,6 @@ abstract class ProcessRuntimeAdapter implements RuntimeAdapter {
   }
 }
 
-export class NodeRuntimeAdapter extends ProcessRuntimeAdapter {
-  readonly kind = "node" as const;
-  protected command(options: RuntimeAdapterStartOptions): readonly string[] {
-    return [
-      options.executable ?? process.execPath,
-      "--import",
-      "tsx",
-      options.runtimeEntry,
-      "serve",
-      "--database",
-      options.databasePath,
-      "--profile",
-      options.profile,
-      "--host",
-      options.hostname,
-      "--port",
-      String(options.port),
-      "--runtime",
-      "node",
-    ];
-  }
-}
-
 export class BunRuntimeAdapter extends ProcessRuntimeAdapter {
   readonly kind = "bun" as const;
   protected command(options: RuntimeAdapterStartOptions): readonly string[] {
@@ -137,12 +112,10 @@ export class BunRuntimeAdapter extends ProcessRuntimeAdapter {
       options.hostname,
       "--port",
       String(options.port),
-      "--runtime",
-      "bun",
     ];
   }
 }
 
-export function runtimeAdapter(kind: RuntimeKind): RuntimeAdapter {
-  return kind === "bun" ? new BunRuntimeAdapter() : new NodeRuntimeAdapter();
+export function runtimeAdapter(): RuntimeAdapter {
+  return new BunRuntimeAdapter();
 }

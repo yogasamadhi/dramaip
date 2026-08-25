@@ -22,10 +22,20 @@ import {
 } from "@dramaip/contracts/review";
 import {
   ProjectInputSchema,
+  ProjectCreationResultSchema,
+  ProjectDerivationCommitInputSchema,
+  ProjectDerivationCommitResultSchema,
+  ProjectDerivationInputSchema,
+  ProjectDerivationPreviewSchema,
+  ProjectInitializationSchema,
+  ProjectModeConfigSchema,
   ProjectPatchSchema,
   ProjectPurgeSchema,
   ProjectSchema,
   WORKSPACE_PROJECT_SERVICE,
+  type ProjectInitialization,
+  type ProjectMode,
+  type ProjectModeConfig,
   type Project,
   type ProjectInput,
   type ProjectPatch,
@@ -39,6 +49,7 @@ import {
 } from "@dramaip/contracts/writing";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -59,6 +70,10 @@ interface ProjectRow {
   id: string;
   title: string;
   short_drama_type: string;
+  mode: ProjectMode;
+  mode_config_json: string;
+  lifecycle_status: "initializing" | "ready" | "failed";
+  derived_from_project_id: string | null;
   target_audience: string | null;
   target_word_count: number | null;
   target_episode_count: number | null;
@@ -82,6 +97,7 @@ interface ProjectRow {
 interface RouteContext {
   req: {
     param(name: string): string;
+    header(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
   };
   header(name: string, value: string): void;
@@ -109,20 +125,11 @@ const problemResponses = {
 const idParams = z.object({ id: z.string().uuid() });
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        declaration: unknown,
-        handler: RouteHandler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function problem(
@@ -148,11 +155,155 @@ function optional<T>(value: T | null): T | undefined {
   return value === null ? undefined : value;
 }
 
+function defaultModeConfig(mode: ProjectMode): ProjectModeConfig {
+  switch (mode) {
+    case "series_longform":
+      return {
+        mode,
+        targetChapterCount: 300,
+        targetSeasonCount: 5,
+      };
+    case "single_season":
+      return { mode, entryPath: "novel", targetEpisodeCount: 80 };
+    case "personal_theater":
+      return {
+        mode,
+        storyMethod: "template",
+        episodeCount: 1,
+        episodeDurationMinutes: 5,
+      };
+    case "creator_channel":
+      return { mode, topic: "待确定主题", riskDomain: "general" };
+  }
+}
+
+function modeConfigFor(input: ProjectInput): ProjectModeConfig | undefined {
+  const mode = input.mode ?? "series_longform";
+  const candidate = input.modeConfig ?? defaultModeConfig(mode);
+  const parsed = ProjectModeConfigSchema.safeParse(candidate);
+  return parsed.success && parsed.data.mode === mode ? parsed.data : undefined;
+}
+
+function initializationPlan(mode: ProjectMode): ReadonlyArray<{
+  key: string;
+  pluginId: string;
+  message: string;
+}> {
+  const shared = [
+    { key: "workspace", pluginId: "workspace", message: "项目空间已建立" },
+    { key: "writing", pluginId: "writing", message: "写作资料已准备" },
+  ];
+  if (mode === "creator_channel")
+    return [
+      ...shared,
+      { key: "knowledge", pluginId: "knowledge", message: "研究资料库已准备" },
+      { key: "review", pluginId: "review", message: "事实与合规检查已准备" },
+      { key: "delivery", pluginId: "delivery", message: "内容包导出已准备" },
+      { key: "insights", pluginId: "insights", message: "复盘数据区已准备" },
+    ];
+  if (mode === "series_longform")
+    return [
+      ...shared,
+      { key: "knowledge", pluginId: "knowledge", message: "故事圣经已准备" },
+      { key: "production", pluginId: "production", message: "分季改编已准备" },
+      { key: "media", pluginId: "media", message: "媒体制作已准备" },
+      { key: "review", pluginId: "review", message: "审核工作区已准备" },
+      { key: "delivery", pluginId: "delivery", message: "交付工作区已准备" },
+    ];
+  return [
+    ...shared,
+    { key: "production", pluginId: "production", message: "分集制作已准备" },
+    { key: "media", pluginId: "media", message: "媒体制作已准备" },
+    { key: "review", pluginId: "review", message: "审核工作区已准备" },
+    { key: "delivery", pluginId: "delivery", message: "交付工作区已准备" },
+  ];
+}
+
+interface InitializationRow {
+  step_key: string;
+  plugin_id: string;
+  status: "pending" | "running" | "ready" | "failed";
+  message: string | null;
+  error_message: string | null;
+  attempts: number;
+  updated_at: string;
+}
+
+function initialization(
+  context: PluginContext,
+  projectId: string,
+): ProjectInitialization {
+  return context.uow.execute((transaction) => {
+    const current = transaction.get<{
+      lifecycle_status: "initializing" | "ready" | "failed";
+      updated_at: string;
+    }>(
+      "SELECT lifecycle_status, updated_at FROM projects WHERE id = ?",
+      projectId,
+    );
+    const rows = transaction.all<InitializationRow>(
+      `SELECT step_key, plugin_id, status, message, error_message, attempts, updated_at
+       FROM project_initialization_steps
+       WHERE project_id = ? ORDER BY rowid`,
+      projectId,
+    );
+    return {
+      projectId,
+      status: current?.lifecycle_status ?? "failed",
+      steps: rows.map((row) => ({
+        key: row.step_key,
+        pluginId: row.plugin_id,
+        status: row.status,
+        ...(row.message ? { message: row.message } : {}),
+        ...(row.error_message ? { error: row.error_message } : {}),
+        attempts: row.attempts,
+        updatedAt: row.updated_at,
+      })),
+      updatedAt: current?.updated_at ?? new Date().toISOString(),
+    };
+  });
+}
+
+function supportedDerivation(
+  source: ProjectMode,
+  target: ProjectMode,
+): string | undefined {
+  if (source === "single_season" && target === "series_longform")
+    return "single-season-expand";
+  if (source === "series_longform" && target === "single_season")
+    return "series-season-derive";
+  if (source === "personal_theater" && target === "single_season")
+    return "personal-theater-expand";
+  if (source === "creator_channel" && target === "personal_theater")
+    return "creator-story-derive";
+  return undefined;
+}
+
 function project(row: ProjectRow): Project {
+  const fallbackMode: ProjectMode = "series_longform";
+  let rawConfig: unknown = {};
+  try {
+    rawConfig = JSON.parse(row.mode_config_json || "{}");
+  } catch {
+    // A damaged legacy value must not make the project list unavailable. The
+    // forward migration's conservative series default keeps it recoverable.
+  }
+  const parsedConfig = ProjectModeConfigSchema.safeParse(rawConfig);
+  const mode = row.mode ?? fallbackMode;
+  const modeConfig =
+    parsedConfig.success && parsedConfig.data.mode === mode
+      ? parsedConfig.data
+      : defaultModeConfig(mode);
   return {
     id: row.id,
     title: row.title,
-    shortDramaType: row.short_drama_type,
+    ...(row.short_drama_type ? { shortDramaType: row.short_drama_type } : {}),
+    mode,
+    modeConfig,
+    lifecycleStatus: row.lifecycle_status,
+    ...(row.derived_from_project_id
+      ? { derivedFromProjectId: row.derived_from_project_id }
+      : {}),
     targetAudience: optional(row.target_audience),
     targetWordCount: optional(row.target_word_count),
     targetEpisodeCount: optional(row.target_episode_count),
@@ -198,21 +349,29 @@ function appendProjectEvent(
 function createProjectRecord(
   context: PluginContext,
   input: ProjectInput,
+  options: { derivedFromProjectId?: string } = {},
 ): Project {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  const mode = input.mode ?? "series_longform";
+  const modeConfig = modeConfigFor(input);
+  if (!modeConfig) throw new Error("项目模式配置无效。");
   return context.uow.execute((transaction) => {
     transaction.run(
       `INSERT INTO projects(
-        id, title, short_drama_type, target_audience, target_word_count,
+        id, title, short_drama_type, mode, mode_config_json, lifecycle_status,
+        derived_from_project_id, target_audience, target_word_count,
         target_episode_count, core_hook, emotional_core, core_selling_point,
         synopsis, style_guide, visual_style_direction, genre_opportunity,
         production_brief, current_adaptation_id, deleted_at, version,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, 'initializing', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?, ?)`,
       id,
       input.title.trim(),
-      input.shortDramaType.trim(),
+      input.shortDramaType?.trim() || "未分类",
+      mode,
+      JSON.stringify(modeConfig),
+      options.derivedFromProjectId ?? null,
       input.targetAudience ?? null,
       input.targetWordCount ?? null,
       input.targetEpisodeCount ?? null,
@@ -226,6 +385,37 @@ function createProjectRecord(
       input.productionBrief ?? null,
       now,
       now,
+    );
+    for (const step of initializationPlan(mode)) {
+      transaction.run(
+        `INSERT INTO project_initialization_steps(
+          project_id, step_key, plugin_id, status, message, attempts, updated_at
+        ) VALUES (?, ?, ?, 'ready', ?, 1, ?)`,
+        id,
+        step.key,
+        step.pluginId,
+        step.message,
+        now,
+      );
+      transaction.append({
+        type: "workspace.project-initialization-progress.v1",
+        pluginId: "workspace",
+        aggregateType: "project-initialization",
+        aggregateId: id,
+        aggregateVersion: 1,
+        payload: {
+          projectId: id,
+          key: step.key,
+          pluginId: step.pluginId,
+          status: "ready",
+          updatedAt: now,
+        },
+      });
+    }
+    transaction.run(
+      "UPDATE projects SET lifecycle_status = 'ready', updated_at = ? WHERE id = ?",
+      now,
+      id,
     );
     const value = project(
       transaction.get<ProjectRow>(`${projectSelect} WHERE p.id = ?`, id)!,
@@ -299,6 +489,7 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
     operationId: "projects.create",
     tags: ["projects"],
     request: {
+      headers: z.object({ "idempotency-key": z.string().min(8).max(200) }),
       body: {
         required: true,
         content: { "application/json": { schema: ProjectInputSchema } },
@@ -307,7 +498,9 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
     responses: {
       201: {
         description: "Created project",
-        content: { "application/json": { schema: ProjectSchema } },
+        content: {
+          "application/json": { schema: ProjectCreationResultSchema },
+        },
       },
       ...problemResponses,
     },
@@ -333,6 +526,7 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
     tags: ["projects"],
     request: {
       params: idParams,
+      headers: z.object({ "if-match": z.string().min(3).max(80) }),
       body: {
         required: true,
         content: { "application/json": { schema: ProjectPatchSchema } },
@@ -342,6 +536,87 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
       200: {
         description: "Updated project",
         content: { "application/json": { schema: ProjectSchema } },
+      },
+      ...problemResponses,
+    },
+  });
+  const initializationDeclaration = createRoute({
+    method: "get",
+    path: "/api/v2/projects/{id}/initialization",
+    operationId: "projects.initialization",
+    tags: ["projects"],
+    request: { params: idParams },
+    responses: {
+      200: {
+        description: "Project initialization progress",
+        content: {
+          "application/json": { schema: ProjectInitializationSchema },
+        },
+      },
+      ...problemResponses,
+    },
+  });
+  const retryInitializationDeclaration = createRoute({
+    method: "post",
+    path: "/api/v2/projects/{id}/initialization/retry",
+    operationId: "projects.retryInitialization",
+    tags: ["projects"],
+    request: { params: idParams },
+    responses: {
+      200: {
+        description: "Retried project initialization",
+        content: {
+          "application/json": { schema: ProjectInitializationSchema },
+        },
+      },
+      ...problemResponses,
+    },
+  });
+  const derivationPreviewDeclaration = createRoute({
+    method: "post",
+    path: "/api/v2/projects/{id}/derivations/preview",
+    operationId: "projects.previewDerivation",
+    tags: ["projects"],
+    request: {
+      params: idParams,
+      body: {
+        required: true,
+        content: {
+          "application/json": { schema: ProjectDerivationInputSchema },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: "Derivation preview",
+        content: {
+          "application/json": { schema: ProjectDerivationPreviewSchema },
+        },
+      },
+      ...problemResponses,
+    },
+  });
+  const derivationCommitDeclaration = createRoute({
+    method: "post",
+    path: "/api/v2/projects/{id}/derivations",
+    operationId: "projects.commitDerivation",
+    tags: ["projects"],
+    request: {
+      params: idParams,
+      headers: z.object({ "idempotency-key": z.string().min(8).max(200) }),
+      body: {
+        required: true,
+        content: {
+          "application/json": { schema: ProjectDerivationCommitInputSchema },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: "Derived project",
+        content: {
+          "application/json": { schema: ProjectDerivationCommitResultSchema },
+        },
       },
       ...problemResponses,
     },
@@ -504,25 +779,26 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
           appendProjectEvent(transaction, "demo-created", value);
           return value;
         });
-        const writing = context.services.get<WritingChapterService>(
+        const writing = context.services.optional<WritingChapterService>(
           WRITING_CHAPTER_SERVICE,
         );
-        const production = context.services.get<ProductionRecordService>(
+        const production = context.services.optional<ProductionRecordService>(
           PRODUCTION_RECORD_SERVICE,
         );
         const media =
-          context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE);
-        const writingResources = context.services.get<WritingResourceService>(
-          WRITING_RESOURCE_SERVICE,
-        );
+          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
+        const writingResources =
+          context.services.optional<WritingResourceService>(
+            WRITING_RESOURCE_SERVICE,
+          );
         const creativeQuality =
-          context.services.get<CreativeQualityRecordService>(
+          context.services.optional<CreativeQualityRecordService>(
             CREATIVE_QUALITY_SERVICE,
           );
-        const review = context.services.get<ReviewRecordService>(
+        const review = context.services.optional<ReviewRecordService>(
           REVIEW_RECORD_SERVICE,
         );
-        const delivery = context.services.get<DeliveryRecordService>(
+        const delivery = context.services.optional<DeliveryRecordService>(
           DELIVERY_RECORD_SERVICE,
         );
         if (
@@ -791,6 +1067,31 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
       },
       createDeclaration,
       async (requestContext) => {
+        const idempotencyKey = requestContext.req
+          .header("Idempotency-Key")
+          ?.trim();
+        if (
+          !idempotencyKey ||
+          idempotencyKey.length < 8 ||
+          idempotencyKey.length > 200
+        )
+          return problem(
+            requestContext,
+            400,
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "创建项目必须提供有效的 Idempotency-Key。",
+          );
+        const replay = context.uow.execute((transaction) =>
+          transaction.get<{ response_json: string }>(
+            "SELECT response_json FROM workspace_project_create_idempotency WHERE idempotency_key = ?",
+            idempotencyKey,
+          ),
+        );
+        if (replay) {
+          const value = JSON.parse(replay.response_json);
+          requestContext.header("Idempotency-Replayed", "true");
+          return requestContext.json(value, 201);
+        }
         const parsed = ProjectInputSchema.safeParse(
           await requestContext.req.json(),
         );
@@ -799,11 +1100,322 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
             requestContext,
             400,
             "VALIDATION_ERROR",
-            "项目名称和短剧类型不能为空。",
+            "项目名称或模式化创建信息无效。",
+          );
+        if (!modeConfigFor(parsed.data))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "项目模式与模式配置必须匹配。",
           );
         const created = createProjectRecord(context, parsed.data);
+        const value = {
+          project: created,
+          initialization: initialization(context, created.id),
+        };
+        context.uow.execute((transaction) =>
+          transaction.run(
+            "INSERT INTO workspace_project_create_idempotency(idempotency_key, response_json, created_at) VALUES (?, ?, ?)",
+            idempotencyKey,
+            JSON.stringify(value),
+            new Date().toISOString(),
+          ),
+        );
         requestContext.header("ETag", `"${created.version}"`);
-        return requestContext.json(created, 201);
+        return requestContext.json(value, 201);
+      },
+    ),
+    route(
+      {
+        id: "workspace:projects-initialization",
+        pluginId: "workspace",
+        method: "get",
+        path: "/api/v2/projects/{id}/initialization",
+        operationId: "projects.initialization",
+      },
+      initializationDeclaration,
+      (requestContext) => {
+        const id = requestContext.req.param("id");
+        if (!getProject(id))
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        return requestContext.json(initialization(context, id));
+      },
+    ),
+    route(
+      {
+        id: "workspace:projects-initialization-retry",
+        pluginId: "workspace",
+        method: "post",
+        path: "/api/v2/projects/{id}/initialization/retry",
+        operationId: "projects.retryInitialization",
+      },
+      retryInitializationDeclaration,
+      (requestContext) => {
+        const id = requestContext.req.param("id");
+        const result = context.uow.execute((transaction) => {
+          const current = transaction.get<ProjectRow>(
+            `${projectSelect} WHERE p.id = ?`,
+            id,
+          );
+          if (!current) return false;
+          const now = timestamp();
+          for (const step of initializationPlan(current.mode)) {
+            transaction.run(
+              `INSERT INTO project_initialization_steps(
+                project_id, step_key, plugin_id, status, message, error_message, attempts, updated_at
+              ) VALUES (?, ?, ?, 'ready', ?, NULL, 1, ?)
+              ON CONFLICT(project_id, step_key) DO UPDATE SET
+                status = 'ready', message = excluded.message, error_message = NULL,
+                attempts = project_initialization_steps.attempts + 1, updated_at = excluded.updated_at`,
+              id,
+              step.key,
+              step.pluginId,
+              step.message,
+              now,
+            );
+          }
+          transaction.run(
+            "UPDATE projects SET lifecycle_status = 'ready', updated_at = ? WHERE id = ?",
+            now,
+            id,
+          );
+          transaction.append({
+            type: "workspace.project-initialization-retried.v1",
+            pluginId: "workspace",
+            aggregateType: "project-initialization",
+            aggregateId: id,
+            aggregateVersion: current.version,
+            payload: { projectId: id, status: "ready", updatedAt: now },
+          });
+          return true;
+        });
+        return result
+          ? requestContext.json(initialization(context, id))
+          : problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+      },
+    ),
+    route(
+      {
+        id: "workspace:projects-derivation-preview",
+        pluginId: "workspace",
+        method: "post",
+        path: "/api/v2/projects/{id}/derivations/preview",
+        operationId: "projects.previewDerivation",
+      },
+      derivationPreviewDeclaration,
+      async (requestContext) => {
+        const sourceId = requestContext.req.param("id");
+        const source = getProject(sourceId);
+        if (!source)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        const parsed = ProjectDerivationInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!parsed.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "派生参数无效。",
+          );
+        const transformation = supportedDerivation(
+          source.mode,
+          parsed.data.targetMode,
+        );
+        if (!transformation)
+          return problem(
+            requestContext,
+            409,
+            "UNSUPPORTED_OPERATION",
+            "这两个创作模式不能直接派生；请新建项目或选择支持的派生路径。",
+          );
+        if (
+          source.mode === "series_longform" &&
+          parsed.data.targetMode === "single_season" &&
+          !parsed.data.seasonId
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "从系列长篇派生单季短剧时必须选择一个季。",
+          );
+        const targetModeConfig =
+          parsed.data.targetModeConfig ??
+          defaultModeConfig(parsed.data.targetMode);
+        if (targetModeConfig.mode !== parsed.data.targetMode)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "目标模式与模式配置不匹配。",
+          );
+        const expiresAt = new Date(Date.now() + 20 * 60_000).toISOString();
+        const preview = {
+          id: crypto.randomUUID(),
+          sourceProjectId: sourceId,
+          targetMode: parsed.data.targetMode,
+          targetModeConfig,
+          title:
+            parsed.data.title?.trim() ||
+            `${source.title} · ${
+              parsed.data.targetMode === "series_longform"
+                ? "系列长篇"
+                : parsed.data.targetMode === "single_season"
+                  ? "单季短剧"
+                  : parsed.data.targetMode === "personal_theater"
+                    ? "我的小剧场"
+                    : "博主内容工作室"
+            }`,
+          supported: true,
+          expiresAt,
+        };
+        context.uow.execute((transaction) =>
+          transaction.run(
+            `INSERT INTO project_derivation_previews(
+              id, source_project_id, target_mode, target_mode_config_json, title,
+              transformation, expires_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            preview.id,
+            preview.sourceProjectId,
+            preview.targetMode,
+            JSON.stringify(preview.targetModeConfig),
+            preview.title,
+            transformation,
+            preview.expiresAt,
+            new Date().toISOString(),
+          ),
+        );
+        return requestContext.json(preview, 201);
+      },
+    ),
+    route(
+      {
+        id: "workspace:projects-derivation-commit",
+        pluginId: "workspace",
+        method: "post",
+        path: "/api/v2/projects/{id}/derivations",
+        operationId: "projects.commitDerivation",
+      },
+      derivationCommitDeclaration,
+      async (requestContext) => {
+        const sourceId = requestContext.req.param("id");
+        const idempotencyKey = requestContext.req
+          .header("Idempotency-Key")
+          ?.trim();
+        if (
+          !idempotencyKey ||
+          idempotencyKey.length < 8 ||
+          idempotencyKey.length > 200
+        )
+          return problem(
+            requestContext,
+            400,
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "提交派生项目必须提供有效的 Idempotency-Key。",
+          );
+        const replay = context.uow.execute((transaction) =>
+          transaction.get<{ response_json: string }>(
+            "SELECT response_json FROM workspace_project_create_idempotency WHERE idempotency_key = ?",
+            idempotencyKey,
+          ),
+        );
+        if (replay) {
+          requestContext.header("Idempotency-Replayed", "true");
+          return requestContext.json(JSON.parse(replay.response_json), 201);
+        }
+        const parsed = ProjectDerivationCommitInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!parsed.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "派生预览无效。",
+          );
+        const preview = context.uow.execute((transaction) =>
+          transaction.get<{
+            id: string;
+            source_project_id: string;
+            target_mode: ProjectMode;
+            target_mode_config_json: string;
+            title: string;
+            transformation: string;
+            expires_at: string;
+          }>(
+            "SELECT * FROM project_derivation_previews WHERE id = ? AND source_project_id = ?",
+            parsed.data.previewId,
+            sourceId,
+          ),
+        );
+        if (!preview || Date.parse(preview.expires_at) <= Date.now())
+          return problem(
+            requestContext,
+            409,
+            "PREVIEW_EXPIRED",
+            "派生预览已过期，请重新预览后再提交。",
+          );
+        const source = getProject(sourceId);
+        if (!source)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        const targetModeConfig = ProjectModeConfigSchema.safeParse(
+          JSON.parse(preview.target_mode_config_json),
+        );
+        if (
+          !targetModeConfig.success ||
+          targetModeConfig.data.mode !== preview.target_mode ||
+          !supportedDerivation(source.mode, preview.target_mode)
+        )
+          return problem(
+            requestContext,
+            409,
+            "UNSUPPORTED_OPERATION",
+            "派生预览不再适用于当前项目。",
+          );
+        const created = createProjectRecord(
+          context,
+          {
+            title: preview.title,
+            shortDramaType: source.short_drama_type || undefined,
+            mode: preview.target_mode,
+            modeConfig: targetModeConfig.data,
+            targetAudience: source.target_audience ?? undefined,
+            synopsis: source.synopsis,
+          },
+          { derivedFromProjectId: sourceId },
+        );
+        const derivationId = crypto.randomUUID();
+        context.uow.execute((transaction) => {
+          transaction.run(
+            "INSERT INTO project_derivations(id, source_project_id, target_project_id, transformation, created_at) VALUES (?, ?, ?, ?, ?)",
+            derivationId,
+            sourceId,
+            created.id,
+            preview.transformation,
+            new Date().toISOString(),
+          );
+          transaction.run(
+            "DELETE FROM project_derivation_previews WHERE id = ?",
+            preview.id,
+          );
+        });
+        const value = {
+          project: created,
+          initialization: initialization(context, created.id),
+          derivationId,
+        };
+        context.uow.execute((transaction) =>
+          transaction.run(
+            "INSERT INTO workspace_project_create_idempotency(idempotency_key, response_json, created_at) VALUES (?, ?, ?)",
+            idempotencyKey,
+            JSON.stringify(value),
+            new Date().toISOString(),
+          ),
+        );
+        requestContext.header("ETag", `"${created.version}"`);
+        return requestContext.json(value, 201);
       },
     ),
     route(
@@ -834,15 +1446,33 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
       },
       updateDeclaration,
       async (requestContext) => {
-        const parsed = ProjectPatchSchema.safeParse(
-          await requestContext.req.json(),
-        );
+        const raw = await requestContext.req.json<Record<string, unknown>>();
+        if (
+          "mode" in raw ||
+          "modeConfig" in raw ||
+          "derivedFromProjectId" in raw
+        )
+          return problem(
+            requestContext,
+            409,
+            "IMMUTABLE_PROJECT_MODE",
+            "项目模式不可原地切换；请使用派生项目。",
+          );
+        const parsed = ProjectPatchSchema.safeParse(raw);
         if (!parsed.success)
           return problem(
             requestContext,
             400,
             "VALIDATION_ERROR",
             "项目修改内容无效。",
+          );
+        const ifMatch = requestContext.req.header("If-Match")?.trim();
+        if (ifMatch !== `"${parsed.data.version}"`)
+          return problem(
+            requestContext,
+            409,
+            "VERSION_PRECONDITION_FAILED",
+            "修改项目必须携带与版本一致的 If-Match。",
           );
         const id = requestContext.req.param("id");
         const result = context.uow.execute((transaction) => {
@@ -1022,6 +1652,63 @@ const workspaceMigrations = [
         ON project_series(series_id, project_id);
     `,
   },
+  {
+    id: "workspace.0005.project-modes",
+    pluginId: "workspace",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["workspace.0004.maintenance"],
+    sql: `
+      ALTER TABLE projects ADD COLUMN mode TEXT NOT NULL
+        DEFAULT 'series_longform'
+        CHECK(mode IN ('series_longform', 'single_season', 'personal_theater', 'creator_channel'));
+      ALTER TABLE projects ADD COLUMN mode_config_json TEXT NOT NULL
+        DEFAULT '{"mode":"series_longform","targetChapterCount":300,"targetSeasonCount":5}';
+      ALTER TABLE projects ADD COLUMN lifecycle_status TEXT NOT NULL
+        DEFAULT 'ready'
+        CHECK(lifecycle_status IN ('initializing', 'ready', 'failed'));
+      ALTER TABLE projects ADD COLUMN derived_from_project_id TEXT
+        REFERENCES projects(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS projects_mode_updated_at
+        ON projects(mode, deleted_at, updated_at DESC, id);
+      CREATE INDEX IF NOT EXISTS projects_derived_from
+        ON projects(derived_from_project_id, created_at DESC, id);
+      CREATE TABLE IF NOT EXISTS project_initialization_steps (
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        step_key TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'ready', 'failed')),
+        message TEXT,
+        error_message TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(project_id, step_key)
+      );
+      CREATE TABLE IF NOT EXISTS project_derivation_previews (
+        id TEXT PRIMARY KEY,
+        source_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        target_mode TEXT NOT NULL CHECK(target_mode IN ('series_longform', 'single_season', 'personal_theater', 'creator_channel')),
+        target_mode_config_json TEXT NOT NULL,
+        title TEXT NOT NULL,
+        transformation TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS project_derivation_previews_expiry
+        ON project_derivation_previews(expires_at);
+      CREATE TABLE IF NOT EXISTS project_derivations (
+        id TEXT PRIMARY KEY,
+        source_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        target_project_id TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+        transformation TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS workspace_project_create_idempotency (
+        idempotency_key TEXT PRIMARY KEY,
+        response_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `,
+  },
 ] as const;
 
 export function createWorkspacePlugin(host?: DesktopHostClient) {
@@ -1081,10 +1768,11 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
       },
     ],
     migrations: [
-      ...workspaceMigrations,
+      ...workspaceMigrations.slice(0, 1),
       ...seriesMigrations,
       ...sourceImportMigrations,
       ...workspaceMaintenanceMigrations,
+      ...workspaceMigrations.slice(1),
     ],
     activate: (context) => {
       const service: WorkspaceProjectService = {
@@ -1133,9 +1821,8 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
             return value;
           }),
       };
-      context.effect(
+      context.effect(`service:${WORKSPACE_PROJECT_SERVICE}`, () =>
         context.services.provide(WORKSPACE_PROJECT_SERVICE, service),
-        `service:${WORKSPACE_PROJECT_SERVICE}`,
       );
       for (const contribution of [
         ...projectRoutes(context),
@@ -1143,9 +1830,8 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
         ...sourceImportRoutes(context, host),
         ...workspaceMaintenanceRoutes(context, host, service),
       ])
-        context.effect(
+        context.effect(`route:${contribution.id}`, () =>
           context.http.register(contribution),
-          `route:${contribution.id}`,
         );
     },
   });

@@ -1,6 +1,7 @@
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
+  KNOWLEDGE_RESEARCH_SERVICE,
   StoryBibleChangeSetApplyInputSchema,
   StoryBibleChangeSetInputSchema,
   StoryBibleChangeSetSchema,
@@ -8,6 +9,7 @@ import {
   StoryBibleStaleMarkSchema,
   type StoryBibleChangeSet,
 } from "@dramaip/contracts/knowledge";
+import type { DesktopHostClient } from "@dramaip/desktop-host";
 import {
   WORKSPACE_PROJECT_SERVICE,
   type WorkspaceProjectService,
@@ -18,12 +20,19 @@ import {
   type WritingChapterService,
 } from "@dramaip/contracts/writing";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  DuckDuckGoSearchAdapter,
+  researchMigrations,
+  researchRoutes,
+  researchService,
+} from "./research.js";
 
 interface ChangeSetRow {
   id: string;
@@ -140,20 +149,15 @@ function declaration(input: {
 }
 
 function contribute(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        route: unknown,
-        handler: Handler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function problem(
@@ -239,10 +243,10 @@ function emit(
 }
 
 function routes(context: PluginContext): readonly RouteContribution[] {
-  const workspace = context.services.get<WorkspaceProjectService>(
+  const workspace = context.services.optional<WorkspaceProjectService>(
     WORKSPACE_PROJECT_SERVICE,
   );
-  const writing = context.services.get<WritingChapterService>(
+  const writing = context.services.optional<WritingChapterService>(
     WRITING_CHAPTER_SERVICE,
   );
   if (!workspace || !writing)
@@ -1188,34 +1192,54 @@ const knowledgeMigrations = [
         ON knowledge_records(project_id, kind, updated_at DESC, id);
     `,
   },
+  ...researchMigrations,
 ] as const;
 
-export const knowledgePlugin = defineFirstPartyPlugin({
-  descriptor: {
-    id: "knowledge",
-    version: "3.0.0-alpha.3",
-    apiVersion: "2",
-    requires: ["foundation", "workspace", "writing"],
-    provides: ["knowledge.story-bible"],
-    stability: "internal",
-  },
-  ui: [
-    {
-      id: "knowledge.panel.story-bible",
-      pluginId: "knowledge",
-      kind: "panel",
-      metadata: { slot: "writing.story-bible", title: "故事圣经" },
+export function createKnowledgePlugin(host?: DesktopHostClient) {
+  const search = new DuckDuckGoSearchAdapter(host);
+  return defineFirstPartyPlugin({
+    descriptor: {
+      id: "knowledge",
+      version: "3.0.0-alpha.3",
+      apiVersion: "2",
+      requires: ["foundation", "workspace", "writing"],
+      provides: ["knowledge.story-bible"],
+      stability: "internal",
     },
-    {
-      id: "knowledge.inspector.story-bible",
-      pluginId: "knowledge",
-      kind: "inspector",
-      metadata: { target: "chapter", title: "故事圣经侧栏" },
+    ui: [
+      {
+        id: "knowledge.panel.story-bible",
+        pluginId: "knowledge",
+        kind: "panel",
+        metadata: { slot: "writing.story-bible", title: "故事圣经" },
+      },
+      {
+        id: "knowledge.inspector.story-bible",
+        pluginId: "knowledge",
+        kind: "inspector",
+        metadata: { target: "chapter", title: "故事圣经侧栏" },
+      },
+    ],
+    migrations: knowledgeMigrations,
+    activate: (context) => {
+      const workspace = context.services.optional<WorkspaceProjectService>(
+        WORKSPACE_PROJECT_SERVICE,
+      );
+      if (!workspace)
+        throw new Error("knowledge requires workspace.projects.v1");
+      context.effect(`service:${KNOWLEDGE_RESEARCH_SERVICE}`, () =>
+        context.services.provide(
+          KNOWLEDGE_RESEARCH_SERVICE,
+          researchService(context),
+        ),
+      );
+      for (const route of [
+        ...routes(context),
+        ...researchRoutes(context, workspace, search),
+      ])
+        context.effect(`route:${route.id}`, () => context.http.register(route));
     },
-  ],
-  migrations: knowledgeMigrations,
-  activate: (context) => {
-    for (const route of routes(context))
-      context.effect(context.http.register(route), `route:${route.id}`);
-  },
-});
+  });
+}
+
+export const knowledgePlugin = createKnowledgePlugin();

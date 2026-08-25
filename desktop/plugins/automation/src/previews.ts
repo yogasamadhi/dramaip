@@ -46,11 +46,12 @@ import {
   type WritingChapterService,
   type WritingResourceService,
 } from "@dramaip/contracts/writing";
-import type {
-  PluginContext,
-  PluginMigration,
-  RouteContribution,
-  UnitOfWorkTransaction,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type PluginMigration,
+  type RouteContribution,
+  type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
@@ -185,20 +186,15 @@ function declaration(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: (context: RouteContext) => Response | Promise<Response>,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        callback: typeof handler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function stableHash(value: unknown): string {
@@ -416,16 +412,16 @@ function applyChange(
   context: PluginContext,
   preview: ChangePreview,
 ): "conflict" | "unsupported" | "updated" {
-  const workspace = context.services.get<WorkspaceProjectService>(
+  const workspace = context.services.optional<WorkspaceProjectService>(
     WORKSPACE_PROJECT_SERVICE,
   );
-  const chapters = context.services.get<WritingChapterService>(
+  const chapters = context.services.optional<WritingChapterService>(
     WRITING_CHAPTER_SERVICE,
   );
-  const writing = context.services.get<WritingResourceService>(
+  const writing = context.services.optional<WritingResourceService>(
     WRITING_RESOURCE_SERVICE,
   );
-  const production = context.services.get<ProductionRecordService>(
+  const production = context.services.optional<ProductionRecordService>(
     PRODUCTION_RECORD_SERVICE,
   );
   if (!workspace || !chapters || !writing || !production) return "unsupported";
@@ -511,7 +507,7 @@ function workflow(
   context: PluginContext,
   input: z.infer<typeof EpisodeWorkflowInputSchema>,
 ) {
-  const production = context.services.get<ProductionRecordService>(
+  const production = context.services.optional<ProductionRecordService>(
     PRODUCTION_RECORD_SERVICE,
   );
   const episode = production?.get(input.episodeId);
@@ -522,14 +518,15 @@ function workflow(
     episode.projectId !== input.projectId
   )
     return undefined;
-  const media = context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE);
-  const creative = context.services.get<CreativeQualityRecordService>(
+  const media =
+    context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
+  const creative = context.services.optional<CreativeQualityRecordService>(
     CREATIVE_QUALITY_SERVICE,
   );
-  const review = context.services.get<ReviewRecordService>(
+  const review = context.services.optional<ReviewRecordService>(
     REVIEW_RECORD_SERVICE,
   );
-  const delivery = context.services.get<DeliveryRecordService>(
+  const delivery = context.services.optional<DeliveryRecordService>(
     DELIVERY_RECORD_SERVICE,
   );
   const scripts = production.list("scripts", { parentId: episode.id });
@@ -1023,9 +1020,10 @@ export function automationPreviewRuntime(context: PluginContext): {
             });
             return requestContext.json(updated);
           }
-          const executor = context.services.get<ProviderActionExecutorService>(
-            PROVIDER_ACTION_EXECUTOR_SERVICE,
-          );
+          const executor =
+            context.services.optional<ProviderActionExecutorService>(
+              PROVIDER_ACTION_EXECUTOR_SERVICE,
+            );
           if (!executor)
             return problem(
               requestContext,

@@ -1,0 +1,192 @@
+[
+  {
+    "id": "agents.configured-providers.v1",
+    "owner": "agents",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "agents.task-runner.v1",
+    "owner": "agents",
+    "major": 1,
+    "capabilities": [
+      "start"
+    ]
+  },
+  {
+    "id": "automation.previews.v1",
+    "owner": "automation",
+    "major": 1,
+    "capabilities": [
+      "preview",
+      "commit"
+    ]
+  },
+  {
+    "id": "automation.tasks.v1",
+    "owner": "automation",
+    "major": 1,
+    "capabilities": [
+      "start",
+      "update"
+    ]
+  },
+  {
+    "id": "creative-quality.records.v1",
+    "owner": "creative-quality",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "delivery.records.v1",
+    "owner": "delivery",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "foundation.database-maintenance.v1",
+    "owner": "foundation",
+    "major": 1,
+    "capabilities": [
+      "backup",
+      "restore"
+    ]
+  },
+  {
+    "id": "insights.generation-ledger.v1",
+    "owner": "insights",
+    "major": 1,
+    "capabilities": [
+      "record"
+    ]
+  },
+  {
+    "id": "knowledge.research.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write",
+      "search"
+    ]
+  },
+  {
+    "id": "media.audio-tracks.v1",
+    "owner": "media",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "media.likeness.v1",
+    "owner": "media",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write",
+      "revoke"
+    ]
+  },
+  {
+    "id": "media.records.v1",
+    "owner": "media",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "production.records.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "production.seasons.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "review.records.v1",
+    "owner": "review",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "timeline.canonical.v1",
+    "owner": "timeline",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write",
+      "export"
+    ]
+  },
+  {
+    "id": "workspace.projects.v1",
+    "owner": "workspace",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "writing.chapters.v1",
+    "owner": "writing",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write",
+      "restore"
+    ]
+  },
+  {
+    "id": "writing.creator-content.v1",
+    "owner": "writing",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "writing.longform.v1",
+    "owner": "writing",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  },
+  {
+    "id": "writing.resources.v1",
+    "owner": "writing",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write"
+    ]
+  }
+]

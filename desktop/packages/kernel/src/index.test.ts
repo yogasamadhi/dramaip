@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bootKernel, validatePluginGraph } from "./index.js";
+import { defineServiceContract } from "@dramaip/contracts";
 import {
   defineFirstPartyPlugin,
   type FirstPartyPlugin,
@@ -30,12 +31,16 @@ const context = {
   events: {
     publishLive: () => undefined,
     subscribeLive: () => () => undefined,
+    subscribeDomain: () => () => undefined,
     replay: () => [],
     registerConsumer: () => () => undefined,
     diagnostics: () => [],
+    retryConsumer: () => false,
+    dispose: () => undefined,
   },
   uow: {
     execute: <T>(work: (transaction: never) => T) => work(undefined as never),
+    onAfterCommit: () => () => undefined,
   },
 };
 
@@ -84,9 +89,14 @@ describe("first-party kernel", () => {
         },
       ],
     ]);
-    await expect(bootKernel({ profile, plugins, context })).rejects.toThrow(
-      "boom",
-    );
+    await expect(
+      bootKernel({
+        graphRevision: "test-graph",
+        profile,
+        plugins,
+        context,
+      }),
+    ).rejects.toThrow("boom");
     expect(cleaned).toEqual(["foundation"]);
   });
 
@@ -98,18 +108,23 @@ describe("first-party kernel", () => {
         {
           ...plugin("foundation"),
           activate: (pluginContext) => {
-            pluginContext.effect(() => {
+            pluginContext.effect("first", () => () => {
               cleaned.push("first");
-            }, "first");
-            pluginContext.effect(() => {
+            });
+            pluginContext.effect("second", () => () => {
               cleaned.push("second");
-            }, "second");
+            });
           },
         },
       ],
       ["system", plugin("system", ["foundation"])],
     ]);
-    const kernel = await bootKernel({ profile, plugins, context });
+    const kernel = await bootKernel({
+      graphRevision: "test-graph",
+      profile,
+      plugins,
+      context,
+    });
     expect(kernel.diagnostics().effects).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ owner: "foundation", label: "first" }),
@@ -118,5 +133,112 @@ describe("first-party kernel", () => {
     );
     await kernel.dispose();
     expect(cleaned).toEqual(["second", "first"]);
+  });
+
+  it("provides and requires an owner-scoped, major-versioned service", async () => {
+    const contract = defineServiceContract<{ value: number }>({
+      id: "foundation.test-service.v1",
+      owner: "foundation",
+      major: 1,
+      capabilities: ["read"],
+    });
+    let observed = 0;
+    const plugins = new Map<string, FirstPartyPlugin>([
+      [
+        "foundation",
+        {
+          ...plugin("foundation"),
+          activate: (pluginContext) => {
+            pluginContext.effect("service:test", () =>
+              pluginContext.services.provide(contract, { value: 42 }),
+            );
+          },
+        },
+      ],
+      [
+        "system",
+        {
+          ...plugin("system", ["foundation"]),
+          activate: (pluginContext) => {
+            observed = pluginContext.services.require(contract).value;
+          },
+        },
+      ],
+    ]);
+    const kernel = await bootKernel({
+      graphRevision: "test-graph",
+      profile,
+      plugins,
+      context,
+    });
+
+    expect(observed).toBe(42);
+    expect(kernel.diagnostics().services).toEqual([
+      expect.objectContaining({
+        id: "foundation.test-service.v1",
+        owner: "foundation",
+        major: 1,
+        capabilities: ["read"],
+      }),
+    ]);
+    await kernel.dispose();
+  });
+
+  it("fails activation when a required service is unavailable", async () => {
+    const contract = defineServiceContract<{ value: number }>({
+      id: "foundation.required-test.v1",
+      owner: "foundation",
+      major: 1,
+    });
+    const plugins = new Map<string, FirstPartyPlugin>([
+      ["foundation", plugin("foundation")],
+      [
+        "system",
+        {
+          ...plugin("system", ["foundation"]),
+          activate: (pluginContext) => {
+            pluginContext.services.require(contract);
+          },
+        },
+      ],
+    ]);
+
+    await expect(
+      bootKernel({
+        graphRevision: "test-graph",
+        profile,
+        plugins,
+        context,
+      }),
+    ).rejects.toThrow("required service is unavailable");
+  });
+
+  it("allows optional lookup only for a degradable contract", async () => {
+    const contract = defineServiceContract<{ value: number }>({
+      id: "foundation.strict-test.v1",
+      owner: "foundation",
+      major: 1,
+    });
+    const plugins = new Map<string, FirstPartyPlugin>([
+      [
+        "foundation",
+        {
+          ...plugin("foundation"),
+          activate: (pluginContext) => {
+            pluginContext.services.optional(contract);
+          },
+        },
+      ],
+      ["system", plugin("system", ["foundation"])],
+    ]);
+
+    await expect(
+      bootKernel({
+        graphRevision: "test-graph",
+        profile,
+        plugins,
+        context,
+      }),
+    ).rejects.toThrow("service contract is not declared degradable");
   });
 });

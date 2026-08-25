@@ -9,7 +9,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun --bun run tsc --noEmit"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.82",
+    "@ai-sdk/google": "3.0.73",
+    "@ai-sdk/openai": "3.0.84",
+    "@ai-sdk/openai-compatible": "2.0.56",
+    "@langchain/core": "1.2.4",
+    "@langchain/langgraph": "1.4.9",
+    "ai": "6.0.168"
+  }
 }

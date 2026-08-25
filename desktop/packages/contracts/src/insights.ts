@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
 
 export const FeedbackKindSchema = z.enum(["metrics", "comments"]);
 export const FeedbackPreviewInputSchema = z.object({
@@ -88,7 +89,13 @@ export const GenerationRecordPatchSchema = z.object({
 export type GenerationRecord = z.infer<typeof GenerationRecordSchema>;
 
 export const INSIGHTS_GENERATION_SERVICE =
-  "insights.generation-ledger.v1" as const;
+  defineServiceContract<InsightsGenerationService>({
+    id: "insights.generation-ledger.v1",
+    owner: "insights",
+    major: 1,
+    capabilities: ["record"],
+    degradable: true,
+  });
 export interface InsightsGenerationService {
   record(input: {
     projectId: string;

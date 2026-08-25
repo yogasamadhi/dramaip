@@ -148,7 +148,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v2/system/host/reveal-path": {
+  "/api/v2/system/host/reveal-grant": {
     parameters: {
       query?: never;
       header?: never;
@@ -157,7 +157,23 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["system.host.revealPath"];
+    post: operations["system.host.revealGrant"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/host/reveal-artifact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.host.revealArtifact"];
     delete?: never;
     options?: never;
     head?: never;
@@ -180,7 +196,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v2/system/host/credentials": {
+  "/api/v2/system/host/credentials/capture-sessions": {
     parameters: {
       query?: never;
       header?: never;
@@ -189,7 +205,23 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["system.credentials.store"];
+    post: operations["system.credentials.createCaptureSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/host/credentials/capture-sessions/{captureSessionId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["system.credentials.getCaptureSession"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -228,6 +260,214 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/system/extensions/installed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["system.extensions.installed"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/catalog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.catalog"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/install-preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.installPreview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/install-commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.installCommit"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/{pluginId}/enable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.enable"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/{pluginId}/disable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.disable"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/{pluginId}/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.retry"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/{pluginId}/rollback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.rollback"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/{pluginId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["system.extensions.uninstall"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/ui-contributions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["system.extensions.uiContributions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/effective-openapi": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["system.extensions.effectiveOpenApi"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/system/extensions/{pluginId}/commands/{commandId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.extensions.invokeCommand"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/extensions/{pluginId}/*": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["system.extensions.invokeRoute.get"];
+    put: operations["system.extensions.invokeRoute.put"];
+    post: operations["system.extensions.invokeRoute.post"];
+    delete: operations["system.extensions.invokeRoute.delete"];
+    options?: never;
+    head?: never;
+    patch: operations["system.extensions.invokeRoute.patch"];
+    trace?: never;
+  };
   "/api/v2/demo/projects": {
     parameters: {
       query?: never;
@@ -254,6 +494,70 @@ export interface paths {
     get: operations["projects.list"];
     put?: never;
     post: operations["projects.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/initialization": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["projects.initialization"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/initialization/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["projects.retryInitialization"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/derivations/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["projects.previewDerivation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/derivations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["projects.commitDerivation"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1316,6 +1620,230 @@ export interface paths {
     patch: operations["story-arcs.update"];
     trace?: never;
   };
+  "/api/v2/projects/{projectId}/volumes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["volumes.list"];
+    put?: never;
+    post: operations["volumes.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/volumes/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["volumes.update"];
+    trace?: never;
+  };
+  "/api/v2/creator/profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creator.profile.list"];
+    put?: never;
+    post: operations["creator.profile.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creator/profile/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creator.profile.update"];
+    trace?: never;
+  };
+  "/api/v2/creator/column": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creator.column.list"];
+    put?: never;
+    post: operations["creator.column.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creator/column/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creator.column.update"];
+    trace?: never;
+  };
+  "/api/v2/creator/idea": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creator.idea.list"];
+    put?: never;
+    post: operations["creator.idea.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creator/idea/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creator.idea.update"];
+    trace?: never;
+  };
+  "/api/v2/creator/draft": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creator.draft.list"];
+    put?: never;
+    post: operations["creator.draft.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creator/draft/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creator.draft.update"];
+    trace?: never;
+  };
+  "/api/v2/creator/variant": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creator.variant.list"];
+    put?: never;
+    post: operations["creator.variant.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creator/variant/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creator.variant.update"];
+    trace?: never;
+  };
+  "/api/v2/creator/calendar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creator.calendar.list"];
+    put?: never;
+    post: operations["creator.calendar.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creator/calendar/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creator.calendar.update"];
+    trace?: never;
+  };
   "/api/v2/chapters/{id}/agent-runs": {
     parameters: {
       query?: never;
@@ -1828,6 +2356,70 @@ export interface paths {
     patch: operations["story-bible.setStatus"];
     trace?: never;
   };
+  "/api/v2/projects/{projectId}/research-topics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["research.topics.list"];
+    put?: never;
+    post: operations["research.topics.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/research-topics/{id}/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["research.search"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/research-topics/{id}/sources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["research.sources.list"];
+    put?: never;
+    post: operations["research.sources.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/research-topics/{id}/findings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["research.findings.list"];
+    put?: never;
+    post: operations["research.findings.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/creative/case-studies": {
     parameters: {
       query?: never;
@@ -2222,22 +2814,6 @@ export interface paths {
     get: operations["agent-engines.listTasks"];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v2/agent-engines/restore-configuration": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post: operations["agent-engines.restoreConfiguration"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2852,6 +3428,54 @@ export interface paths {
     patch: operations["shots.update"];
     trace?: never;
   };
+  "/api/v2/projects/{projectId}/seasons": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["seasons.list"];
+    put?: never;
+    post: operations["seasons.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/seasons/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["seasons.update"];
+    trace?: never;
+  };
+  "/api/v2/seasons/{id}/chapter-mappings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["seasons.mapChapter"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/projects/{id}/production-graph": {
     parameters: {
       query?: never;
@@ -3202,6 +3826,86 @@ export interface paths {
     options?: never;
     head?: never;
     patch: operations["renders.update"];
+    trace?: never;
+  };
+  "/api/v2/projects/{projectId}/likeness-subjects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["likenessSubjects.list"];
+    put?: never;
+    post: operations["likenessSubjects.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/likeness-subjects/{id}/consent": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["likenessSubjects.consent"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/likeness-subjects/{id}/photos": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["likenessSubjects.attachPhoto"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{projectId}/likeness-reference-preflight": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["likenessSubjects.referencePreflight"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/likeness-subjects/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["likenessSubjects.revoke"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v2/projects/{id}/asset-center": {
@@ -4691,12 +5395,30 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
       };
     };
   };
@@ -4709,12 +5431,30 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
       };
     };
   };
@@ -4727,16 +5467,34 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
     };
   };
-  "system.host.revealPath": {
+  "system.host.revealGrant": {
     parameters: {
       query?: never;
       header?: never;
@@ -4745,12 +5503,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "system.host.revealArtifact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
       };
     };
   };
@@ -4763,16 +5575,34 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
     };
   };
-  "system.credentials.store": {
+  "system.credentials.createCaptureSession": {
     parameters: {
       query?: never;
       header?: never;
@@ -4781,12 +5611,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "system.credentials.getCaptureSession": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
       };
     };
   };
@@ -4799,12 +5683,30 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
       };
     };
   };
@@ -4817,12 +5719,2274 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Desktop Host capability response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "system.extensions.installed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.catalog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.installPreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.installCommit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.enable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.disable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.rollback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.uninstall": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.uiContributions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.effectiveOpenApi": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.invokeCommand": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.invokeRoute.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.invokeRoute.put": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.invokeRoute.post": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.invokeRoute.delete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+    };
+  };
+  "system.extensions.invokeRoute.patch": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Extension Platform response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Extension Platform operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Problem Details */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
+      };
+      /** @description Problem Details */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            traceId: string;
+          };
+        };
       };
     };
   };
@@ -4845,7 +8009,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -4959,7 +8166,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -4991,7 +8241,9 @@ export interface operations {
   "projects.create": {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        "idempotency-key": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -4999,7 +8251,7 @@ export interface operations {
       content: {
         "application/json": {
           title: string;
-          shortDramaType: string;
+          shortDramaType?: string;
           targetAudience?: string;
           targetWordCount?: number;
           targetEpisodeCount?: number;
@@ -5011,6 +8263,48 @@ export interface operations {
           visualStyleDirection?: string;
           genreOpportunity?: string;
           productionBrief?: string;
+          /**
+           * @default series_longform
+           * @enum {string}
+           */
+          mode?:
+            | "series_longform"
+            | "single_season"
+            | "personal_theater"
+            | "creator_channel";
+          modeConfig?:
+            | {
+                /** @enum {string} */
+                mode: "series_longform";
+                targetChapterCount?: number;
+                targetSeasonCount?: number;
+                targetEpisodesPerSeason?: number;
+              }
+            | {
+                /** @enum {string} */
+                mode: "single_season";
+                /** @enum {string} */
+                entryPath: "novel" | "source-import" | "script";
+                targetEpisodeCount?: number;
+              }
+            | {
+                /** @enum {string} */
+                mode: "personal_theater";
+                /** @enum {string} */
+                storyMethod: "template" | "freeform";
+                episodeCount?: number;
+                episodeDurationMinutes?: number;
+              }
+            | {
+                /** @enum {string} */
+                mode: "creator_channel";
+                topic: string;
+                positioning?: string;
+                audience?: string;
+                platforms?: string[];
+                /** @enum {string} */
+                riskDomain?: "general" | "finance" | "health" | "legal";
+              };
         };
       };
     };
@@ -5022,33 +8316,684 @@ export interface operations {
         };
         content: {
           "application/json": {
-            /** Format: uuid */
-            id: string;
+            project: {
+              /** Format: uuid */
+              id: string;
+              title: string;
+              shortDramaType?: string;
+              /** @enum {string} */
+              mode:
+                | "series_longform"
+                | "single_season"
+                | "personal_theater"
+                | "creator_channel";
+              modeConfig:
+                | {
+                    /** @enum {string} */
+                    mode: "series_longform";
+                    targetChapterCount?: number;
+                    targetSeasonCount?: number;
+                    targetEpisodesPerSeason?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "single_season";
+                    /** @enum {string} */
+                    entryPath: "novel" | "source-import" | "script";
+                    targetEpisodeCount?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "personal_theater";
+                    /** @enum {string} */
+                    storyMethod: "template" | "freeform";
+                    episodeCount?: number;
+                    episodeDurationMinutes?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "creator_channel";
+                    topic: string;
+                    positioning?: string;
+                    audience?: string;
+                    platforms?: string[];
+                    /** @enum {string} */
+                    riskDomain?: "general" | "finance" | "health" | "legal";
+                  };
+              /** @enum {string} */
+              lifecycleStatus: "initializing" | "ready" | "failed";
+              /** Format: uuid */
+              derivedFromProjectId?: string;
+              targetAudience?: string;
+              targetWordCount?: number;
+              targetEpisodeCount?: number;
+              coreHook?: string;
+              emotionalCore?: string;
+              coreSellingPoint?: string;
+              synopsis: string;
+              styleGuide?: string;
+              visualStyleDirection?: string;
+              genreOpportunity?: string;
+              productionBrief?: string;
+              /** Format: uuid */
+              seriesId?: string;
+              seriesTitle?: string;
+              /** Format: uuid */
+              currentAdaptationId?: string;
+              /** Format: date-time */
+              deletedAt?: string;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            };
+            initialization: {
+              /** Format: uuid */
+              projectId: string;
+              /** @enum {string} */
+              status: "initializing" | "ready" | "failed";
+              steps: {
+                key: string;
+                pluginId: string;
+                /** @enum {string} */
+                status: "pending" | "running" | "ready" | "failed";
+                message?: string;
+                error?: string;
+                attempts: number;
+                /** Format: date-time */
+                updatedAt: string;
+              }[];
+              /** Format: date-time */
+              updatedAt: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
             title: string;
-            shortDramaType: string;
-            targetAudience?: string;
-            targetWordCount?: number;
-            targetEpisodeCount?: number;
-            coreHook?: string;
-            emotionalCore?: string;
-            coreSellingPoint?: string;
-            synopsis: string;
-            styleGuide?: string;
-            visualStyleDirection?: string;
-            genreOpportunity?: string;
-            productionBrief?: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
             /** Format: uuid */
-            seriesId?: string;
-            seriesTitle?: string;
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
             /** Format: uuid */
-            currentAdaptationId?: string;
-            /** Format: date-time */
-            deletedAt?: string;
-            version: number;
-            /** Format: date-time */
-            createdAt: string;
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "projects.initialization": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Project initialization progress */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            projectId: string;
+            /** @enum {string} */
+            status: "initializing" | "ready" | "failed";
+            steps: {
+              key: string;
+              pluginId: string;
+              /** @enum {string} */
+              status: "pending" | "running" | "ready" | "failed";
+              message?: string;
+              error?: string;
+              attempts: number;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
             /** Format: date-time */
             updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "projects.retryInitialization": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Retried project initialization */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            projectId: string;
+            /** @enum {string} */
+            status: "initializing" | "ready" | "failed";
+            steps: {
+              key: string;
+              pluginId: string;
+              /** @enum {string} */
+              status: "pending" | "running" | "ready" | "failed";
+              message?: string;
+              error?: string;
+              attempts: number;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "projects.previewDerivation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          targetMode:
+            | "series_longform"
+            | "single_season"
+            | "personal_theater"
+            | "creator_channel";
+          title?: string;
+          /** Format: uuid */
+          seasonId?: string;
+          targetModeConfig?:
+            | {
+                /** @enum {string} */
+                mode: "series_longform";
+                targetChapterCount?: number;
+                targetSeasonCount?: number;
+                targetEpisodesPerSeason?: number;
+              }
+            | {
+                /** @enum {string} */
+                mode: "single_season";
+                /** @enum {string} */
+                entryPath: "novel" | "source-import" | "script";
+                targetEpisodeCount?: number;
+              }
+            | {
+                /** @enum {string} */
+                mode: "personal_theater";
+                /** @enum {string} */
+                storyMethod: "template" | "freeform";
+                episodeCount?: number;
+                episodeDurationMinutes?: number;
+              }
+            | {
+                /** @enum {string} */
+                mode: "creator_channel";
+                topic: string;
+                positioning?: string;
+                audience?: string;
+                platforms?: string[];
+                /** @enum {string} */
+                riskDomain?: "general" | "finance" | "health" | "legal";
+              };
+        };
+      };
+    };
+    responses: {
+      /** @description Derivation preview */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sourceProjectId: string;
+            /** @enum {string} */
+            targetMode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            targetModeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            title: string;
+            supported: boolean;
+            reason?: string;
+            /** Format: date-time */
+            expiresAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "projects.commitDerivation": {
+    parameters: {
+      query?: never;
+      header: {
+        "idempotency-key": string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          previewId: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Derived project */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            project: {
+              /** Format: uuid */
+              id: string;
+              title: string;
+              shortDramaType?: string;
+              /** @enum {string} */
+              mode:
+                | "series_longform"
+                | "single_season"
+                | "personal_theater"
+                | "creator_channel";
+              modeConfig:
+                | {
+                    /** @enum {string} */
+                    mode: "series_longform";
+                    targetChapterCount?: number;
+                    targetSeasonCount?: number;
+                    targetEpisodesPerSeason?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "single_season";
+                    /** @enum {string} */
+                    entryPath: "novel" | "source-import" | "script";
+                    targetEpisodeCount?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "personal_theater";
+                    /** @enum {string} */
+                    storyMethod: "template" | "freeform";
+                    episodeCount?: number;
+                    episodeDurationMinutes?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "creator_channel";
+                    topic: string;
+                    positioning?: string;
+                    audience?: string;
+                    platforms?: string[];
+                    /** @enum {string} */
+                    riskDomain?: "general" | "finance" | "health" | "legal";
+                  };
+              /** @enum {string} */
+              lifecycleStatus: "initializing" | "ready" | "failed";
+              /** Format: uuid */
+              derivedFromProjectId?: string;
+              targetAudience?: string;
+              targetWordCount?: number;
+              targetEpisodeCount?: number;
+              coreHook?: string;
+              emotionalCore?: string;
+              coreSellingPoint?: string;
+              synopsis: string;
+              styleGuide?: string;
+              visualStyleDirection?: string;
+              genreOpportunity?: string;
+              productionBrief?: string;
+              /** Format: uuid */
+              seriesId?: string;
+              seriesTitle?: string;
+              /** Format: uuid */
+              currentAdaptationId?: string;
+              /** Format: date-time */
+              deletedAt?: string;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            };
+            initialization: {
+              /** Format: uuid */
+              projectId: string;
+              /** @enum {string} */
+              status: "initializing" | "ready" | "failed";
+              steps: {
+                key: string;
+                pluginId: string;
+                /** @enum {string} */
+                status: "pending" | "running" | "ready" | "failed";
+                message?: string;
+                error?: string;
+                attempts: number;
+                /** Format: date-time */
+                updatedAt: string;
+              }[];
+              /** Format: date-time */
+              updatedAt: string;
+            };
+            /** Format: uuid */
+            derivationId: string;
           };
         };
       };
@@ -5141,7 +9086,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -5331,7 +9319,9 @@ export interface operations {
   "projects.update": {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        "if-match": string;
+      };
       path: {
         id: string;
       };
@@ -5368,7 +9358,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -5482,7 +9515,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -5532,7 +9608,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -5648,7 +9767,50 @@ export interface operations {
             /** Format: uuid */
             id: string;
             title: string;
-            shortDramaType: string;
+            shortDramaType?: string;
+            /** @enum {string} */
+            mode:
+              | "series_longform"
+              | "single_season"
+              | "personal_theater"
+              | "creator_channel";
+            modeConfig:
+              | {
+                  /** @enum {string} */
+                  mode: "series_longform";
+                  targetChapterCount?: number;
+                  targetSeasonCount?: number;
+                  targetEpisodesPerSeason?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "single_season";
+                  /** @enum {string} */
+                  entryPath: "novel" | "source-import" | "script";
+                  targetEpisodeCount?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "personal_theater";
+                  /** @enum {string} */
+                  storyMethod: "template" | "freeform";
+                  episodeCount?: number;
+                  episodeDurationMinutes?: number;
+                }
+              | {
+                  /** @enum {string} */
+                  mode: "creator_channel";
+                  topic: string;
+                  positioning?: string;
+                  audience?: string;
+                  platforms?: string[];
+                  /** @enum {string} */
+                  riskDomain?: "general" | "finance" | "health" | "legal";
+                };
+            /** @enum {string} */
+            lifecycleStatus: "initializing" | "ready" | "failed";
+            /** Format: uuid */
+            derivedFromProjectId?: string;
             targetAudience?: string;
             targetWordCount?: number;
             targetEpisodeCount?: number;
@@ -8077,7 +12239,50 @@ export interface operations {
               /** Format: uuid */
               id: string;
               title: string;
-              shortDramaType: string;
+              shortDramaType?: string;
+              /** @enum {string} */
+              mode:
+                | "series_longform"
+                | "single_season"
+                | "personal_theater"
+                | "creator_channel";
+              modeConfig:
+                | {
+                    /** @enum {string} */
+                    mode: "series_longform";
+                    targetChapterCount?: number;
+                    targetSeasonCount?: number;
+                    targetEpisodesPerSeason?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "single_season";
+                    /** @enum {string} */
+                    entryPath: "novel" | "source-import" | "script";
+                    targetEpisodeCount?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "personal_theater";
+                    /** @enum {string} */
+                    storyMethod: "template" | "freeform";
+                    episodeCount?: number;
+                    episodeDurationMinutes?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "creator_channel";
+                    topic: string;
+                    positioning?: string;
+                    audience?: string;
+                    platforms?: string[];
+                    /** @enum {string} */
+                    riskDomain?: "general" | "finance" | "health" | "legal";
+                  };
+              /** @enum {string} */
+              lifecycleStatus: "initializing" | "ready" | "failed";
+              /** Format: uuid */
+              derivedFromProjectId?: string;
               targetAudience?: string;
               targetWordCount?: number;
               targetEpisodeCount?: number;
@@ -8732,7 +12937,7 @@ export interface operations {
       content: {
         "application/json": {
           /** @enum {string} */
-          engineKind: "pi" | "codex" | "grok";
+          engineKind: "pi" | "codex" | "grok" | "langgraph";
         };
       };
     };
@@ -9509,7 +13714,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok";
+            engineKind?: "pi" | "codex" | "grok" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -9645,7 +13850,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok";
+            engineKind?: "pi" | "codex" | "grok" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -9775,7 +13980,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok";
+            engineKind?: "pi" | "codex" | "grok" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -9905,7 +14110,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok";
+            engineKind?: "pi" | "codex" | "grok" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -12823,6 +17028,8 @@ export interface operations {
             id: string;
             /** Format: uuid */
             projectId: string;
+            /** Format: uuid */
+            volumeId?: string;
             title: string;
             orderIndex: number;
             summary: string;
@@ -12933,6 +17140,8 @@ export interface operations {
             id: string;
             /** Format: uuid */
             projectId: string;
+            /** Format: uuid */
+            volumeId?: string;
             title: string;
             orderIndex: number;
             summary: string;
@@ -13119,6 +17328,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          /** Format: uuid */
+          volumeId?: string;
           title?: string;
           summary?: string;
           outline?: string;
@@ -13146,6 +17357,8 @@ export interface operations {
             id: string;
             /** Format: uuid */
             projectId: string;
+            /** Format: uuid */
+            volumeId?: string;
             title: string;
             orderIndex: number;
             summary: string;
@@ -13246,6 +17459,8 @@ export interface operations {
         "application/json": {
           /** Format: uuid */
           projectId: string;
+          /** Format: uuid */
+          volumeId?: string;
           title: string;
           summary?: string;
           outline?: string;
@@ -13272,6 +17487,8 @@ export interface operations {
             id: string;
             /** Format: uuid */
             projectId: string;
+            /** Format: uuid */
+            volumeId?: string;
             title: string;
             orderIndex: number;
             summary: string;
@@ -13388,6 +17605,8 @@ export interface operations {
             id: string;
             /** Format: uuid */
             projectId: string;
+            /** Format: uuid */
+            volumeId?: string;
             title: string;
             orderIndex: number;
             summary: string;
@@ -13498,7 +17717,50 @@ export interface operations {
               /** Format: uuid */
               id: string;
               title: string;
-              shortDramaType: string;
+              shortDramaType?: string;
+              /** @enum {string} */
+              mode:
+                | "series_longform"
+                | "single_season"
+                | "personal_theater"
+                | "creator_channel";
+              modeConfig:
+                | {
+                    /** @enum {string} */
+                    mode: "series_longform";
+                    targetChapterCount?: number;
+                    targetSeasonCount?: number;
+                    targetEpisodesPerSeason?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "single_season";
+                    /** @enum {string} */
+                    entryPath: "novel" | "source-import" | "script";
+                    targetEpisodeCount?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "personal_theater";
+                    /** @enum {string} */
+                    storyMethod: "template" | "freeform";
+                    episodeCount?: number;
+                    episodeDurationMinutes?: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    mode: "creator_channel";
+                    topic: string;
+                    positioning?: string;
+                    audience?: string;
+                    platforms?: string[];
+                    /** @enum {string} */
+                    riskDomain?: "general" | "finance" | "health" | "legal";
+                  };
+              /** @enum {string} */
+              lifecycleStatus: "initializing" | "ready" | "failed";
+              /** Format: uuid */
+              derivedFromProjectId?: string;
               targetAudience?: string;
               targetWordCount?: number;
               targetEpisodeCount?: number;
@@ -13528,6 +17790,8 @@ export interface operations {
               id: string;
               /** Format: uuid */
               projectId: string;
+              /** Format: uuid */
+              volumeId?: string;
               title: string;
               orderIndex: number;
               summary: string;
@@ -13754,6 +18018,8 @@ export interface operations {
             id: string;
             /** Format: uuid */
             projectId: string;
+            /** Format: uuid */
+            volumeId?: string;
             title: string;
             orderIndex: number;
             summary: string;
@@ -15429,6 +19695,2655 @@ export interface operations {
       };
     };
   };
+  "volumes.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              title: string;
+              outline: string;
+              orderIndex: number;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "volumes.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          outline?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            title: string;
+            outline: string;
+            orderIndex: number;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "volumes.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          outline?: string;
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            title: string;
+            outline: string;
+            orderIndex: number;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.profile.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | "profile"
+                | "column"
+                | "idea"
+                | "draft"
+                | "variant"
+                | "calendar";
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              parentId?: string;
+              title: string;
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "researching"
+                | "review_required"
+                | "ready"
+                | "scheduled"
+                | "archived";
+              payload: {
+                [key: string]: unknown;
+              };
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.profile.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.profile.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.column.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | "profile"
+                | "column"
+                | "idea"
+                | "draft"
+                | "variant"
+                | "calendar";
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              parentId?: string;
+              title: string;
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "researching"
+                | "review_required"
+                | "ready"
+                | "scheduled"
+                | "archived";
+              payload: {
+                [key: string]: unknown;
+              };
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.column.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.column.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.idea.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | "profile"
+                | "column"
+                | "idea"
+                | "draft"
+                | "variant"
+                | "calendar";
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              parentId?: string;
+              title: string;
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "researching"
+                | "review_required"
+                | "ready"
+                | "scheduled"
+                | "archived";
+              payload: {
+                [key: string]: unknown;
+              };
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.idea.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.idea.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.draft.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | "profile"
+                | "column"
+                | "idea"
+                | "draft"
+                | "variant"
+                | "calendar";
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              parentId?: string;
+              title: string;
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "researching"
+                | "review_required"
+                | "ready"
+                | "scheduled"
+                | "archived";
+              payload: {
+                [key: string]: unknown;
+              };
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.draft.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.draft.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.variant.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | "profile"
+                | "column"
+                | "idea"
+                | "draft"
+                | "variant"
+                | "calendar";
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              parentId?: string;
+              title: string;
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "researching"
+                | "review_required"
+                | "ready"
+                | "scheduled"
+                | "archived";
+              payload: {
+                [key: string]: unknown;
+              };
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.variant.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.variant.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.calendar.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | "profile"
+                | "column"
+                | "idea"
+                | "draft"
+                | "variant"
+                | "calendar";
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              parentId?: string;
+              title: string;
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "researching"
+                | "review_required"
+                | "ready"
+                | "scheduled"
+                | "archived";
+              payload: {
+                [key: string]: unknown;
+              };
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.calendar.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creator.calendar.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          status?:
+            | "draft"
+            | "researching"
+            | "review_required"
+            | "ready"
+            | "scheduled"
+            | "archived";
+          payload?: {
+            [key: string]: unknown;
+          };
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+              "profile" | "column" | "idea" | "draft" | "variant" | "calendar";
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            /** @enum {string} */
+            status:
+              | "draft"
+              | "researching"
+              | "review_required"
+              | "ready"
+              | "scheduled"
+              | "archived";
+            payload: {
+              [key: string]: unknown;
+            };
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
   "novel-workspace.runChapterAgent": {
     parameters: {
       query?: never;
@@ -15443,7 +22358,7 @@ export interface operations {
         "application/json": {
           taskType: string;
           /** @enum {string} */
-          engineKind: "pi" | "codex" | "grok";
+          engineKind: "pi" | "codex" | "grok" | "langgraph";
           model?: {
             [key: string]: unknown;
           };
@@ -15555,7 +22470,7 @@ export interface operations {
       content: {
         "application/json": {
           /** @enum {string} */
-          engineKind: "pi" | "codex" | "grok";
+          engineKind: "pi" | "codex" | "grok" | "langgraph";
           model?: {
             [key: string]: unknown;
           };
@@ -15580,6 +22495,8 @@ export interface operations {
               id: string;
               /** Format: uuid */
               projectId: string;
+              /** Format: uuid */
+              volumeId?: string;
               title: string;
               orderIndex: number;
               summary: string;
@@ -15711,6 +22628,8 @@ export interface operations {
               id: string;
               /** Format: uuid */
               projectId: string;
+              /** Format: uuid */
+              volumeId?: string;
               title: string;
               orderIndex: number;
               summary: string;
@@ -15831,6 +22750,8 @@ export interface operations {
               id: string;
               /** Format: uuid */
               projectId: string;
+              /** Format: uuid */
+              volumeId?: string;
               title: string;
               orderIndex: number;
               summary: string;
@@ -22171,6 +29092,955 @@ export interface operations {
       };
     };
   };
+  "research.topics.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              title: string;
+              query: string;
+              /** @enum {string} */
+              riskDomain: "general" | "finance" | "health" | "legal";
+              /** @enum {string} */
+              status: "draft" | "researching" | "ready" | "archived";
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "research.topics.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          query: string;
+          /**
+           * @default general
+           * @enum {string}
+           */
+          riskDomain?: "general" | "finance" | "health" | "legal";
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            title: string;
+            query: string;
+            /** @enum {string} */
+            riskDomain: "general" | "finance" | "health" | "legal";
+            /** @enum {string} */
+            status: "draft" | "researching" | "ready" | "archived";
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "research.search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          query?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            topicId: string;
+            results: {
+              /** @enum {string} */
+              source: "duckduckgo" | "gdelt" | "wikimedia";
+              results: {
+                title: string;
+                /** Format: uri */
+                url: string;
+                excerpt?: string;
+                publishedAt?: string;
+              }[];
+              coverage: string;
+            }[];
+            coverage: string[];
+            fallbackUsed: boolean;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "research.sources.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              topicId: string;
+              /** @enum {string} */
+              sourceType:
+                | "duckduckgo"
+                | "gdelt"
+                | "wikimedia"
+                | "rss_atom"
+                | "manual_url"
+                | "local";
+              title: string;
+              /** Format: uri */
+              url?: string;
+              excerpt?: string;
+              publishedAt?: string;
+              dataDate?: string;
+              /** Format: date-time */
+              retrievedAt: string;
+              /** @enum {string} */
+              status: "discovered" | "adopted" | "rejected";
+              /** Format: date-time */
+              createdAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "research.sources.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          sourceType: "rss_atom" | "manual_url" | "local";
+          title: string;
+          /** Format: uri */
+          url?: string;
+          excerpt?: string;
+          publishedAt?: string;
+          dataDate?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            topicId: string;
+            /** @enum {string} */
+            sourceType:
+              | "duckduckgo"
+              | "gdelt"
+              | "wikimedia"
+              | "rss_atom"
+              | "manual_url"
+              | "local";
+            title: string;
+            /** Format: uri */
+            url?: string;
+            excerpt?: string;
+            publishedAt?: string;
+            dataDate?: string;
+            /** Format: date-time */
+            retrievedAt: string;
+            /** @enum {string} */
+            status: "discovered" | "adopted" | "rejected";
+            /** Format: date-time */
+            createdAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "research.findings.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              topicId: string;
+              statement: string;
+              /** @enum {string} */
+              kind: "fact" | "quote" | "inference" | "creator_opinion";
+              sourceIds: string[];
+              /** @enum {string} */
+              status: "draft" | "supported" | "stale" | "blocked";
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "research.findings.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          statement: string;
+          /** @enum {string} */
+          kind: "fact" | "quote" | "inference" | "creator_opinion";
+          /** @default [] */
+          sourceIds?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            topicId: string;
+            statement: string;
+            /** @enum {string} */
+            kind: "fact" | "quote" | "inference" | "creator_opinion";
+            sourceIds: string[];
+            /** @enum {string} */
+            status: "draft" | "supported" | "stale" | "blocked";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Capability unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
   "creative.listCaseStudies": {
     parameters: {
       query?: never;
@@ -26869,12 +34739,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -26887,30 +34811,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
-    };
-  };
-  "agent-engines.restoreConfiguration": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
-      200: {
+      /** @description Invalid request */
+      400: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -26923,12 +34883,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -26941,12 +34955,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -26959,12 +35027,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -26977,12 +35099,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -26995,12 +35171,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27013,12 +35243,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27031,12 +35315,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27049,12 +35387,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27067,12 +35459,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27085,12 +35531,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27103,12 +35603,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27121,12 +35675,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27139,12 +35747,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27157,12 +35819,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27175,12 +35891,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27193,12 +35963,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27211,12 +36035,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27229,12 +36107,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27247,12 +36179,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27265,12 +36251,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27283,12 +36323,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27301,12 +36395,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27319,12 +36467,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27337,12 +36539,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27355,12 +36611,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27373,12 +36683,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27391,12 +36755,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27409,12 +36827,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27427,12 +36899,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27445,12 +36971,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27463,12 +37043,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27481,12 +37115,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27499,12 +37187,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27517,12 +37259,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27535,12 +37331,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27553,12 +37403,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -27571,12 +37475,66 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Response schema is declared by the owning first-party contribution */
+      /** @description Agent operation response */
       200: {
         headers: {
           [name: string]: unknown;
         };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
         content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
       };
     };
   };
@@ -30224,6 +40182,453 @@ export interface operations {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "seasons.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              adaptationId?: string;
+              title: string;
+              outline: string;
+              sourceChapterVersion?: string;
+              /** @enum {string} */
+              status: "draft" | "ready" | "review_required" | "archived";
+              orderIndex: number;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            nextCursor?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "seasons.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          adaptationId?: string;
+          title: string;
+          outline?: string;
+          sourceChapterVersion?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            adaptationId?: string;
+            title: string;
+            outline: string;
+            sourceChapterVersion?: string;
+            /** @enum {string} */
+            status: "draft" | "ready" | "review_required" | "archived";
+            orderIndex: number;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "seasons.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          outline?: string;
+          /** @enum {string} */
+          status?: "draft" | "ready" | "review_required" | "archived";
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            adaptationId?: string;
+            title: string;
+            outline: string;
+            sourceChapterVersion?: string;
+            /** @enum {string} */
+            status: "draft" | "ready" | "review_required" | "archived";
+            orderIndex: number;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "seasons.mapChapter": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          chapterId: string;
+          chapterVersion: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            seasonId: string;
+            /** Format: uuid */
+            chapterId: string;
+            chapterVersion: number;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
           };
         };
       };
@@ -35864,6 +46269,668 @@ export interface operations {
       };
     };
   };
+  "likenessSubjects.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            displayName: string;
+            /** @enum {string} */
+            relationship: "self" | "adult_relative_or_friend" | "minor";
+            /** @enum {string} */
+            ageBand: "adult" | "minor_14_to_17" | "under_14";
+            /** @enum {string} */
+            consentStatus: "missing" | "active" | "revoked" | "expired";
+            contentRestrictions?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          }[];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "likenessSubjects.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          displayName: string;
+          /** @enum {string} */
+          relationship: "self" | "adult_relative_or_friend" | "minor";
+          /** @enum {string} */
+          ageBand: "adult" | "minor_14_to_17" | "under_14";
+          contentRestrictions?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            displayName: string;
+            /** @enum {string} */
+            relationship: "self" | "adult_relative_or_friend" | "minor";
+            /** @enum {string} */
+            ageBand: "adult" | "minor_14_to_17" | "under_14";
+            /** @enum {string} */
+            consentStatus: "missing" | "active" | "revoked" | "expired";
+            contentRestrictions?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "likenessSubjects.consent": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          purposeScopes: string[];
+          /** Format: date-time */
+          validUntil: string;
+          participantConfirmed: boolean;
+          guardianConfirmed?: boolean;
+          under14SeparateConsentConfirmed?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            displayName: string;
+            /** @enum {string} */
+            relationship: "self" | "adult_relative_or_friend" | "minor";
+            /** @enum {string} */
+            ageBand: "adult" | "minor_14_to_17" | "under_14";
+            /** @enum {string} */
+            consentStatus: "missing" | "active" | "revoked" | "expired";
+            contentRestrictions?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "likenessSubjects.attachPhoto": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          grantId: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            subjectId: string;
+            /** Format: uuid */
+            mediaRef: string;
+            sha256: string;
+            /** @enum {string} */
+            mimeType: "image/png";
+            width: number;
+            height: number;
+            size: number;
+            /** @enum {string} */
+            status: "active" | "removed";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            removedAt?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "likenessSubjects.referencePreflight": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          subjectIds: string[];
+          /** @enum {boolean} */
+          confirmed: true;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            ok: boolean;
+            subjectIds: string[];
+            mediaRefs: string[];
+            blockers: string[];
+            warnings: string[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "likenessSubjects.revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            displayName: string;
+            /** @enum {string} */
+            relationship: "self" | "adult_relative_or_friend" | "minor";
+            /** @enum {string} */
+            ageBand: "adult" | "minor_14_to_17" | "under_14";
+            /** @enum {string} */
+            consentStatus: "missing" | "active" | "revoked" | "expired";
+            contentRestrictions?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
   "asset-center.get": {
     parameters: {
       query?: never;
@@ -38047,6 +49114,9 @@ export interface operations {
           quality?: string;
           /** @enum {string} */
           outputFormat?: "png" | "jpeg" | "webp";
+          referenceSubjectIds?: string[];
+          /** @enum {boolean} */
+          portraitPreflightConfirmed?: true;
         };
       };
     };

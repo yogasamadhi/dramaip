@@ -3,10 +3,12 @@ import { AgentEngineKindSchema } from "./index.js";
 import { TaskSchema } from "./automation.js";
 import { CreativeQualityRecordSchema } from "./creative-quality.js";
 import { ProjectSchema } from "./workspace.js";
+import { defineServiceContract } from "./service-contract.js";
 
 export const ChapterSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
+  volumeId: z.string().uuid().optional(),
   title: z.string().min(1).max(160),
   orderIndex: z.number().int().nonnegative(),
   summary: z.string(),
@@ -26,6 +28,7 @@ export const ChapterSchema = z.object({
 
 export const ChapterInputSchema = ChapterSchema.pick({
   projectId: true,
+  volumeId: true,
   title: true,
 }).extend({
   summary: z.string().optional(),
@@ -71,7 +74,135 @@ export type Chapter = z.infer<typeof ChapterSchema>;
 export type ChapterInput = z.infer<typeof ChapterInputSchema>;
 export type ChapterPatch = z.infer<typeof ChapterPatchSchema>;
 
-export const WRITING_CHAPTER_SERVICE = "writing.chapters.v1" as const;
+export const WritingVolumeSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  title: z.string().min(1).max(160),
+  outline: z.string(),
+  orderIndex: z.number().int().nonnegative(),
+  version: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export const WritingVolumeInputSchema = z.object({
+  projectId: z.string().uuid(),
+  title: z.string().trim().min(1).max(160),
+  outline: z.string().optional(),
+});
+export const WritingVolumePatchSchema = z.object({
+  title: z.string().trim().min(1).max(160).optional(),
+  outline: z.string().optional(),
+  version: z.number().int().nonnegative(),
+});
+export const WritingVolumePageSchema = z.object({
+  items: z.array(WritingVolumeSchema),
+  nextCursor: z.string().optional(),
+});
+export type WritingVolume = z.infer<typeof WritingVolumeSchema>;
+
+export const CREATOR_CONTENT_KINDS = [
+  "profile",
+  "column",
+  "idea",
+  "draft",
+  "variant",
+  "calendar",
+] as const;
+export const CreatorContentKindSchema = z.enum(CREATOR_CONTENT_KINDS);
+export const CreatorContentStatusSchema = z.enum([
+  "draft",
+  "researching",
+  "review_required",
+  "ready",
+  "scheduled",
+  "archived",
+]);
+export const CreatorContentRecordSchema = z.object({
+  id: z.string().uuid(),
+  kind: CreatorContentKindSchema,
+  projectId: z.string().uuid(),
+  parentId: z.string().uuid().optional(),
+  title: z.string().min(1).max(240),
+  status: CreatorContentStatusSchema,
+  payload: z.record(z.string(), z.unknown()),
+  version: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export const CreatorContentRecordInputSchema = z.object({
+  projectId: z.string().uuid(),
+  parentId: z.string().uuid().optional(),
+  title: z.string().trim().min(1).max(240),
+  status: CreatorContentStatusSchema.optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+export const CreatorContentRecordPatchSchema = z.object({
+  title: z.string().trim().min(1).max(240).optional(),
+  status: CreatorContentStatusSchema.optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+  version: z.number().int().nonnegative(),
+});
+export const CreatorContentPageSchema = z.object({
+  items: z.array(CreatorContentRecordSchema),
+  nextCursor: z.string().optional(),
+});
+export type CreatorContentKind = z.infer<typeof CreatorContentKindSchema>;
+export type CreatorContentRecord = z.infer<typeof CreatorContentRecordSchema>;
+
+export const WRITING_VOLUME_SERVICE =
+  defineServiceContract<WritingVolumeService>({
+    id: "writing.longform.v1",
+    owner: "writing",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
+export interface WritingVolumeService {
+  create(input: z.infer<typeof WritingVolumeInputSchema>): WritingVolume;
+  list(
+    projectId: string,
+    options?: { cursor?: string; limit?: number },
+  ): { items: readonly WritingVolume[]; nextCursor?: string };
+  get(id: string): WritingVolume | undefined;
+  update(
+    id: string,
+    patch: z.infer<typeof WritingVolumePatchSchema>,
+  ): WritingVolume | "conflict" | undefined;
+}
+
+export const CREATOR_CONTENT_SERVICE =
+  defineServiceContract<CreatorContentService>({
+    id: "writing.creator-content.v1",
+    owner: "writing",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
+export interface CreatorContentService {
+  create(
+    kind: CreatorContentKind,
+    input: z.infer<typeof CreatorContentRecordInputSchema>,
+  ): CreatorContentRecord;
+  list(
+    kind: CreatorContentKind,
+    projectId: string,
+    options?: { cursor?: string; limit?: number; status?: string },
+  ): { items: readonly CreatorContentRecord[]; nextCursor?: string };
+  get(id: string): CreatorContentRecord | undefined;
+  update(
+    id: string,
+    patch: z.infer<typeof CreatorContentRecordPatchSchema>,
+  ): CreatorContentRecord | "conflict" | undefined;
+}
+
+export const WRITING_CHAPTER_SERVICE =
+  defineServiceContract<WritingChapterService>({
+    id: "writing.chapters.v1",
+    owner: "writing",
+    major: 1,
+    capabilities: ["read", "write", "restore"],
+    degradable: true,
+  });
 
 export type ChapterMutationResult =
   | { state: "updated"; value: Chapter }
@@ -168,7 +299,14 @@ export const WritingResourceSchema = z.object({
 export type WritingResourceKind = z.infer<typeof WritingResourceKindSchema>;
 export type WritingResource = z.infer<typeof WritingResourceSchema>;
 
-export const WRITING_RESOURCE_SERVICE = "writing.resources.v1" as const;
+export const WRITING_RESOURCE_SERVICE =
+  defineServiceContract<WritingResourceService>({
+    id: "writing.resources.v1",
+    owner: "writing",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
 
 export interface WritingResourceService {
   create(input: {

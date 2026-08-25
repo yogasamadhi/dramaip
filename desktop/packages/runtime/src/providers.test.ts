@@ -45,14 +45,23 @@ function installProviderRoutes(
         liveEvents.push(input);
       },
       subscribeLive: () => () => undefined,
+      subscribeDomain: () => () => undefined,
       replay: () => [],
       registerConsumer: () => () => undefined,
       diagnostics: () => [],
+      retryConsumer: () => false,
+      dispose: () => undefined,
     },
-    effect: () => undefined,
+    effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
   } as unknown as PluginContext);
   const app = new OpenAPIHono();
-  for (const route of routes) route.install(app);
+  for (const route of routes) {
+    const register = app.openapi as unknown as (
+      declaration: unknown,
+      handler: (...args: never[]) => unknown,
+    ) => void;
+    register.call(app, route.declaration, route.handler);
+  }
   const fixture = {
     app,
     uow: database.uow,
@@ -74,6 +83,243 @@ afterEach(() => {
 });
 
 describe("agents provider configurations", () => {
+  it("rejects a four-engine experiment before any write or model call when one engine is not ready", async () => {
+    let engineOperations = 0;
+    const host = {
+      engineHealth: async (engine: string) => ({
+        available: engine !== "langgraph",
+        healthy: engine !== "langgraph",
+        configured: engine !== "langgraph",
+        authenticated: true,
+      }),
+      engineOperation: async () => {
+        engineOperations += 1;
+        throw new Error("preflight must not invoke an engine");
+      },
+    } as unknown as DesktopHostClient;
+    const fixture = installProviderRoutes(host);
+
+    const response = await fixture.app.request(
+      "http://runtime.test/api/v2/agent-experiments",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "project-four-engine",
+          taskType: "outline",
+          prompt: "比较四个引擎的结果",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toContain("ENGINE_NOT_READY");
+    expect(engineOperations).toBe(0);
+    expect(
+      fixture.uow.execute(
+        (transaction) =>
+          transaction.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM agent_evaluations",
+          )?.count,
+      ),
+    ).toBe(0);
+  });
+
+  it("upgrades historical three-engine evaluations and accepts candidate d with LangGraph.js", () => {
+    const database = openDatabase(":memory:");
+    const plugin = createAgentsPlugin();
+    const migrations = plugin.migrations ?? [];
+    const beforeLangGraph = migrations.filter(
+      (migration) => migration.id !== "agents.0008.langgraph-four-engine",
+    );
+    applyMigrations(database.sqlite, [
+      ...(foundationPlugin.migrations ?? []),
+      ...beforeLangGraph,
+    ]);
+    const now = new Date().toISOString();
+    database.uow.execute((transaction) => {
+      transaction.run(
+        `INSERT INTO agent_evaluations(
+          id, project_id, task_type, prompt, context_snapshot_json, status,
+          revealed_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, '{}', 'completed', ?, ?, ?)`,
+        "historical-evaluation",
+        "project-history",
+        "outline",
+        "历史三引擎实验",
+        now,
+        now,
+        now,
+      );
+      transaction.run(
+        `INSERT INTO agent_evaluation_candidates(
+          id, evaluation_id, candidate, engine_kind, run_id, status,
+          output_json, metrics_json
+        ) VALUES (?, ?, 'a', 'pi', ?, 'succeeded', '{}', '{}')`,
+        "historical-candidate-a",
+        "historical-evaluation",
+        "historical-run-a",
+      );
+      transaction.run(
+        `INSERT INTO agent_evaluation_reviews(
+          evaluation_id, preferred_candidate, accepted, notes, created_at
+        ) VALUES (?, 'a', 1, NULL, ?)`,
+        "historical-evaluation",
+        now,
+      );
+    });
+
+    applyMigrations(database.sqlite, [
+      ...(foundationPlugin.migrations ?? []),
+      ...migrations,
+    ]);
+    try {
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT candidate, engine_kind FROM agent_evaluation_candidates WHERE id = ?",
+          )
+          .get("historical-candidate-a"),
+      ).toEqual({ candidate: "a", engine_kind: "pi" });
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT preferred_candidate FROM agent_evaluation_reviews WHERE evaluation_id = ?",
+          )
+          .get("historical-evaluation"),
+      ).toEqual({ preferred_candidate: "a" });
+
+      database.uow.execute((transaction) => {
+        transaction.run(
+          `INSERT INTO agent_evaluation_candidates(
+            id, evaluation_id, candidate, engine_kind, run_id, status,
+            output_json, metrics_json
+          ) VALUES (?, ?, 'd', 'langgraph', ?, 'succeeded', '{}', '{}')`,
+          "langgraph-candidate-d",
+          "historical-evaluation",
+          "langgraph-run-d",
+        );
+        transaction.run(
+          `UPDATE agent_evaluation_reviews
+           SET preferred_candidate = 'd' WHERE evaluation_id = ?`,
+          "historical-evaluation",
+        );
+      });
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT candidate, engine_kind FROM agent_evaluation_candidates WHERE id = ?",
+          )
+          .get("langgraph-candidate-d"),
+      ).toEqual({ candidate: "d", engine_kind: "langgraph" });
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT preferred_candidate FROM agent_evaluation_reviews WHERE evaluation_id = ?",
+          )
+          .get("historical-evaluation"),
+      ).toEqual({ preferred_candidate: "d" });
+    } finally {
+      database.close();
+    }
+  });
+
+  it("keeps all four candidate engines, models and providers anonymous until review and reveal", async () => {
+    const fixture = installProviderRoutes();
+    const evaluationId = "anonymous-four-engine";
+    const now = new Date().toISOString();
+    fixture.uow.execute((transaction) => {
+      transaction.run(
+        `INSERT INTO agent_evaluations(
+          id, project_id, task_type, prompt, context_snapshot_json, status,
+          revealed_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'ready_for_review', NULL, ?, ?)`,
+        evaluationId,
+        "project-anonymous",
+        "outline",
+        "匿名比较",
+        JSON.stringify({
+          projectId: "project-anonymous",
+          model: { providerId: "provider-secret", modelId: "model-secret" },
+        }),
+        now,
+        now,
+      );
+      for (const [index, engine] of [
+        "pi",
+        "codex",
+        "grok",
+        "langgraph",
+      ].entries())
+        transaction.run(
+          `INSERT INTO agent_evaluation_candidates(
+            id, evaluation_id, candidate, engine_kind, run_id, status,
+            output_json, metrics_json
+          ) VALUES (?, ?, ?, ?, ?, 'succeeded', ?, ?)`,
+          `anonymous-candidate-${index}`,
+          evaluationId,
+          ["a", "b", "c", "d"][index],
+          engine,
+          `anonymous-run-${index}`,
+          JSON.stringify({ text: `候选 ${index + 1}` }),
+          JSON.stringify({
+            engine,
+            engineVersion: "hidden-version",
+            model: "hidden-model",
+            provider: "hidden-provider",
+            latencyMs: index + 1,
+          }),
+        );
+    });
+
+    const anonymousResponse = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-experiments/${evaluationId}`,
+    );
+    expect(anonymousResponse.status).toBe(200);
+    const anonymous = (await anonymousResponse.json()) as Record<
+      string,
+      unknown
+    >;
+    expect(anonymous).not.toHaveProperty("model");
+    expect(anonymous.candidates).toHaveLength(4);
+    for (const candidate of anonymous.candidates as Array<
+      Record<string, unknown>
+    >) {
+      expect(candidate).not.toHaveProperty("engineKind");
+      expect(candidate.metrics).not.toHaveProperty("engine");
+      expect(candidate.metrics).not.toHaveProperty("engineVersion");
+      expect(candidate.metrics).not.toHaveProperty("model");
+      expect(candidate.metrics).not.toHaveProperty("provider");
+    }
+
+    const review = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-experiments/${evaluationId}/review`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredCandidate: "d", accepted: true }),
+      },
+    );
+    expect(review.status).toBe(200);
+    expect(await review.json()).not.toHaveProperty("model");
+
+    const reveal = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-experiments/${evaluationId}/reveal`,
+      { method: "POST" },
+    );
+    expect(reveal.status).toBe(200);
+    const revealed = (await reveal.json()) as Record<string, unknown>;
+    expect(revealed).toHaveProperty("model", {
+      providerId: "provider-secret",
+      modelId: "model-secret",
+    });
+    expect(
+      (revealed.candidates as Array<Record<string, unknown>>).map(
+        (candidate) => candidate.engineKind,
+      ),
+    ).toEqual(["pi", "codex", "grok", "langgraph"]);
+  });
+
   it("exposes the typed Agent session contract without a generic engine-operation API", async () => {
     const host = {
       engineHealth: async () => ({
@@ -125,11 +371,9 @@ describe("agents provider configurations", () => {
     );
     expect(started.status).toBe(200);
     const start = (await started.json()) as Record<string, unknown>;
-    expect(start).toMatchObject({
-      taskId: expect.any(String),
-      sessionId: session.id,
-      runId: expect.any(String),
-    });
+    expect(typeof start.taskId).toBe("string");
+    expect(start.sessionId).toBe(session.id);
+    expect(typeof start.runId).toBe("string");
     expect(start).not.toHaveProperty("capabilityGrant");
     const events = await fixture.app.request(
       `http://runtime.test/api/v2/agent-runs/${start.runId}/events`,
@@ -167,17 +411,23 @@ describe("agents provider configurations", () => {
       events: {
         publishLive: () => undefined,
         subscribeLive: () => () => undefined,
+        subscribeDomain: () => () => undefined,
         replay: () => [],
         registerConsumer: () => () => undefined,
         diagnostics: () => [],
+        retryConsumer: () => false,
+        dispose: () => undefined,
       },
       version: "3.0.0-alpha.3",
       runtimeInfo: () => ({
         runtimeId: "3a4d5f92-3ea6-4a34-8a83-52b360cf3b99",
+        runtimeGeneration: 1,
+        graphRevision: "a".repeat(64),
+        startedAt: "2026-08-23T00:00:00.000Z",
         runtimeVersion: "3.0.0-alpha.3",
         apiVersion: "2",
         pluginApiVersion: "1",
-        runtimeKind: "node",
+        runtimeKind: "electron-node",
         mode: "desktop",
         profile: "studio",
         bundles: [],
@@ -283,7 +533,8 @@ describe("agents provider configurations", () => {
       await plugin.activate({
         http: { register: () => () => undefined },
         uow: database.uow,
-        effect: () => undefined,
+        effect: ((_label, acquire) =>
+          void acquire()) as PluginContext["effect"],
       } as unknown as PluginContext);
       expect(receivedConfiguration).toMatchObject({
         providerId: "saved-provider",
@@ -543,8 +794,8 @@ describe("agents provider configurations", () => {
     );
     expect(created.status).toBe(201);
     const conversation = (await created.json()) as { id: string };
+    expect(typeof conversation.id).toBe("string");
     expect(conversation).toMatchObject({
-      id: expect.any(String),
       engineSessionId: "pi-session-1",
       engineKind: "pi",
       surface: "global",
@@ -563,7 +814,7 @@ describe("agents provider configurations", () => {
     await expect(sent.json()).resolves.toMatchObject({
       conversation: { id: conversation.id, status: "running" },
       turn: { userMessage: "hello", status: "running" },
-      run: { engineKind: "pi", status: "running" },
+      run: { engineKind: "pi", status: "preparing" },
     });
     expect(engineCalls).toEqual([
       expect.objectContaining({ operation: "create" }),
@@ -575,6 +826,9 @@ describe("agents provider configurations", () => {
         }),
       }),
     ]);
+    for (let attempt = 0; !releaseStream && attempt < 50; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(releaseStream).toBeDefined();
 
     const runningDetail = await fixture.app.request(
       `http://runtime.test/api/v2/assistant-conversations/${conversation.id}`,
@@ -601,7 +855,6 @@ describe("agents provider configurations", () => {
     );
     expect(duplicate.status).toBe(409);
 
-    expect(releaseStream).toBeDefined();
     releaseStream!();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -613,7 +866,7 @@ describe("agents provider configurations", () => {
       turns: [
         expect.objectContaining({ userMessage: "hello", status: "succeeded" }),
       ],
-      runs: [expect.objectContaining({ status: "succeeded" })],
+      runs: [expect.objectContaining({ status: "completed" })],
       items: [expect.objectContaining({ content: "你好，DramaIP 已收到。" })],
     });
   });
@@ -725,7 +978,7 @@ describe("agents provider configurations", () => {
     await restoredPlugin.activate({
       http: { register: () => () => undefined },
       uow: fixture.uow,
-      effect: () => undefined,
+      effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
     } as unknown as PluginContext);
     expect(restoredLogins).toEqual([
       expect.objectContaining({

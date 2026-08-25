@@ -1,7 +1,6 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import type { RuntimeKind } from "@dramaip/contracts";
 import { ServerConnectionManager } from "@dramaip/server-connection";
 import { bootRuntime, loadProfile } from "./index.js";
 
@@ -10,19 +9,21 @@ interface CliOptions {
   profileName: string;
   hostname: string;
   port: number;
-  runtimeKind: RuntimeKind;
 }
 
 function parseArguments(args: readonly string[]): CliOptions {
   const values = new Map<string, string>();
+  const allowed = new Set(["database", "profile", "host", "port"]);
   for (let index = 0; index < args.length; index += 1) {
     const key = args[index];
     if (!key?.startsWith("--"))
       throw new Error(`Unknown argument: ${key ?? ""}`);
+    const name = key.slice(2);
+    if (!allowed.has(name)) throw new Error(`Unknown argument: ${key}`);
     const value = args[index + 1];
     if (!value || value.startsWith("--"))
       throw new Error(`Missing value for ${key}`);
-    values.set(key.slice(2), value);
+    values.set(name, value);
     index += 1;
   }
   const port = Number(values.get("port") ?? "8787");
@@ -33,13 +34,6 @@ function parseArguments(args: readonly string[]): CliOptions {
     profileName: values.get("profile") ?? "safe",
     hostname: values.get("host") ?? "127.0.0.1",
     port,
-    runtimeKind: (() => {
-      const value =
-        values.get("runtime") ?? process.env.DRAMAIP_RUNTIME_KIND ?? "node";
-      if (value !== "node" && value !== "bun")
-        throw new Error("Runtime must be node or bun");
-      return value;
-    })(),
   };
 }
 
@@ -74,15 +68,25 @@ const runtime = await bootRuntime({
   databasePath: options.databasePath,
   profile: loadProfile(profilePath),
   accessToken: process.env.DRAMAIP_RUNTIME_TOKEN,
-  runtimeKind: options.runtimeKind,
+  runtimeKind: "bun",
   mode: options.profileName === "server" ? "server" : "headless",
   alpha3AgentCutover: {
     backupDirectory: resolve(dirname(options.databasePath), "backups"),
   },
+  migrationWorker: {
+    runtimeKind: "bun",
+    executable: process.execPath,
+    entry: fileURLToPath(
+      new URL("./migration-worker-process.ts", import.meta.url),
+    ),
+  },
 });
-runtime.start({ hostname: options.hostname, port: options.port });
+const server = await runtime.start({
+  hostname: options.hostname,
+  port: options.port,
+});
 const healthResponse = await fetch(
-  `http://${options.hostname}:${options.port}/health`,
+  `http://${server.hostname}:${server.port}/health`,
 );
 const health = (await healthResponse.json()) as {
   healthy?: unknown;
@@ -98,7 +102,7 @@ if (
 }
 runtime.finalizeCutover();
 process.stdout.write(
-  `DramaIP Runtime listening on http://${options.hostname}:${options.port}\n`,
+  `DramaIP Runtime listening on http://${server.hostname}:${server.port}\n`,
 );
 process.stdout.write(`DRAMAIP_RUNTIME_TOKEN=${runtime.accessToken}\n`);
 for (const signal of ["SIGINT", "SIGTERM"] as const)

@@ -23,7 +23,7 @@ const MOBILE_APP_DIRECTORY = join(CLIENTS_DIRECTORY, "apps", "mobile");
 const SDK_DIRECTORY = join(CLIENTS_DIRECTORY, "packages", "sdk");
 
 const NODE_MINIMUM_MAJOR = 20;
-const REQUIRED_BUN_VERSION = "1.3.14";
+const REQUIRED_BUN_VERSION = "1.4.0";
 const GATEWAY_PORT = 8080;
 const WEB_PORT = 3009;
 const ADMIN_PORT = 3010;

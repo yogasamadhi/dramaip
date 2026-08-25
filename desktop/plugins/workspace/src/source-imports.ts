@@ -27,10 +27,11 @@ import {
   type WritingResourceService,
 } from "@dramaip/contracts/writing";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
-import type {
-  PluginContext,
-  RouteContribution,
-  UnitOfWorkTransaction,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type RouteContribution,
+  type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
@@ -145,20 +146,15 @@ function declaration(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: Handler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function fingerprint(value: string): string {
@@ -415,7 +411,7 @@ export function sourceImportRoutes(
         try {
           const file = await host.readGrantedText(parsed.data.capabilityToken);
           const preview = parseTextSource(file.name, file.content);
-          const writing = context.services.get<WritingChapterService>(
+          const writing = context.services.optional<WritingChapterService>(
             WRITING_CHAPTER_SERVICE,
           );
           if (!writing)
@@ -507,7 +503,7 @@ export function sourceImportRoutes(
             "VALIDATION_ERROR",
             "导入确认内容无效。",
           );
-        const writing = context.services.get<WritingChapterService>(
+        const writing = context.services.optional<WritingChapterService>(
           WRITING_CHAPTER_SERVICE,
         );
         if (!writing)
@@ -747,17 +743,18 @@ export function sourceImportRoutes(
         );
         if (!input.success || !row)
           return problem(requestContext, 404, "NOT_FOUND", "未找到导入候选。");
-        const writingResources = context.services.get<WritingResourceService>(
-          WRITING_RESOURCE_SERVICE,
-        );
-        const writing = context.services.get<WritingChapterService>(
+        const writingResources =
+          context.services.optional<WritingResourceService>(
+            WRITING_RESOURCE_SERVICE,
+          );
+        const writing = context.services.optional<WritingChapterService>(
           WRITING_CHAPTER_SERVICE,
         );
-        const production = context.services.get<ProductionRecordService>(
+        const production = context.services.optional<ProductionRecordService>(
           PRODUCTION_RECORD_SERVICE,
         );
         const media =
-          context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE);
+          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
         if (!writingResources || !writing || !production || !media)
           return problem(
             requestContext,
@@ -911,14 +908,15 @@ export function sourceImportRoutes(
         );
         if (!row || row.status !== "applied")
           return problem(requestContext, 409, "CONFLICT", "当前候选不可撤销。");
-        const writingResources = context.services.get<WritingResourceService>(
-          WRITING_RESOURCE_SERVICE,
-        );
-        const production = context.services.get<ProductionRecordService>(
+        const writingResources =
+          context.services.optional<WritingResourceService>(
+            WRITING_RESOURCE_SERVICE,
+          );
+        const production = context.services.optional<ProductionRecordService>(
           PRODUCTION_RECORD_SERVICE,
         );
         const media =
-          context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE);
+          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
         for (const adoption of JSON.parse(row.adoptions_json) as Array<
           Record<string, unknown>
         >) {

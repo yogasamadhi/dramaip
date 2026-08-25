@@ -1,6 +1,15 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
 
-export const REVIEW_RECORD_SERVICE = "review.records.v1" as const;
+export const REVIEW_RECORD_SERVICE = defineServiceContract<ReviewRecordService>(
+  {
+    id: "review.records.v1",
+    owner: "review",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  },
+);
 
 export const ReviewRecordKindSchema = z.enum([
   "compliance",

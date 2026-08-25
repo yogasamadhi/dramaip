@@ -19,7 +19,6 @@ variables:
   GIT_DEPTH: "0"
   GIT_TERMINAL_PROMPT: "0"
   BUN_INSTALL_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/bun"
-  DESKTOP_NODE_VERSION: "24.18.0"
   PLATFORM_CLIENTS_NODE_VERSION: "24.18.0"
   SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
 
@@ -58,7 +57,7 @@ java_server:
 platform_clients:
   stage: validate
   image:
-    name: oven/bun:1.3.14-debian
+    name: oven/bun:1.4.0-debian
     entrypoint: [""]
   cache:
     key:
@@ -113,7 +112,7 @@ platform_clients:
 desktop_linux:
   stage: validate
   image:
-    name: oven/bun:1.3.14-debian
+    name: oven/bun:1.4.0-debian
     entrypoint: [""]
   cache:
     key:
@@ -129,29 +128,10 @@ desktop_linux:
       set -eu
       apt-get update
       apt-get install -y --no-install-recommends ca-certificates curl git xz-utils python3 build-essential xvfb libgtk-3-0 libnss3 libasound2 libgbm1
-      case "$(dpkg --print-architecture)" in
-        amd64)
-          node_arch=x64
-          node_sha256=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
-          ;;
-        arm64)
-          node_arch=arm64
-          node_sha256=58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6
-          ;;
-        *)
-          echo "Unsupported architecture: $(dpkg --print-architecture)" >&2
-          exit 1
-          ;;
-      esac
-      node_archive="node-v${DESKTOP_NODE_VERSION}-linux-${node_arch}.tar.xz"
-      curl -fsSLO "https://nodejs.org/dist/v${DESKTOP_NODE_VERSION}/${node_archive}"
-      printf '%s  %s\n' "${node_sha256}" "${node_archive}" | sha256sum -c -
-      mkdir -p /opt/dramaip-node
-      tar -xJf "${node_archive}" -C /opt/dramaip-node --strip-components=1
-      rm "${node_archive}"
-      export PATH="/opt/dramaip-node/bin:${PATH}"
-      bun --version
-      node --version
+      test "$(bun --version)" = "1.4.0"
+      mkdir -p "${CI_PROJECT_DIR}/.ci-deny-node"
+      ln -sf /bin/false "${CI_PROJECT_DIR}/.ci-deny-node/node"
+      export PATH="${CI_PROJECT_DIR}/.ci-deny-node:${PATH}"
       cd desktop
       bun ci
       export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG:-${CI_COMMIT_SHA}}"
@@ -160,11 +140,13 @@ desktop_linux:
     - bun run format:check
     - bun run typecheck
     - bun run test
+    - bun run check:architecture
     - bun run check:generated
+    - bun run check:migration:complete
     - bun run check:engine-locks
     - bun run check:provider-catalog
     - bun run build
-    - xvfb-run -a bunx playwright test
+    - xvfb-run -a bun scripts/run-electron-playwright.ts test
     - bun run package
     - bun run release:metadata
   artifacts:
@@ -183,13 +165,16 @@ desktop_macos_release:
     - private
   before_script:
     - cd desktop
+    - test "$(bun --version)" = "1.4.0"
     - bun ci
     - export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG}"
   script:
     - bun run lint
     - bun run format:check
     - bun run test
+    - bun run check:architecture
     - bun run check:generated
+    - bun run check:migration:complete
     - bun run check:engine-locks
     - bun run check:provider-catalog
     - bun run test:e2e
@@ -210,13 +195,16 @@ desktop_windows_release:
     - private
   before_script:
     - Set-Location desktop
+    - if ((bun --version) -ne "1.4.0") { throw "Desktop requires Bun 1.4.0 exactly" }
     - bun ci
     - $env:DRAMAIP_UPDATE_URL = "$env:CI_SERVER_URL/api/v4/projects/$env:CI_PROJECT_ID/packages/generic/dramaip-desktop/$env:CI_COMMIT_TAG"
   script:
     - bun run lint
     - bun run format:check
     - bun run test
+    - bun run check:architecture
     - bun run check:generated
+    - bun run check:migration:complete
     - bun run check:engine-locks
     - bun run check:provider-catalog
     - bun run test:e2e

@@ -1,5 +1,13 @@
+import { defineServiceContract } from "./service-contract.js";
+
 export const FOUNDATION_DATABASE_MAINTENANCE_SERVICE =
-  "foundation.database-maintenance.v1" as const;
+  defineServiceContract<DatabaseMaintenanceService>({
+    id: "foundation.database-maintenance.v1",
+    owner: "foundation",
+    major: 1,
+    capabilities: ["backup", "restore"],
+    degradable: true,
+  });
 
 export interface DatabaseBackupSnapshot {
   fileName: string;

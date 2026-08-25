@@ -13,7 +13,7 @@ LAUNCHER_TEST = ROOT / "platform" / "clients" / "scripts" / "platform-launchers.
 class PlatformLauncherTests(unittest.TestCase):
     def test_typescript_launchers(self) -> None:
         bun = shutil.which("bun")
-        self.assertIsNotNone(bun, "Bun 1.3.14 is required")
+        self.assertIsNotNone(bun, "Bun 1.4.0 is required")
         version = subprocess.run(
             [bun, "--version"],
             cwd=ROOT,
@@ -21,7 +21,7 @@ class PlatformLauncherTests(unittest.TestCase):
             capture_output=True,
             text=True,
         ).stdout.strip()
-        self.assertEqual("1.3.14", version)
+        self.assertEqual("1.4.0", version)
         subprocess.run(
             [bun, "test", str(LAUNCHER_TEST)],
             cwd=ROOT / "platform" / "clients",

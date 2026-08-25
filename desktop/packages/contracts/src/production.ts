@@ -1,4 +1,78 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
+
+export const SeasonStatusSchema = z.enum([
+  "draft",
+  "ready",
+  "review_required",
+  "archived",
+]);
+export const SeasonSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  adaptationId: z.string().uuid().optional(),
+  title: z.string().min(1).max(240),
+  outline: z.string(),
+  sourceChapterVersion: z.string().optional(),
+  status: SeasonStatusSchema,
+  orderIndex: z.number().int().nonnegative(),
+  version: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export const SeasonInputSchema = z.object({
+  projectId: z.string().uuid(),
+  adaptationId: z.string().uuid().optional(),
+  title: z.string().trim().min(1).max(240),
+  outline: z.string().optional(),
+  sourceChapterVersion: z.string().optional(),
+});
+export const SeasonPatchSchema = z.object({
+  title: z.string().trim().min(1).max(240).optional(),
+  outline: z.string().optional(),
+  status: SeasonStatusSchema.optional(),
+  version: z.number().int().nonnegative(),
+});
+export const SeasonChapterMappingInputSchema = z.object({
+  seasonId: z.string().uuid(),
+  chapterId: z.string().uuid(),
+  chapterVersion: z.number().int().nonnegative(),
+});
+export const SeasonChapterMappingSchema =
+  SeasonChapterMappingInputSchema.extend({
+    id: z.string().uuid(),
+    createdAt: z.string().datetime(),
+  });
+export const SeasonPageSchema = z.object({
+  items: z.array(SeasonSchema),
+  nextCursor: z.string().optional(),
+});
+export type Season = z.infer<typeof SeasonSchema>;
+export type SeasonChapterMapping = z.infer<typeof SeasonChapterMappingSchema>;
+
+export const PRODUCTION_SEASON_SERVICE =
+  defineServiceContract<ProductionSeasonService>({
+    id: "production.seasons.v1",
+    owner: "production",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
+export interface ProductionSeasonService {
+  create(input: z.infer<typeof SeasonInputSchema>): Season;
+  get(id: string): Season | undefined;
+  list(
+    projectId: string,
+    options?: { cursor?: string; limit?: number },
+  ): { items: readonly Season[]; nextCursor?: string };
+  update(
+    id: string,
+    patch: z.infer<typeof SeasonPatchSchema>,
+  ): Season | "conflict" | undefined;
+  mapChapter(
+    input: z.infer<typeof SeasonChapterMappingInputSchema>,
+  ): SeasonChapterMapping;
+}
 
 export const ProductionRecordKindSchema = z.enum([
   "adaptations",
@@ -91,7 +165,14 @@ export type ProductionRecordKind = z.infer<typeof ProductionRecordKindSchema>;
 export type ProductionRecord = z.infer<typeof ProductionRecordSchema>;
 export type ProductionRecordInput = z.infer<typeof ProductionRecordInputSchema>;
 
-export const PRODUCTION_RECORD_SERVICE = "production.records.v1" as const;
+export const PRODUCTION_RECORD_SERVICE =
+  defineServiceContract<ProductionRecordService>({
+    id: "production.records.v1",
+    owner: "production",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
 
 export interface ProductionRecordService {
   create(

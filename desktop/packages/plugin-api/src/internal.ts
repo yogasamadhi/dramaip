@@ -1,4 +1,3 @@
-import type { OpenAPIHono } from "@hono/zod-openapi";
 import {
   DRAMAIP_PLUGIN_API_VERSION,
   DRAMAIP_RUNTIME_VERSION,
@@ -6,6 +5,7 @@ import {
   type JsonValue,
   type PluginDescriptor,
   type RealtimeEvent,
+  type ServiceContract,
 } from "@dramaip/contracts";
 import type {
   Cleanup,
@@ -43,41 +43,86 @@ export interface UnitOfWorkTransaction {
 
 export interface UnitOfWork {
   execute<T>(work: (transaction: UnitOfWorkTransaction) => T): T;
+  onAfterCommit(listener: (events: readonly DomainEvent[]) => void): Cleanup;
 }
 
+export type RouteMethod = "delete" | "get" | "patch" | "post" | "put";
+
+export interface RoutePolicy {
+  readonly authentication: "none" | "required";
+  readonly bodyLimitBytes: number;
+  readonly timeoutMs: number;
+  readonly idempotency: "forbidden" | "optional" | "required";
+  readonly concurrency: "if-match-required" | "none" | "optional";
+}
+
+/**
+ * A first-party route is data plus a typed handler. Plugins never receive the
+ * active Hono application, which makes graph staging and atomic router swaps
+ * real rather than bookkeeping around an already-mutated router.
+ */
 export interface RouteContribution {
   id: string;
   pluginId: string;
-  /**
-   * Stable route identity used by the effective-graph OpenAPI and migration
-   * ledger. Older alpha contributions omit these fields while they are being
-   * converted; the final architecture gate requires them for every business
-   * route.
-   */
-  method?: "delete" | "get" | "patch" | "post" | "put";
-  path?: `/api/v2/${string}`;
-  operationId?: string;
-  install(app: OpenAPIHono<any>): void;
+  method: RouteMethod;
+  path: `/api/v2/${string}`;
+  operationId: string;
+  declaration: unknown;
+  handler: (...args: never[]) => unknown;
+  policy: RoutePolicy;
+}
+
+export function defaultRoutePolicy(method: RouteMethod): RoutePolicy {
+  const mutation = method !== "get";
+  return Object.freeze({
+    authentication: "required",
+    bodyLimitBytes: mutation ? 1024 * 1024 : 0,
+    timeoutMs: 30_000,
+    idempotency: mutation ? "optional" : "forbidden",
+    concurrency: "optional",
+  });
+}
+
+export function defineRouteContribution(
+  input: Omit<RouteContribution, "handler" | "policy"> & {
+    readonly handler: (...args: never[]) => unknown;
+    readonly policy?: Partial<RoutePolicy>;
+  },
+): RouteContribution {
+  return Object.freeze({
+    ...input,
+    policy: Object.freeze({
+      ...defaultRoutePolicy(input.method),
+      ...input.policy,
+    }),
+  });
 }
 
 export interface HttpRouteRegistry {
   register(contribution: RouteContribution): Cleanup;
   readonly routeIds: readonly string[];
-  readonly routeDetails?: readonly Omit<RouteContribution, "install">[];
+  readonly routeDetails?: readonly Omit<
+    RouteContribution,
+    "declaration" | "handler"
+  >[];
 }
 
 export interface EventRuntime {
   publishLive(input: Omit<RealtimeEvent, "id" | "occurredAt">): void;
   subscribeLive(listener: (event: RealtimeEvent) => void): Cleanup;
+  subscribeDomain(listener: (event: DomainEvent) => void): Cleanup;
   replay(afterCursor: number, limit?: number): readonly DomainEvent[];
   registerConsumer(consumer: DurableEventConsumer): Cleanup;
   diagnostics(): readonly EventConsumerDiagnostic[];
+  retryConsumer(id: string): boolean;
+  dispose(): void;
 }
 
 export interface DurableEventConsumer {
   id: string;
   pluginId: string;
   critical: boolean;
+  eventTypes: readonly DomainEvent["type"][];
   handle(event: DomainEvent): void | Promise<void>;
 }
 
@@ -89,6 +134,8 @@ export interface EventConsumerDiagnostic {
   status: "healthy" | "retrying" | "degraded";
   consecutiveFailures: number;
   lastError?: string;
+  nextAttemptAt?: number;
+  deadLetterCursor?: number;
 }
 
 /** Server plugins publish metadata only. React modules remain in the signed,
@@ -104,9 +151,15 @@ export interface UiRegistry {
  * between bounded contexts. Plugins publish stable contract interfaces and
  * never import another plugin's source module. */
 export interface TypedServiceRegistry {
-  provide<T>(id: string, service: T): Cleanup;
-  get<T>(id: string): T | undefined;
-  entries(): readonly { id: string; owner: string }[];
+  provide<T>(contract: ServiceContract<T>, service: T): Cleanup;
+  require<T>(contract: ServiceContract<T>): T;
+  optional<T>(contract: ServiceContract<T>): T | undefined;
+  entries(): readonly {
+    id: string;
+    owner: string;
+    major: number;
+    capabilities: readonly string[];
+  }[];
 }
 
 export interface KernelDiagnostics {
@@ -121,7 +174,19 @@ export interface KernelDiagnostics {
     operationId?: string;
   }[];
   bridgeRouteCount: number;
-  effects: readonly { owner: string; label: string; revision: string }[];
+  effects: readonly {
+    owner: string;
+    label: string;
+    pluginVersion: string;
+    graphRevision: string;
+    acquiredAt: string;
+  }[];
+  services: readonly {
+    id: string;
+    owner: string;
+    major: number;
+    capabilities: readonly string[];
+  }[];
 }
 
 export interface PluginContext extends PublicPluginContext {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AgentEngineKindSchema } from "./index.js";
+import { defineServiceContract } from "./service-contract.js";
 
 export const TaskStatusSchema = z.enum([
   "queued",
@@ -59,7 +60,14 @@ export type Task = z.infer<typeof TaskSchema>;
 export type TaskInput = z.infer<typeof TaskInputSchema>;
 export type RevisionPreview = z.infer<typeof RevisionPreviewSchema>;
 
-export const AUTOMATION_TASK_SERVICE = "automation.tasks.v1" as const;
+export const AUTOMATION_TASK_SERVICE =
+  defineServiceContract<AutomationTaskService>({
+    id: "automation.tasks.v1",
+    owner: "automation",
+    major: 1,
+    capabilities: ["start", "update"],
+    degradable: true,
+  });
 export interface AutomationTaskService {
   start(input: {
     kind: string;
@@ -187,7 +195,14 @@ export const EpisodeWorkflowResultSchema = z.object({
   summary: z.string(),
 });
 
-export const AUTOMATION_PREVIEW_SERVICE = "automation.previews.v1" as const;
+export const AUTOMATION_PREVIEW_SERVICE =
+  defineServiceContract<AutomationPreviewService>({
+    id: "automation.previews.v1",
+    owner: "automation",
+    major: 1,
+    capabilities: ["preview", "commit"],
+    degradable: true,
+  });
 export interface AutomationPreviewService {
   createChange(input: {
     projectId: string;
@@ -214,7 +229,13 @@ export interface AutomationPreviewService {
 }
 
 export const PROVIDER_ACTION_EXECUTOR_SERVICE =
-  "media.provider-action-executor.v1" as const;
+  defineServiceContract<ProviderActionExecutorService>({
+    id: "media.provider-action-executor.v1",
+    owner: "media",
+    major: 1,
+    capabilities: ["execute"],
+    degradable: true,
+  });
 export interface ProviderActionExecutorService {
   execute(input: ProviderActionPreview): { taskId: string };
 }

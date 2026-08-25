@@ -45,7 +45,8 @@ type RpcMessage = {
 
 const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
   .parentPort;
-if (!parentPort)
+const runtimeVersions = process.versions as Record<string, string | undefined>;
+if (!parentPort || !runtimeVersions.electron || Boolean(runtimeVersions.bun))
   throw new Error("Codex 引擎必须作为 Electron utilityProcess 运行");
 
 let startCommand: StartCommand | undefined;
@@ -456,6 +457,7 @@ function onNotification(method: string, params: Record<string, any>): void {
     if (active && turnId) {
       active.turnId = turnId;
       runLocation.set(active.runId, { threadId, turnId });
+      void persistRunLocation(active.runId, { threadId, turnId });
     }
     return;
   }
@@ -488,12 +490,12 @@ function onNotification(method: string, params: Record<string, any>): void {
       );
       return;
     }
-    active.resolve(
-      normalizeCodexOutput(active.text, {
-        ...(active.turnId ? { turnId: active.turnId } : {}),
-        status,
-      }),
-    );
+    const result = normalizeCodexOutput(active.text, {
+      ...(active.turnId ? { turnId: active.turnId } : {}),
+      status,
+    });
+    void persistRunResult(active.runId, result);
+    active.resolve(result);
   }
 }
 
@@ -558,6 +560,7 @@ async function perform(
     return { id };
   }
   if (operation === "run") return run(payload);
+  if (operation === "recoverRun") return recoverRun(payload);
   if (operation === "interrupt") {
     const runId = String(payload.runId ?? "");
     const location = runLocation.get(runId);
@@ -750,11 +753,96 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
     if (active && turnId) {
       active.turnId = turnId;
       runLocation.set(runId, { threadId, turnId });
+      await persistRunLocation(runId, { threadId, turnId });
     }
     return await completed;
   } catch (error) {
     activeRuns.delete(threadId);
     throw error;
+  }
+}
+
+async function persistRunLocation(
+  runId: string,
+  location: { threadId: string; turnId: string },
+): Promise<void> {
+  if (!startCommand || !/^[A-Za-z0-9._-]{1,200}$/u.test(runId)) return;
+  const directory = join(startCommand.sessionRoot, "run-handles");
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await writeFile(join(directory, `${runId}.json`), JSON.stringify(location), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+async function persistRunResult(runId: string, result: unknown): Promise<void> {
+  if (!startCommand || !/^[A-Za-z0-9._-]{1,200}$/u.test(runId)) return;
+  const directory = join(startCommand.sessionRoot, "run-results");
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await writeFile(join(directory, `${runId}.json`), JSON.stringify(result), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+async function recoverRun(payload: Record<string, unknown>): Promise<unknown> {
+  if (!startCommand) return { disposition: "missing" };
+  const runId = String(payload.runId ?? "");
+  if (!/^[A-Za-z0-9._-]{1,200}$/u.test(runId))
+    return { disposition: "missing" };
+  try {
+    return {
+      disposition: "completed",
+      result: JSON.parse(
+        await readFile(
+          join(startCommand.sessionRoot, "run-results", `${runId}.json`),
+          "utf8",
+        ),
+      ),
+      finalCursor: Number(payload.afterCursor ?? 0) + 1,
+    };
+  } catch {
+    try {
+      const location = JSON.parse(
+        await readFile(
+          join(startCommand.sessionRoot, "run-handles", `${runId}.json`),
+          "utf8",
+        ),
+      ) as { threadId: string; turnId: string };
+      await ensureThreadLoaded(location.threadId);
+      const response = await rpc("thread/read", {
+        threadId: location.threadId,
+        includeTurns: true,
+      });
+      const turns = Array.isArray(response?.thread?.turns)
+        ? (response.thread.turns as Array<Record<string, unknown>>)
+        : [];
+      const turn = turns.find((candidate) => candidate.id === location.turnId);
+      if (turn?.status === "completed") {
+        const text = (Array.isArray(turn.items) ? turn.items : [])
+          .filter(
+            (item): item is Record<string, unknown> =>
+              Boolean(item) && typeof item === "object",
+          )
+          .filter((item) => item.type === "agentMessage")
+          .map((item) => String(item.text ?? ""))
+          .filter(Boolean)
+          .join("\n");
+        const result = normalizeCodexOutput(text, {
+          turnId: location.turnId,
+          status: "completed",
+        });
+        await persistRunResult(runId, result);
+        return {
+          disposition: "completed",
+          result,
+          finalCursor: Number(payload.afterCursor ?? 0) + 1,
+        };
+      }
+    } catch {
+      // A missing persisted thread or turn is handled deterministically below.
+    }
+    return { disposition: "missing" };
   }
 }
 

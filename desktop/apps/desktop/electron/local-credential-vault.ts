@@ -26,6 +26,20 @@ export type LocalCredentialStorageStatus = {
   message?: string;
 };
 
+export interface CredentialPolicy {
+  readonly policyId?: string;
+  readonly allowedOrigin?: string;
+  readonly purpose: string;
+  readonly createdAt: string;
+  readonly reauthorizationRequired?: boolean;
+}
+
+export interface CredentialUse {
+  readonly policyId?: string;
+  readonly origin?: string;
+  readonly purpose?: string;
+}
+
 /**
  * A platform-neutral vault stored entirely below Electron's userData folder.
  * It deliberately does not call Electron safeStorage, macOS Keychain, Windows
@@ -53,7 +67,10 @@ export class LocalCredentialVault {
     }
   }
 
-  async store(secret: string): Promise<{ credentialRef: string }> {
+  async store(
+    secret: string,
+    policy?: Omit<CredentialPolicy, "createdAt">,
+  ): Promise<{ credentialRef: string }> {
     const plaintext = Buffer.from(secret.trim(), "utf8");
     if (!plaintext.length) throw new Error("凭据不能为空");
     if (plaintext.length > MAX_SECRET_BYTES)
@@ -71,12 +88,39 @@ export class LocalCredentialVault {
       encrypted,
     ]);
     await this.writePrivate(this.recordPath(credentialRef), record);
+    if (policy) {
+      const allowedOrigin = policy.allowedOrigin
+        ? new URL(policy.allowedOrigin).origin
+        : undefined;
+      await this.writePrivate(
+        this.policyPath(credentialRef),
+        Buffer.from(
+          `${JSON.stringify({
+            ...policy,
+            ...(allowedOrigin ? { allowedOrigin } : {}),
+            createdAt: new Date().toISOString(),
+          } satisfies CredentialPolicy)}\n`,
+          "utf8",
+        ),
+      );
+    }
     return { credentialRef };
   }
 
-  async resolve(credentialRef: string): Promise<string | undefined> {
+  async resolve(
+    credentialRef: string,
+    use?: CredentialUse,
+  ): Promise<string | undefined> {
     if (!isCredentialRef(credentialRef)) return undefined;
     try {
+      const policy = await this.readPolicy(credentialRef);
+      if (policy) {
+        if (policy.reauthorizationRequired) return undefined;
+        if (use?.policyId && policy.policyId !== use.policyId) return undefined;
+        if (use?.purpose && policy.purpose !== use.purpose) return undefined;
+        if (use?.origin && policy.allowedOrigin !== new URL(use.origin).origin)
+          return undefined;
+      }
       const record = await readFile(this.recordPath(credentialRef));
       if (
         record.length <= 1 + IV_BYTES + TAG_BYTES ||
@@ -100,11 +144,40 @@ export class LocalCredentialVault {
 
   async remove(credentialRef: string): Promise<void> {
     if (!isCredentialRef(credentialRef)) return;
-    await rm(this.recordPath(credentialRef), { force: true });
+    await Promise.all([
+      rm(this.recordPath(credentialRef), { force: true }),
+      rm(this.policyPath(credentialRef), { force: true }),
+    ]);
   }
 
   private recordPath(credentialRef: string): string {
     return join(this.directory, `${credentialRef}.vault`);
+  }
+
+  private policyPath(credentialRef: string): string {
+    return join(this.directory, `${credentialRef}.policy.json`);
+  }
+
+  private async readPolicy(
+    credentialRef: string,
+  ): Promise<CredentialPolicy | undefined> {
+    try {
+      const value = JSON.parse(
+        await readFile(this.policyPath(credentialRef), "utf8"),
+      ) as Partial<CredentialPolicy>;
+      if (
+        typeof value.purpose !== "string" ||
+        typeof value.createdAt !== "string" ||
+        (value.allowedOrigin !== undefined &&
+          typeof value.allowedOrigin !== "string") ||
+        (value.policyId !== undefined && typeof value.policyId !== "string")
+      )
+        return undefined;
+      return value as CredentialPolicy;
+    } catch (cause) {
+      if (isMissingFile(cause)) return undefined;
+      throw cause;
+    }
   }
 
   private key(): Promise<Buffer> {

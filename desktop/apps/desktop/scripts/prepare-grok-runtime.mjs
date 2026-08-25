@@ -5,6 +5,7 @@ import {
   cp,
   mkdir,
   readFile,
+  readlink,
   readdir,
   rm,
   writeFile,
@@ -73,7 +74,9 @@ if (
   sourceTree.count !== lock.sourceTreeFileCount ||
   sourceTree.sha256 !== lock.sourceTreeSha256
 )
-  throw new Error("Grok 完整源码树校验失败，vendor 快照可能已变化");
+  throw new Error(
+    `Grok 完整源码树校验失败：expected ${lock.sourceTreeFileCount}/${lock.sourceTreeSha256}, actual ${sourceTree.count}/${sourceTree.sha256}`,
+  );
 
 let cargoVersion;
 try {
@@ -181,10 +184,9 @@ async function frozenTree(root, relativePath = "") {
     withFileTypes: true,
   })) {
     const path = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+    if (entry.name === ".git") continue;
     if (entry.isDirectory()) {
-      if (
-        [".git", "target", "node_modules", "build", "dist"].includes(entry.name)
-      )
+      if (["target", "node_modules", "build", "dist"].includes(entry.name))
         continue;
       files.push(...(await frozenTree(root, path)));
     } else if (
@@ -192,7 +194,9 @@ async function frozenTree(root, relativePath = "") {
       !entry.name.endsWith(".pyc") &&
       !entry.name.endsWith(".tsbuildinfo")
     ) {
-      const content = await readFile(join(root, path));
+      const content = entry.isSymbolicLink()
+        ? Buffer.from(`link:${await readlink(join(root, path))}`)
+        : await readFile(join(root, path));
       files.push({ path, content });
     }
   }

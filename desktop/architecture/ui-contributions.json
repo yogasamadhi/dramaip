@@ -1,0 +1,412 @@
+[
+  {
+    "id": "agents.command.new-conversation",
+    "owner": "agents",
+    "kind": "command",
+    "metadata": {
+      "title": "新对话",
+      "command": "agents.new-conversation"
+    },
+    "metadataHash": "46705d67de9077a7806a92dbbb7611d84db355b22e27d31841a0c5a65c625099"
+  },
+  {
+    "id": "agents.settings.engines",
+    "owner": "agents",
+    "kind": "settings",
+    "metadata": {
+      "section": "agent-engines",
+      "title": "智能引擎"
+    },
+    "metadataHash": "8e492d4ec7db0da76469c51bd51f0b289dde052839e1b1839750c0f1abc48cb0"
+  },
+  {
+    "id": "agents.slot.assistant",
+    "owner": "agents",
+    "kind": "slot",
+    "metadata": {
+      "slot": "shell.assistant",
+      "order": 10,
+      "title": "智能助手"
+    },
+    "metadataHash": "978c474ed825fb7a0cd76d30a9113a4475883eec9318c12ee6ff8b21e0f2d946"
+  },
+  {
+    "id": "automation.navigation.tasks",
+    "owner": "automation",
+    "kind": "navigation",
+    "metadata": {
+      "section": "secondary",
+      "order": 30,
+      "label": "任务",
+      "to": "/tasks"
+    },
+    "metadataHash": "ad8f4c18aeda89f9b090dc265d9d957611319f9fb9597743ada360671f836e4c"
+  },
+  {
+    "id": "automation.panel.project-tools",
+    "owner": "automation",
+    "kind": "panel",
+    "metadata": {
+      "slot": "project.tools",
+      "title": "工作流与模板"
+    },
+    "metadataHash": "d31246261653517cbe07f4f5dfb5970f8fd83bd428ec0ada30d283f18e6e0354"
+  },
+  {
+    "id": "automation.route.tasks",
+    "owner": "automation",
+    "kind": "route",
+    "metadata": {
+      "path": "/tasks",
+      "title": "任务"
+    },
+    "metadataHash": "2d320f4e8fe50886e72b349df0990b417d5ff356ed04dbea67c15e4f030329ba"
+  },
+  {
+    "id": "creative-quality.panel.diagnostics",
+    "owner": "creative-quality",
+    "kind": "panel",
+    "metadata": {
+      "slot": "creative.diagnostics",
+      "title": "创意诊断"
+    },
+    "metadataHash": "3b441f5d55eb96fa5eeb7a50742e9638821b7d7108b02e6f3b1c5d52ffc720a8"
+  },
+  {
+    "id": "creative-quality.route.workspace",
+    "owner": "creative-quality",
+    "kind": "route",
+    "metadata": {
+      "path": "/create",
+      "title": "创作工作区"
+    },
+    "metadataHash": "c9ff4184a9c43f585465e57d6b1ede6b207ec94a348cf1c8f1d097f71afd5d98"
+  },
+  {
+    "id": "delivery.command.export",
+    "owner": "delivery",
+    "kind": "command",
+    "metadata": {
+      "title": "导出交付包",
+      "command": "delivery.export"
+    },
+    "metadataHash": "d03ac6f0a27a1db6a6b2637a7ee934055417336fe89b11947cd28262145234d3"
+  },
+  {
+    "id": "delivery.panel.platform",
+    "owner": "delivery",
+    "kind": "panel",
+    "metadata": {
+      "slot": "review.delivery",
+      "title": "平台交付"
+    },
+    "metadataHash": "b678f7fe04de43a1872477f08585657fa18ea8f1cbe07cbb1355ab794fb32d8f"
+  },
+  {
+    "id": "insights.navigation.dashboard",
+    "owner": "insights",
+    "kind": "navigation",
+    "metadata": {
+      "section": "secondary",
+      "order": 10,
+      "label": "数据洞察",
+      "to": "/insights"
+    },
+    "metadataHash": "477e49ef838f2aed8b51540379aabc4f67f3a0550dbc6c94ac765030310f166d"
+  },
+  {
+    "id": "insights.route.dashboard",
+    "owner": "insights",
+    "kind": "route",
+    "metadata": {
+      "path": "/insights",
+      "title": "数据洞察"
+    },
+    "metadataHash": "a2253c324790bca2c5840665b4940b21fb443356b4d4497be57a80f024423f03"
+  },
+  {
+    "id": "knowledge.inspector.story-bible",
+    "owner": "knowledge",
+    "kind": "inspector",
+    "metadata": {
+      "target": "chapter",
+      "title": "故事圣经侧栏"
+    },
+    "metadataHash": "86cae0f5c17f52e892bfaba28451405d22eeb2df7c070232a77af047f691236d"
+  },
+  {
+    "id": "knowledge.panel.story-bible",
+    "owner": "knowledge",
+    "kind": "panel",
+    "metadata": {
+      "slot": "writing.story-bible",
+      "title": "故事圣经"
+    },
+    "metadataHash": "fe5a8bb8f3bd8ec1bea458e8074704b453b488ba074e1076def61d10d2fd274e"
+  },
+  {
+    "id": "media.navigation.workspace",
+    "owner": "media",
+    "kind": "navigation",
+    "metadata": {
+      "section": "main",
+      "order": 40,
+      "label": "制作",
+      "to": "/produce"
+    },
+    "metadataHash": "dc49a9670175782749cad62cfcb126d4ca8d5c7aeca96e1994edf4b6983779f7"
+  },
+  {
+    "id": "media.panel.asset-center",
+    "owner": "media",
+    "kind": "panel",
+    "metadata": {
+      "slot": "production.assets",
+      "title": "资产中心"
+    },
+    "metadataHash": "d877713b3be5d3048facfe0822cfbe0bcbc453e4c59e770e7bfbeb3fff63c2fd"
+  },
+  {
+    "id": "media.route.workspace",
+    "owner": "media",
+    "kind": "route",
+    "metadata": {
+      "path": "/produce",
+      "title": "制作"
+    },
+    "metadataHash": "8ce40254c8adbc133ec906051d6242040ef7c106990a0b39059188c47abd381b"
+  },
+  {
+    "id": "production.editor.script",
+    "owner": "production",
+    "kind": "editor",
+    "metadata": {
+      "target": "script",
+      "title": "剧本编辑器"
+    },
+    "metadataHash": "2b136a98a949644d64ccf214e6e0cb0c92fa7375e741dc49ff66a86ead38257f"
+  },
+  {
+    "id": "production.navigation.workspace",
+    "owner": "production",
+    "kind": "navigation",
+    "metadata": {
+      "section": "main",
+      "order": 30,
+      "label": "改编",
+      "to": "/adapt"
+    },
+    "metadataHash": "72980d35526f0305c0b6e6e2b26c63261d805bef861d544693d2dbeafdddd3cd"
+  },
+  {
+    "id": "production.route.workspace",
+    "owner": "production",
+    "kind": "route",
+    "metadata": {
+      "path": "/adapt",
+      "title": "改编"
+    },
+    "metadataHash": "3dd008dc5ea17c1d5010b0898e8d8a4b352b16b168270e7bccdf1fe4f2ef689a"
+  },
+  {
+    "id": "review.editor.package",
+    "owner": "review",
+    "kind": "editor",
+    "metadata": {
+      "target": "review-package",
+      "title": "审片编辑器"
+    },
+    "metadataHash": "e13fd67e20ce942218aa592c85225fbc993236f19bdebf5cc337e1a7828afce7"
+  },
+  {
+    "id": "review.navigation.workspace",
+    "owner": "review",
+    "kind": "navigation",
+    "metadata": {
+      "section": "main",
+      "order": 50,
+      "label": "审核交付",
+      "to": "/review"
+    },
+    "metadataHash": "928798fe308dee2e6e3e77514edf1c1f07893d6ae73bda9b2c39cf8b6055090f"
+  },
+  {
+    "id": "review.route.workspace",
+    "owner": "review",
+    "kind": "route",
+    "metadata": {
+      "path": "/review",
+      "title": "审核交付"
+    },
+    "metadataHash": "b6c24b9fd1439b740ed54963565379f66f4a5dec577596eaf2164d0e157316b0"
+  },
+  {
+    "id": "system.navigation.settings",
+    "owner": "system",
+    "kind": "navigation",
+    "metadata": {
+      "section": "secondary",
+      "order": 40,
+      "label": "设置",
+      "to": "/settings"
+    },
+    "metadataHash": "6038e6e20c773203c6bd38244a36f1d5a0854eece46f316a5fd952be49b8ec58"
+  },
+  {
+    "id": "system.route.settings",
+    "owner": "system",
+    "kind": "route",
+    "metadata": {
+      "path": "/settings",
+      "title": "设置"
+    },
+    "metadataHash": "c9ee69bd6b01e1bd92262d7f8a74362ecbc4b3f8b6f10fb62972dd7636ad01ca"
+  },
+  {
+    "id": "system.settings.diagnostics",
+    "owner": "system",
+    "kind": "settings",
+    "metadata": {
+      "section": "diagnostics",
+      "title": "诊断与备份"
+    },
+    "metadataHash": "47d59adbd1b70e511e9546e44b40839d961d9f4b3a257ca1b7586f00f0e525dd"
+  },
+  {
+    "id": "system.settings.extensions",
+    "owner": "system",
+    "kind": "settings",
+    "metadata": {
+      "section": "extensions",
+      "title": "扩展与 Marketplace",
+      "loader": "system.settings.extensions"
+    },
+    "metadataHash": "db480c53c8a6d1e35d34e4fbed3787027d4913a384b9e004c034729a11237a30"
+  },
+  {
+    "id": "timeline.editor.canonical",
+    "owner": "timeline",
+    "kind": "editor",
+    "metadata": {
+      "target": "episode",
+      "title": "多轨时间线"
+    },
+    "metadataHash": "27adb5452f11f7ecbeee29000d789ee1352f0242b8507cb1dcf277c1749182f4"
+  },
+  {
+    "id": "timeline.toolbar.commands",
+    "owner": "timeline",
+    "kind": "toolbar",
+    "metadata": {
+      "slot": "timeline.toolbar",
+      "title": "时间线命令"
+    },
+    "metadataHash": "eefda10d79ff10137f7328da2dd8a3f2240c62099836cc398d450fdc4ad3a7c3"
+  },
+  {
+    "id": "workspace.navigation.home",
+    "owner": "workspace",
+    "kind": "navigation",
+    "metadata": {
+      "section": "main",
+      "order": 10,
+      "label": "项目",
+      "to": "/"
+    },
+    "metadataHash": "27fe923dc40121de4c649ee7913817e9da6869d3c24d0def3df5ed1c6854a9b2"
+  },
+  {
+    "id": "workspace.navigation.search",
+    "owner": "workspace",
+    "kind": "navigation",
+    "metadata": {
+      "section": "secondary",
+      "order": 20,
+      "label": "搜索",
+      "to": "/search"
+    },
+    "metadataHash": "a745d6c0933718f512dcc135195f3578182393977de921dcdc69ac6669de0821"
+  },
+  {
+    "id": "workspace.route.home",
+    "owner": "workspace",
+    "kind": "route",
+    "metadata": {
+      "path": "/",
+      "title": "项目"
+    },
+    "metadataHash": "f9234b88a9bb6c877384f21c53a05d4b890ab71118ab9668c655f749f16fe513"
+  },
+  {
+    "id": "workspace.route.project",
+    "owner": "workspace",
+    "kind": "route",
+    "metadata": {
+      "path": "/projects/:projectId",
+      "title": "项目工作区"
+    },
+    "metadataHash": "acfa089030b83c7ef6bbcfaaeb06bc2b861bd0c239aca24338b38a3f2b3e4c0b"
+  },
+  {
+    "id": "workspace.route.project-tools",
+    "owner": "workspace",
+    "kind": "route",
+    "metadata": {
+      "path": "/projects/:projectId/tools/:toolKey?",
+      "title": "项目工具"
+    },
+    "metadataHash": "e17d964d801201fe0db03049f2ec193d613e29ff70c12595f0aad6471c3fad4a"
+  },
+  {
+    "id": "workspace.route.search",
+    "owner": "workspace",
+    "kind": "route",
+    "metadata": {
+      "path": "/search",
+      "title": "搜索"
+    },
+    "metadataHash": "92ccd460c164ac8dea55b299c0eb940b654360a03297030855ed8accd2ddbd27"
+  },
+  {
+    "id": "writing.editor.chapter",
+    "owner": "writing",
+    "kind": "editor",
+    "metadata": {
+      "target": "chapter",
+      "title": "章节编辑器"
+    },
+    "metadataHash": "eca8188c45b5ed8b03d710aca3a03a0a7fb8dc66a1630fe5cd418b6071f491f5"
+  },
+  {
+    "id": "writing.navigation.home",
+    "owner": "writing",
+    "kind": "navigation",
+    "metadata": {
+      "section": "main",
+      "order": 20,
+      "label": "小说写作",
+      "to": "/write"
+    },
+    "metadataHash": "a6d40c469652ee8e3d507201c73c4ee02d52a80e874186a5ab5449a2942d7dd9"
+  },
+  {
+    "id": "writing.route.home",
+    "owner": "writing",
+    "kind": "route",
+    "metadata": {
+      "path": "/write",
+      "title": "小说写作"
+    },
+    "metadataHash": "7c274e7324b39301d185704d4bab2d58ea79f4a60d55f6d237519a5471698901"
+  },
+  {
+    "id": "writing.route.quick-start",
+    "owner": "writing",
+    "kind": "route",
+    "metadata": {
+      "path": "/write/new",
+      "title": "新建小说"
+    },
+    "metadataHash": "79aca112efa10a004c95a51d9800ecf42ddc0ad0f70573c2c3d4295b6f5493f6"
+  }
+]

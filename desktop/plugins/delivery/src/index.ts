@@ -16,6 +16,7 @@ import {
   type ProductionRecordService,
 } from "@dramaip/contracts/production";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -300,24 +301,15 @@ function contribution(
   handler: Handler,
   options: { params?: ZodType; body?: ZodType; status?: 200 | 201 | 204 } = {},
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     id: `delivery:${operationId}`,
     pluginId: "delivery",
     method,
     path: path as `/api/v2/${string}`,
     operationId,
-    install(app) {
-      const register = app.openapi as unknown as (
-        schema: unknown,
-        callback: Handler,
-      ) => void;
-      register.call(
-        app,
-        openapi({ method, path, operationId, ...options }),
-        handler,
-      );
-    },
-  };
+    declaration: openapi({ method, path, operationId, ...options }),
+    handler,
+  });
 }
 
 function exportDocument(fileName: string, value: unknown) {
@@ -742,16 +734,15 @@ export const deliveryPlugin = defineFirstPartyPlugin({
     },
   ],
   activate: (context) => {
-    const production = context.services.get<ProductionRecordService>(
+    const production = context.services.optional<ProductionRecordService>(
       PRODUCTION_RECORD_SERVICE,
     );
     if (!production) throw new Error("delivery requires production service");
     const records = makeService(context);
-    context.effect(
+    context.effect(`service:${DELIVERY_RECORD_SERVICE}`, () =>
       context.services.provide(DELIVERY_RECORD_SERVICE, records),
-      `service:${DELIVERY_RECORD_SERVICE}`,
     );
     for (const route of deliveryRoutes(records, production))
-      context.effect(context.http.register(route), `route:${route.id}`);
+      context.effect(`route:${route.id}`, () => context.http.register(route));
   },
 });

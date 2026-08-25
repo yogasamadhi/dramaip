@@ -1,0 +1,366 @@
+[
+  {
+    "table": "agent_assistant_items",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_assistant_runs",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_assistant_sessions",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_assistant_turns",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_capability_grants",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_codex_custom_provider_settings",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_evaluation_candidates",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_evaluation_reviews",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_evaluations",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_global_settings",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_project_settings",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_provider_configurations",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_provider_settings",
+    "owner": "agents"
+  },
+  {
+    "table": "automation_change_previews",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_idempotency",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_pilot_plans",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_provider_action_previews",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_resources",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_revision_previews",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_tasks",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_template_runs",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_templates",
+    "owner": "automation"
+  },
+  {
+    "table": "chapters",
+    "owner": "writing"
+  },
+  {
+    "table": "creative_quality_records",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "creative_quality_resources",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "delivery_records",
+    "owner": "delivery"
+  },
+  {
+    "table": "domain_events",
+    "owner": "foundation"
+  },
+  {
+    "table": "event_consumer_checkpoints",
+    "owner": "foundation"
+  },
+  {
+    "table": "event_consumer_failures",
+    "owner": "foundation"
+  },
+  {
+    "table": "extension_audit",
+    "owner": "system"
+  },
+  {
+    "table": "extension_document_index_values",
+    "owner": "system"
+  },
+  {
+    "table": "extension_documents",
+    "owner": "system"
+  },
+  {
+    "table": "extension_event_checkpoints",
+    "owner": "system"
+  },
+  {
+    "table": "extension_grants",
+    "owner": "system"
+  },
+  {
+    "table": "extension_install_previews",
+    "owner": "system"
+  },
+  {
+    "table": "extension_publishers",
+    "owner": "system"
+  },
+  {
+    "table": "extension_registry_sources",
+    "owner": "system"
+  },
+  {
+    "table": "extension_revisions",
+    "owner": "system"
+  },
+  {
+    "table": "idempotency_records",
+    "owner": "foundation"
+  },
+  {
+    "table": "insights_feedback_batches",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_feedback_clusters",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_feedback_comments",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_feedback_metrics",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_feedback_previews",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_generation_records",
+    "owner": "insights"
+  },
+  {
+    "table": "installed_extensions",
+    "owner": "system"
+  },
+  {
+    "table": "knowledge_chapter_memories",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_records",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_research_findings",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_research_sources",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_research_topics",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_story_bible_change_sets",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_story_bible_settings",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_story_bible_stale_marks",
+    "owner": "knowledge"
+  },
+  {
+    "table": "media_animatic_drafts",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_tracks",
+    "owner": "media"
+  },
+  {
+    "table": "media_idempotency",
+    "owner": "media"
+  },
+  {
+    "table": "media_likeness_consents",
+    "owner": "media"
+  },
+  {
+    "table": "media_likeness_photos",
+    "owner": "media"
+  },
+  {
+    "table": "media_likeness_subjects",
+    "owner": "media"
+  },
+  {
+    "table": "media_records",
+    "owner": "media"
+  },
+  {
+    "table": "media_video_jobs",
+    "owner": "media"
+  },
+  {
+    "table": "media_voice_profiles",
+    "owner": "media"
+  },
+  {
+    "table": "plugin_migrations",
+    "owner": "foundation"
+  },
+  {
+    "table": "production_records",
+    "owner": "production"
+  },
+  {
+    "table": "production_season_chapter_mappings",
+    "owner": "production"
+  },
+  {
+    "table": "production_seasons",
+    "owner": "production"
+  },
+  {
+    "table": "project_derivation_previews",
+    "owner": "workspace"
+  },
+  {
+    "table": "project_derivations",
+    "owner": "workspace"
+  },
+  {
+    "table": "project_initialization_steps",
+    "owner": "workspace"
+  },
+  {
+    "table": "project_package_previews",
+    "owner": "workspace"
+  },
+  {
+    "table": "project_series",
+    "owner": "workspace"
+  },
+  {
+    "table": "projects",
+    "owner": "workspace"
+  },
+  {
+    "table": "review_comments",
+    "owner": "review"
+  },
+  {
+    "table": "review_decisions",
+    "owner": "review"
+  },
+  {
+    "table": "review_packages",
+    "owner": "review"
+  },
+  {
+    "table": "review_records",
+    "owner": "review"
+  },
+  {
+    "table": "series",
+    "owner": "workspace"
+  },
+  {
+    "table": "series_asset_links",
+    "owner": "workspace"
+  },
+  {
+    "table": "series_story_bible",
+    "owner": "workspace"
+  },
+  {
+    "table": "series_story_bible_overrides",
+    "owner": "workspace"
+  },
+  {
+    "table": "timelines",
+    "owner": "timeline"
+  },
+  {
+    "table": "workspace_backups",
+    "owner": "workspace"
+  },
+  {
+    "table": "workspace_import_extractions",
+    "owner": "workspace"
+  },
+  {
+    "table": "workspace_project_create_idempotency",
+    "owner": "workspace"
+  },
+  {
+    "table": "workspace_source_imports",
+    "owner": "workspace"
+  },
+  {
+    "table": "writing_chapter_versions",
+    "owner": "writing"
+  },
+  {
+    "table": "writing_creator_content",
+    "owner": "writing"
+  },
+  {
+    "table": "writing_idempotency",
+    "owner": "writing"
+  },
+  {
+    "table": "writing_resources",
+    "owner": "writing"
+  },
+  {
+    "table": "writing_volumes",
+    "owner": "writing"
+  }
+]

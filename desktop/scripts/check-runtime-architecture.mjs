@@ -9,7 +9,9 @@ async function files(directory) {
     entries
       .filter(
         (entry) =>
-          !["dist", "node_modules", "out", ".turbo"].includes(entry.name),
+          !["build", "dist", "node_modules", "out", ".turbo"].includes(
+            entry.name,
+          ),
       )
       .map(async (entry) => {
         const path = join(directory, entry.name);
@@ -20,6 +22,23 @@ async function files(directory) {
 }
 
 const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+if (manifest.engines?.node)
+  throw new Error("Desktop workspace must not declare a system Node engine");
+if (manifest.engines?.bun !== "1.4.0")
+  throw new Error("Desktop workspace must pin Bun 1.4.0 exactly");
+if (manifest.devDependencies?.tsx || manifest.dependencies?.tsx)
+  throw new Error("Desktop workspace must use Bun directly instead of tsx");
+for (const [name, script] of Object.entries(manifest.scripts ?? {})) {
+  if (
+    typeof script === "string" &&
+    /(?:^|&&\s*|\|\|\s*|;\s*)node(?:\s|$)/u.test(script)
+  )
+    throw new Error(`Desktop package script ${name} invokes system Node`);
+  if (typeof script === "string" && /\bbunx\b/u.test(script))
+    throw new Error(
+      `Desktop package script ${name} must use bun --bun run instead of bunx`,
+    );
+}
 const forbiddenWorkspaces = new Set([
   "packages/ai-legacy",
   "packages/db",
@@ -76,6 +95,29 @@ const activeSourceRoots = [
 for (const directory of activeSourceRoots) {
   for (const path of await files(directory)) {
     if (!/\.(?:[cm]?[jt]sx?|json|ya?ml)$/u.test(path)) continue;
+    const source = await readFile(path, "utf8");
+    if (/^#![^\n]*\bnode\b/u.test(source))
+      throw new Error(
+        `Active desktop source must use a Bun shebang: ${path.replace(root, "")}`,
+      );
+    if (path.endsWith("package.json")) {
+      const packageManifest = JSON.parse(source);
+      for (const [name, script] of Object.entries(
+        packageManifest.scripts ?? {},
+      )) {
+        if (
+          typeof script === "string" &&
+          /(?:^|&&\s*|\|\|\s*|;\s*)node(?:\s|$)/u.test(script)
+        )
+          throw new Error(
+            `Package script ${name} invokes system Node: ${path.replace(root, "")}`,
+          );
+        if (typeof script === "string" && /\bbunx\b/u.test(script))
+          throw new Error(
+            `Package script ${name} must use bun --bun run instead of bunx: ${path.replace(root, "")}`,
+          );
+      }
+    }
     await assertAbsent(
       path,
       /@sdns\//u,
@@ -86,8 +128,32 @@ for (const directory of activeSourceRoots) {
       /\/api\/v1(?:\/|["'])/u,
       "Active source must not expose the legacy HTTP API",
     );
+    await assertAbsent(
+      path,
+      /Bun\.which\(["']node["']\)|\bMINIMUM_NODE\b|\bNodeRuntimeAdapter\b|\bDRAMAIP_RUNTIME_KIND\b|--runtime(?:\s|["'])|runtimeKind\s*\?\?\s*["']node["']/u,
+      "Active desktop source must not depend on a system or selectable Node runtime",
+    );
   }
 }
+
+const launcherPath = join(root, "..", "run-desktop.ts");
+for (const expression of [
+  /Bun\.which\(["']node["']\)/u,
+  /\bMINIMUM_NODE\b/u,
+  /Node\.js 版本/u,
+])
+  await assertAbsent(
+    launcherPath,
+    expression,
+    "Desktop launcher must not require system Node",
+  );
+const ciPath = join(root, "..", ".gitlab-ci.yml");
+for (const expression of [/\bDESKTOP_NODE_VERSION\b/u, /\/opt\/dramaip-node/u])
+  await assertAbsent(
+    ciPath,
+    expression,
+    "Desktop CI must not install system Node",
+  );
 
 async function assertAbsent(path, expression, message) {
   const source = await readFile(path, "utf8");
@@ -114,20 +180,44 @@ for (const path of rendererFiles) {
     /@sdns\/client/u,
     "Renderer must not import the legacy client",
   );
+  await assertAbsent(
+    path,
+    /@dramaip\/(?:desktop-host|http|kernel|plugin-api|runtime)(?:[/'"]|$)/u,
+    "Renderer must not import Host, Runtime, Kernel or Plugin implementations",
+  );
+  if (!path.includes(`${join("runtime-connection")}`))
+    await assertAbsent(
+      path,
+      /@dramaip\/server-connection/u,
+      "Only the Renderer runtime-connection boundary may import ServerConnectionManager",
+    );
+  await assertAbsent(
+    path,
+    /\bDomainWorkspace\b/u,
+    "Generic DomainWorkspace cannot be used as migration evidence",
+  );
 }
-await assertAbsent(
-  join(root, "packages", "app", "src", "studio-app.tsx"),
-  /\bDomainWorkspace\b/u,
-  "Generic DomainWorkspace cannot be used as migration evidence",
-);
-await assertAbsent(
-  join(root, "apps", "desktop", "electron", "preload-v3.ts"),
-  /\bipcRenderer\b|\.invoke\(/u,
-  "Preload must expose only RuntimeBootstrap",
-);
+const preloadPath = join(root, "apps", "desktop", "electron", "preload-v3.ts");
+const preloadSource = await readFile(preloadPath, "utf8");
+if (
+  !/ipcRenderer\s*\.\s*invoke\(RUNTIME_BOOTSTRAP_CHANNEL,\s*nonce\)/u.test(
+    preloadSource,
+  ) ||
+  /ipcRenderer\s*\.\s*(?:send|sendSync|on|once|postMessage)\b/u.test(
+    preloadSource,
+  )
+)
+  throw new Error(
+    "Preload may use only the one-shot Runtime bootstrap exchange channel",
+  );
 
 const pluginFiles = (await files(join(root, "plugins"))).filter((path) =>
   /\.[cm]?[jt]sx?$/u.test(path),
+);
+const tableOwners = new Map(
+  JSON.parse(
+    await readFile(join(root, "architecture", "table-owners.json"), "utf8"),
+  ).map((entry) => [entry.table, entry.owner]),
 );
 for (const path of pluginFiles) {
   await assertAbsent(
@@ -161,37 +251,115 @@ for (const path of pluginFiles) {
       dependency !== "desktop-host" &&
       dependency !== "database" &&
       dependency !== "contracts" &&
-      dependency !== "http"
+      dependency !== "http" &&
+      !(owner === "system" && dependency === "extension-host")
     )
       throw new Error(
         `Plugin implementation import crosses ownership boundary: ${owner} -> ${dependency}`,
       );
   }
+  if (
+    /\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s*\$\{/iu.test(
+      source,
+    )
+  )
+    throw new Error(
+      `Plugin uses dynamic SQL write target: ${path.replace(root, "")}`,
+    );
+  for (const match of source.matchAll(
+    /\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM|FROM|JOIN)\s+["`]?([A-Za-z_][A-Za-z0-9_]*)/giu,
+  )) {
+    const table = match[1];
+    const tableOwner = tableOwners.get(table);
+    if (tableOwner && tableOwner !== owner)
+      throw new Error(
+        `Plugin SQL crosses table ownership boundary: ${owner} -> ${table} (${tableOwner})`,
+      );
+  }
 }
 
 await assertAbsent(
-  join(root, "apps", "desktop", "electron", "main-v3.ts"),
+  join(root, "apps", "desktop", "electron", "desktop-application.ts"),
   /\bbootRuntime\s*\(/u,
   "Electron Main must supervise rather than boot Core Runtime",
+);
+await assertAbsent(
+  join(root, "apps", "desktop", "electron", "desktop-application.ts"),
+  /\/api\/v2\//u,
+  "Electron Main must not call Runtime business APIs",
 );
 await assertAbsent(
   join(root, "packages", "runtime", "src", "index.ts"),
   /\/api\/v1/u,
   "Core Runtime must not expose legacy API routes",
 );
+for (const path of await files(join(root, "packages", "agent-runtime"))) {
+  if (!/\.[cm]?[jt]sx?$|package\.json$/u.test(path)) continue;
+  await assertAbsent(
+    path,
+    /(?:from\s+|require\s*\(\s*)["'](?:electron|better-sqlite3|node:sqlite|hono|@hono\/|@deepseek-ai\/cordis|@openai\/codex|@mariozechner\/pi-ai)/u,
+    "@dramaip/agent-runtime must remain vendor and framework neutral",
+  );
+}
+for (const path of await files(join(root, "packages", "contracts", "src"))) {
+  if (!/\.[cm]?[jt]sx?$/u.test(path)) continue;
+  await assertAbsent(
+    path,
+    /\b(?:secret|password|apiKey|absolutePath|filePath|directoryPath|revealPath)\??\s*:/u,
+    "Public Runtime/Renderer contracts must not expose plaintext credentials or absolute paths",
+  );
+}
 const activeAgentEngineFiles = [
-  join(root, "apps", "desktop", "electron", "main-v3.ts"),
+  join(root, "apps", "desktop", "electron", "desktop-application.ts"),
   join(root, "apps", "desktop", "electron.vite.config.ts"),
   join(root, "apps", "desktop", "electron-builder.yml"),
   join(root, "packages", "contracts", "src", "index.ts"),
   join(root, "packages", "client", "src", "openapi.json"),
   join(root, "plugins", "agents", "src", "index.ts"),
 ];
+
+const electronEntry = await readFile(
+  join(root, "apps", "desktop", "electron", "main.ts"),
+  "utf8",
+);
+if (
+  !/import\s+["']\.\/desktop-application\.js["']/u.test(electronEntry) ||
+  /\b(?:BrowserWindow|utilityProcess|createDesktopHost|bootRuntime|fetch)\b/u.test(
+    electronEntry,
+  )
+)
+  throw new Error("Electron entrypoint must remain pure application assembly");
+try {
+  await access(join(root, "apps", "desktop", "electron", "main-v3.ts"));
+  throw new Error("Legacy main-v3.ts must not be recreated");
+} catch (error) {
+  if (!(
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "ENOENT"
+  ))
+    throw error;
+}
+for (const name of ["index.ts", "plugin.ts"]) {
+  const agentsEntry = await readFile(
+    join(root, "plugins", "agents", "src", name),
+    "utf8",
+  );
+  if (/\b(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)\b/iu.test(agentsEntry))
+    throw new Error(
+      `Agents composition entrypoint must not contain SQL: ${name}`,
+    );
+  if (name === "plugin.ts" && agentsEntry.split("\n").length > 150)
+    throw new Error(
+      "Agents composition entrypoint must remain composition-only",
+    );
+}
 for (const path of activeAgentEngineFiles) {
   await assertAbsent(
     path,
-    /["'](?:opencode|dsh|langgraph)["']/u,
-    "Only Pi, Codex and Grok Build may be active Agent Engines",
+    /["'](?:opencode|dsh)["']/u,
+    "Only Pi, Codex, Grok Build and LangGraph.js may be active Agent Engines",
   );
 }
 await assertAbsent(

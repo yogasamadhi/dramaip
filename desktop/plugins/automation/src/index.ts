@@ -16,6 +16,7 @@ import {
   type WritingChapterService,
 } from "@dramaip/contracts/writing";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -136,20 +137,15 @@ function declaration(input: {
 }
 
 function contribute(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        route: unknown,
-        handler: Handler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function problem(
@@ -418,7 +414,7 @@ function taskRoutes(context: PluginContext): readonly RouteContribution[] {
                 requestContext,
                 400,
                 "VALIDATION_ERROR",
-                "重试必须明确使用 Pi、Codex 或 Grok。",
+                "重试必须明确使用 Pi、Codex、Grok 或 LangGraph.js。",
               );
           }
           const id = requestContext.req.param("id");
@@ -504,7 +500,7 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
             "VALIDATION_ERROR",
             "修订预览参数或 Idempotency-Key 无效。",
           );
-        const writing = context.services.get<WritingChapterService>(
+        const writing = context.services.optional<WritingChapterService>(
           WRITING_CHAPTER_SERVICE,
         );
         if (!writing)
@@ -638,7 +634,7 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
           if (current.status !== "pending")
             return problem(requestContext, 409, "CONFLICT", "修订预览已处理。");
           if (action === "commit") {
-            const writing = context.services.get<WritingChapterService>(
+            const writing = context.services.optional<WritingChapterService>(
               WRITING_CHAPTER_SERVICE,
             );
             if (!writing)
@@ -826,17 +822,15 @@ export const automationPlugin = defineFirstPartyPlugin({
       fail: (input) =>
         createRecordedTask(context, { ...input, status: "failed" }),
     };
-    context.effect(
+    context.effect(`service:${AUTOMATION_TASK_SERVICE}`, () =>
       context.services.provide(AUTOMATION_TASK_SERVICE, taskService),
-      `service:${AUTOMATION_TASK_SERVICE}`,
     );
     const previewRuntime = automationPreviewRuntime(context);
-    context.effect(
+    context.effect(`service:${AUTOMATION_PREVIEW_SERVICE}`, () =>
       context.services.provide(
         AUTOMATION_PREVIEW_SERVICE,
         previewRuntime.service,
       ),
-      `service:${AUTOMATION_PREVIEW_SERVICE}`,
     );
     const routes = [
       ...taskRoutes(context),
@@ -846,6 +840,6 @@ export const automationPlugin = defineFirstPartyPlugin({
       ...automationResourceRoutes(context),
     ];
     for (const route of routes)
-      context.effect(context.http.register(route), `route:${route.id}`);
+      context.effect(`route:${route.id}`, () => context.http.register(route));
   },
 });

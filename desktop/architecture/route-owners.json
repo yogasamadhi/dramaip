@@ -1,0 +1,3020 @@
+[
+  {
+    "method": "get",
+    "path": "/api/v2/adaptations",
+    "operationId": "adaptations.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/adaptations",
+    "operationId": "adaptations.create",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/adaptations/{id}",
+    "operationId": "adaptations.remove",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/adaptations/{id}",
+    "operationId": "adaptations.get",
+    "owner": "production"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/adaptations/{id}",
+    "operationId": "adaptations.update",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/adaptations/{id}/delivery-variants",
+    "operationId": "platform-delivery.listVariants",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/adaptations/{id}/delivery-variants",
+    "operationId": "platform-delivery.createVariant",
+    "owner": "delivery"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/adaptations/{id}/episode-analysis",
+    "operationId": "adaptation-analysis.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/adaptations/{id}/episode-analysis",
+    "operationId": "adaptation-analysis.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/adaptations/{id}/episode-analysis",
+    "operationId": "adaptation-analysis.run",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/adaptations/{id}/episodes/reorder",
+    "operationId": "production-structure.reorderEpisodes",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-engines",
+    "operationId": "agent-engines.list",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-engines/codex/auth",
+    "operationId": "codex-auth.status",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-engines/codex/login",
+    "operationId": "codex-auth.login",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-engines/codex/logout",
+    "operationId": "codex-auth.logout",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-experiments",
+    "operationId": "agent-experiments.create",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-experiments/{id}",
+    "operationId": "agent-experiments.get",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-experiments/{id}/reveal",
+    "operationId": "agent-experiments.reveal",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-experiments/{id}/review",
+    "operationId": "agent-experiments.review",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-runs/{id}",
+    "operationId": "agent-sessions.getRun",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-runs/{id}/events",
+    "operationId": "agent-sessions.subscribe",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-runs/{id}/interrupt",
+    "operationId": "agent-sessions.interrupt",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-runs/{id}/items",
+    "operationId": "agent-sessions.listItems",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-runs/{id}/resume",
+    "operationId": "agent-sessions.resume",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-runs/{id}/steer",
+    "operationId": "agent-sessions.steer",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-schemes",
+    "operationId": "agent-schemes.list",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-schemes",
+    "operationId": "agent-schemes.create",
+    "owner": "automation"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/agent-schemes/{id}",
+    "operationId": "agent-schemes.remove",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-schemes/{id}",
+    "operationId": "agent-schemes.get",
+    "owner": "automation"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/agent-schemes/{id}",
+    "operationId": "agent-schemes.update",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-sessions",
+    "operationId": "agent-sessions.create",
+    "owner": "agents"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/agent-sessions/{id}",
+    "operationId": "agent-sessions.dispose",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-sessions/{id}",
+    "operationId": "agent-sessions.get",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-sessions/{id}/abort",
+    "operationId": "agent-sessions.abort",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-sessions/{id}/fork",
+    "operationId": "agent-sessions.fork",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-sessions/{id}/runs",
+    "operationId": "agent-sessions.run",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-settings",
+    "operationId": "agent-engines.getGlobalSettings",
+    "owner": "agents"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/agent-settings",
+    "operationId": "agent-engines.updateGlobalSettings",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-tasks",
+    "operationId": "agent-engines.listTasks",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/analysis",
+    "operationId": "analysis.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/analysis",
+    "operationId": "analysis.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/analysis/{id}",
+    "operationId": "analysis.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/analysis/{id}",
+    "operationId": "analysis.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/analysis/{id}",
+    "operationId": "analysis.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/animatics",
+    "operationId": "episode-media.createAnimatic",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/animatics/{id}/review",
+    "operationId": "episode-media.reviewAnimatic",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/asset-center/{id}/action",
+    "operationId": "asset-center.action",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/asset-center/{id}/preview",
+    "operationId": "asset-center.preview",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/assets",
+    "operationId": "assets.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/assets",
+    "operationId": "assets.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/assets/{id}",
+    "operationId": "assets.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/assets/{id}",
+    "operationId": "assets.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/assets/{id}",
+    "operationId": "assets.update",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/assistant-conversations",
+    "operationId": "assistant-conversations.list",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/assistant-conversations",
+    "operationId": "assistant-conversations.create",
+    "owner": "agents"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/assistant-conversations/{id}",
+    "operationId": "assistant-conversations.remove",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/assistant-conversations/{id}",
+    "operationId": "assistant-conversations.get",
+    "owner": "agents"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/assistant-conversations/{id}",
+    "operationId": "assistant-conversations.update",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/assistant-conversations/{id}/bind-project",
+    "operationId": "assistant-conversations.bindProject",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/assistant-conversations/{id}/messages",
+    "operationId": "assistant-conversations.sendMessage",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-tracks",
+    "operationId": "episode-media.createAudioTrack",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-tracks/{id}/adopt",
+    "operationId": "episode-media.adoptAudioTrack",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/audio",
+    "operationId": "audio.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio",
+    "operationId": "audio.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/audio/{id}",
+    "operationId": "audio.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/audio/{id}",
+    "operationId": "audio.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/audio/{id}",
+    "operationId": "audio.update",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/backups",
+    "operationId": "backups.list",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/backups",
+    "operationId": "backups.create",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/backups/{id}/restore",
+    "operationId": "backups.restore",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/beats",
+    "operationId": "beats.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/beats",
+    "operationId": "beats.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/beats/{id}",
+    "operationId": "beats.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/beats/{id}",
+    "operationId": "beats.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/beats/{id}",
+    "operationId": "beats.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/capabilities",
+    "operationId": "system.capabilities",
+    "owner": "runtime"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/change-previews/{id}",
+    "operationId": "change-previews.get",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/change-previews/{id}/commit",
+    "operationId": "change-previews.commit",
+    "owner": "automation"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/change-previews/{id}/content",
+    "operationId": "change-previews.updateContent",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/change-previews/{id}/discard",
+    "operationId": "change-previews.discard",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/chapter-memories",
+    "operationId": "chapter-memories.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/chapter-memories",
+    "operationId": "chapter-memories.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/chapter-memories/{id}",
+    "operationId": "chapter-memories.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/chapter-memories/{id}",
+    "operationId": "chapter-memories.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/chapter-memories/{id}",
+    "operationId": "chapter-memories.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/chapters",
+    "operationId": "chapters.create",
+    "owner": "writing"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/chapters/{id}",
+    "operationId": "chapters.remove",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/chapters/{id}",
+    "operationId": "chapters.get",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/chapters/{id}",
+    "operationId": "chapters.update",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/chapters/{id}/agent-runs",
+    "operationId": "novel-workspace.runChapterAgent",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/chapters/{id}/analysis",
+    "operationId": "analysis.runChapter",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/chapters/{id}/versions",
+    "operationId": "novel-workspace.listChapterVersions",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/chapters/{id}/versions/{versionId}/restore",
+    "operationId": "novel-workspace.restoreChapterVersion",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/character-states",
+    "operationId": "character-states.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/character-states",
+    "operationId": "character-states.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/character-states/{id}",
+    "operationId": "character-states.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/character-states/{id}",
+    "operationId": "character-states.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/character-states/{id}",
+    "operationId": "character-states.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/characters",
+    "operationId": "characters.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/characters",
+    "operationId": "characters.create",
+    "owner": "writing"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/characters/{id}",
+    "operationId": "characters.remove",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/characters/{id}",
+    "operationId": "characters.get",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/characters/{id}",
+    "operationId": "characters.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/cloud-review/connection",
+    "operationId": "cloud-review.connection",
+    "owner": "review"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/cloud-review/connection",
+    "operationId": "cloud-review.saveConnection",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/compliance",
+    "operationId": "compliance.records.list",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/compliance",
+    "operationId": "compliance.records.create",
+    "owner": "review"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/compliance/{id}",
+    "operationId": "compliance.records.remove",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/compliance/{id}",
+    "operationId": "compliance.records.get",
+    "owner": "review"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/compliance/{id}",
+    "operationId": "compliance.records.update",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/compliance/profiles",
+    "operationId": "compliance.listProfiles",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/compliance/profiles/{id}/activate",
+    "operationId": "compliance.activateProfile",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/content-versions/{id}/restore",
+    "operationId": "content-versions.restore",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creative/case-studies",
+    "operationId": "creative.listCaseStudies",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative/case-studies",
+    "operationId": "creative.createCaseStudy",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/creative/case-studies/{id}",
+    "operationId": "creative.removeCaseStudy",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creative/case-studies/{id}",
+    "operationId": "creative.updateCaseStudy",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative/diagnostics",
+    "operationId": "creative.runDiagnostics",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative/issue-acknowledgements",
+    "operationId": "creative.acknowledgeIssue",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creator/calendar",
+    "operationId": "creator.calendar.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creator/calendar",
+    "operationId": "creator.calendar.create",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creator/calendar/{id}",
+    "operationId": "creator.calendar.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creator/column",
+    "operationId": "creator.column.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creator/column",
+    "operationId": "creator.column.create",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creator/column/{id}",
+    "operationId": "creator.column.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creator/draft",
+    "operationId": "creator.draft.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creator/draft",
+    "operationId": "creator.draft.create",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creator/draft/{id}",
+    "operationId": "creator.draft.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creator/idea",
+    "operationId": "creator.idea.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creator/idea",
+    "operationId": "creator.idea.create",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creator/idea/{id}",
+    "operationId": "creator.idea.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creator/profile",
+    "operationId": "creator.profile.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creator/profile",
+    "operationId": "creator.profile.create",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creator/profile/{id}",
+    "operationId": "creator.profile.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creator/variant",
+    "operationId": "creator.variant.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creator/variant",
+    "operationId": "creator.variant.create",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creator/variant/{id}",
+    "operationId": "creator.variant.update",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/delivery-variants/{id}/adopt",
+    "operationId": "platform-delivery.adoptVariant",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/delivery",
+    "operationId": "delivery.records.list",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/delivery",
+    "operationId": "delivery.records.create",
+    "owner": "delivery"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/delivery/{id}",
+    "operationId": "delivery.records.remove",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/delivery/{id}",
+    "operationId": "delivery.records.get",
+    "owner": "delivery"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/delivery/{id}",
+    "operationId": "delivery.records.update",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/delivery/{id}/export",
+    "operationId": "delivery.export",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/demo/projects",
+    "operationId": "desktop-support.createDemo",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-pacing-marks",
+    "operationId": "episode-pacing-marks.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-pacing-marks",
+    "operationId": "episode-pacing-marks.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/episode-pacing-marks/{id}",
+    "operationId": "episode-pacing-marks.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-pacing-marks/{id}",
+    "operationId": "episode-pacing-marks.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/episode-pacing-marks/{id}",
+    "operationId": "episode-pacing-marks.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes",
+    "operationId": "episodes.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes",
+    "operationId": "episodes.create",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes/{episodeId}/audio-assembly/apply",
+    "operationId": "timeline.applyAudioAssembly",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/audio-assembly/preview",
+    "operationId": "timeline.audioAssemblyPreview",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/audio-tracks",
+    "operationId": "episode-media.listAudioTracks",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/editor-timeline",
+    "operationId": "review-editor.timeline",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/editor-timeline/export/{format}",
+    "operationId": "review-editor.editorExport",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/editor-timeline/preflight",
+    "operationId": "review-editor.editorPreflight",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/review-packages",
+    "operationId": "review-editor.listPackages",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes/{episodeId}/review-packages",
+    "operationId": "review-editor.createPackage",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/timeline-delivery/export/{format}",
+    "operationId": "timeline.exportDelivery",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/timeline-delivery/manifest",
+    "operationId": "timeline.deliveryManifest",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/timeline",
+    "operationId": "timeline.get",
+    "owner": "timeline"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/episodes/{id}",
+    "operationId": "episodes.remove",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{id}",
+    "operationId": "episodes.get",
+    "owner": "production"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/episodes/{id}",
+    "operationId": "episodes.update",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{id}/animatic-initialization",
+    "operationId": "episode-media.initializeAnimatic",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{id}/animatics",
+    "operationId": "episode-media.listAnimatics",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes/{id}/compliance-preflight",
+    "operationId": "compliance.preflight",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{id}/platform-deliveries",
+    "operationId": "platform-delivery.listArchives",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes/{id}/platform-deliveries",
+    "operationId": "platform-delivery.createArchive",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes/{id}/platform-delivery/preflight",
+    "operationId": "platform-delivery.preflight",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{id}/render-preflight",
+    "operationId": "episode-media.renderPreflight",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/evaluations",
+    "operationId": "evaluations.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/evaluations",
+    "operationId": "evaluations.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/evaluations/{id}",
+    "operationId": "evaluations.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/evaluations/{id}",
+    "operationId": "evaluations.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/evaluations/{id}",
+    "operationId": "evaluations.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/events",
+    "operationId": "system.events.subscribe",
+    "owner": "runtime"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/exports/projects/{id}/{format}",
+    "operationId": "exports.project",
+    "owner": "workspace"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/extensions/{pluginId}/*",
+    "operationId": "system.extensions.invokeRoute.delete",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/extensions/{pluginId}/*",
+    "operationId": "system.extensions.invokeRoute.get",
+    "owner": "system"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/extensions/{pluginId}/*",
+    "operationId": "system.extensions.invokeRoute.patch",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/extensions/{pluginId}/*",
+    "operationId": "system.extensions.invokeRoute.post",
+    "owner": "system"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/extensions/{pluginId}/*",
+    "operationId": "system.extensions.invokeRoute.put",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/feasibility",
+    "operationId": "feasibility.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/feasibility",
+    "operationId": "feasibility.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/feasibility/{id}",
+    "operationId": "feasibility.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/feasibility/{id}",
+    "operationId": "feasibility.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/feasibility/{id}",
+    "operationId": "feasibility.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/feedback/{id}/commit",
+    "operationId": "feedback.commit",
+    "owner": "insights"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/feedback/clusters",
+    "operationId": "feedback.cluster",
+    "owner": "insights"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/feedback/clusters/{id}/revision-task",
+    "operationId": "feedback.createRevisionTask",
+    "owner": "insights"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/feedback/preview",
+    "operationId": "feedback.preview",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/foreshadowings",
+    "operationId": "foreshadowings.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/foreshadowings",
+    "operationId": "foreshadowings.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/foreshadowings/{id}",
+    "operationId": "foreshadowings.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/foreshadowings/{id}",
+    "operationId": "foreshadowings.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/foreshadowings/{id}",
+    "operationId": "foreshadowings.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/generation-ledger/{id}",
+    "operationId": "generation.update",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/health",
+    "operationId": "system.health",
+    "owner": "runtime"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/highlights",
+    "operationId": "highlights.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/highlights",
+    "operationId": "highlights.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/highlights/{id}",
+    "operationId": "highlights.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/highlights/{id}",
+    "operationId": "highlights.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/highlights/{id}",
+    "operationId": "highlights.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/image-generation/runs",
+    "operationId": "image-generation.run",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/image",
+    "operationId": "image.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/image",
+    "operationId": "image.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/image/{id}",
+    "operationId": "image.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/image/{id}",
+    "operationId": "image.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/image/{id}",
+    "operationId": "image.update",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/import-extractions/change-sets/{id}/adopt",
+    "operationId": "import-extractions.adopt",
+    "owner": "workspace"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/import-extractions/change-sets/{id}/candidates/{candidateId}",
+    "operationId": "import-extractions.updateCandidate",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/import-extractions/change-sets/{id}/undo",
+    "operationId": "import-extractions.undo",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/inspirations",
+    "operationId": "inspirations.list",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/inspirations",
+    "operationId": "inspirations.create",
+    "owner": "automation"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/inspirations/{id}",
+    "operationId": "inspirations.remove",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/inspirations/{id}",
+    "operationId": "inspirations.get",
+    "owner": "automation"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/inspirations/{id}",
+    "operationId": "inspirations.update",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/likeness-subjects/{id}/consent",
+    "operationId": "likenessSubjects.consent",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/likeness-subjects/{id}/photos",
+    "operationId": "likenessSubjects.attachPhoto",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/likeness-subjects/{id}/revoke",
+    "operationId": "likenessSubjects.revoke",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/localization",
+    "operationId": "localization.records.list",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/localization",
+    "operationId": "localization.records.create",
+    "owner": "delivery"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/localization/{id}",
+    "operationId": "localization.records.remove",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/localization/{id}",
+    "operationId": "localization.records.get",
+    "owner": "delivery"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/localization/{id}",
+    "operationId": "localization.records.update",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/localization/{id}/adopt",
+    "operationId": "localization.adopt",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/localization/{id}/subtitles/{format}",
+    "operationId": "localization.subtitles",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/memory",
+    "operationId": "memory.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/memory",
+    "operationId": "memory.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/memory/{id}",
+    "operationId": "memory.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/memory/{id}",
+    "operationId": "memory.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/memory/{id}",
+    "operationId": "memory.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/outlines",
+    "operationId": "outlines.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/outlines",
+    "operationId": "outlines.create",
+    "owner": "writing"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/outlines/{id}",
+    "operationId": "outlines.remove",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/outlines/{id}",
+    "operationId": "outlines.get",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/outlines/{id}",
+    "operationId": "outlines.update",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/pilot-plans",
+    "operationId": "pilot-plans.create",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/pilot-plans/{id}/action",
+    "operationId": "pilot-plans.action",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/platform-deliveries/{id}/export",
+    "operationId": "platform-delivery.exportArchive",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/platform-delivery/profiles",
+    "operationId": "platform-delivery.listProfiles",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/production/impact",
+    "operationId": "production.impact",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/project-packages/{id}",
+    "operationId": "project-packages.discard",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/project-packages/{id}/commit",
+    "operationId": "project-packages.commit",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/project-packages/preview",
+    "operationId": "project-packages.preview",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/project-skills",
+    "operationId": "project-skills.list",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/project-skills",
+    "operationId": "project-skills.create",
+    "owner": "automation"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/project-skills/{id}",
+    "operationId": "project-skills.remove",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/project-skills/{id}",
+    "operationId": "project-skills.get",
+    "owner": "automation"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/project-skills/{id}",
+    "operationId": "project-skills.update",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects",
+    "operationId": "projects.list",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects",
+    "operationId": "projects.create",
+    "owner": "workspace"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/projects/{id}",
+    "operationId": "projects.purge",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}",
+    "operationId": "projects.get",
+    "owner": "workspace"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/projects/{id}",
+    "operationId": "projects.update",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/agent-settings",
+    "operationId": "agent-engines.getProjectSettings",
+    "owner": "agents"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/projects/{id}/agent-settings",
+    "operationId": "agent-engines.updateProjectSettings",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/asset-center",
+    "operationId": "asset-center.get",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/chapters/continue",
+    "operationId": "novel-workspace.continueChapter",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/content-versions",
+    "operationId": "content-versions.list",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/creative-diagnostics",
+    "operationId": "creative.listDiagnostics",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/creative-issue-acknowledgements",
+    "operationId": "creative.listIssueAcknowledgements",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/derivations",
+    "operationId": "projects.commitDerivation",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/derivations/preview",
+    "operationId": "projects.previewDerivation",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/feedback",
+    "operationId": "feedback.dashboard",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/generation-ledger",
+    "operationId": "generation.list",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/import-extractions/change-sets",
+    "operationId": "import-extractions.list",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/initialization",
+    "operationId": "projects.initialization",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/initialization/retry",
+    "operationId": "projects.retryInitialization",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/novel-workspace",
+    "operationId": "novel-workspace.get",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/pilot-plans",
+    "operationId": "pilot-plans.list",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/production-graph",
+    "operationId": "production.graph",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/restore",
+    "operationId": "projects.restore",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/series-assets",
+    "operationId": "series.transferAsset",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/series-library",
+    "operationId": "series.library",
+    "owner": "workspace"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/projects/{id}/series",
+    "operationId": "series.setProjectSeries",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/story-bible/change-sets",
+    "operationId": "story-bible.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/story-bible/settings",
+    "operationId": "story-bible.settings",
+    "owner": "knowledge"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/projects/{id}/story-bible/settings",
+    "operationId": "story-bible.updateSettings",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/story-bible/stale",
+    "operationId": "story-bible.stale",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/trash",
+    "operationId": "projects.trash",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/video-generation/batch-preflight",
+    "operationId": "video-generation.batchPreflight",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/voice-profiles",
+    "operationId": "episode-media.listVoiceProfiles",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/chapters",
+    "operationId": "chapters.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/chapters/reorder",
+    "operationId": "chapters.reorder",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/current-adaptation",
+    "operationId": "production-structure.selectCurrentAdaptation",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/likeness-reference-preflight",
+    "operationId": "likenessSubjects.referencePreflight",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/likeness-subjects",
+    "operationId": "likenessSubjects.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/likeness-subjects",
+    "operationId": "likenessSubjects.create",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/research-topics",
+    "operationId": "research.topics.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/research-topics",
+    "operationId": "research.topics.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/seasons",
+    "operationId": "seasons.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/seasons",
+    "operationId": "seasons.create",
+    "owner": "production"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/projects/{projectId}/series-story-bible/{id}/override",
+    "operationId": "series.overrideStoryBible",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/series-story-bible/{id}/upgrade",
+    "operationId": "series.upgradeStoryBible",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/volumes",
+    "operationId": "volumes.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/volumes",
+    "operationId": "volumes.create",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/trash",
+    "operationId": "projects.listTrash",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/provider-action-previews/{id}",
+    "operationId": "provider-action-previews.get",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/provider-action-previews/{id}/discard",
+    "operationId": "provider-action-previews.discard",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/provider-action-previews/{id}/execute",
+    "operationId": "provider-action-previews.execute",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/providers",
+    "operationId": "providers.list",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/providers",
+    "operationId": "providers.create",
+    "owner": "agents"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/providers/{id}",
+    "operationId": "providers.delete",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/providers/{id}",
+    "operationId": "providers.get",
+    "owner": "agents"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/providers/{id}",
+    "operationId": "providers.update",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/providers/{id}/activate-for-agent",
+    "operationId": "providers.activateForAgent",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/providers/{id}/test-connection",
+    "operationId": "providers.testConnection",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/quality",
+    "operationId": "quality.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/quality",
+    "operationId": "quality.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/quality/{id}",
+    "operationId": "quality.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/quality/{id}",
+    "operationId": "quality.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/quality/{id}",
+    "operationId": "quality.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/renders",
+    "operationId": "renders.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/renders",
+    "operationId": "renders.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/renders/{id}",
+    "operationId": "renders.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/renders/{id}",
+    "operationId": "renders.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/renders/{id}",
+    "operationId": "renders.update",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/research-topics/{id}/findings",
+    "operationId": "research.findings.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/research-topics/{id}/findings",
+    "operationId": "research.findings.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/research-topics/{id}/search",
+    "operationId": "research.search",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/research-topics/{id}/sources",
+    "operationId": "research.sources.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/research-topics/{id}/sources",
+    "operationId": "research.sources.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/review-comments/{id}",
+    "operationId": "review-editor.resolveComment",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{id}/cloud-preview",
+    "operationId": "cloud-review.preview",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{id}/cloud-publish",
+    "operationId": "cloud-review.publish",
+    "owner": "review"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/review-packages/{id}/cloud-review",
+    "operationId": "cloud-review.delete",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review-packages/{id}/cloud-review",
+    "operationId": "cloud-review.binding",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{id}/cloud-sync",
+    "operationId": "cloud-review.sync",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review-packages/{id}/export",
+    "operationId": "review-editor.exportPackage",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{id}/import-offline",
+    "operationId": "review-editor.importOffline",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review-packages/{packageId}/comments",
+    "operationId": "review-editor.listComments",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{packageId}/comments",
+    "operationId": "review-editor.createComment",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review-packages/{packageId}/decisions",
+    "operationId": "review-editor.listDecisions",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{packageId}/decisions",
+    "operationId": "review-editor.createDecision",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review-packages/{packageId}/revision-preview",
+    "operationId": "review-editor.createRevisionPreview",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review",
+    "operationId": "review.records.list",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/review",
+    "operationId": "review.records.create",
+    "owner": "review"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/review/{id}",
+    "operationId": "review.records.remove",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review/{id}",
+    "operationId": "review.records.get",
+    "owner": "review"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/review/{id}",
+    "operationId": "review.records.update",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/revisions",
+    "operationId": "revisions.create",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/revisions/{id}",
+    "operationId": "revisions.get",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/revisions/{id}/commit",
+    "operationId": "revisions.commit",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/revisions/{id}/discard",
+    "operationId": "revisions.discard",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/rights",
+    "operationId": "rights.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/rights",
+    "operationId": "rights.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/rights/{id}",
+    "operationId": "rights.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/rights/{id}",
+    "operationId": "rights.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/rights/{id}",
+    "operationId": "rights.update",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/runtime",
+    "operationId": "system.runtime",
+    "owner": "runtime"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scenes",
+    "operationId": "scenes.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/scenes",
+    "operationId": "scenes.create",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/scenes/{id}",
+    "operationId": "scenes.remove",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scenes/{id}",
+    "operationId": "scenes.get",
+    "owner": "production"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/scenes/{id}",
+    "operationId": "scenes.update",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/scenes/{id}/shots/reorder",
+    "operationId": "production-structure.reorderShots",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scripts",
+    "operationId": "scripts.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/scripts",
+    "operationId": "scripts.create",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/scripts/{id}",
+    "operationId": "scripts.remove",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scripts/{id}",
+    "operationId": "scripts.get",
+    "owner": "production"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/scripts/{id}",
+    "operationId": "scripts.update",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/scripts/{id}/review",
+    "operationId": "production-reviews.removeScript",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scripts/{id}/review",
+    "operationId": "production-reviews.getScript",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/scripts/{id}/review",
+    "operationId": "production-reviews.runScript",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/scripts/{id}/scenes/reorder",
+    "operationId": "production-structure.reorderScenes",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/search/{query}",
+    "operationId": "search.global",
+    "owner": "workspace"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/seasons/{id}",
+    "operationId": "seasons.update",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/seasons/{id}/chapter-mappings",
+    "operationId": "seasons.mapChapter",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/series",
+    "operationId": "series.list",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/series",
+    "operationId": "series.create",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/series/{seriesId}/story-bible",
+    "operationId": "series.createStoryBible",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shot-stills",
+    "operationId": "shot-stills.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/shot-stills",
+    "operationId": "shot-stills.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/shot-stills/{id}",
+    "operationId": "shot-stills.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shot-stills/{id}",
+    "operationId": "shot-stills.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/shot-stills/{id}",
+    "operationId": "shot-stills.update",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/shot-stills/{id}/adopt",
+    "operationId": "visuals.adoptStill",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shots",
+    "operationId": "shots.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/shots",
+    "operationId": "shots.create",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/shots/{id}",
+    "operationId": "shots.remove",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shots/{id}",
+    "operationId": "shots.get",
+    "owner": "production"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/shots/{id}",
+    "operationId": "shots.update",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shots/{id}/prompt-versions",
+    "operationId": "production-reviews.listPromptVersions",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/shots/{id}/prompt-versions",
+    "operationId": "production-reviews.appendPromptVersion",
+    "owner": "review"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/shots/{id}/review",
+    "operationId": "production-reviews.removeShot",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shots/{id}/review",
+    "operationId": "production-reviews.getShot",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/shots/{id}/review",
+    "operationId": "production-reviews.runShot",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/shots/{id}/video-generation/preflight",
+    "operationId": "video-generation.preflight",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/shots/{id}/video-generation/runs",
+    "operationId": "video-generation.listByShot",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/source-imports/{id}",
+    "operationId": "source-imports.discard",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/source-imports/{id}/commit",
+    "operationId": "source-imports.commit",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/source-imports/preview",
+    "operationId": "source-imports.preview",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-arcs",
+    "operationId": "story-arcs.list",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-arcs",
+    "operationId": "story-arcs.create",
+    "owner": "writing"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/story-arcs/{id}",
+    "operationId": "story-arcs.remove",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-arcs/{id}",
+    "operationId": "story-arcs.get",
+    "owner": "writing"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/story-arcs/{id}",
+    "operationId": "story-arcs.update",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-bible-sidecar-preferences",
+    "operationId": "story-bible-sidecar-preferences.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-bible-sidecar-preferences",
+    "operationId": "story-bible-sidecar-preferences.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/story-bible-sidecar-preferences/{id}",
+    "operationId": "story-bible-sidecar-preferences.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-bible-sidecar-preferences/{id}",
+    "operationId": "story-bible-sidecar-preferences.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/story-bible-sidecar-preferences/{id}",
+    "operationId": "story-bible-sidecar-preferences.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-bible",
+    "operationId": "story-bible.records.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-bible",
+    "operationId": "story-bible.records.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/story-bible/{id}",
+    "operationId": "story-bible.records.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-bible/{id}",
+    "operationId": "story-bible.records.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/story-bible/{id}",
+    "operationId": "story-bible.records.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-bible/change-sets",
+    "operationId": "story-bible.queue",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-bible/change-sets/{id}/apply",
+    "operationId": "story-bible.apply",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/story-bible/change-sets/{id}/status",
+    "operationId": "story-bible.setStatus",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-bible/change-sets/{id}/undo",
+    "operationId": "story-bible.undo",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-events",
+    "operationId": "story-events.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story-events",
+    "operationId": "story-events.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/story-events/{id}",
+    "operationId": "story-events.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story-events/{id}",
+    "operationId": "story-events.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/story-events/{id}",
+    "operationId": "story-events.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story",
+    "operationId": "story.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/story",
+    "operationId": "story.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/story/{id}",
+    "operationId": "story.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/story/{id}",
+    "operationId": "story.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/story/{id}",
+    "operationId": "story.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/system/diagnostics",
+    "operationId": "system.diagnostics",
+    "owner": "runtime"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/system/extensions/{pluginId}",
+    "operationId": "system.extensions.uninstall",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/{pluginId}/commands/{commandId}",
+    "operationId": "system.extensions.invokeCommand",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/{pluginId}/disable",
+    "operationId": "system.extensions.disable",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/{pluginId}/enable",
+    "operationId": "system.extensions.enable",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/{pluginId}/retry",
+    "operationId": "system.extensions.retry",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/{pluginId}/rollback",
+    "operationId": "system.extensions.rollback",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/catalog",
+    "operationId": "system.extensions.catalog",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/system/extensions/effective-openapi",
+    "operationId": "system.extensions.effectiveOpenApi",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/install-commit",
+    "operationId": "system.extensions.installCommit",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/extensions/install-preview",
+    "operationId": "system.extensions.installPreview",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/system/extensions/installed",
+    "operationId": "system.extensions.installed",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/system/extensions/ui-contributions",
+    "operationId": "system.extensions.uiContributions",
+    "owner": "system"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/system/host/credentials/{credentialRef}",
+    "operationId": "system.credentials.remove",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/credentials/capture-sessions",
+    "operationId": "system.credentials.createCaptureSession",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/system/host/credentials/capture-sessions/{captureSessionId}",
+    "operationId": "system.credentials.getCaptureSession",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/system/host/credentials/status",
+    "operationId": "system.credentials.status",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/files/pick",
+    "operationId": "system.hostFiles.pick",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/files/save-text",
+    "operationId": "system.hostFiles.saveText",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/open-external",
+    "operationId": "system.host.openExternal",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/reveal-artifact",
+    "operationId": "system.host.revealArtifact",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/reveal-grant",
+    "operationId": "system.host.revealGrant",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/system/host/window/theme",
+    "operationId": "system.window.setTheme",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/tasks",
+    "operationId": "tasks.list",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/tasks",
+    "operationId": "tasks.create",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/tasks/{id}/cancel",
+    "operationId": "tasks.cancel",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/tasks/{id}/retry",
+    "operationId": "tasks.retry",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/template-runs",
+    "operationId": "template-runs.list",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/templates",
+    "operationId": "templates.list",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/templates",
+    "operationId": "templates.create",
+    "owner": "automation"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/templates/{id}",
+    "operationId": "templates.remove",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/templates/{id}",
+    "operationId": "templates.get",
+    "owner": "automation"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/templates/{id}",
+    "operationId": "templates.update",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/templates/{id}/run",
+    "operationId": "templates.run",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timeline-media/{id}/preview",
+    "operationId": "timeline.preview",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/commands",
+    "operationId": "timeline.command",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timelines/{id}/history",
+    "operationId": "timeline.history",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/redo",
+    "operationId": "timeline.redo",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/undo",
+    "operationId": "timeline.undo",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/trends",
+    "operationId": "trends.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/trends",
+    "operationId": "trends.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/trends/{id}",
+    "operationId": "trends.remove",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/trends/{id}",
+    "operationId": "trends.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/trends/{id}",
+    "operationId": "trends.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/tts-generation/runs",
+    "operationId": "tts-generation.run",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/version",
+    "operationId": "system.version",
+    "owner": "runtime"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/video-generation/runs",
+    "operationId": "video-generation.create",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/video-generation/runs/{id}",
+    "operationId": "video-generation.get",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/video-generation/runs/{id}/cancel",
+    "operationId": "video-generation.cancel",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/video-generation/runs/{id}/refresh",
+    "operationId": "video-generation.refresh",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/video-generation/runs/{id}/retry",
+    "operationId": "video-generation.retry",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/video",
+    "operationId": "video.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/video",
+    "operationId": "video.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/video/{id}",
+    "operationId": "video.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/video/{id}",
+    "operationId": "video.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/video/{id}",
+    "operationId": "video.update",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/videos/{id}/adopt",
+    "operationId": "visuals.adoptVideo",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/visual-assets",
+    "operationId": "visual-assets.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/visual-assets",
+    "operationId": "visual-assets.create",
+    "owner": "media"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/visual-assets/{id}",
+    "operationId": "visual-assets.remove",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/visual-assets/{id}",
+    "operationId": "visual-assets.get",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/visual-assets/{id}",
+    "operationId": "visual-assets.update",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/visual-assets/{id}/adopt",
+    "operationId": "visuals.adoptVisualAsset",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/visual-assets/{id}/lock",
+    "operationId": "visuals.lockVisualAsset",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/visual-profiles",
+    "operationId": "visual-profiles.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/visual-profiles",
+    "operationId": "visual-profiles.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/visual-profiles/{id}",
+    "operationId": "visual-profiles.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/visual-profiles/{id}",
+    "operationId": "visual-profiles.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/visual-profiles/{id}",
+    "operationId": "visual-profiles.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/visual-settings",
+    "operationId": "visual-settings.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/visual-settings",
+    "operationId": "visual-settings.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/visual-settings/{id}",
+    "operationId": "visual-settings.remove",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/visual-settings/{id}",
+    "operationId": "visual-settings.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/visual-settings/{id}",
+    "operationId": "visual-settings.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/voice-profiles",
+    "operationId": "episode-media.createVoiceProfile",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/voice-profiles/{id}/adopt",
+    "operationId": "episode-media.adoptVoiceProfile",
+    "owner": "media"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/volumes/{id}",
+    "operationId": "volumes.update",
+    "owner": "writing"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/workflows/episodes/run",
+    "operationId": "workflows.runEpisode",
+    "owner": "automation"
+  }
+]

@@ -12,26 +12,31 @@ import {
   type RuntimeKind,
   type RuntimeMode,
 } from "@dramaip/contracts";
-import type { DatabaseMaintenanceService } from "@dramaip/contracts/foundation";
 import {
   parseProfileDefinition,
   resolveEffectiveGraph,
   type EffectiveRuntimeGraph,
 } from "@dramaip/bundles";
 import {
-  applyMigrations,
   listAppliedMigrations,
   prepareAlpha2ToAlpha3AgentCutover,
   openDatabase,
   prepareDestructiveV3Cutover,
+  runMigrationPlan,
   type DestructiveCutoverOptions,
+  type MigrationRunDiagnostic,
 } from "@dramaip/database";
+import { runMigrationPlanInWorker } from "@dramaip/database/migration-worker";
 import {
   DesktopHostClient,
   type HostClientOptions,
 } from "@dramaip/desktop-host";
-import { PersistentEventRuntime } from "@dramaip/events";
+import {
+  DomainEventSchemaRegistry,
+  PersistentEventRuntime,
+} from "@dramaip/events";
 import { createRuntimeHttp } from "@dramaip/http";
+import { ExtensionPlatform } from "@dramaip/system";
 import {
   bootKernel,
   validatePluginGraph,
@@ -41,20 +46,20 @@ import type {
   FirstPartyPlugin,
   PluginProfile,
 } from "@dramaip/plugin-api/internal";
-import { createAgentsPlugin } from "@dramaip/agents";
-import { automationPlugin } from "@dramaip/automation";
-import { creativeQualityPlugin } from "@dramaip/creative-quality";
-import { deliveryPlugin } from "@dramaip/delivery";
-import { createFoundationPlugin } from "@dramaip/foundation";
-import { createInsightsPlugin } from "@dramaip/insights";
-import { knowledgePlugin } from "@dramaip/knowledge";
-import { createMediaPlugin } from "@dramaip/media";
-import { productionPlugin } from "@dramaip/production";
-import { createReviewPlugin } from "@dramaip/review";
-import { createSystemPlugin } from "@dramaip/system";
-import { timelinePlugin } from "@dramaip/timeline";
-import { createWorkspacePlugin } from "@dramaip/workspace";
-import { writingPlugin } from "@dramaip/writing";
+import {
+  collectPluginMigrations,
+  createFirstPartyPluginRegistry,
+} from "./plugin-registry.js";
+import { EffectiveGraphBuilder } from "./effective-graph.js";
+import {
+  DOMAIN_EVENT_MANIFEST,
+  DOMAIN_EVENT_PATTERNS,
+} from "./event-manifest.generated.js";
+
+export {
+  collectPluginMigrations,
+  createFirstPartyPluginRegistry,
+} from "./plugin-registry.js";
 
 export interface RuntimeConfig {
   databasePath: string;
@@ -63,19 +68,32 @@ export interface RuntimeConfig {
   allowedOrigins?: readonly string[];
   engineMcpTokens?: readonly string[];
   host?: HostClientOptions;
-  runtimeKind?: RuntimeKind;
+  runtimeKind: RuntimeKind;
   mode?: RuntimeMode;
+  runtimeGeneration?: number;
   destructiveCutover?: Omit<DestructiveCutoverOptions, "databasePath">;
   alpha3AgentCutover?: {
     backupDirectory: string;
     alpha2Version?: string;
   };
   backupDirectory?: string;
+  migrationWorker?: {
+    runtimeKind: RuntimeKind;
+    executable: string;
+    entry: string;
+    execArgv?: readonly string[];
+  };
 }
 
 export interface RuntimeServerOptions {
   hostname: string;
   port: number;
+}
+
+export interface RuntimeServer {
+  readonly hostname: string;
+  readonly port: number;
+  close(): void;
 }
 
 export interface RuntimeHandle {
@@ -84,45 +102,9 @@ export interface RuntimeHandle {
   readonly profile: PluginProfile;
   readonly runtimeInfo: RuntimeInfo;
   fetch(request: Request): Promise<Response>;
-  start(options: RuntimeServerOptions): { close(): void };
+  start(options: RuntimeServerOptions): Promise<RuntimeServer>;
   finalizeCutover(): void;
   stop(): Promise<void>;
-}
-
-function pluginMap(
-  config: RuntimeConfig,
-  host = config.host ? new DesktopHostClient(config.host) : undefined,
-  maintenance?: DatabaseMaintenanceService,
-): ReadonlyMap<string, FirstPartyPlugin> {
-  const plugins: FirstPartyPlugin[] = [
-    createFoundationPlugin(maintenance),
-    createSystemPlugin(host),
-    createWorkspacePlugin(host),
-    automationPlugin,
-    writingPlugin,
-    knowledgePlugin,
-    createAgentsPlugin(host),
-    creativeQualityPlugin,
-    productionPlugin,
-    createMediaPlugin(host),
-    timelinePlugin,
-    createReviewPlugin(host),
-    deliveryPlugin,
-    createInsightsPlugin(host),
-  ];
-  return new Map(plugins.map((plugin) => [plugin.descriptor.id, plugin]));
-}
-
-function collectMigrations(
-  plugins: ReadonlyMap<string, FirstPartyPlugin>,
-  profile: PluginProfile,
-): readonly NonNullable<FirstPartyPlugin["migrations"]>[number][] {
-  const migrations: NonNullable<FirstPartyPlugin["migrations"]>[number][] = [];
-  for (const id of validatePluginGraph(plugins, profile)) {
-    const plugin = plugins.get(id)!;
-    migrations.push(...(plugin.migrations ?? []));
-  }
-  return migrations;
 }
 
 export function parseProfile(text: string): PluginProfile {
@@ -146,6 +128,13 @@ export function loadProfile(path: string): PluginProfile {
 export async function bootRuntime(
   config: RuntimeConfig,
 ): Promise<RuntimeHandle> {
+  const runtimeKind = config.runtimeKind;
+  const mode = config.mode ?? (config.host ? "desktop" : "headless");
+  if (
+    (mode === "desktop" && runtimeKind !== "electron-node") ||
+    (mode !== "desktop" && runtimeKind !== "bun")
+  )
+    throw new Error(`Runtime kind ${runtimeKind} is invalid for ${mode} mode`);
   const host = config.host ? new DesktopHostClient(config.host) : undefined;
   const cutover = config.alpha3AgentCutover
     ? prepareAlpha2ToAlpha3AgentCutover({
@@ -158,27 +147,86 @@ export async function bootRuntime(
           ...config.destructiveCutover,
         })
       : undefined;
-  const database = openDatabase(config.databasePath);
   const backupDirectory =
     config.backupDirectory ??
     config.alpha3AgentCutover?.backupDirectory ??
     config.destructiveCutover?.backupDirectory ??
     resolve(dirname(config.databasePath), "backups");
-  const plugins = pluginMap(
-    config,
+  const migrationPlugins = createFirstPartyPluginRegistry({ host });
+  const migrations = collectPluginMigrations(migrationPlugins, config.profile);
+  let migrationRun: MigrationRunDiagnostic | undefined;
+  let database;
+  try {
+    if (config.migrationWorker && config.databasePath !== ":memory:") {
+      if (config.migrationWorker.runtimeKind !== config.runtimeKind)
+        throw new Error("Migration Worker runtime must match Core Runtime");
+      migrationRun = await runMigrationPlanInWorker({
+        runtimeKind: config.migrationWorker.runtimeKind,
+        executable: config.migrationWorker.executable,
+        workerEntry: config.migrationWorker.entry,
+        execArgv: config.migrationWorker.execArgv,
+        databasePath: config.databasePath,
+        backupDirectory,
+        migrations,
+      });
+      database = openDatabase(config.databasePath);
+    } else {
+      database = openDatabase(config.databasePath);
+      migrationRun = runMigrationPlan(database, migrations, {
+        databasePath: config.databasePath,
+        backupDirectory,
+      });
+    }
+  } catch (error) {
+    cutover?.fail(error);
+    throw error;
+  }
+  const extensionPlatform = new ExtensionPlatform(database.uow, host);
+  const plugins = createFirstPartyPluginRegistry({
     host,
-    database.maintenance(backupDirectory),
-  );
+    maintenance: database.maintenance(backupDirectory),
+    extensionPlatform,
+  });
   const order = validatePluginGraph(plugins, config.profile);
-  const events = new PersistentEventRuntime(database.uow);
+  const eventSchemas = new DomainEventSchemaRegistry(
+    DOMAIN_EVENT_MANIFEST,
+    DOMAIN_EVENT_PATTERNS,
+  );
+  database.uow.setEventValidator((event) => eventSchemas.validate(event));
+  const events = new PersistentEventRuntime(database.uow, eventSchemas);
   let kernel: RunningKernel | undefined;
   const accessToken =
     config.accessToken ?? randomBytes(32).toString("base64url");
   const runtimeId = randomUUID();
-  const runtimeKind = config.runtimeKind ?? "node";
-  const mode = config.mode ?? (config.host ? "desktop" : "headless");
+  const runtimeGeneration = config.runtimeGeneration ?? 1;
+  const startedAt = new Date().toISOString();
+  const graphBuilder = new EffectiveGraphBuilder({
+    profile: config.profile.name,
+    bundles: config.profile.bundles,
+    plugins: order.map((id) => ({
+      id,
+      version: plugins.get(id)!.descriptor.version,
+      config: config.profile.plugins.find((entry) => entry.id === id)?.config,
+    })),
+    extensions: [],
+    apiVersion: DRAMAIP_HTTP_API_VERSION,
+    pluginApiVersion: DRAMAIP_PLUGIN_API_VERSION,
+    mode,
+    capabilities: {
+      desktopHost: Boolean(host),
+      fileGrant: Boolean(host),
+      credentials: Boolean(host),
+      localEngines: Boolean(host),
+    },
+  });
+  const graphRevision = graphBuilder.revision;
   const runtimeInfo = async (): Promise<RuntimeInfo> => {
-    const engineKinds: readonly AgentEngineKind[] = ["pi", "codex", "grok"];
+    const engineKinds: readonly AgentEngineKind[] = [
+      "pi",
+      "codex",
+      "grok",
+      "langgraph",
+    ];
     const engineStatus = Object.fromEntries(
       await Promise.all(
         engineKinds.map(async (engine) => [
@@ -194,6 +242,9 @@ export async function bootRuntime(
     );
     return {
       runtimeId,
+      runtimeGeneration,
+      graphRevision,
+      startedAt,
       runtimeVersion: DRAMAIP_RUNTIME_VERSION,
       apiVersion: DRAMAIP_HTTP_API_VERSION,
       pluginApiVersion: DRAMAIP_PLUGIN_API_VERSION,
@@ -247,11 +298,18 @@ export async function bootRuntime(
         return false;
       }
     },
+    extensionCapabilityHandler: (authorization, call, traceId) =>
+      extensionPlatform.broker.handle(authorization, call, traceId),
     events,
     version: DRAMAIP_RUNTIME_VERSION,
     runtimeInfo,
     onDiagnostics: async () => {
-      const engineKinds: readonly AgentEngineKind[] = ["pi", "codex", "grok"];
+      const engineKinds: readonly AgentEngineKind[] = [
+        "pi",
+        "codex",
+        "grok",
+        "langgraph",
+      ];
       const hostHealth = host
         ? await host.health().catch(() => ({ healthy: false }))
         : { healthy: false, unavailable: "headless" };
@@ -270,12 +328,22 @@ export async function bootRuntime(
       );
       return {
         healthy: true,
+        runtimeId,
+        runtimeGeneration,
+        graphRevision,
+        graphBuild: graphBuilder.diagnostics(),
+        startedAt,
         profile: config.profile.name,
         plugins:
           kernel?.diagnostics().plugins ??
           order.map((id) => ({ id, status: "active" })),
         migrations: listAppliedMigrations(database.sqlite),
+        migrationRun,
         eventConsumers: events.diagnostics(),
+        extensionGraph: extensionPlatform.diagnostics(),
+        router: http.registry.diagnostics(),
+        effects: kernel?.diagnostics().effects ?? [],
+        services: kernel?.diagnostics().services ?? [],
         host: hostHealth,
         engines,
         bridgeRouteCount: 0,
@@ -283,16 +351,45 @@ export async function bootRuntime(
     },
   });
   try {
-    applyMigrations(
-      database.sqlite,
-      collectMigrations(plugins, config.profile),
-    );
-    kernel = await bootKernel({
-      profile: config.profile,
-      plugins,
-      context: { http: http.registry, events, uow: database.uow },
+    await graphBuilder.build<{ kernel?: RunningKernel }>({
+      migrationPreflight: () => undefined,
+      stage: () => ({}),
+      activate: async (staged) => {
+        staged.kernel = await bootKernel({
+          graphRevision,
+          profile: config.profile,
+          plugins,
+          context: { http: http.registry, events, uow: database.uow },
+        });
+      },
+      validate: (staged) => {
+        if (!staged.kernel) throw new Error("staged Kernel is unavailable");
+        if (
+          staged.kernel
+            .diagnostics()
+            .routeContributions?.some(
+              (route) => !route.method || !route.path || !route.operationId,
+            )
+        )
+          throw new Error("staged route contribution graph is invalid");
+        if (
+          staged.kernel.ui
+            .contributions()
+            .some(
+              (contribution) =>
+                !/^[a-f0-9]{64}$/u.test(contribution.metadataHash ?? ""),
+            )
+        )
+          throw new Error("staged UI contribution graph is unsigned");
+      },
+      publish: (staged) => {
+        http.registry.publish();
+        kernel = staged.kernel;
+      },
+      dispose: async (staged) => staged.kernel?.dispose(),
     });
   } catch (error) {
+    events.dispose();
     database.close();
     cutover?.fail(error);
     throw error;
@@ -300,13 +397,16 @@ export async function bootRuntime(
   let server: { close(): void } | undefined;
   return {
     accessToken,
-    kernel,
+    kernel: kernel!,
     profile: config.profile,
     get runtimeInfo() {
       // RuntimeInfo contains asynchronous Host engine probes, so callers obtain
       // the authoritative version through GET /api/v2/runtime.
       return {
         runtimeId,
+        runtimeGeneration,
+        graphRevision,
+        startedAt,
         runtimeVersion: DRAMAIP_RUNTIME_VERSION,
         apiVersion: DRAMAIP_HTTP_API_VERSION,
         pluginApiVersion: DRAMAIP_PLUGIN_API_VERSION,
@@ -330,14 +430,38 @@ export async function bootRuntime(
       };
     },
     fetch: http.fetch,
-    start(options) {
+    async start(options) {
       if (server) throw new Error("Runtime server is already running");
-      server = serve({
-        fetch: http.fetch,
-        hostname: options.hostname,
-        port: options.port,
+      return new Promise((resolvePromise, reject) => {
+        const nodeServer = serve(
+          {
+            fetch: http.fetch,
+            hostname: options.hostname,
+            port: options.port,
+          },
+          (address) => {
+            nodeServer.off("error", onError);
+            void extensionPlatform
+              .restoreActive(
+                `http://${options.hostname}:${address.port}/extensions/v1/capabilities`,
+              )
+              .finally(() =>
+                resolvePromise({
+                  hostname: options.hostname,
+                  port: address.port,
+                  close: () => nodeServer.close(),
+                }),
+              );
+          },
+        );
+        const onError = (error: Error) => {
+          nodeServer.close();
+          server = undefined;
+          reject(error);
+        };
+        nodeServer.once("error", onError);
+        server = nodeServer;
       });
-      return server;
     },
     finalizeCutover() {
       cutover?.finalize();
@@ -345,6 +469,7 @@ export async function bootRuntime(
     async stop() {
       server?.close();
       await kernel!.dispose();
+      events.dispose();
       database.close();
     },
   };

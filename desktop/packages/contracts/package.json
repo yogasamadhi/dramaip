@@ -20,7 +20,7 @@
     "./writing": "./src/writing.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun --bun run tsc --noEmit"
   },
   "dependencies": {
     "effect": "catalog:",

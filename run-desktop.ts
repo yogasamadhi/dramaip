@@ -9,7 +9,6 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
-  statSync,
   type Dirent,
   writeFileSync,
 } from "node:fs";
@@ -18,24 +17,15 @@ import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const REQUIRED_BUN = "1.3.14";
-const MINIMUM_NODE = [22, 12, 0] as const;
+export const REQUIRED_BUN_VERSION = "1.4.0" as const;
 
 const repositoryRoot = dirname(fileURLToPath(import.meta.url));
 const desktopDirectory = join(repositoryRoot, "desktop");
 const studioDirectory = join(desktopDirectory, "apps", "desktop");
 const installMarker = join(desktopDirectory, "node_modules", ".bun");
-const rebuildMarker = join(
-  desktopDirectory,
-  "node_modules",
-  ".rebuild-electron-marker",
-);
-
 interface Options {
   readonly check: boolean;
   readonly forceInstall: boolean;
-  readonly forceRebuild: boolean;
-  readonly skipRebuild: boolean;
   readonly rebuildEngines: boolean;
   readonly devArguments: readonly string[];
 }
@@ -49,8 +39,6 @@ interface RuntimeSpec {
 
 interface Toolchain {
   readonly bun: string;
-  readonly node: string;
-  readonly nodeVersion: string;
 }
 
 function color(code: string, value: string): string {
@@ -82,15 +70,13 @@ DramaIP Studio 开发启动器
 
 选项:
   --install           强制执行 bun install
-  --rebuild           强制按 Electron ABI 重编 better-sqlite3
-  --no-rebuild        跳过 better-sqlite3 重编检查
   --rebuild-engines   强制重建所有当前平台支持的智能引擎 Runtime
   --check             只读检查启动环境，不修复、不构建、不启动
   -h, --help          显示帮助
 
 示例:
   bun run-desktop.ts
-  bun run-desktop.ts --rebuild
+  bun run-desktop.ts --rebuild-engines
   bun run-desktop.ts -- --host 127.0.0.1
 `);
 }
@@ -98,8 +84,6 @@ DramaIP Studio 开发启动器
 function parseOptions(arguments_: readonly string[]): Options | undefined {
   let check = false;
   let forceInstall = false;
-  let forceRebuild = false;
-  let skipRebuild = false;
   let rebuildEngines = false;
   const devArguments: string[] = [];
 
@@ -110,8 +94,6 @@ function parseOptions(arguments_: readonly string[]): Options | undefined {
       break;
     }
     if (argument === "--install") forceInstall = true;
-    else if (argument === "--rebuild") forceRebuild = true;
-    else if (argument === "--no-rebuild") skipRebuild = true;
     else if (argument === "--rebuild-engines") rebuildEngines = true;
     else if (argument === "--check") check = true;
     else if (argument === "-h" || argument === "--help") {
@@ -122,14 +104,9 @@ function parseOptions(arguments_: readonly string[]): Options | undefined {
     }
   }
 
-  if (forceRebuild && skipRebuild) {
-    fail("--rebuild 与 --no-rebuild 不能同时使用");
-  }
   if (
     check &&
     (forceInstall ||
-      forceRebuild ||
-      skipRebuild ||
       rebuildEngines ||
       devArguments.length > 0)
   ) {
@@ -139,28 +116,18 @@ function parseOptions(arguments_: readonly string[]): Options | undefined {
   return {
     check,
     forceInstall,
-    forceRebuild,
-    skipRebuild,
     rebuildEngines,
     devArguments,
   };
 }
 
-function parseVersion(value: string): readonly [number, number, number] {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)/u.exec(value.trim());
-  if (!match) fail(`无法解析版本号：${value}`);
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
-function versionAtLeast(
-  actual: readonly [number, number, number],
-  minimum: readonly [number, number, number],
-): boolean {
-  for (let index = 0; index < 3; index += 1) {
-    if (actual[index] > minimum[index]) return true;
-    if (actual[index] < minimum[index]) return false;
+export function assertBunVersion(version: string | undefined): string {
+  if (version !== REQUIRED_BUN_VERSION) {
+    fail(
+      `Bun 版本必须恰好为 ${REQUIRED_BUN_VERSION}，当前为 ${version ?? "非 Bun 运行时"}`,
+    );
   }
-  return true;
+  return version;
 }
 
 function cleanEnvironment(
@@ -192,28 +159,9 @@ async function runCommand(
 }
 
 function checkToolchain(): Toolchain {
-  const bunVersion = process.versions.bun;
-  if (bunVersion !== REQUIRED_BUN) {
-    fail(
-      `Bun 版本必须为 ${REQUIRED_BUN}，当前为 ${bunVersion ?? "非 Bun 运行时"}`,
-    );
-  }
+  const bunVersion = assertBunVersion(process.versions.bun);
   ok(`bun ${bunVersion}`);
-
-  const node = Bun.which("node");
-  if (!node) fail("未检测到 Node.js，需要 >= 22.12.0");
-  const result = spawnSync(node, ["--version"], { encoding: "utf8" });
-  if (result.status !== 0) {
-    fail(`Node.js 版本检查失败：${result.stderr || result.error?.message}`);
-  }
-  const nodeVersion = result.stdout.trim();
-  if (!versionAtLeast(parseVersion(nodeVersion), MINIMUM_NODE)) {
-    fail(
-      `Node.js 版本必须 >= ${MINIMUM_NODE.join(".")}，当前为 ${nodeVersion}`,
-    );
-  }
-  ok(`node ${nodeVersion}`);
-  return { bun: process.execPath, node, nodeVersion };
+  return { bun: process.execPath };
 }
 
 async function ensureDependencies(
@@ -253,7 +201,7 @@ function targetTriple(): string {
   fail(`不支持的平台：${process.platform}/${process.arch}`);
 }
 
-function runtimeSpecs(): readonly RuntimeSpec[] {
+export function runtimeSpecs(): readonly RuntimeSpec[] {
   const executable = process.platform === "win32" ? "codex.exe" : "codex";
   const runtimes: RuntimeSpec[] = [
     {
@@ -266,21 +214,6 @@ function runtimeSpecs(): readonly RuntimeSpec[] {
         executable,
       ),
       buildScript: "build:codex",
-    },
-    {
-      label: "DeepSeek Harness 0.1.0-rc.5",
-      entry: join(
-        studioDirectory,
-        "build",
-        "dsh",
-        "node_modules",
-        "@deepseek-ai",
-        "dsh-sdk-jsonrpc-demo",
-        "lib",
-        "packaged-bin.js",
-      ),
-      buildScript: "build:dsh",
-      verifyScript: "verify:dsh",
     },
     {
       label: "Pi 0.84.2",
@@ -537,82 +470,6 @@ async function ensureElectron(bun: string, check: boolean): Promise<string> {
   return electronDirectory;
 }
 
-function rebuildFingerprint(nodeVersion: string): string | undefined {
-  const electron = readPackageVersion(
-    join(studioDirectory, "node_modules", "electron", "package.json"),
-  );
-  const betterSqlite = readPackageVersion(
-    join(studioDirectory, "node_modules", "better-sqlite3", "package.json"),
-  );
-  if (!electron || !betterSqlite) return undefined;
-  return `electron=${electron}\nbsqlite=${betterSqlite}\nnode=${nodeVersion}\n`;
-}
-
-function needsNativeRebuild(options: Options, nodeVersion: string): boolean {
-  if (options.skipRebuild) return false;
-  if (options.forceRebuild) return true;
-  const expected = rebuildFingerprint(nodeVersion);
-  if (!expected || !existsSync(rebuildMarker)) return true;
-  return readFileSync(rebuildMarker, "utf8") !== expected;
-}
-
-async function rebuildNativeModule(
-  node: string,
-  nodeVersion: string,
-  electronDirectory: string,
-): Promise<void> {
-  const cli = join(
-    studioDirectory,
-    "node_modules",
-    "@electron",
-    "rebuild",
-    "lib",
-    "cli.js",
-  );
-  if (!existsSync(cli)) {
-    fail("@electron/rebuild 未安装，无法重编 better-sqlite3");
-  }
-  info("按 Electron ABI 重编 better-sqlite3……");
-  await runCommand(
-    node,
-    [
-      cli,
-      "--force",
-      "--which-module",
-      "better-sqlite3",
-      "--module-dir",
-      join(studioDirectory, "node_modules"),
-      "--electron-prebuilt-dir",
-      electronDirectory,
-    ],
-    studioDirectory,
-  );
-  const fingerprint = rebuildFingerprint(nodeVersion);
-  if (fingerprint) writeFileSync(rebuildMarker, fingerprint, "utf8");
-  ok("原生模块就绪（Electron ABI）");
-}
-
-async function verifyOrRebuildNativeModule(
-  toolchain: Toolchain,
-  options: Options,
-  electronDirectory: string,
-): Promise<void> {
-  if (!needsNativeRebuild(options, toolchain.nodeVersion)) {
-    ok("原生模块已是最新，跳过 rebuild");
-    return;
-  }
-  if (options.check) {
-    fail(
-      "better-sqlite3 的 Electron ABI 重编标记已缺失或过期：请运行 bun run-desktop.ts",
-    );
-  }
-  await rebuildNativeModule(
-    toolchain.node,
-    toolchain.nodeVersion,
-    electronDirectory,
-  );
-}
-
 function processGroupExists(processId: number): boolean {
   if (process.platform === "win32") return false;
   try {
@@ -750,8 +607,7 @@ async function main(): Promise<void> {
   const toolchain = checkToolchain();
   await ensureDependencies(toolchain.bun, options);
   await ensureAgentRuntimes(toolchain.bun, options);
-  const electronDirectory = await ensureElectron(toolchain.bun, options.check);
-  await verifyOrRebuildNativeModule(toolchain, options, electronDirectory);
+  await ensureElectron(toolchain.bun, options.check);
 
   if (options.check) {
     ok("desktop 启动环境检查通过");
@@ -763,10 +619,12 @@ async function main(): Promise<void> {
   );
 }
 
-try {
-  await main();
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${color("31", "✗ ")}${message}\n`);
-  process.exitCode = 1;
+if (import.meta.main) {
+  try {
+    await main();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${color("31", "✗ ")}${message}\n`);
+    process.exitCode = 1;
+  }
 }

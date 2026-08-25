@@ -65,9 +65,18 @@ const runtimeAliases = {
   "@dramaip/contracts": pkgSrc("contracts"),
   "@dramaip/agent-runtime": pkgSrc("agent-runtime"),
   "@dramaip/bundles": pkgSrc("bundles"),
+  "@dramaip/database/migration-worker": resolve(
+    root,
+    "../../packages/database/src/migration-worker.ts",
+  ),
+  "@dramaip/database/migration-worker-runtime": resolve(
+    root,
+    "../../packages/database/src/migration-worker-runtime.ts",
+  ),
   "@dramaip/database": pkgSrc("database"),
   "@dramaip/desktop-host": pkgSrc("desktop-host"),
   "@dramaip/events": pkgSrc("events"),
+  "@dramaip/extension-host": pkgSrc("extension-host"),
   "@dramaip/http": pkgSrc("http"),
   "@dramaip/kernel": pkgSrc("kernel"),
   "@dramaip/plugin-api/internal": resolve(
@@ -106,19 +115,36 @@ export default defineConfig({
         exclude: [
           "@dramaip/client",
           "@dramaip/contracts",
+          "@dramaip/extension-host",
           "@dramaip/ui-runtime",
+          "@ai-sdk/anthropic",
+          "@ai-sdk/google",
+          "@ai-sdk/openai",
+          "@ai-sdk/openai-compatible",
+          "@langchain/core",
+          "@langchain/langgraph",
+          "ai",
         ],
       },
       rollupOptions: {
         input: {
-          index: resolve(root, "electron/main-v3.ts"),
+          index: resolve(root, "electron/main.ts"),
           "core-runtime": resolve(root, "electron/core-runtime.ts"),
+          "extension-host-process": resolve(
+            root,
+            "electron/extensions/extension-host-process.ts",
+          ),
+          "migration-worker": resolve(root, "electron/migration-worker.ts"),
           "codex-engine": resolve(
             root,
             "../../packages/ai/src/codex-sidecar.ts",
           ),
           "pi-engine": resolve(root, "../../packages/ai/src/pi-sidecar.ts"),
           "grok-engine": resolve(root, "../../packages/ai/src/grok-sidecar.ts"),
+          "langgraph-engine": resolve(
+            root,
+            "../../packages/ai/src/langgraph-sidecar.ts",
+          ),
         },
       },
     },
@@ -132,7 +158,13 @@ export default defineConfig({
   preload: {
     build: {
       rollupOptions: {
-        input: { index: resolve(root, "electron/preload-v3.ts") },
+        input: {
+          index: resolve(root, "electron/preload-v3.ts"),
+          "credential-capture": resolve(
+            root,
+            "electron/credential-capture-preload.ts",
+          ),
+        },
       },
     },
   },
@@ -142,12 +174,17 @@ export default defineConfig({
       port: 5177,
     },
     build: {
+      manifest: true,
       rollupOptions: {
         input: resolve(root, "../../packages/app/index.html"),
       },
     },
     resolve: {
       alias: {
+        "@dramaip/contracts/automation": resolve(
+          root,
+          "../../packages/contracts/src/automation.ts",
+        ),
         "@dramaip/contracts/product": resolve(
           root,
           "../../packages/contracts/src/product.ts",
@@ -155,6 +192,7 @@ export default defineConfig({
         "@dramaip/contracts": pkgSrc("contracts"),
         "@": resolve(root, "../../packages/app/src"),
         "@dramaip/client": pkgSrc("client"),
+        "@dramaip/server-connection": pkgSrc("server-connection"),
         "@dramaip/ui-shared": pkgSrc("ui"),
       },
     },

@@ -23,10 +23,11 @@ import {
   type Chapter,
   type WritingChapterService,
 } from "@dramaip/contracts/writing";
-import type {
-  PluginContext,
-  PluginMigration,
-  RouteContribution,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type PluginMigration,
+  type RouteContribution,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
@@ -120,20 +121,15 @@ function declaration(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: (context: RouteContext) => Response | Promise<Response>,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        callback: typeof handler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function key(context: RouteContext): string | undefined {
@@ -269,7 +265,7 @@ export function writingAdvancedRoutes(
             "CONFLICT",
             "章节已变化，请刷新后重试。",
           );
-        const runner = context.services.get<AgentTaskRunnerService>(
+        const runner = context.services.optional<AgentTaskRunnerService>(
           AGENT_TASK_RUNNER_SERVICE,
         );
         if (!runner)
@@ -366,7 +362,7 @@ export function writingAdvancedRoutes(
           projectId: source.projectId,
           title: `第 ${chapters.list(source.projectId).length + 1} 章`,
         });
-        const runner = context.services.get<AgentTaskRunnerService>(
+        const runner = context.services.optional<AgentTaskRunnerService>(
           AGENT_TASK_RUNNER_SERVICE,
         );
         if (!runner) {
@@ -559,10 +555,11 @@ export function writingAdvancedRoutes(
             "VALIDATION_ERROR",
             "章节正文为空，无法分析。",
           );
-        const creative = context.services.get<CreativeQualityRecordService>(
-          CREATIVE_QUALITY_SERVICE,
-        );
-        const tasks = context.services.get<AutomationTaskService>(
+        const creative =
+          context.services.optional<CreativeQualityRecordService>(
+            CREATIVE_QUALITY_SERVICE,
+          );
+        const tasks = context.services.optional<AutomationTaskService>(
           AUTOMATION_TASK_SERVICE,
         );
         if (!creative || !tasks)

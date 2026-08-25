@@ -100,9 +100,11 @@ for (const [command, folder] of [
 
 async function collectHashes(root, relative = "") {
   const result = {};
-  for (const entry of await readdir(join(root, relative), {
-    withFileTypes: true,
-  })) {
+  const entries = await readdir(join(root, relative), { withFileTypes: true });
+  entries.sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
+  for (const entry of entries) {
     const child = relative ? join(relative, entry.name) : entry.name;
     if (entry.isDirectory())
       Object.assign(result, await collectHashes(root, child));

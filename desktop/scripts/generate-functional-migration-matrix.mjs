@@ -8,6 +8,7 @@ const baselinePath = join(
   "docs/engineering/legacy-functional-baseline.json",
 );
 const openapiPath = join(root, "packages/client/src/openapi.json");
+const uiCatalogPath = join(root, "architecture/ui-contributions.json");
 const outputPath = join(
   root,
   "docs/engineering/functional-migration-matrix.json",
@@ -15,8 +16,10 @@ const outputPath = join(
 
 const baselineText = await readFile(baselinePath, "utf8");
 const openapiText = await readFile(openapiPath, "utf8");
+const uiCatalog = JSON.parse(await readFile(uiCatalogPath, "utf8"));
 const baseline = JSON.parse(baselineText);
 const openapi = JSON.parse(openapiText);
+const uiOwners = new Set(uiCatalog.map((contribution) => contribution.owner));
 
 function normalizePath(path) {
   return path.replace(/\{[^}]+\}/gu, "{}").replace(/\/$/u, "");
@@ -78,13 +81,13 @@ const operations = baseline.operations.map((legacy) => {
   const actual = replacement ?? actualById.get(legacy.operationId);
   const routeMatches = Boolean(
     actual &&
-      (replacement ||
-        (actual.method === legacy.method &&
-          normalizePath(actual.path) === normalizePath(legacy.path))),
+    (replacement ||
+      (actual.method === legacy.method &&
+        normalizePath(actual.path) === normalizePath(legacy.path))),
   );
   const source = ownerSources.get(legacy.owner) ?? "";
   const hasUiContribution =
-    retired || replacement ? true : /\bui:\s*\[/u.test(source);
+    retired || replacement ? true : uiOwners.has(legacy.owner);
   const hasMigration =
     retired || replacement || /\bmigrations\s*[:,]/u.test(source);
   const hasTransactionalEvent =

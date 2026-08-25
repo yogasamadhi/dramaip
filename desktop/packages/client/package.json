@@ -4,15 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./connection": "./src/connection.ts",
+    "./domains": "./src/domains/index.ts",
+    "./errors": "./src/errors.ts",
+    "./events": "./src/events.ts",
+    "./transport": "./src/transport.ts"
   },
   "scripts": {
     "generate": "bun run src/generate.ts",
     "check:generated": "bun run src/generate.ts --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun --bun run tsc --noEmit"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",
+    "@dramaip/server-connection": "workspace:*",
     "openapi-fetch": "0.17.0"
   },
   "devDependencies": {

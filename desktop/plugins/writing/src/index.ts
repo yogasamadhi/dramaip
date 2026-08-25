@@ -9,18 +9,35 @@ import {
   ChapterPatchSchema,
   ChapterReorderInputSchema,
   ChapterSchema,
+  CREATOR_CONTENT_SERVICE,
+  CREATOR_CONTENT_KINDS,
+  CreatorContentPageSchema,
+  CreatorContentRecordInputSchema,
+  CreatorContentRecordPatchSchema,
+  CreatorContentRecordSchema,
   NovelWorkspaceSchema,
+  WRITING_VOLUME_SERVICE,
   WRITING_CHAPTER_SERVICE,
   WRITING_RESOURCE_SERVICE,
   WritingResourceKindSchema,
   WritingResourceSchema,
+  WritingVolumeInputSchema,
+  WritingVolumePageSchema,
+  WritingVolumePatchSchema,
+  WritingVolumeSchema,
   type Chapter,
+  type CreatorContentKind,
+  type CreatorContentRecord,
+  type CreatorContentService,
   type WritingChapterService,
   type WritingResource,
   type WritingResourceKind,
   type WritingResourceService,
+  type WritingVolume,
+  type WritingVolumeService,
 } from "@dramaip/contracts/writing";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -35,6 +52,7 @@ import {
 interface ChapterRow {
   id: string;
   project_id: string;
+  volume_id: string | null;
   title: string;
   order_index: number;
   summary: string;
@@ -47,6 +65,30 @@ interface ChapterRow {
   cliffhanger: string | null;
   short_drama_note: string | null;
   ai_video_note: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface WritingVolumeRow {
+  id: string;
+  project_id: string;
+  title: string;
+  outline: string;
+  order_index: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreatorContentRow {
+  id: string;
+  kind: CreatorContentKind;
+  project_id: string;
+  parent_id: string | null;
+  title: string;
+  status: CreatorContentRecord["status"];
+  payload_json: string;
   version: number;
   created_at: string;
   updated_at: string;
@@ -150,20 +192,15 @@ function declaration(input: {
 }
 
 function contribution(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        route: unknown,
-        handler: RouteHandler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function problem(
@@ -193,6 +230,7 @@ function chapter(row: ChapterRow): Chapter {
   return {
     id: row.id,
     projectId: row.project_id,
+    ...(row.volume_id ? { volumeId: row.volume_id } : {}),
     title: row.title,
     orderIndex: row.order_index,
     summary: row.summary,
@@ -205,6 +243,34 @@ function chapter(row: ChapterRow): Chapter {
     cliffhanger: optional(row.cliffhanger),
     shortDramaNote: optional(row.short_drama_note),
     aiVideoNote: optional(row.ai_video_note),
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function volume(row: WritingVolumeRow): WritingVolume {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    outline: row.outline,
+    orderIndex: row.order_index,
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function creatorContent(row: CreatorContentRow): CreatorContentRecord {
+  return {
+    id: row.id,
+    kind: row.kind,
+    projectId: row.project_id,
+    ...(row.parent_id ? { parentId: row.parent_id } : {}),
+    title: row.title,
+    status: row.status,
+    payload: JSON.parse(row.payload_json) as Record<string, unknown>,
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -433,6 +499,444 @@ function writingResourceRoutes(
   return result;
 }
 
+function createVolume(
+  context: PluginContext,
+  input: z.infer<typeof WritingVolumeInputSchema>,
+): WritingVolume {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  return context.uow.execute((transaction) => {
+    const orderIndex =
+      transaction.get<{ value: number }>(
+        "SELECT COALESCE(MAX(order_index), -1) + 1 AS value FROM writing_volumes WHERE project_id = ?",
+        input.projectId,
+      )?.value ?? 0;
+    transaction.run(
+      `INSERT INTO writing_volumes(
+        id, project_id, title, outline, order_index, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+      id,
+      input.projectId,
+      input.title.trim(),
+      input.outline ?? "",
+      orderIndex,
+      now,
+      now,
+    );
+    const value = volume(
+      transaction.get<WritingVolumeRow>(
+        "SELECT * FROM writing_volumes WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: "writing.volume-created.v1",
+      pluginId: "writing",
+      aggregateType: "volume",
+      aggregateId: id,
+      aggregateVersion: value.version,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
+}
+
+function listVolumes(
+  context: PluginContext,
+  projectId: string,
+  options: { cursor?: string; limit?: number } = {},
+): { items: readonly WritingVolume[]; nextCursor?: string } {
+  const limit = Math.min(Math.max(options.limit ?? 40, 1), 100);
+  const cursor = options.cursor ? Number(options.cursor) : -1;
+  if (!Number.isInteger(cursor) || cursor < -1) return { items: [] };
+  return context.uow.execute((transaction) => {
+    const rows = transaction.all<WritingVolumeRow>(
+      `SELECT * FROM writing_volumes WHERE project_id = ? AND order_index > ?
+       ORDER BY order_index, id LIMIT ?`,
+      projectId,
+      cursor,
+      limit + 1,
+    );
+    const items = rows.slice(0, limit).map(volume);
+    const last = items.at(-1);
+    return {
+      items,
+      ...(rows.length > limit && last
+        ? { nextCursor: String(last.orderIndex) }
+        : {}),
+    };
+  });
+}
+
+function updateVolume(
+  context: PluginContext,
+  id: string,
+  patch: z.infer<typeof WritingVolumePatchSchema>,
+): WritingVolume | "conflict" | undefined {
+  return context.uow.execute((transaction) => {
+    const current = transaction.get<WritingVolumeRow>(
+      "SELECT * FROM writing_volumes WHERE id = ?",
+      id,
+    );
+    if (!current) return undefined;
+    if (current.version !== patch.version) return "conflict" as const;
+    transaction.run(
+      `UPDATE writing_volumes SET title = ?, outline = ?, version = version + 1,
+       updated_at = ? WHERE id = ? AND version = ?`,
+      patch.title?.trim() ?? current.title,
+      patch.outline ?? current.outline,
+      new Date().toISOString(),
+      id,
+      current.version,
+    );
+    const value = volume(
+      transaction.get<WritingVolumeRow>(
+        "SELECT * FROM writing_volumes WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: "writing.volume-updated.v1",
+      pluginId: "writing",
+      aggregateType: "volume",
+      aggregateId: id,
+      aggregateVersion: value.version,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
+}
+
+function creatorContentRoutes(
+  workspace: WorkspaceProjectService,
+  service: CreatorContentService,
+): readonly RouteContribution[] {
+  const result: RouteContribution[] = [];
+  for (const kind of CREATOR_CONTENT_KINDS) {
+    const path = `/api/v2/creator/${kind}` as `/api/v2/${string}`;
+    result.push(
+      contribution(
+        {
+          id: `writing:creator-${kind}-list`,
+          pluginId: "writing",
+          method: "get",
+          path,
+          operationId: `creator.${kind}.list`,
+        },
+        declaration({
+          method: "get",
+          path,
+          operationId: `creator.${kind}.list`,
+          response: CreatorContentPageSchema,
+        }),
+        (requestContext) => {
+          const projectId = requestContext.req.query("projectId");
+          if (!projectId || !workspace.get(projectId))
+            return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+          return requestContext.json(
+            service.list(kind, projectId, {
+              cursor: requestContext.req.query("cursor"),
+              limit: Number(requestContext.req.query("limit") ?? "40"),
+              status: requestContext.req.query("status"),
+            }),
+          );
+        },
+      ),
+      contribution(
+        {
+          id: `writing:creator-${kind}-create`,
+          pluginId: "writing",
+          method: "post",
+          path,
+          operationId: `creator.${kind}.create`,
+        },
+        declaration({
+          method: "post",
+          path,
+          operationId: `creator.${kind}.create`,
+          body: CreatorContentRecordInputSchema,
+          response: CreatorContentRecordSchema,
+          responseStatus: 201,
+        }),
+        async (requestContext) => {
+          const parsed = CreatorContentRecordInputSchema.safeParse(
+            await requestContext.req.json(),
+          );
+          if (!parsed.success || !workspace.get(parsed.data.projectId))
+            return problem(
+              requestContext,
+              400,
+              "VALIDATION_ERROR",
+              "内容条目无效。",
+            );
+          return requestContext.json(service.create(kind, parsed.data), 201);
+        },
+      ),
+      contribution(
+        {
+          id: `writing:creator-${kind}-update`,
+          pluginId: "writing",
+          method: "patch",
+          path: `${path}/{id}`,
+          operationId: `creator.${kind}.update`,
+        },
+        declaration({
+          method: "patch",
+          path: `${path}/{id}`,
+          operationId: `creator.${kind}.update`,
+          params: idParams,
+          body: CreatorContentRecordPatchSchema,
+          response: CreatorContentRecordSchema,
+        }),
+        async (requestContext) => {
+          const parsed = CreatorContentRecordPatchSchema.safeParse(
+            await requestContext.req.json(),
+          );
+          const current = service.get(requestContext.req.param("id"));
+          if (!parsed.success || !current || current.kind !== kind)
+            return problem(
+              requestContext,
+              404,
+              "NOT_FOUND",
+              "未找到内容条目。",
+            );
+          const value = service.update(current.id, parsed.data);
+          return value === "conflict"
+            ? problem(
+                requestContext,
+                409,
+                "CONFLICT",
+                "内容条目已更新，请刷新后重试。",
+              )
+            : value
+              ? requestContext.json(value)
+              : problem(requestContext, 404, "NOT_FOUND", "未找到内容条目。");
+        },
+      ),
+    );
+  }
+  return result;
+}
+
+function volumeRoutes(
+  workspace: WorkspaceProjectService,
+  service: WritingVolumeService,
+): readonly RouteContribution[] {
+  return [
+    contribution(
+      {
+        id: "writing:volumes-list",
+        pluginId: "writing",
+        method: "get",
+        path: "/api/v2/projects/{projectId}/volumes",
+        operationId: "volumes.list",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/projects/{projectId}/volumes",
+        operationId: "volumes.list",
+        params: projectIdParams,
+        response: WritingVolumePageSchema,
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        if (!workspace.get(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        return requestContext.json(
+          service.list(projectId, {
+            cursor: requestContext.req.query("cursor"),
+            limit: Number(requestContext.req.query("limit") ?? "40"),
+          }),
+        );
+      },
+    ),
+    contribution(
+      {
+        id: "writing:volumes-create",
+        pluginId: "writing",
+        method: "post",
+        path: "/api/v2/projects/{projectId}/volumes",
+        operationId: "volumes.create",
+      },
+      declaration({
+        method: "post",
+        path: "/api/v2/projects/{projectId}/volumes",
+        operationId: "volumes.create",
+        params: projectIdParams,
+        body: WritingVolumeInputSchema.omit({ projectId: true }),
+        response: WritingVolumeSchema,
+        responseStatus: 201,
+      }),
+      async (requestContext) => {
+        const parsed = WritingVolumeInputSchema.omit({
+          projectId: true,
+        }).safeParse(await requestContext.req.json());
+        const projectId = requestContext.req.param("projectId");
+        if (!parsed.success || !workspace.get(projectId))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "卷信息无效。",
+          );
+        return requestContext.json(
+          service.create({ ...parsed.data, projectId }),
+          201,
+        );
+      },
+    ),
+    contribution(
+      {
+        id: "writing:volumes-update",
+        pluginId: "writing",
+        method: "patch",
+        path: "/api/v2/volumes/{id}",
+        operationId: "volumes.update",
+      },
+      declaration({
+        method: "patch",
+        path: "/api/v2/volumes/{id}",
+        operationId: "volumes.update",
+        params: idParams,
+        body: WritingVolumePatchSchema,
+        response: WritingVolumeSchema,
+      }),
+      async (requestContext) => {
+        const parsed = WritingVolumePatchSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!parsed.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "卷修改无效。",
+          );
+        const value = service.update(
+          requestContext.req.param("id"),
+          parsed.data,
+        );
+        return value === "conflict"
+          ? problem(requestContext, 409, "CONFLICT", "卷已更新，请刷新后重试。")
+          : value
+            ? requestContext.json(value)
+            : problem(requestContext, 404, "NOT_FOUND", "未找到卷。");
+      },
+    ),
+  ];
+}
+
+function createCreatorContent(
+  context: PluginContext,
+  kind: CreatorContentKind,
+  input: z.infer<typeof CreatorContentRecordInputSchema>,
+): CreatorContentRecord {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  return context.uow.execute((transaction) => {
+    transaction.run(
+      `INSERT INTO writing_creator_content(
+        id, kind, project_id, parent_id, title, status, payload_json,
+        version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      id,
+      kind,
+      input.projectId,
+      input.parentId ?? null,
+      input.title.trim(),
+      input.status ?? "draft",
+      JSON.stringify(input.payload ?? {}),
+      now,
+      now,
+    );
+    const value = creatorContent(
+      transaction.get<CreatorContentRow>(
+        "SELECT * FROM writing_creator_content WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: `writing.creator-${kind}-created.v1`,
+      pluginId: "writing",
+      aggregateType: `creator-${kind}`,
+      aggregateId: id,
+      aggregateVersion: value.version,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
+}
+
+function listCreatorContent(
+  context: PluginContext,
+  kind: CreatorContentKind,
+  projectId: string,
+  options: { cursor?: string; limit?: number; status?: string } = {},
+): { items: readonly CreatorContentRecord[]; nextCursor?: string } {
+  const limit = Math.min(Math.max(options.limit ?? 40, 1), 100);
+  const cursor = options.cursor ?? "";
+  return context.uow.execute((transaction) => {
+    const rows = transaction.all<CreatorContentRow>(
+      `SELECT * FROM writing_creator_content
+       WHERE kind = ? AND project_id = ? AND (? = '' OR status = ?)
+         AND id > ?
+       ORDER BY id LIMIT ?`,
+      kind,
+      projectId,
+      options.status ?? "",
+      options.status ?? "",
+      cursor,
+      limit + 1,
+    );
+    const items = rows.slice(0, limit).map(creatorContent);
+    const last = items.at(-1);
+    return {
+      items,
+      ...(rows.length > limit && last ? { nextCursor: last.id } : {}),
+    };
+  });
+}
+
+function updateCreatorContent(
+  context: PluginContext,
+  id: string,
+  patch: z.infer<typeof CreatorContentRecordPatchSchema>,
+): CreatorContentRecord | "conflict" | undefined {
+  return context.uow.execute((transaction) => {
+    const current = transaction.get<CreatorContentRow>(
+      "SELECT * FROM writing_creator_content WHERE id = ?",
+      id,
+    );
+    if (!current) return undefined;
+    if (current.version !== patch.version) return "conflict" as const;
+    transaction.run(
+      `UPDATE writing_creator_content SET title = ?, status = ?, payload_json = ?,
+       version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
+      patch.title?.trim() ?? current.title,
+      patch.status ?? current.status,
+      JSON.stringify(patch.payload ?? JSON.parse(current.payload_json)),
+      new Date().toISOString(),
+      id,
+      current.version,
+    );
+    const value = creatorContent(
+      transaction.get<CreatorContentRow>(
+        "SELECT * FROM writing_creator_content WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: `writing.creator-${current.kind}-updated.v1`,
+      pluginId: "writing",
+      aggregateType: `creator-${current.kind}`,
+      aggregateId: id,
+      aggregateVersion: value.version,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
+}
+
 function createChapter(
   context: PluginContext,
   input: z.infer<typeof ChapterInputSchema>,
@@ -447,12 +951,13 @@ function createChapter(
       )?.value ?? 0;
     transaction.run(
       `INSERT INTO chapters(
-        id, project_id, title, order_index, summary, outline, content,
+        id, project_id, volume_id, title, order_index, summary, outline, content,
         main_conflict, hook, highlight, reversal, cliffhanger,
         short_drama_note, ai_video_note, version, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       id,
       input.projectId,
+      input.volumeId ?? null,
       input.title.trim(),
       next,
       input.summary ?? "",
@@ -625,11 +1130,12 @@ function writingRoutes(
           const input = parsed.data;
           transaction.run(
             `UPDATE chapters SET
-              title = ?, summary = ?, outline = ?, content = ?,
+              volume_id = ?, title = ?, summary = ?, outline = ?, content = ?,
               main_conflict = ?, hook = ?, highlight = ?, reversal = ?,
               cliffhanger = ?, short_drama_note = ?, ai_video_note = ?,
               version = version + 1, updated_at = ?
              WHERE id = ? AND version = ?`,
+            input.volumeId ?? current.volume_id,
             input.title?.trim() ?? current.title,
             input.summary ?? current.summary,
             input.outline ?? current.outline,
@@ -1017,6 +1523,44 @@ const writingMigrations = [
     `,
   },
   ...writingAdvancedMigrations,
+  {
+    id: "writing.0004.four-mode-content",
+    pluginId: "writing",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["writing.0003.idempotency", "workspace.0005.project-modes"],
+    sql: `
+      CREATE TABLE IF NOT EXISTS writing_volumes (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        outline TEXT NOT NULL DEFAULT '',
+        order_index INTEGER NOT NULL DEFAULT 0,
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS writing_volumes_project_order
+        ON writing_volumes(project_id, order_index, id);
+      ALTER TABLE chapters ADD COLUMN volume_id TEXT
+        REFERENCES writing_volumes(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS chapters_project_volume_order
+        ON chapters(project_id, volume_id, order_index, id);
+      CREATE TABLE IF NOT EXISTS writing_creator_content (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK(kind IN ('profile', 'column', 'idea', 'draft', 'variant', 'calendar')),
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        parent_id TEXT,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'researching', 'review_required', 'ready', 'scheduled', 'archived')),
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS writing_creator_content_project_kind_status
+        ON writing_creator_content(project_id, kind, status, id);
+    `,
+  },
 ] as const;
 
 export const writingPlugin = defineFirstPartyPlugin({
@@ -1056,7 +1600,7 @@ export const writingPlugin = defineFirstPartyPlugin({
   ],
   migrations: writingMigrations,
   activate: (context) => {
-    const workspace = context.services.get<WorkspaceProjectService>(
+    const workspace = context.services.optional<WorkspaceProjectService>(
       WORKSPACE_PROJECT_SERVICE,
     );
     if (!workspace) throw new Error("writing requires workspace.projects.v1");
@@ -1100,10 +1644,11 @@ export const writingPlugin = defineFirstPartyPlugin({
             at,
           );
           transaction.run(
-            `UPDATE chapters SET title = ?, summary = ?, outline = ?, content = ?,
+            `UPDATE chapters SET volume_id = ?, title = ?, summary = ?, outline = ?, content = ?,
               main_conflict = ?, hook = ?, highlight = ?, reversal = ?,
               cliffhanger = ?, short_drama_note = ?, ai_video_note = ?,
               version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
+            input.volumeId ?? current.volume_id,
             input.title?.trim() ?? current.title,
             input.summary ?? current.summary,
             input.outline ?? current.outline,
@@ -1315,19 +1860,52 @@ export const writingPlugin = defineFirstPartyPlugin({
           return true;
         }),
     };
-    context.effect(
+    const volumeService: WritingVolumeService = {
+      create: (input) => createVolume(context, input),
+      list: (projectId, options) => listVolumes(context, projectId, options),
+      get: (id) =>
+        context.uow.execute((transaction) => {
+          const row = transaction.get<WritingVolumeRow>(
+            "SELECT * FROM writing_volumes WHERE id = ?",
+            id,
+          );
+          return row ? volume(row) : undefined;
+        }),
+      update: (id, patch) => updateVolume(context, id, patch),
+    };
+    const creatorContentService: CreatorContentService = {
+      create: (kind, input) => createCreatorContent(context, kind, input),
+      list: (kind, projectId, options) =>
+        listCreatorContent(context, kind, projectId, options),
+      get: (id) =>
+        context.uow.execute((transaction) => {
+          const row = transaction.get<CreatorContentRow>(
+            "SELECT * FROM writing_creator_content WHERE id = ?",
+            id,
+          );
+          return row ? creatorContent(row) : undefined;
+        }),
+      update: (id, patch) => updateCreatorContent(context, id, patch),
+    };
+    context.effect(`service:${WRITING_CHAPTER_SERVICE}`, () =>
       context.services.provide(WRITING_CHAPTER_SERVICE, chapterService),
-      `service:${WRITING_CHAPTER_SERVICE}`,
     );
-    context.effect(
+    context.effect(`service:${WRITING_RESOURCE_SERVICE}`, () =>
       context.services.provide(WRITING_RESOURCE_SERVICE, resourceService),
-      `service:${WRITING_RESOURCE_SERVICE}`,
+    );
+    context.effect(`service:${WRITING_VOLUME_SERVICE}`, () =>
+      context.services.provide(WRITING_VOLUME_SERVICE, volumeService),
+    );
+    context.effect(`service:${CREATOR_CONTENT_SERVICE}`, () =>
+      context.services.provide(CREATOR_CONTENT_SERVICE, creatorContentService),
     );
     for (const route of [
       ...writingRoutes(context, workspace),
       ...writingResourceRoutes(workspace, resourceService),
+      ...volumeRoutes(workspace, volumeService),
+      ...creatorContentRoutes(workspace, creatorContentService),
       ...writingAdvancedRoutes(context, chapterService),
     ])
-      context.effect(context.http.register(route), `route:${route.id}`);
+      context.effect(`route:${route.id}`, () => context.http.register(route));
   },
 });

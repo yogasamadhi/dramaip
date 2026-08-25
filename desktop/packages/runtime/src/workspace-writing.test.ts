@@ -60,10 +60,13 @@ async function fixture(): Promise<Fixture> {
     version: "3.0.0-alpha.3",
     runtimeInfo: () => ({
       runtimeId: "f47fa85e-0191-42fd-b89b-134cfbabbb09",
+      runtimeGeneration: 1,
+      graphRevision: "a".repeat(64),
+      startedAt: "2026-08-23T00:00:00.000Z",
       runtimeVersion: "3.0.0-alpha.3",
       apiVersion: "2",
       pluginApiVersion: "1",
-      runtimeKind: "node",
+      runtimeKind: "bun",
       mode: "headless",
       profile: "test",
       bundles: [...profile.bundles],
@@ -77,12 +80,14 @@ async function fixture(): Promise<Fixture> {
   let kernel: RunningKernel | undefined;
   try {
     kernel = await bootKernel({
+      graphRevision: "test-graph",
       profile,
       plugins: new Map(
         plugins.map((plugin) => [plugin.descriptor.id, plugin] as const),
       ),
       context: { http: http.registry, events, uow: database.uow },
     });
+    http.registry.publish();
   } catch (error) {
     database.close();
     throw error;
@@ -113,14 +118,92 @@ afterEach(async () => {
 });
 
 describe("workspace and writing vertical slice", () => {
+  it("creates all four project modes with replay-safe initialization and immutable modes", async () => {
+    const runtime = await fixture();
+    const modes = [
+      {
+        mode: "series_longform",
+        modeConfig: {
+          mode: "series_longform",
+          targetChapterCount: 300,
+          targetSeasonCount: 5,
+        },
+      },
+      {
+        mode: "single_season",
+        modeConfig: {
+          mode: "single_season",
+          entryPath: "script",
+          targetEpisodeCount: 80,
+        },
+      },
+      {
+        mode: "personal_theater",
+        modeConfig: {
+          mode: "personal_theater",
+          storyMethod: "template",
+          episodeCount: 1,
+          episodeDurationMinutes: 5,
+        },
+      },
+      {
+        mode: "creator_channel",
+        modeConfig: {
+          mode: "creator_channel",
+          topic: "财经",
+          riskDomain: "finance",
+        },
+      },
+    ] as const;
+    for (const item of modes) {
+      const key = crypto.randomUUID();
+      const response = await runtime.request("/api/v2/projects", {
+        method: "POST",
+        headers: { "Idempotency-Key": key },
+        body: JSON.stringify({ title: `${item.mode} 项目`, ...item }),
+      });
+      expect(response.status, await response.clone().text()).toBe(201);
+      const created = (await response.json()) as {
+        project: { id: string; mode: string; version: number };
+        initialization: { steps: unknown[] };
+      };
+      expect(created.project.mode).toBe(item.mode);
+      expect(created.initialization.steps.length).toBeGreaterThan(1);
+      const replay = await runtime.request("/api/v2/projects", {
+        method: "POST",
+        headers: { "Idempotency-Key": key },
+        body: JSON.stringify({ title: `${item.mode} 项目`, ...item }),
+      });
+      expect(replay.status, await replay.clone().text()).toBe(201);
+      await expect(replay.json()).resolves.toMatchObject({
+        project: { id: created.project.id },
+      });
+      const immutable = await runtime.request(
+        `/api/v2/projects/${created.project.id}`,
+        {
+          method: "PATCH",
+          headers: { "If-Match": `"${created.project.version}"` },
+          body: JSON.stringify({
+            version: created.project.version,
+            mode: "creator_channel",
+          }),
+        },
+      );
+      expect(immutable.status).toBe(409);
+    }
+  });
+
   it("supports owned CRUD for migrated writing, knowledge, quality and automation resources", async () => {
     const runtime = await fixture();
     const projectResponse = await runtime.request("/api/v2/projects", {
       method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({ title: "领域资料测试", shortDramaType: "悬疑" }),
     });
     expect(projectResponse.status).toBe(201);
-    const project = (await projectResponse.json()) as { id: string };
+    const project = (await projectResponse.json()) as {
+      project: { id: string };
+    };
 
     for (const domain of [
       "characters",
@@ -132,7 +215,7 @@ describe("workspace and writing vertical slice", () => {
       const createdResponse = await runtime.request(`/api/v2/${domain}`, {
         method: "POST",
         body: JSON.stringify({
-          projectId: project.id,
+          projectId: project.project.id,
           title: `${domain} 初稿`,
           payload: { 内容: "第一版" },
         }),
@@ -163,7 +246,7 @@ describe("workspace and writing vertical slice", () => {
         version: 1,
       });
       const listedResponse = await runtime.request(
-        `/api/v2/${domain}?projectId=${project.id}`,
+        `/api/v2/${domain}?projectId=${project.project.id}`,
       );
       expect(listedResponse.status).toBe(200);
       await expect(listedResponse.json()).resolves.toEqual(
@@ -237,18 +320,18 @@ describe("workspace and writing vertical slice", () => {
     const runtime = await fixture();
     const createdProject = await runtime.request("/api/v2/projects", {
       method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({ title: "迁移测试", shortDramaType: "悬疑" }),
     });
     expect(createdProject.status).toBe(201);
     const project = (await createdProject.json()) as {
-      id: string;
-      version: number;
+      project: { id: string; version: number };
     };
 
     const createdChapter = await runtime.request("/api/v2/chapters", {
       method: "POST",
       body: JSON.stringify({
-        projectId: project.id,
+        projectId: project.project.id,
         title: "第一章",
         content: "旧正文",
       }),
@@ -311,7 +394,10 @@ describe("workspace and writing vertical slice", () => {
       "/api/v2/story-bible/change-sets",
       {
         method: "POST",
-        body: JSON.stringify({ projectId: project.id, chapterId: chapter.id }),
+        body: JSON.stringify({
+          projectId: project.project.id,
+          chapterId: chapter.id,
+        }),
       },
     );
     expect(queuedStoryBible.status).toBe(201);
@@ -327,11 +413,11 @@ describe("workspace and writing vertical slice", () => {
     });
 
     const workspace = await runtime.request(
-      `/api/v2/projects/${project.id}/novel-workspace`,
+      `/api/v2/projects/${project.project.id}/novel-workspace`,
     );
     expect(workspace.status).toBe(200);
     await expect(workspace.json()).resolves.toMatchObject({
-      project: { id: project.id },
+      project: { id: project.project.id },
       chapters: [{ id: chapter.id, content: "确认后的正文" }],
       statuses: [{ chapterId: chapter.id, words: 6 }],
     });
@@ -345,13 +431,16 @@ describe("workspace and writing vertical slice", () => {
     const runtime = await fixture();
     const projectResponse = await runtime.request("/api/v2/projects", {
       method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({ title: "试制测试", shortDramaType: "悬疑" }),
     });
-    const project = (await projectResponse.json()) as { id: string };
+    const project = (await projectResponse.json()) as {
+      project: { id: string };
+    };
     const chapterResponse = await runtime.request("/api/v2/chapters", {
       method: "POST",
       body: JSON.stringify({
-        projectId: project.id,
+        projectId: project.project.id,
         title: "第一章",
         content: "雨夜来信",
       }),
@@ -360,14 +449,14 @@ describe("workspace and writing vertical slice", () => {
     const created = await runtime.request("/api/v2/pilot-plans", {
       method: "POST",
       body: JSON.stringify({
-        projectId: project.id,
+        projectId: project.project.id,
         chapterIds: [chapter.id],
         episodeCount: 1,
       }),
     });
     expect(created.status, await created.text()).toBe(201);
     const plan = (await runtime
-      .request(`/api/v2/projects/${project.id}/pilot-plans`)
+      .request(`/api/v2/projects/${project.project.id}/pilot-plans`)
       .then((response) => response.json())) as Array<{ id: string }>;
     expect(plan).toHaveLength(1);
     const confirmed = await runtime.request(

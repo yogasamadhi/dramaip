@@ -14,6 +14,7 @@ import {
 } from "@dramaip/contracts/media";
 import {
   PRODUCTION_RECORD_SERVICE,
+  PRODUCTION_SEASON_SERVICE,
   ProductionGraphSchema,
   ProductionImpactInputSchema,
   ProductionImpactSchema,
@@ -22,10 +23,19 @@ import {
   ProductionRecordSchema,
   ProductionReorderInputSchema,
   ProductionReorderResultSchema,
+  SeasonChapterMappingInputSchema,
+  SeasonChapterMappingSchema,
+  SeasonInputSchema,
+  SeasonPageSchema,
+  SeasonPatchSchema,
+  SeasonSchema,
   type ProductionRecord,
   type ProductionRecordInput,
   type ProductionRecordKind,
   type ProductionRecordService,
+  type ProductionSeasonService,
+  type Season,
+  type SeasonChapterMapping,
 } from "@dramaip/contracts/production";
 import {
   REVIEW_RECORD_SERVICE,
@@ -40,6 +50,7 @@ import {
   type WritingChapterService,
 } from "@dramaip/contracts/writing";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -58,6 +69,28 @@ interface ProductionRow {
   version: number;
   created_at: string;
   updated_at: string;
+}
+
+interface SeasonRow {
+  id: string;
+  project_id: string;
+  adaptation_id: string | null;
+  title: string;
+  outline: string;
+  source_chapter_version: string | null;
+  status: Season["status"];
+  order_index: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SeasonChapterMappingRow {
+  id: string;
+  season_id: string;
+  chapter_id: string;
+  chapter_version: number;
+  created_at: string;
 }
 
 interface RouteContext {
@@ -94,6 +127,34 @@ function toRecord(row: ProductionRow): ProductionRecord {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function season(row: SeasonRow): Season {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    ...(row.adaptation_id ? { adaptationId: row.adaptation_id } : {}),
+    title: row.title,
+    outline: row.outline,
+    ...(row.source_chapter_version
+      ? { sourceChapterVersion: row.source_chapter_version }
+      : {}),
+    status: row.status,
+    orderIndex: row.order_index,
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function seasonMapping(row: SeasonChapterMappingRow): SeasonChapterMapping {
+  return {
+    id: row.id,
+    seasonId: row.season_id,
+    chapterId: row.chapter_id,
+    chapterVersion: row.chapter_version,
+    createdAt: row.created_at,
   };
 }
 
@@ -174,6 +235,155 @@ function listRecords(
         )
     ).map(toRecord),
   );
+}
+
+function createSeason(
+  context: PluginContext,
+  input: z.infer<typeof SeasonInputSchema>,
+): Season {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  return context.uow.execute((transaction) => {
+    const orderIndex =
+      transaction.get<{ value: number }>(
+        "SELECT COALESCE(MAX(order_index), -1) + 1 AS value FROM production_seasons WHERE project_id = ?",
+        input.projectId,
+      )?.value ?? 0;
+    transaction.run(
+      `INSERT INTO production_seasons(
+        id, project_id, adaptation_id, title, outline, source_chapter_version,
+        status, order_index, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, 0, ?, ?)`,
+      id,
+      input.projectId,
+      input.adaptationId ?? null,
+      input.title.trim(),
+      input.outline ?? "",
+      input.sourceChapterVersion ?? null,
+      orderIndex,
+      now,
+      now,
+    );
+    const value = season(
+      transaction.get<SeasonRow>(
+        "SELECT * FROM production_seasons WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: "production.season-created.v1",
+      pluginId: "production",
+      aggregateType: "season",
+      aggregateId: id,
+      aggregateVersion: value.version,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
+}
+
+function listSeasons(
+  context: PluginContext,
+  projectId: string,
+  options: { cursor?: string; limit?: number } = {},
+): { items: readonly Season[]; nextCursor?: string } {
+  const limit = Math.min(Math.max(options.limit ?? 40, 1), 100);
+  const cursor = options.cursor ? Number(options.cursor) : -1;
+  if (!Number.isInteger(cursor) || cursor < -1) return { items: [] };
+  return context.uow.execute((transaction) => {
+    const rows = transaction.all<SeasonRow>(
+      `SELECT * FROM production_seasons
+       WHERE project_id = ? AND order_index > ?
+       ORDER BY order_index, id LIMIT ?`,
+      projectId,
+      cursor,
+      limit + 1,
+    );
+    const values = rows.slice(0, limit).map(season);
+    const last = values.at(-1);
+    return {
+      items: values,
+      ...(rows.length > limit && last
+        ? { nextCursor: String(last.orderIndex) }
+        : {}),
+    };
+  });
+}
+
+function updateSeason(
+  context: PluginContext,
+  id: string,
+  patch: z.infer<typeof SeasonPatchSchema>,
+): Season | "conflict" | undefined {
+  return context.uow.execute((transaction) => {
+    const current = transaction.get<SeasonRow>(
+      "SELECT * FROM production_seasons WHERE id = ?",
+      id,
+    );
+    if (!current) return undefined;
+    if (current.version !== patch.version) return "conflict" as const;
+    const now = new Date().toISOString();
+    transaction.run(
+      `UPDATE production_seasons SET title = ?, outline = ?, status = ?,
+       version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
+      patch.title?.trim() ?? current.title,
+      patch.outline ?? current.outline,
+      patch.status ?? current.status,
+      now,
+      id,
+      current.version,
+    );
+    const value = season(
+      transaction.get<SeasonRow>(
+        "SELECT * FROM production_seasons WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: "production.season-updated.v1",
+      pluginId: "production",
+      aggregateType: "season",
+      aggregateId: id,
+      aggregateVersion: value.version,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
+}
+
+function mapSeasonChapter(
+  context: PluginContext,
+  input: z.infer<typeof SeasonChapterMappingInputSchema>,
+): SeasonChapterMapping {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  return context.uow.execute((transaction) => {
+    transaction.run(
+      `INSERT INTO production_season_chapter_mappings(
+        id, season_id, chapter_id, chapter_version, created_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      id,
+      input.seasonId,
+      input.chapterId,
+      input.chapterVersion,
+      now,
+    );
+    const value = seasonMapping(
+      transaction.get<SeasonChapterMappingRow>(
+        "SELECT * FROM production_season_chapter_mappings WHERE id = ?",
+        id,
+      )!,
+    );
+    transaction.append({
+      type: "production.season-chapter-mapped.v1",
+      pluginId: "production",
+      aggregateType: "season",
+      aggregateId: input.seasonId,
+      aggregateVersion: 0,
+      payload: JSON.parse(JSON.stringify(value)),
+    });
+    return value;
+  });
 }
 
 function problem(
@@ -424,21 +634,173 @@ function productionResourceRoutes(
   return result;
 }
 
+function seasonRoutes(
+  workspace: WorkspaceProjectService,
+  writing: WritingChapterService,
+  seasons: ProductionSeasonService,
+): readonly RouteContribution[] {
+  const projectParams = z.object({ projectId: z.string().uuid() });
+  const chapterMappingParams = z.object({ id: z.string().uuid() });
+  return [
+    route(
+      {
+        id: "production:seasons-list",
+        pluginId: "production",
+        method: "get",
+        path: "/api/v2/projects/{projectId}/seasons",
+        operationId: "seasons.list",
+      },
+      openapi({
+        method: "get",
+        path: "/api/v2/projects/{projectId}/seasons",
+        operationId: "seasons.list",
+        params: projectParams,
+        response: SeasonPageSchema,
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        if (!workspace.get(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        return requestContext.json(
+          seasons.list(projectId, {
+            cursor: requestContext.req.query("cursor"),
+            limit: Number(requestContext.req.query("limit") ?? "40"),
+          }),
+        );
+      },
+    ),
+    route(
+      {
+        id: "production:seasons-create",
+        pluginId: "production",
+        method: "post",
+        path: "/api/v2/projects/{projectId}/seasons",
+        operationId: "seasons.create",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/projects/{projectId}/seasons",
+        operationId: "seasons.create",
+        params: projectParams,
+        body: SeasonInputSchema.omit({ projectId: true }),
+        response: SeasonSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        const parsed = SeasonInputSchema.omit({ projectId: true }).safeParse(
+          await requestContext.req.json(),
+        );
+        if (!workspace.get(projectId) || !parsed.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "季信息无效。",
+          );
+        return requestContext.json(
+          seasons.create({ ...parsed.data, projectId }),
+          201,
+        );
+      },
+    ),
+    route(
+      {
+        id: "production:seasons-update",
+        pluginId: "production",
+        method: "patch",
+        path: "/api/v2/seasons/{id}",
+        operationId: "seasons.update",
+      },
+      openapi({
+        method: "patch",
+        path: "/api/v2/seasons/{id}",
+        operationId: "seasons.update",
+        params: chapterMappingParams,
+        body: SeasonPatchSchema,
+        response: SeasonSchema,
+      }),
+      async (requestContext) => {
+        const parsed = SeasonPatchSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!parsed.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "季修改无效。",
+          );
+        const value = seasons.update(
+          requestContext.req.param("id"),
+          parsed.data,
+        );
+        return value === undefined
+          ? problem(requestContext, 404, "NOT_FOUND", "未找到季。")
+          : value === "conflict"
+            ? problem(
+                requestContext,
+                409,
+                "CONFLICT",
+                "季已更新，请刷新后重试。",
+              )
+            : requestContext.json(value);
+      },
+    ),
+    route(
+      {
+        id: "production:seasons-map-chapter",
+        pluginId: "production",
+        method: "post",
+        path: "/api/v2/seasons/{id}/chapter-mappings",
+        operationId: "seasons.mapChapter",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/seasons/{id}/chapter-mappings",
+        operationId: "seasons.mapChapter",
+        params: chapterMappingParams,
+        body: SeasonChapterMappingInputSchema.omit({ seasonId: true }),
+        response: SeasonChapterMappingSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        const seasonId = requestContext.req.param("id");
+        const parsed = SeasonChapterMappingInputSchema.omit({
+          seasonId: true,
+        }).safeParse(await requestContext.req.json());
+        const current = seasons.get(seasonId);
+        const chapter = parsed.success
+          ? writing.get(parsed.data.chapterId)
+          : undefined;
+        if (
+          !current ||
+          !parsed.success ||
+          !chapter ||
+          chapter.projectId !== current.projectId ||
+          chapter.version !== parsed.data.chapterVersion
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "章节映射无效。",
+          );
+        return requestContext.json(
+          seasons.mapChapter({ seasonId, ...parsed.data }),
+          201,
+        );
+      },
+    ),
+  ];
+}
+
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: RouteHandler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function productionRoutes(
@@ -446,6 +808,7 @@ function productionRoutes(
   workspace: WorkspaceProjectService,
   writing: WritingChapterService,
   records: ProductionRecordService,
+  seasons: ProductionSeasonService,
 ): readonly RouteContribution[] {
   const graphDeclaration = openapi({
     method: "get",
@@ -471,6 +834,7 @@ function productionRoutes(
   });
   const result: RouteContribution[] = [
     ...productionResourceRoutes(workspace, records),
+    ...seasonRoutes(workspace, writing, seasons),
     route(
       {
         id: "production:graph",
@@ -490,7 +854,7 @@ function productionRoutes(
           records.list(kind, { projectId }),
         );
         const media =
-          context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE);
+          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
         const mediaKinds = [
           "assets",
           "visual-assets",
@@ -506,12 +870,12 @@ function productionRoutes(
           ? mediaKinds.flatMap((kind) => media.list(kind, { projectId }))
           : [];
         const creativeQuality =
-          context.services.get<CreativeQualityRecordService>(
+          context.services.optional<CreativeQualityRecordService>(
             CREATIVE_QUALITY_SERVICE,
           );
         const qualityRecords =
           creativeQuality?.list("quality", { projectId }) ?? [];
-        const review = context.services.get<ReviewRecordService>(
+        const review = context.services.optional<ReviewRecordService>(
           REVIEW_RECORD_SERVICE,
         );
         const reviewRecords = review
@@ -519,7 +883,7 @@ function productionRoutes(
               review.list(kind, { projectId }),
             )
           : [];
-        const delivery = context.services.get<DeliveryRecordService>(
+        const delivery = context.services.optional<DeliveryRecordService>(
           DELIVERY_RECORD_SERVICE,
         );
         const deliveryRecords = delivery
@@ -904,6 +1268,60 @@ const productionMigrations = [
         ON production_records(parent_id, kind, order_index, id);
     `,
   },
+  {
+    id: "production.0002.seasons",
+    pluginId: "production",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["production.0001.records", "workspace.0005.project-modes"],
+    sql: `
+      CREATE TABLE IF NOT EXISTS production_seasons (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        adaptation_id TEXT REFERENCES production_records(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        outline TEXT NOT NULL DEFAULT '',
+        source_chapter_version TEXT,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'ready', 'review_required', 'archived')),
+        order_index INTEGER NOT NULL DEFAULT 0,
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS production_seasons_project_order
+        ON production_seasons(project_id, order_index, id);
+      CREATE TABLE IF NOT EXISTS production_season_chapter_mappings (
+        id TEXT PRIMARY KEY,
+        season_id TEXT NOT NULL REFERENCES production_seasons(id) ON DELETE CASCADE,
+        chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
+        chapter_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(season_id, chapter_id)
+      );
+      CREATE INDEX IF NOT EXISTS production_season_chapter_mappings_chapter
+        ON production_season_chapter_mappings(chapter_id, season_id);
+      INSERT OR IGNORE INTO production_seasons(
+        id, project_id, adaptation_id, title, outline, status, order_index,
+        version, created_at, updated_at
+      )
+      SELECT
+        lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+        lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+        lower(hex(randomblob(6))),
+        r.project_id,
+        r.id,
+        '第1季', '', 'ready', 0, 0, r.created_at, r.updated_at
+      FROM production_records r
+      WHERE r.kind = 'adaptations'
+        AND NOT EXISTS (
+          SELECT 1 FROM production_records earlier
+          WHERE earlier.project_id = r.project_id AND earlier.kind = 'adaptations'
+            AND (earlier.order_index < r.order_index OR (earlier.order_index = r.order_index AND earlier.id < r.id))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM production_seasons s WHERE s.project_id = r.project_id
+        );
+    `,
+  },
 ] as const;
 
 export const productionPlugin = defineFirstPartyPlugin({
@@ -937,10 +1355,10 @@ export const productionPlugin = defineFirstPartyPlugin({
   ],
   migrations: productionMigrations,
   activate: (context) => {
-    const workspace = context.services.get<WorkspaceProjectService>(
+    const workspace = context.services.optional<WorkspaceProjectService>(
       WORKSPACE_PROJECT_SERVICE,
     );
-    const writing = context.services.get<WritingChapterService>(
+    const writing = context.services.optional<WritingChapterService>(
       WRITING_CHAPTER_SERVICE,
     );
     if (!workspace || !writing)
@@ -1006,19 +1424,82 @@ export const productionPlugin = defineFirstPartyPlugin({
           return true;
         }),
     };
-    context.effect(
+    const seasonService: ProductionSeasonService = {
+      create: (input) => createSeason(context, input),
+      get: (id) =>
+        context.uow.execute((transaction) => {
+          const row = transaction.get<SeasonRow>(
+            "SELECT * FROM production_seasons WHERE id = ?",
+            id,
+          );
+          return row ? season(row) : undefined;
+        }),
+      list: (projectId, options) => listSeasons(context, projectId, options),
+      update: (id, patch) => updateSeason(context, id, patch),
+      mapChapter: (input) => mapSeasonChapter(context, input),
+    };
+    context.effect(`service:${PRODUCTION_RECORD_SERVICE}`, () =>
       context.services.provide(PRODUCTION_RECORD_SERVICE, service),
-      `service:${PRODUCTION_RECORD_SERVICE}`,
+    );
+    context.effect(`service:${PRODUCTION_SEASON_SERVICE}`, () =>
+      context.services.provide(PRODUCTION_SEASON_SERVICE, seasonService),
+    );
+    context.effect("event:season-chapter-staleness", () =>
+      context.events.registerConsumer({
+        id: "production:season-chapter-staleness.v1",
+        pluginId: "production",
+        critical: false,
+        eventTypes: [
+          "writing.chapter-updated.v1",
+          "writing.chapter-content-replaced.v1",
+          "writing.chapter-summary-updated.v1",
+        ],
+        handle: (event) => {
+          const now = new Date().toISOString();
+          context.uow.execute((transaction) => {
+            const affected = transaction.all<SeasonRow>(
+              `SELECT s.* FROM production_seasons s
+               JOIN production_season_chapter_mappings m ON m.season_id = s.id
+               WHERE m.chapter_id = ? AND m.chapter_version <> ?
+                 AND s.status <> 'archived'`,
+              event.aggregateId,
+              event.aggregateVersion,
+            );
+            for (const current of affected) {
+              transaction.run(
+                `UPDATE production_seasons
+                 SET status = 'review_required', version = version + 1, updated_at = ?
+                 WHERE id = ?`,
+                now,
+                current.id,
+              );
+              transaction.append({
+                type: "production.season-review-required.v1",
+                pluginId: "production",
+                aggregateType: "season",
+                aggregateId: current.id,
+                aggregateVersion: current.version + 1,
+                payload: {
+                  seasonId: current.id,
+                  sourceChapterId: event.aggregateId,
+                  sourceChapterVersion: event.aggregateVersion,
+                  reason: "来源章节已更新，需要重新核对季纲与分集。",
+                },
+              });
+            }
+          });
+        },
+      }),
     );
     for (const contribution of productionRoutes(
       context,
       workspace,
       writing,
       service,
+      seasonService,
     ))
-      context.effect(
+      context.effect(`route:${contribution.id}`, () =>
         context.http.register(contribution),
-        `route:${contribution.id}`,
       );
   },
 });

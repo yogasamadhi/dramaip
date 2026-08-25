@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { GrokAcpClient } from "./grok-acp";
 
@@ -53,7 +53,8 @@ type SessionState = {
 
 const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
   .parentPort;
-if (!parentPort)
+const runtimeVersions = process.versions as Record<string, string | undefined>;
+if (!parentPort || !runtimeVersions.electron || Boolean(runtimeVersions.bun))
   throw new Error("Grok 引擎必须作为 Electron utilityProcess 运行");
 
 let startCommand: StartCommand | undefined;
@@ -164,6 +165,7 @@ async function perform(
     return { id };
   }
   if (operation === "run") return run(payload);
+  if (operation === "recoverRun") return recoverRun(payload);
   if (operation === "interrupt") {
     const session = sessions.get(String(payload.engineSessionId ?? ""));
     if (session?.runtime) {
@@ -247,12 +249,14 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
     );
     const runtimeSessionId = session.runtimeSessionId ?? runtime.sessionId;
     if (!runtimeSessionId) throw new Error("Grok ACP 会话编号缺失");
-    return await runtime.runSession(
+    const result = await runtime.runSession(
       runtimeSessionId,
       prompt,
       (event: GrokRuntimeEvent) =>
         parentPort!.postMessage({ type: "event", runId, event }),
     );
+    await persistRunResult(runId, result);
+    return result;
   } catch (error) {
     await resetRuntime(session);
     throw error;
@@ -321,15 +325,45 @@ async function resetRuntime(session: SessionState): Promise<void> {
 }
 
 async function stop(): Promise<void> {
-  const command = startCommand;
   await Promise.allSettled([...sessions.values()].map(resetRuntime));
   sessions.clear();
-  if (command) await rm(command.sessionRoot, { recursive: true, force: true });
+  // Checkpoints survive a supervised Engine generation.
   provider = undefined;
   providerGeneration = 0;
   startCommand = undefined;
   parentPort!.postMessage({ type: "stopped" });
   process.exit(0);
+}
+
+async function persistRunResult(runId: string, result: unknown): Promise<void> {
+  if (!startCommand || !/^[A-Za-z0-9._-]{1,200}$/u.test(runId)) return;
+  const directory = join(startCommand.sessionRoot, "run-results");
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await writeFile(join(directory, `${runId}.json`), JSON.stringify(result), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+async function recoverRun(payload: Record<string, unknown>): Promise<unknown> {
+  if (!startCommand) return { disposition: "missing" };
+  const runId = String(payload.runId ?? "");
+  if (!/^[A-Za-z0-9._-]{1,200}$/u.test(runId))
+    return { disposition: "missing" };
+  try {
+    return {
+      disposition: "completed",
+      result: JSON.parse(
+        await readFile(
+          join(startCommand.sessionRoot, "run-results", `${runId}.json`),
+          "utf8",
+        ),
+      ),
+      finalCursor: Number(payload.afterCursor ?? 0) + 1,
+    };
+  } catch {
+    return { disposition: "missing" };
+  }
 }
 
 function runtimeEnvironment(

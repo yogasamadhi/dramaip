@@ -8,14 +8,142 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import {
+  applyMigrations,
+  foundationMigrations,
   openDatabase,
+  runMigrationPlan,
   prepareAlpha2ToAlpha3AgentCutover,
   prepareAlpha1ToAlpha2Cutover,
   prepareDestructiveV3Cutover,
 } from "./index.js";
+import { createSqlite } from "./sqlite.js";
+
+describe("migration compatibility", () => {
+  it("accepts the immutable alpha.2 foundation migration during alpha.3 startup", () => {
+    const directory = mkdtempSync(
+      join(tmpdir(), "dramaip-foundation-migration-"),
+    );
+    const databasePath = join(directory, "dramaip.db");
+    const database = openDatabase(databasePath);
+    try {
+      database.sqlite.exec(foundationMigrations[0]!.sql);
+      database.sqlite
+        .prepare(
+          "INSERT INTO plugin_migrations(migration_id, plugin_id, version, checksum, applied_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .run(
+          "foundation.0001.runtime-ledger",
+          "foundation",
+          "3.0.0-alpha.2",
+          "d2a211864ecf6c9c43ad6b7b07d8c7532c4c9e675690cdd3f5528413bc288c66",
+          "2026-08-18T07:21:13.558Z",
+        );
+
+      expect(() =>
+        applyMigrations(database.sqlite, foundationMigrations),
+      ).not.toThrow();
+    } finally {
+      database.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("backs up and dry-runs a pending forward migration before applying it", () => {
+    const directory = mkdtempSync(join(tmpdir(), "dramaip-migration-plan-"));
+    const databasePath = join(directory, "dramaip.db");
+    const backupDirectory = join(directory, "backups");
+    const legacy = createSqlite(databasePath);
+    legacy.exec(
+      "CREATE TABLE existing_product_state (id TEXT PRIMARY KEY); INSERT INTO existing_product_state VALUES ('p1')",
+    );
+    legacy.close();
+    const database = openDatabase(databasePath);
+    try {
+      const diagnostic = runMigrationPlan(
+        database,
+        [
+          ...foundationMigrations,
+          {
+            id: "test.0001.forward-only",
+            pluginId: "test",
+            version: "1.0.0",
+            dependsOn: ["foundation.0002.event-delivery-failures"],
+            sql: "CREATE TABLE test_forward_state (id TEXT PRIMARY KEY);",
+          },
+        ],
+        { databasePath, backupDirectory },
+      );
+
+      expect(diagnostic.dryRun).toBe(true);
+      expect(diagnostic.backup?.fileName).toMatch(/^dramaip-/u);
+      expect(diagnostic.appliedCount).toBe(3);
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'test_forward_state'",
+          )
+          .get(),
+      ).toBeTruthy();
+      const backup = createSqlite(
+        join(backupDirectory, diagnostic.backup!.fileName),
+        { readOnly: true },
+      );
+      expect(
+        backup
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'test_forward_state'",
+          )
+          .get(),
+      ).toBeNull();
+      backup.close();
+    } finally {
+      database.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not touch the active database when migration dry-run fails", () => {
+    const directory = mkdtempSync(
+      join(tmpdir(), "dramaip-migration-dry-run-failure-"),
+    );
+    const databasePath = join(directory, "dramaip.db");
+    const backupDirectory = join(directory, "backups");
+    const legacy = createSqlite(databasePath);
+    legacy.exec("CREATE TABLE existing_state (id TEXT PRIMARY KEY)");
+    legacy.close();
+    const database = openDatabase(databasePath);
+    try {
+      expect(() =>
+        runMigrationPlan(
+          database,
+          [
+            ...foundationMigrations,
+            {
+              id: "test.0001.invalid",
+              pluginId: "test",
+              version: "1.0.0",
+              dependsOn: ["foundation.0002.event-delivery-failures"],
+              sql: "THIS IS NOT SQL",
+            },
+          ],
+          { databasePath, backupDirectory },
+        ),
+      ).toThrow();
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugin_migrations'",
+          )
+          .get(),
+      ).toBeNull();
+    } finally {
+      database.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("destructive v3 cutover", () => {
   it("backs up alpha.2 in place and preserves project data for the alpha.3 Agent reset", () => {
@@ -24,7 +152,7 @@ describe("destructive v3 cutover", () => {
     );
     const databasePath = join(directory, "dramaip.db");
     const backupDirectory = join(directory, "backups");
-    const database = new DatabaseSync(databasePath);
+    const database = createSqlite(databasePath);
     database.exec(
       "CREATE TABLE projects (id TEXT PRIMARY KEY); INSERT INTO projects VALUES ('p1');",
     );
@@ -54,10 +182,10 @@ describe("destructive v3 cutover", () => {
     const databasePath = join(directory, "dramaip.db");
     const legacyBridgePath = join(directory, "legacy-bridge.db");
     const backupDirectory = join(directory, "backups");
-    const primary = new DatabaseSync(databasePath);
+    const primary = createSqlite(databasePath);
     primary.exec("CREATE TABLE alpha1_workspace (id TEXT PRIMARY KEY)");
     primary.close();
-    const bridge = new DatabaseSync(legacyBridgePath);
+    const bridge = createSqlite(legacyBridgePath);
     bridge.exec("CREATE TABLE alpha1_bridge (id TEXT PRIMARY KEY)");
     bridge.close();
     try {
@@ -85,7 +213,7 @@ describe("destructive v3 cutover", () => {
     const directory = mkdtempSync(join(tmpdir(), "dramaip-cutover-"));
     const databasePath = join(directory, "dramaip.db");
     const backupDirectory = join(directory, "backups");
-    const legacy = new DatabaseSync(databasePath);
+    const legacy = createSqlite(databasePath);
     legacy.exec(
       "CREATE TABLE legacy_projects (id TEXT PRIMARY KEY); INSERT INTO legacy_projects VALUES ('p1')",
     );
@@ -129,7 +257,7 @@ describe("destructive v3 cutover", () => {
       "architecture-upgrade",
       "dramaip.db.v3-cutover.json",
     );
-    const legacy = new DatabaseSync(databasePath);
+    const legacy = createSqlite(databasePath);
     legacy.exec("CREATE TABLE legacy_state (id TEXT PRIMARY KEY)");
     legacy.close();
     mkdirSync(join(backupDirectory, "architecture-upgrade"), {

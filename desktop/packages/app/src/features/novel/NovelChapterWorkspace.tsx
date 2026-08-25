@@ -18,6 +18,7 @@ import type {
   AgentEngineDescriptor,
   AgentEngineKind,
   AgentItem,
+  AgentRun,
   AgentSession,
   AgentTaskType,
   AssistantConversationDetail,
@@ -83,7 +84,7 @@ interface ActiveRun {
   engineKind: AgentEngineKind;
   autoCommitWhenReady: boolean;
   originalContent: string;
-  status: Task["status"];
+  status: AgentRun["status"];
   progress: number;
   error?: string;
 }
@@ -389,14 +390,20 @@ function engineStatusLabel(engine: AgentEngineDescriptor): string {
   return engine.canRun === false ? "暂不可运行" : "已验证";
 }
 
-function taskStatusLabel(status: Task["status"]): string {
-  const labels: Record<Task["status"], string> = {
+function taskStatusLabel(status: AgentRun["status"]): string {
+  const labels: Record<AgentRun["status"], string> = {
+    created: "已创建",
     queued: "等待中",
+    preparing: "准备中",
     running: "生成中",
-    succeeded: "生成完成",
+    waiting_approval: "等待授权",
+    committing: "正在提交",
+    completed: "生成完成",
     failed: "生成失败",
-    canceled: "已取消",
+    aborted: "已取消",
     interrupted: "已中断",
+    orphaned: "运行已失联",
+    recoverable: "等待恢复",
   };
   return labels[status];
 }
@@ -1062,7 +1069,15 @@ function NovelEditor(
         editor?.setEditable(false);
       }
       const running = detail.runs.find((run) =>
-        ["queued", "running"].includes(run.status),
+        [
+          "created",
+          "queued",
+          "preparing",
+          "running",
+          "waiting_approval",
+          "committing",
+          "recoverable",
+        ].includes(run.status),
       );
       if (running?.chapterId && !activeRunRef.current) {
         setActiveRun({
@@ -1216,9 +1231,15 @@ function NovelEditor(
       }
       if (event.type === "task.updated" && payload.id === run.taskId) {
         const task = payload as unknown as Task;
+        const runStatus: AgentRun["status"] =
+          task.status === "succeeded"
+            ? "completed"
+            : task.status === "canceled"
+              ? "aborted"
+              : task.status;
         const next = {
           ...run,
-          status: task.status,
+          status: runStatus,
           progress: task.progress,
           error: task.error,
         };
@@ -2832,7 +2853,14 @@ function WritingPanel(props: {
             </pre>
           )}
           <div className="mt-3 flex gap-2">
-            {["queued", "running"].includes(props.activeRun.status) && (
+            {[
+              "created",
+              "queued",
+              "preparing",
+              "running",
+              "waiting_approval",
+              "committing",
+            ].includes(props.activeRun.status) && (
               <BareButton
                 className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600"
                 onClick={props.onInterrupt}
@@ -2840,9 +2868,13 @@ function WritingPanel(props: {
                 中断生成
               </BareButton>
             )}
-            {["failed", "canceled", "interrupted"].includes(
-              props.activeRun.status,
-            ) && (
+            {[
+              "failed",
+              "aborted",
+              "interrupted",
+              "orphaned",
+              "recoverable",
+            ].includes(props.activeRun.status) && (
               <BareButton
                 className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white"
                 onClick={props.onRetry}
@@ -2951,14 +2983,29 @@ function AssistantConversationTimeline(props: {
             <AssistantStageSummary
               items={items}
               active={Boolean(
-                run && ["queued", "running"].includes(run.status),
+                run &&
+                [
+                  "created",
+                  "queued",
+                  "preparing",
+                  "running",
+                  "waiting_approval",
+                  "committing",
+                ].includes(run.status),
               )}
             />
             {items.map((item) => (
               <AssistantTimelineItem key={item.id} item={item} />
             ))}
             {run &&
-              ["queued", "running"].includes(run.status) &&
+              [
+                "created",
+                "queued",
+                "preparing",
+                "running",
+                "waiting_approval",
+                "committing",
+              ].includes(run.status) &&
               !items.length && (
                 <p className="text-xs text-muted">正在建立实时连接…</p>
               )}

@@ -21,8 +21,11 @@ import {
 } from "@dramaip/contracts/media";
 import {
   PRODUCTION_RECORD_SERVICE,
+  PRODUCTION_SEASON_SERVICE,
+  SeasonSchema,
   type ProductionRecordKind,
   type ProductionRecordService,
+  type ProductionSeasonService,
 } from "@dramaip/contracts/production";
 import {
   REVIEW_RECORD_SERVICE,
@@ -42,17 +45,29 @@ import {
   type WorkspaceProjectService,
 } from "@dramaip/contracts/workspace";
 import {
+  CREATOR_CONTENT_KINDS,
+  CREATOR_CONTENT_SERVICE,
+  CreatorContentRecordSchema,
   WRITING_CHAPTER_SERVICE,
   WRITING_RESOURCE_SERVICE,
+  WRITING_VOLUME_SERVICE,
+  WritingVolumeSchema,
+  type CreatorContentService,
   type WritingChapterService,
   type WritingResourceKind,
   type WritingResourceService,
+  type WritingVolumeService,
 } from "@dramaip/contracts/writing";
+import {
+  KNOWLEDGE_RESEARCH_SERVICE,
+  type KnowledgeResearchService,
+} from "@dramaip/contracts/knowledge";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
-import type {
-  PluginContext,
-  PluginMigration,
-  RouteContribution,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type PluginMigration,
+  type RouteContribution,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
@@ -112,12 +127,13 @@ const packageResourceSchema = z.object({
 
 const projectPackageSchema = z.object({
   format: z.literal("dramaip-project-package"),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   exportedAt: z.string().datetime(),
   project: ProjectInputSchema,
   chapters: z.array(
     z.object({
       id: z.string().uuid(),
+      volumeId: z.string().uuid().optional(),
       title: z.string(),
       summary: z.string().optional(),
       outline: z.string().optional(),
@@ -132,6 +148,14 @@ const projectPackageSchema = z.object({
     }),
   ),
   resources: z.array(packageResourceSchema),
+  structure: z
+    .object({
+      volumes: z.array(z.unknown()).default([]),
+      seasons: z.array(z.unknown()).default([]),
+      creatorContent: z.array(z.unknown()).default([]),
+      researchTopics: z.array(z.unknown()).default([]),
+    })
+    .optional(),
   warnings: z.array(z.string()),
 });
 type ProjectPackage = z.infer<typeof projectPackageSchema>;
@@ -212,20 +236,15 @@ function declaration(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: (context: RouteContext) => Response | Promise<Response>,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        callback: typeof handler,
-      ) => void;
-      register.call(app, openapi, handler);
-    },
-  };
+    declaration: openapi,
+    handler,
+  });
 }
 
 function backup(row: BackupRow) {
@@ -244,6 +263,8 @@ function projectInput(
   return {
     title: project.title,
     shortDramaType: project.shortDramaType,
+    mode: project.mode,
+    modeConfig: project.modeConfig,
     ...(project.targetAudience
       ? { targetAudience: project.targetAudience }
       : {}),
@@ -274,21 +295,23 @@ function projectInput(
 
 function services(context: PluginContext) {
   return {
-    chapters: context.services.get<WritingChapterService>(
+    chapters: context.services.optional<WritingChapterService>(
       WRITING_CHAPTER_SERVICE,
     ),
-    writing: context.services.get<WritingResourceService>(
+    writing: context.services.optional<WritingResourceService>(
       WRITING_RESOURCE_SERVICE,
     ),
-    production: context.services.get<ProductionRecordService>(
+    production: context.services.optional<ProductionRecordService>(
       PRODUCTION_RECORD_SERVICE,
     ),
-    media: context.services.get<MediaRecordService>(MEDIA_RECORD_SERVICE),
-    creative: context.services.get<CreativeQualityRecordService>(
+    media: context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE),
+    creative: context.services.optional<CreativeQualityRecordService>(
       CREATIVE_QUALITY_SERVICE,
     ),
-    review: context.services.get<ReviewRecordService>(REVIEW_RECORD_SERVICE),
-    delivery: context.services.get<DeliveryRecordService>(
+    review: context.services.optional<ReviewRecordService>(
+      REVIEW_RECORD_SERVICE,
+    ),
+    delivery: context.services.optional<DeliveryRecordService>(
       DELIVERY_RECORD_SERVICE,
     ),
   };
@@ -340,6 +363,22 @@ const deliveryKinds: readonly DeliveryRecordKind[] = [
   "platform-archive",
 ];
 
+function collectCursorPages<T>(
+  list: (cursor?: string) => { items: readonly T[]; nextCursor?: string },
+): T[] {
+  const values: T[] = [];
+  let cursor: string | undefined;
+  // Export does not use an unbounded `list all` endpoint. The hard stop is a
+  // corruption guard, not a product content limit.
+  for (let page = 0; page < 10_000; page += 1) {
+    const current = list(cursor);
+    values.push(...current.items);
+    if (!current.nextCursor) break;
+    cursor = current.nextCursor;
+  }
+  return values;
+}
+
 function buildPackage(
   context: PluginContext,
   projects: WorkspaceProjectService,
@@ -351,6 +390,18 @@ function buildPackage(
   if (!values.chapters || !values.writing)
     throw new Error("writing suite is unavailable");
   const resources: ProjectPackage["resources"] = [];
+  const volumes = context.services.optional<WritingVolumeService>(
+    WRITING_VOLUME_SERVICE,
+  );
+  const seasons = context.services.optional<ProductionSeasonService>(
+    PRODUCTION_SEASON_SERVICE,
+  );
+  const creatorContent = context.services.optional<CreatorContentService>(
+    CREATOR_CONTENT_SERVICE,
+  );
+  const research = context.services.optional<KnowledgeResearchService>(
+    KNOWLEDGE_RESEARCH_SERVICE,
+  );
   for (const kind of writingKinds)
     resources.push(
       ...values.writing.list(kind, projectId).map((record) => ({
@@ -416,11 +467,12 @@ function buildPackage(
     );
   return {
     format: "dramaip-project-package",
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     project: projectInput(project),
     chapters: values.chapters.list(projectId).map((chapter) => ({
       id: chapter.id,
+      ...(chapter.volumeId ? { volumeId: chapter.volumeId } : {}),
       title: chapter.title,
       summary: chapter.summary,
       ...(chapter.outline ? { outline: chapter.outline } : {}),
@@ -436,8 +488,33 @@ function buildPackage(
       ...(chapter.aiVideoNote ? { aiVideoNote: chapter.aiVideoNote } : {}),
     })),
     resources,
+    structure: {
+      volumes: volumes
+        ? collectCursorPages((cursor) =>
+            volumes.list(projectId, { cursor, limit: 100 }),
+          )
+        : [],
+      seasons: seasons
+        ? collectCursorPages((cursor) =>
+            seasons.list(projectId, { cursor, limit: 100 }),
+          )
+        : [],
+      creatorContent: creatorContent
+        ? CREATOR_CONTENT_KINDS.flatMap((kind) =>
+            collectCursorPages((cursor) =>
+              creatorContent.list(kind, projectId, { cursor, limit: 100 }),
+            ),
+          )
+        : [],
+      researchTopics: research
+        ? collectCursorPages((cursor) =>
+            research.listTopics(projectId, { cursor, limit: 100 }),
+          )
+        : [],
+    },
     warnings: [
       "安全凭据、绝对路径和本地媒体明文不进入项目包；导入后需重新授权。",
+      "项目包 schema v2 保留模式、卷季结构、博主内容和研究专题；照片与授权需在导入后重新附加和确认。",
     ],
   };
 }
@@ -630,9 +707,10 @@ export function workspaceMaintenanceRoutes(
         status: 201,
       }),
       (requestContext) => {
-        const maintenance = context.services.get<DatabaseMaintenanceService>(
-          FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
-        );
+        const maintenance =
+          context.services.optional<DatabaseMaintenanceService>(
+            FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
+          );
         if (!maintenance)
           return problem(
             requestContext,
@@ -702,9 +780,10 @@ export function workspaceMaintenanceRoutes(
         );
         if (!row)
           return problem(requestContext, 404, "NOT_FOUND", "未找到备份。");
-        const maintenance = context.services.get<DatabaseMaintenanceService>(
-          FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
-        );
+        const maintenance =
+          context.services.optional<DatabaseMaintenanceService>(
+            FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
+          );
         if (!maintenance)
           return problem(
             requestContext,
@@ -901,7 +980,7 @@ export function workspaceMaintenanceRoutes(
           );
         if (Date.parse(row.expires_at) <= Date.now())
           return problem(requestContext, 409, "CONFLICT", "项目包预览已过期。");
-        const writing = context.services.get<WritingChapterService>(
+        const writing = context.services.optional<WritingChapterService>(
           WRITING_CHAPTER_SERVICE,
         );
         if (!writing)
@@ -913,9 +992,33 @@ export function workspaceMaintenanceRoutes(
           ...snapshot.project,
           ...(input.data.title ? { title: input.data.title } : {}),
         });
+        const volumeIds = new Map<string, string>();
+        const volumeService = context.services.optional<WritingVolumeService>(
+          WRITING_VOLUME_SERVICE,
+        );
+        const seasonService =
+          context.services.optional<ProductionSeasonService>(
+            PRODUCTION_SEASON_SERVICE,
+          );
+        const creatorService = context.services.optional<CreatorContentService>(
+          CREATOR_CONTENT_SERVICE,
+        );
+        for (const raw of snapshot.structure?.volumes ?? []) {
+          const value = WritingVolumeSchema.safeParse(raw);
+          if (!value.success || !volumeService) continue;
+          const created = volumeService.create({
+            projectId: project.id,
+            title: value.data.title,
+            outline: value.data.outline,
+          });
+          volumeIds.set(value.data.id, created.id);
+        }
         for (const chapter of snapshot.chapters)
           writing.create({
             projectId: project.id,
+            ...(chapter.volumeId && volumeIds.get(chapter.volumeId)
+              ? { volumeId: volumeIds.get(chapter.volumeId) }
+              : {}),
             title: chapter.title,
             ...(chapter.summary ? { summary: chapter.summary } : {}),
             ...(chapter.outline ? { outline: chapter.outline } : {}),
@@ -936,6 +1039,28 @@ export function workspaceMaintenanceRoutes(
               ? { aiVideoNote: chapter.aiVideoNote }
               : {}),
           });
+        for (const raw of snapshot.structure?.seasons ?? []) {
+          const value = SeasonSchema.safeParse(raw);
+          if (!value.success || !seasonService) continue;
+          seasonService.create({
+            projectId: project.id,
+            title: value.data.title,
+            outline: value.data.outline,
+            ...(value.data.sourceChapterVersion
+              ? { sourceChapterVersion: value.data.sourceChapterVersion }
+              : {}),
+          });
+        }
+        for (const raw of snapshot.structure?.creatorContent ?? []) {
+          const value = CreatorContentRecordSchema.safeParse(raw);
+          if (!value.success || !creatorService) continue;
+          creatorService.create(value.data.kind, {
+            projectId: project.id,
+            title: value.data.title,
+            status: value.data.status,
+            payload: value.data.payload,
+          });
+        }
         const resourcesCreated = importResources(context, project.id, snapshot);
         context.uow.execute((transaction) => {
           transaction.run(

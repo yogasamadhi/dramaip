@@ -13,11 +13,12 @@ import {
   WORKSPACE_PROJECT_SERVICE,
   type WorkspaceProjectService,
 } from "@dramaip/contracts/workspace";
-import type {
-  PluginContext,
-  PluginMigration,
-  RouteContribution,
-  UnitOfWorkTransaction,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type PluginMigration,
+  type RouteContribution,
+  type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
@@ -134,20 +135,11 @@ function api(input: {
 }
 
 function contribute(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        route: unknown,
-        handler: Handler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function issue(
@@ -236,7 +228,7 @@ const seriesLibrarySchema = z.object({
 export function seriesRoutes(
   context: PluginContext,
 ): readonly RouteContribution[] {
-  const workspace = context.services.get<WorkspaceProjectService>(
+  const workspace = context.services.optional<WorkspaceProjectService>(
     WORKSPACE_PROJECT_SERVICE,
   );
   if (!workspace) throw new Error("series requires workspace.projects.v1");

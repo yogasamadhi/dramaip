@@ -1,4 +1,10 @@
 import { z } from "zod";
+import { defineServiceContract } from "./service-contract.js";
+
+export {
+  defineServiceContract,
+  type ServiceContract,
+} from "./service-contract.js";
 
 /** The HTTP wire protocol is deliberately independent from product releases. */
 export const DRAMAIP_HTTP_API_VERSION = "2" as const;
@@ -45,6 +51,8 @@ export const RuntimeBootstrapSchema = z.object({
   accessToken: z.string().min(32),
   appVersion: z.string(),
   apiVersion: z.literal(DRAMAIP_HTTP_API_VERSION),
+  runtimeId: z.string().uuid(),
+  runtimeGeneration: z.number().int().positive(),
 });
 
 export type RuntimeBootstrap = z.infer<typeof RuntimeBootstrapSchema>;
@@ -74,11 +82,33 @@ export const PluginDescriptorSchema = z.object({
 
 export type PluginDescriptor = z.infer<typeof PluginDescriptorSchema>;
 
-export const RuntimeKindSchema = z.enum(["node", "bun"]);
+export const RuntimeKindSchema = z.enum(["electron-node", "bun"]);
 export type RuntimeKind = z.infer<typeof RuntimeKindSchema>;
 
 export const RuntimeModeSchema = z.enum(["desktop", "server", "headless"]);
 export type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
+
+/** Product engine identifiers. Archived engine research never crosses a boundary. */
+export const AgentEngineKindSchema = z.enum([
+  "pi",
+  "codex",
+  "grok",
+  "langgraph",
+]);
+export type AgentEngineKind = z.infer<typeof AgentEngineKindSchema>;
+
+export const AgentEngineHealthSchema = z
+  .object({
+    available: z.boolean(),
+    healthy: z.boolean().optional(),
+    configured: z.boolean().optional(),
+    authenticated: z.boolean().optional(),
+    generation: z.number().int().nonnegative().optional(),
+    statusMessage: z.string().optional(),
+    unavailable: z.string().optional(),
+  })
+  .catchall(JsonValueSchema);
+export type AgentEngineHealth = z.infer<typeof AgentEngineHealthSchema>;
 
 export const UiContributionSchema = z.object({
   id: z.string().min(1),
@@ -95,11 +125,18 @@ export const UiContributionSchema = z.object({
     "toolbar",
   ]),
   metadata: JsonValueSchema,
+  metadataHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/u)
+    .optional(),
 });
 export type UiContributionMetadata = z.infer<typeof UiContributionSchema>;
 
 export const RuntimeInfoSchema = z.object({
   runtimeId: z.string().uuid(),
+  runtimeGeneration: z.number().int().positive(),
+  graphRevision: z.string().regex(/^[a-f0-9]{64}$/u),
+  startedAt: z.string().datetime(),
   runtimeVersion: z.string(),
   apiVersion: z.literal(DRAMAIP_HTTP_API_VERSION),
   pluginApiVersion: z.literal(DRAMAIP_PLUGIN_API_VERSION),
@@ -116,7 +153,7 @@ export const RuntimeInfoSchema = z.object({
     }),
   ),
   capabilities: z.record(z.string(), z.boolean()),
-  engineStatus: z.record(z.string(), z.unknown()),
+  engineStatus: z.record(z.string(), AgentEngineHealthSchema),
   uiContributions: z.array(UiContributionSchema),
 });
 
@@ -145,15 +182,24 @@ export const RealtimeEventSchema = z.object({
 
 export type RealtimeEvent = z.infer<typeof RealtimeEventSchema>;
 
-/**
- * Product engine identifiers. Archived engine research may remain under
- * vendor/reference paths but must never cross a Runtime, Host or Client
- * boundary.
- */
-export const AgentEngineKindSchema = z.enum(["pi", "codex", "grok"]);
-export type AgentEngineKind = z.infer<typeof AgentEngineKindSchema>;
+export const EventStreamEnvelopeSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("domain"),
+    cursor: z.number().int().nonnegative(),
+    event: DomainEventSchema,
+  }),
+  z.object({ kind: z.literal("realtime"), event: RealtimeEventSchema }),
+]);
+export type EventStreamEnvelope = z.infer<typeof EventStreamEnvelopeSchema>;
 
-export const AGENT_TASK_RUNNER_SERVICE = "agents.task-runner.v1" as const;
+export const AGENT_TASK_RUNNER_SERVICE =
+  defineServiceContract<AgentTaskRunnerService>({
+    id: "agents.task-runner.v1",
+    owner: "agents",
+    major: 1,
+    capabilities: ["start"],
+    degradable: true,
+  });
 export interface AgentTaskRunnerService {
   start(input: {
     projectId: string;
@@ -185,7 +231,13 @@ export interface ConfiguredProvider {
 }
 
 export const CONFIGURED_PROVIDER_SERVICE =
-  "agents.configured-providers.v1" as const;
+  defineServiceContract<ConfiguredProviderService>({
+    id: "agents.configured-providers.v1",
+    owner: "agents",
+    major: 1,
+    capabilities: ["read"],
+    degradable: true,
+  });
 export interface ConfiguredProviderService {
   get(id: string): ConfiguredProvider | undefined;
 }

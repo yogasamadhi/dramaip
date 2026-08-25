@@ -36,6 +36,7 @@ import {
   type TimelineService,
 } from "@dramaip/contracts/timeline";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -176,20 +177,11 @@ function openapi(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        routeHandler: Handler,
-      ) => void;
-      register.call(app, declaration, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration, handler });
 }
 
 function editorManifest(
@@ -1737,16 +1729,16 @@ export function createReviewPlugin(host?: ReviewHostCapability) {
     ],
     migrations: reviewMigrations,
     activate: (context) => {
-      const timeline = context.services.get<TimelineService>(TIMELINE_SERVICE);
-      const production = context.services.get<ProductionRecordService>(
+      const timeline =
+        context.services.optional<TimelineService>(TIMELINE_SERVICE);
+      const production = context.services.optional<ProductionRecordService>(
         PRODUCTION_RECORD_SERVICE,
       );
       if (!timeline || !production)
         throw new Error("review requires timeline and production services");
       const records = createRecordService(context);
-      context.effect(
+      context.effect(`service:${REVIEW_RECORD_SERVICE}`, () =>
         context.services.provide(REVIEW_RECORD_SERVICE, records),
-        `service:${REVIEW_RECORD_SERVICE}`,
       );
       for (const contribution of reviewRoutes(
         context,
@@ -1755,9 +1747,8 @@ export function createReviewPlugin(host?: ReviewHostCapability) {
         records,
         host,
       ))
-        context.effect(
+        context.effect(`route:${contribution.id}`, () =>
           context.http.register(contribution),
-          `route:${contribution.id}`,
         );
     },
   });

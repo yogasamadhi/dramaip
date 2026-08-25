@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import openapiTS, { astToString, COMMENT_HEADER } from "openapi-typescript";
 import { format } from "prettier";
 import { generateEffectiveOpenApi } from "./generate-openapi.js";
 
@@ -10,17 +11,10 @@ const temporaryUrl = new URL(
   import.meta.url,
 );
 await generateEffectiveOpenApi(process.argv.includes("--check"));
-const result = Bun.spawnSync([
-  "bunx",
-  "openapi-typescript",
-  openApiUrl.pathname,
-  "-o",
-  temporaryUrl.pathname,
-]);
-if (result.exitCode !== 0) {
-  process.stderr.write(result.stderr.toString());
-  process.exit(result.exitCode);
-}
+await writeFile(
+  temporaryUrl,
+  `${COMMENT_HEADER}${astToString(await openapiTS(openApiUrl))}`,
+);
 const generated = await format(await readFile(temporaryUrl, "utf8"), {
   filepath: temporaryUrl.pathname,
 });

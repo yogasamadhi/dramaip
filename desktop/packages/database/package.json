@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./migration-worker": "./src/migration-worker.ts",
+    "./migration-worker-runtime": "./src/migration-worker-runtime.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "bun --bun run tsc --noEmit",
+    "test": "bun test && bun src/migration-worker.integration.ts"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

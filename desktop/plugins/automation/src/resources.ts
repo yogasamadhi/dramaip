@@ -1,9 +1,10 @@
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
-import type {
-  PluginContext,
-  RouteContribution,
-  UnitOfWorkTransaction,
+import {
+  defineRouteContribution,
+  type PluginContext,
+  type RouteContribution,
+  type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
@@ -135,20 +136,15 @@ function declaration(input: {
 }
 
 function contribution(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   schema: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
+  return defineRouteContribution({
     ...metadata,
-    install(app) {
-      const register = app.openapi as unknown as (
-        route: unknown,
-        callback: Handler,
-      ) => void;
-      register.call(app, schema, handler);
-    },
-  };
+    declaration: schema,
+    handler,
+  });
 }
 
 function problem(

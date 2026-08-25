@@ -1,12 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   copyFileSync,
+  existsSync,
+  mkdtempSync,
   mkdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   statSync,
   unlinkSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { DomainEvent } from "@dramaip/contracts";
 import type {
@@ -54,11 +58,39 @@ export interface AppliedMigrationDiagnostic {
   appliedAt: string;
 }
 
+export interface MigrationPlan {
+  readonly ordered: readonly PluginMigration[];
+  readonly pending: readonly PluginMigration[];
+  readonly appliedCount: number;
+}
+
+export interface MigrationRunDiagnostic {
+  readonly pendingCount: number;
+  readonly appliedCount: number;
+  readonly backup?: DatabaseBackupSnapshot;
+  readonly dryRun: boolean;
+  readonly integrity: "ok";
+  readonly elapsedMs: number;
+}
+
+export interface MigrationRunOptions {
+  readonly databasePath: string;
+  readonly backupDirectory: string;
+  readonly dryRun?: boolean;
+  readonly migrationTimeoutMs?: number;
+  readonly totalTimeoutMs?: number;
+  readonly onProgress?: (event: {
+    phase: "dry-run" | "apply";
+    status: "started" | "completed";
+    migrationId: string;
+  }) => void;
+}
+
 export const foundationMigrations: readonly PluginMigration[] = [
   {
     id: "foundation.0001.runtime-ledger",
     pluginId: "foundation",
-    version: "3.0.0-alpha.3",
+    version: "3.0.0-alpha.2",
     dependsOn: [],
     sql: `
       CREATE TABLE IF NOT EXISTS plugin_migrations (
@@ -99,6 +131,27 @@ export const foundationMigrations: readonly PluginMigration[] = [
       );
     `,
   },
+  {
+    id: "foundation.0002.event-delivery-failures",
+    pluginId: "foundation",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["foundation.0001.runtime-ledger"],
+    sql: `
+      CREATE TABLE IF NOT EXISTS event_consumer_failures (
+        consumer_id TEXT NOT NULL,
+        cursor INTEGER NOT NULL,
+        event_id TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        last_error TEXT NOT NULL,
+        first_failed_at TEXT NOT NULL,
+        last_failed_at TEXT NOT NULL,
+        PRIMARY KEY (consumer_id, cursor)
+      );
+      CREATE INDEX IF NOT EXISTS event_consumer_failures_status
+        ON event_consumer_failures(status, last_failed_at);
+    `,
+  },
 ];
 
 export function openDatabase(path: string): DatabaseHandle {
@@ -117,7 +170,9 @@ export function openDatabase(path: string): DatabaseHandle {
 }
 
 function verifiedSnapshot(path: string): DatabaseBackupSnapshot {
-  const result = integrityCheck(path);
+  // A checkpointed copy of an open WAL database may need a writable first
+  // connection so SQLite can establish and clean up its sidecar state.
+  const result = integrityCheck(path, { readOnly: false });
   if (result !== "ok")
     throw new Error(`database backup integrity check failed: ${result}`);
   return {
@@ -212,6 +267,55 @@ function migrationChecksum(migration: PluginMigration): string {
   return createHash("sha256").update(migration.sql).digest("hex");
 }
 
+function hasMigrationLedger(sqlite: SqliteDatabase): boolean {
+  return Boolean(
+    sqlite
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plugin_migrations' LIMIT 1",
+      )
+      .get(),
+  );
+}
+
+function activeIntegrityCheck(sqlite: SqliteDatabase): "ok" {
+  const row = sqlite.prepare("PRAGMA integrity_check").get() as
+    { integrity_check?: string } | undefined;
+  const result = row?.integrity_check ?? "unknown";
+  if (result !== "ok")
+    throw new Error(`active database integrity check failed: ${result}`);
+  return "ok";
+}
+
+export function planMigrations(
+  sqlite: SqliteDatabase,
+  migrations: readonly PluginMigration[],
+): MigrationPlan {
+  const ordered = sortMigrations(migrations);
+  if (!hasMigrationLedger(sqlite))
+    return { ordered, pending: ordered, appliedCount: 0 };
+  const read = sqlite.prepare(
+    "SELECT plugin_id, version, checksum FROM plugin_migrations WHERE migration_id = ?",
+  );
+  let appliedCount = 0;
+  const pending: PluginMigration[] = [];
+  for (const migration of ordered) {
+    const applied = read.get(migration.id) as
+      { plugin_id: string; version: string; checksum: string } | undefined;
+    if (!applied) {
+      pending.push(migration);
+      continue;
+    }
+    if (
+      applied.plugin_id !== migration.pluginId ||
+      applied.version !== migration.version ||
+      applied.checksum !== migrationChecksum(migration)
+    )
+      throw new Error(`migration checksum changed: ${migration.id}`);
+    appliedCount += 1;
+  }
+  return { ordered, pending, appliedCount };
+}
+
 export function sortMigrations(
   migrations: readonly PluginMigration[],
 ): readonly PluginMigration[] {
@@ -244,6 +348,23 @@ export function applyMigrations(
   sqlite: SqliteDatabase,
   migrations: readonly PluginMigration[],
 ): void {
+  applyMigrationBatch(sqlite, migrations, {
+    migrationTimeoutMs: 60_000,
+    totalTimeoutMs: 10 * 60_000,
+  });
+}
+
+function applyMigrationBatch(
+  sqlite: SqliteDatabase,
+  migrations: readonly PluginMigration[],
+  limits: {
+    migrationTimeoutMs: number;
+    totalTimeoutMs: number;
+    phase?: "dry-run" | "apply";
+    onProgress?: MigrationRunOptions["onProgress"];
+  },
+): void {
+  const batchStartedAt = Date.now();
   sqlite.exec(foundationMigrations[0]!.sql);
   const read = sqlite.prepare(
     "SELECT plugin_id, version, checksum FROM plugin_migrations WHERE migration_id = ?",
@@ -252,6 +373,8 @@ export function applyMigrations(
     "INSERT INTO plugin_migrations(migration_id, plugin_id, version, checksum, applied_at) VALUES (?, ?, ?, ?, ?)",
   );
   for (const migration of sortMigrations(migrations)) {
+    if (Date.now() - batchStartedAt > limits.totalTimeoutMs)
+      throw new Error("migration batch exceeded total timeout");
     const checksum = migrationChecksum(migration);
     const applied = read.get(migration.id) as
       { plugin_id: string; version: string; checksum: string } | undefined;
@@ -265,9 +388,17 @@ export function applyMigrations(
       continue;
     }
     if (migration.foreignKeysOff) sqlite.exec("PRAGMA foreign_keys = OFF");
+    limits.onProgress?.({
+      phase: limits.phase ?? "apply",
+      status: "started",
+      migrationId: migration.id,
+    });
     sqlite.exec("BEGIN IMMEDIATE");
+    const migrationStartedAt = Date.now();
     try {
       sqlite.exec(migration.sql);
+      if (Date.now() - migrationStartedAt > limits.migrationTimeoutMs)
+        throw new Error(`migration exceeded timeout: ${migration.id}`);
       if (migration.foreignKeysOff) {
         const violations = sqlite.prepare("PRAGMA foreign_key_check").all();
         if (violations.length > 0)
@@ -281,12 +412,102 @@ export function applyMigrations(
         new Date().toISOString(),
       );
       sqlite.exec("COMMIT");
+      limits.onProgress?.({
+        phase: limits.phase ?? "apply",
+        status: "completed",
+        migrationId: migration.id,
+      });
     } catch (error) {
       sqlite.exec("ROLLBACK");
       throw new Error(`migration failed: ${migration.id}`, { cause: error });
     } finally {
       if (migration.foreignKeysOff) sqlite.exec("PRAGMA foreign_keys = ON");
     }
+  }
+}
+
+/**
+ * Production migration entry point. It validates the immutable ledger before
+ * touching schema state, creates a verified pre-migration backup for an
+ * existing database, exercises the complete plan against a temporary copy,
+ * and verifies integrity again after the real transaction batch.
+ */
+export function runMigrationPlan(
+  database: DatabaseHandle,
+  migrations: readonly PluginMigration[],
+  options: MigrationRunOptions,
+): MigrationRunDiagnostic {
+  const startedAt = Date.now();
+  const migrationTimeoutMs = options.migrationTimeoutMs ?? 60_000;
+  const totalTimeoutMs = options.totalTimeoutMs ?? 10 * 60_000;
+  activeIntegrityCheck(database.sqlite);
+  const plan = planMigrations(database.sqlite, migrations);
+  if (plan.pending.length === 0)
+    return {
+      pendingCount: 0,
+      appliedCount: 0,
+      dryRun: false,
+      integrity: "ok",
+      elapsedMs: Date.now() - startedAt,
+    };
+
+  const hasExistingState = Boolean(
+    database.sqlite
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1",
+      )
+      .get(),
+  );
+  let backup: DatabaseBackupSnapshot | undefined;
+  let dryRunDirectory: string | undefined;
+  try {
+    if (
+      options.databasePath !== ":memory:" &&
+      existsSync(options.databasePath) &&
+      hasExistingState
+    ) {
+      backup = database.maintenance(options.backupDirectory).createBackup();
+      if (options.dryRun !== false) {
+        dryRunDirectory = mkdtempSync(
+          join(tmpdir(), "dramaip-migration-dry-run-"),
+        );
+        const dryRunPath = join(dryRunDirectory, "dramaip.db");
+        copyFileSync(
+          join(options.backupDirectory, backup.fileName),
+          dryRunPath,
+        );
+        const dryRunDatabase = createSqlite(dryRunPath);
+        try {
+          applyMigrationBatch(dryRunDatabase, plan.ordered, {
+            migrationTimeoutMs,
+            totalTimeoutMs,
+            phase: "dry-run",
+            onProgress: options.onProgress,
+          });
+          activeIntegrityCheck(dryRunDatabase);
+        } finally {
+          dryRunDatabase.close();
+        }
+      }
+    }
+    applyMigrationBatch(database.sqlite, plan.ordered, {
+      migrationTimeoutMs,
+      totalTimeoutMs,
+      phase: "apply",
+      onProgress: options.onProgress,
+    });
+    activeIntegrityCheck(database.sqlite);
+    return {
+      pendingCount: plan.pending.length,
+      appliedCount: plan.pending.length,
+      backup,
+      dryRun: Boolean(backup && options.dryRun !== false),
+      integrity: "ok",
+      elapsedMs: Date.now() - startedAt,
+    };
+  } finally {
+    if (dryRunDirectory)
+      rmSync(dryRunDirectory, { recursive: true, force: true });
   }
 }
 
@@ -315,23 +536,56 @@ export function listAppliedMigrations(
 }
 
 export class SqliteUnitOfWork implements UnitOfWork {
+  private readonly afterCommitListeners = new Set<
+    (events: readonly DomainEvent[]) => void
+  >();
+
   constructor(private readonly sqlite: SqliteDatabase) {}
+
+  private eventValidator: ((event: PendingDomainEvent) => void) | undefined;
+
+  setEventValidator(validator: (event: PendingDomainEvent) => void): void {
+    this.eventValidator = validator;
+  }
 
   execute<T>(work: (transaction: UnitOfWorkTransaction) => T): T {
     this.sqlite.exec("BEGIN IMMEDIATE");
+    const appended: DomainEvent[] = [];
     try {
-      const result = work(new SqliteTransaction(this.sqlite));
+      const result = work(
+        new SqliteTransaction(this.sqlite, appended, this.eventValidator),
+      );
       this.sqlite.exec("COMMIT");
+      if (appended.length > 0)
+        for (const listener of this.afterCommitListeners) {
+          try {
+            listener(appended);
+          } catch {
+            // State is already committed. A failing notifier is diagnostic,
+            // never a reason to report the transaction as rolled back.
+          }
+        }
       return result;
     } catch (error) {
       this.sqlite.exec("ROLLBACK");
       throw error;
     }
   }
+
+  onAfterCommit(
+    listener: (events: readonly DomainEvent[]) => void,
+  ): () => void {
+    this.afterCommitListeners.add(listener);
+    return () => this.afterCommitListeners.delete(listener);
+  }
 }
 
 class SqliteTransaction implements UnitOfWorkTransaction {
-  constructor(private readonly sqlite: SqliteDatabase) {}
+  constructor(
+    private readonly sqlite: SqliteDatabase,
+    private readonly appended: DomainEvent[],
+    private readonly validateEvent?: (event: PendingDomainEvent) => void,
+  ) {}
 
   run(sql: string, ...parameters: unknown[]): void {
     this.sqlite.prepare(sql).run(...parameters);
@@ -346,6 +600,7 @@ class SqliteTransaction implements UnitOfWorkTransaction {
   }
 
   append(event: PendingDomainEvent): DomainEvent {
+    this.validateEvent?.(event);
     const eventId = randomUUID();
     const occurredAt = new Date().toISOString();
     const result = this.sqlite
@@ -365,7 +620,7 @@ class SqliteTransaction implements UnitOfWorkTransaction {
         JSON.stringify(event.payload),
         occurredAt,
       );
-    return {
+    const committed = {
       cursor: Number(result.lastInsertRowid),
       eventId,
       type: event.type,
@@ -376,12 +631,19 @@ class SqliteTransaction implements UnitOfWorkTransaction {
       payload: event.payload,
       occurredAt,
     };
+    this.appended.push(committed);
+    return committed;
   }
 }
 
-export function integrityCheck(path: string): "ok" | string {
-  const sqlite = createSqlite(path, { readOnly: true });
+export function integrityCheck(
+  path: string,
+  options: { readOnly?: boolean } = {},
+): "ok" | string {
+  const sqlite = createSqlite(path, { readOnly: options.readOnly ?? true });
   try {
+    if (options.readOnly === false)
+      sqlite.prepare("PRAGMA journal_mode = DELETE").get();
     const row = sqlite.prepare("PRAGMA integrity_check").get() as {
       integrity_check?: string;
     };

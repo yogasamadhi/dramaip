@@ -1,5 +1,100 @@
 import { z } from "zod";
 import { TaskSchema } from "./automation.js";
+import { defineServiceContract } from "./service-contract.js";
+
+export const LikenessRelationshipSchema = z.enum([
+  "self",
+  "adult_relative_or_friend",
+  "minor",
+]);
+export const LikenessAgeBandSchema = z.enum([
+  "adult",
+  "minor_14_to_17",
+  "under_14",
+]);
+export const LikenessConsentStatusSchema = z.enum([
+  "missing",
+  "active",
+  "revoked",
+  "expired",
+]);
+export const LikenessSubjectSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  displayName: z.string().min(1).max(160),
+  relationship: LikenessRelationshipSchema,
+  ageBand: LikenessAgeBandSchema,
+  consentStatus: LikenessConsentStatusSchema,
+  contentRestrictions: z.string().optional(),
+  version: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export const LikenessSubjectInputSchema = z.object({
+  projectId: z.string().uuid(),
+  displayName: z.string().trim().min(1).max(160),
+  relationship: LikenessRelationshipSchema,
+  ageBand: LikenessAgeBandSchema,
+  contentRestrictions: z.string().trim().max(2_000).optional(),
+});
+export const LikenessConsentInputSchema = z.object({
+  purposeScopes: z.array(z.string().trim().min(1).max(120)).min(1).max(20),
+  validUntil: z.string().datetime(),
+  /** Self/adult acknowledgement; no signed-document body is persisted. */
+  participantConfirmed: z.boolean(),
+  /** Mandatory for every minor. */
+  guardianConfirmed: z.boolean().optional(),
+  /** Mandatory where the person is under 14. */
+  under14SeparateConsentConfirmed: z.boolean().optional(),
+});
+export const LikenessPhotoSchema = z.object({
+  id: z.string().uuid(),
+  subjectId: z.string().uuid(),
+  mediaRef: z.string().uuid(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  mimeType: z.literal("image/png"),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  size: z.number().int().positive(),
+  status: z.enum(["active", "removed"]),
+  createdAt: z.string().datetime(),
+  removedAt: z.string().datetime().optional(),
+});
+export const LikenessPhotoAttachInputSchema = z.object({
+  grantId: z.string().uuid(),
+});
+export const LikenessReferencePreflightInputSchema = z.object({
+  subjectIds: z.array(z.string().uuid()).min(1).max(12),
+  confirmed: z.literal(true),
+});
+export const LikenessReferencePreflightSchema = z.object({
+  ok: z.boolean(),
+  subjectIds: z.array(z.string().uuid()),
+  mediaRefs: z.array(z.string().uuid()),
+  blockers: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type LikenessSubject = z.infer<typeof LikenessSubjectSchema>;
+export type LikenessPhoto = z.infer<typeof LikenessPhotoSchema>;
+export type LikenessReferencePreflight = z.infer<
+  typeof LikenessReferencePreflightSchema
+>;
+
+export const MEDIA_LIKENESS_SERVICE =
+  defineServiceContract<MediaLikenessService>({
+    id: "media.likeness.v1",
+    owner: "media",
+    major: 1,
+    capabilities: ["read", "write", "revoke"],
+    degradable: true,
+  });
+export interface MediaLikenessService {
+  getSubject(id: string): LikenessSubject | undefined;
+  listSubjects(projectId: string): readonly LikenessSubject[];
+  preflight(
+    input: z.infer<typeof LikenessReferencePreflightInputSchema>,
+  ): z.infer<typeof LikenessReferencePreflightSchema>;
+}
 
 export const MediaRecordKindSchema = z.enum([
   "shot-stills",
@@ -225,6 +320,8 @@ export const ImageGenerationInputSchema = z.object({
   size: z.string().max(80).optional(),
   quality: z.string().max(80).optional(),
   outputFormat: z.enum(["png", "jpeg", "webp"]).optional(),
+  referenceSubjectIds: z.array(z.string().uuid()).min(1).max(12).optional(),
+  portraitPreflightConfirmed: z.literal(true).optional(),
 });
 export const ImageGenerationRunSchema = z.object({
   task: TaskSchema,
@@ -332,8 +429,21 @@ export type VideoGenerationPreflight = z.infer<
 >;
 export type VideoGenerationJob = z.infer<typeof VideoGenerationJobSchema>;
 
-export const MEDIA_RECORD_SERVICE = "media.records.v1" as const;
-export const MEDIA_AUDIO_TRACK_SERVICE = "media.audio-tracks.v1" as const;
+export const MEDIA_RECORD_SERVICE = defineServiceContract<MediaRecordService>({
+  id: "media.records.v1",
+  owner: "media",
+  major: 1,
+  capabilities: ["read", "write"],
+  degradable: true,
+});
+export const MEDIA_AUDIO_TRACK_SERVICE =
+  defineServiceContract<MediaAudioTrackService>({
+    id: "media.audio-tracks.v1",
+    owner: "media",
+    major: 1,
+    capabilities: ["read", "write"],
+    degradable: true,
+  });
 
 export interface MediaRecordService {
   create(kind: MediaRecordKind, input: MediaRecordInput): MediaRecord;

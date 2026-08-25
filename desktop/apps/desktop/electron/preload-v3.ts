@@ -1,34 +1,25 @@
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
+import type { RuntimeBootstrap } from "@dramaip/contracts";
+import { RUNTIME_BOOTSTRAP_CHANNEL } from "./runtime-bootstrap-contract";
 
-export interface RuntimeBootstrap {
-  baseUrl: string;
-  accessToken: string;
-  appVersion: string;
-  apiVersion: "2";
+// BrowserWindow executes preload once for its initial about:blank document and
+// again for the actual renderer URL. The initial document must never consume
+// the one-shot nonce.
+if (globalThis.location.protocol !== "about:") {
+  const prefix = "--dramaip-runtime-bootstrap-nonce=";
+  const nonce = process.argv
+    .find((argument) => argument.startsWith(prefix))
+    ?.slice(prefix.length);
+  if (!nonce) throw new Error("DramaIP runtime bootstrap nonce is missing");
+
+  const bootstrap = ipcRenderer
+    .invoke(RUNTIME_BOOTSTRAP_CHANNEL, nonce)
+    // Main validates the one-shot response before it crosses the IPC boundary;
+    // keeping preload type-only avoids loading workspace modules in a sandbox.
+    .then((value) => Object.freeze(value as RuntimeBootstrap));
+
+  contextBridge.exposeInMainWorld(
+    "runtimeBootstrap",
+    Object.freeze({ resolve: () => bootstrap }),
+  );
 }
-
-const prefix = "--dramaip-runtime-bootstrap=";
-const encoded = process.argv
-  .find((argument) => argument.startsWith(prefix))
-  ?.slice(prefix.length);
-if (!encoded) throw new Error("DramaIP runtime bootstrap is missing");
-const parsed = JSON.parse(
-  Buffer.from(encoded, "base64").toString("utf8"),
-) as RuntimeBootstrap;
-if (
-  typeof parsed.baseUrl !== "string" ||
-  typeof parsed.accessToken !== "string" ||
-  typeof parsed.appVersion !== "string" ||
-  parsed.apiVersion !== "2"
-)
-  throw new Error("DramaIP runtime bootstrap is invalid");
-
-contextBridge.exposeInMainWorld(
-  "runtimeBootstrap",
-  Object.freeze({
-    baseUrl: parsed.baseUrl,
-    accessToken: parsed.accessToken,
-    appVersion: parsed.appVersion,
-    apiVersion: parsed.apiVersion,
-  }),
-);

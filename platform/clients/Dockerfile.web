@@ -2,7 +2,7 @@
 # Build JavaScript on the operator's native architecture. The final Bun image
 # is still emitted for TARGETPLATFORM, allowing an arm64 workstation to create
 # the linux/amd64 artifact consumed by the Kubernetes workers without QEMU.
-ARG BUN_IMAGE=oven/bun:1.3.14-alpine
+ARG BUN_IMAGE=oven/bun:1.4.0-alpine
 
 FROM --platform=$BUILDPLATFORM ${BUN_IMAGE} AS dependencies
 WORKDIR /app

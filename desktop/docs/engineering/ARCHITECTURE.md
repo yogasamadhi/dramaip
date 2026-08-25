@@ -1,84 +1,111 @@
 # DramaIP Desktop 3.0 alpha 架构
 
-`3.0.0-alpha.3` 的唯一产品边界如下。每一条来自 Renderer 的业务请求都经过 Runtime；Electron IPC 不是可调用的业务通道。
+> 文档类型：Descriptive Current Implementation
+>
+> 状态日期：2026-08-23
+>
+> 目标规范：[DRAMAIP Client / Plugin Runtime Architecture](../../../docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)
+
+本文只描述已经进入当前代码路径的事实。当前实现是完成 Level 2 进程、连接、插件和安全边界后，启用 Level 3 首版 Extension Platform；第三方 React、任意网页 UI、Node API、Raw SQLite、直连文件/网络仍未开放。
+
+## 进程与信任边界
 
 ```text
-Renderer
-  │  generated @dramaip/client, HTTP /api/v2, Bearer runtime token
+Desktop / Web / CLI
+  │ ServerConnectionManager → RuntimeTransport → @dramaip/client
+  │ HTTP /api/v2 + SSE + OpenAPI
   ▼
-Core Runtime Process（Node utilityProcess；Bun 为独立子进程）
-  ├── Hono / OpenAPI / RFC 7807 / ETag / idempotency / cursor SSE
-  ├── Cordis Kernel（私有）+ first-party plugins
-  ├── SQLite migrations + durable event ledger/checkpoints
-  └── HTTP /host/v1, Bearer host token
+Independent Core Runtime（Desktop: Electron Node；Headless/Server: Bun）
+  ├── Effective Core Graph / Atomic RuntimeRouteRegistry
+  ├── first-party Plugin Kernel / typed services / tracked effects
+  ├── SQLite migration worker / events / checkpoints
+  ├── Extension Capability Broker / Instance Effective OpenAPI
+  └── HTTP /host/v1
        ▼
 Electron Desktop Host
-  ├── window, file grant, validated external link, encrypted credentials
-  └── EngineSupervisor → Pi / Codex / Grok Build
+  ├── file grants / credential vault / SafeHttpTransport
+  ├── EngineSupervisor → Pi / Codex / Grok Build / LangGraph.js
+  └── ExtensionProcessSupervisor
+       └── one utility process + one QuickJS/WASM runtime per active revision
 ```
 
-Preload 只将冻结的 `RuntimeBootstrap` 注入窗口：
+Electron 入口 `electron/main.ts` 只装配桌面应用。窗口、shutdown、Host transport、Credential Capture、Safe HTTP、Engine event channel、Extension process 和 migration worker 已分别放入对应 supervisor/provider 模块；旧 `main-v3.ts` 不再存在。受管进程使用 generation、健康快照、pending 数、指数退避、jitter 和五分钟崩溃预算。Runtime generation 变化时轮换 Runtime/Engine token、结束旧 stream，停止旧扩展进程并用新 nonce 重建 BrowserWindow。
 
-```ts
-type RuntimeBootstrap = Readonly<{
-  baseUrl: string;
-  accessToken: string;
-  appVersion: string;
-  apiVersion: "2";
-}>;
+Renderer 的业务代码只使用 `@dramaip/client`。Preload 仅有绑定 `webContents`、30 秒有效、一次消费的 bootstrap nonce exchange；Credential 明文只在独立 sandbox modal 与 Host 私有通道中出现。
+
+## Core Runtime 与第一方插件
+
+组合固定为：
+
+```text
+Plugin → Bundle → Product Profile → Effective Core Graph Revision
 ```
 
-它没有 `invoke`、`send`、文件系统、凭据或窗口方法。Runtime token 与 Host token 每次启动独立生成，互不复用。
+14 个 bounded-context 插件拥有各自 route、migration、table、event、service 与 UI contribution。Kernel 只负责 graph、lifecycle、effect、service、event、migration 和 diagnostics。`ctx.effect(label, acquire)` 记录 owner、plugin version、graph revision 和 acquiredAt；activation 失败及 dispose 都逆序清理。
 
-## Runtime 与插件
+agents 的 `index.ts` 与 `plugin.ts` 只做 descriptor/migration/service/route/effect 组合；原聚合实现已拆为 `internal/shared`、`providers/routes`、`sessions/routes`、`runs/task-runner`、`runs/recovery` 和 `experiments/routes`。组合入口禁止 SQL 并受行数门禁保护。
 
-Runtime 使用 Hono、`@hono/node-server`、`@hono/zod-openapi` 和 Zod。Client 由 Effective Graph OpenAPI 生成链和 `openapi-fetch` 提供；Renderer 不得直接调用 `fetch`。错误统一为 RFC 7807 Problem Details。写入端点使用 `ETag`/`If-Match`、`Idempotency-Key` 与 cursor pagination；SSE 同时接收 `Last-Event-ID` 和显式 cursor。
+第一方 HTTP route 已全部是声明式 `RouteContribution`。插件不接触 Hono app；同一 declaration 驱动 Router、OpenAPI、Catalog 和生成 Client，并声明认证、body limit、timeout、idempotency 与 concurrency policy。Router 采用 staged build 和 active reference 原子发布。
 
-Kernel 将 Cordis、原始 SQLite 连接和其他插件实现封装在内部。插件 API 仅提供 descriptor、迁移、事务工作单元、事件、路由、UI contribution、capability 与 cleanup。启动会验证 Profile、重复项、缺失/循环依赖，并在激活失败时反向清理已激活插件。
+数据库迁移由独占数据库的子进程执行。Headless/Server 的 Bun Worker 与 Desktop 的 Electron-run-as-Node Worker 使用同一 IPC 协议；单项 60 秒、总计 10 分钟，超时精确终止 Worker，再由新进程完成 WAL recovery 与 integrity check。现有文件数据库在迁移前做验证备份和临时副本 dry-run。
 
-目前登记的第一方插件为：
+`SqliteUnitOfWork` 在业务写入和 Domain Event 同一事务提交后才触发 `afterCommit`。Domain Event 使用数字 cursor、schema/upcaster 和 durable checkpoint；Realtime Event 不使用持久 cursor。SSE 限制每订阅者 1,000 event/4 MiB，并有 heartbeat、慢消费者断开和 replay。
 
-- `foundation`、`system`、`workspace`、`automation`、`writing`、`knowledge`、`agents`
-- `creative-quality`、`production`、`media`、`timeline`、`review`、`delivery`、`insights`
+## Client 与 Renderer
 
-组合严格遵循 `Plugin → Bundle → Profile → Effective Runtime Graph`。内置 Bundle 是 `core`、`automation-suite`、`writing-suite`、`agents-suite`、`production-suite` 与 `analytics-suite`；Profile 固定为 `studio`、`server`、`safe`、`test`、`e2e`，只可引用 Bundle，不能复制插件列表。任何 Profile 文件都不能引用归档目录。
+Client 分为 connection、transport、events、errors、generated 和 domains，并由单一 `RuntimeTransport` 构造 `StudioClient`。安全 GET 最多重连重试一次；mutation 永不自动重发。
 
-Public Plugin API 独立为 v1：根导出仅是稳定 public surface，实验 API 使用 `@dramaip/plugin-api/experimental`，第一方 Runtime 实现显式使用 `@dramaip/plugin-api/internal`。Cordis、Hono、Raw SQLite 与迁移执行接口不会进入 public API。所有长期行为经 `ctx.effect()` 登记，并按 owner/revision 逆序清理。
+Renderer 入口分为 bootstrap、`studio-shell`、routing、runtime-connection、contribution registry 与领域 feature。`studio-shell` 不静态导入领域 runtime；原 17k 行 Studio 合集已拆为 `studio-shared`、受控 cross-feature widgets 和十个 feature implementation，`studio-runtime.tsx` 只保留兼容导出。workspace、writing、creative、automation、production、media、review/delivery、insights、settings 和 agents 都通过固定动态 import loader 装载。Runtime 只返回启用的 contribution ID/metadata，Renderer 与构建期 canonical hash 取交集。未知或篡改 ID 只进入诊断。`safe/test` profile 不暴露未启用 contribution，chunk 门禁同时检查领域动态入口、禁止入口依赖 aggregate barrel，并拒绝重新生成 `studio-runtime` 聚合 chunk。
 
-## 数据、事件和升级
+## Agent Engine 与恢复
 
-Runtime 的 SQLite 迁移账本包含插件归属和 checksum。业务写入与持久 `DomainEvent` 在同一个 SQLite 事务中提交；token、进度等短时状态使用 realtime event，不进入 durable ledger。consumer checkpoint 按全局 event cursor 记录。
+Runtime 永远拥有 Session、Run、Item、checkpoint、Preview/Commit 和恢复状态；vendor thread/turn 只是执行句柄。Run 状态为：
 
-首次 alpha.3 启动会在旧 Runtime 停止后，对 alpha.2 的 `dramaip.db` 执行 WAL checkpoint 和 integrity check，并生成 SHA-256、大小、版本和表清单的验证备份。独立的 `alpha2-agent-to-alpha3` state 会阻止中断后重复执行重置；项目、服务商配置、`credentialRef` 与 Codex 登录状态保留，只重置 Agent 会话、Run、Item、检查点与旧盲测数据。任何失败都停止启动且不覆盖源库。
-
-Provider 与 Codex 凭据只存放在 Electron `userData/credentials` 的 AES-256-GCM 本地加密文件中。数据库只保存 `credentialRef`；Host 和 Runtime 不将明文凭据、绝对路径或 token 写入诊断或日志。
-
-## 引擎
-
-Pi、Codex 与 Grok Build 使用同一个 `Session → Run → Item` 模型和 `@dramaip/agent-runtime` 的 `createSession/prompt/steer/abort/resume/fork/subscribe/dispose` 生命周期。Pi 是默认第一方内嵌 Harness；Codex（stdio/App Server）和 Grok Build（ACP）是外部基准。Runtime 仅经 Host HTTP 调用监督器；vendor-native 协议和 utilityProcess 细节不进入 Renderer 或插件 API。所有引擎只获得本次运行的 Capability Grant；不支持的操作返回结构化错误，绝不静默回退。
-
-活动锁定版本为 Pi 0.84.2、Codex 0.147.0、Grok Build 1.0.5。OpenCode 与 DeepSeek Harness 仅作为经过完整性校验的参考快照。Provider catalog 的 release 必须和应用版本一致。
-
-## Headless 和诊断
-
-`dramaip serve --profile <studio|server|safe|test|e2e> --runtime node|bun` 可以在没有 Electron 的环境启动。Headless Profile 仍提供 HTTP、数据库、插件、事件和 Web/CLI Client；依赖 Desktop Host 或本地引擎的 capability 必须明确报告 unavailable。`/health` 是无敏感的连接发现端点；认证后的 `/api/v2/version`、`/api/v2/capabilities` 与 `/api/v2/runtime` 提供协议协商与 Effective Graph。
-
-`GET /api/v2/system/diagnostics` 是 alpha 退出指标，显示脱敏的 Profile、插件顺序/状态、迁移、事件消费者、Host/Engine 健康和剩余 bridge 路由数。
-
-## 本地质量门禁
-
-```bash
-bun run lint
-bun run format:check
-bun run typecheck
-bun run test
-bun run check:generated
-bun run check:architecture
-bun run check:engine-locks
-bun run check:provider-catalog
-bun run build
-bun run test:e2e
-DRAMAIP_UPDATE_URL=https://updates.example.invalid bun run package
+```text
+created / queued / preparing / running / waiting_approval / committing / completed
+interrupted / failed / aborted / orphaned / recoverable
 ```
 
-`check:architecture` 会拒绝 Renderer IPC/直接 `fetch`、活动 `@sdns/*`、`/api/v1`、旧 workspace、中央 `{domain}` Router、`DomainWorkspace`、重复/缺失 OpenAPI operationId、迁移账本漂移、插件使用 Effect HTTP/Cordis 或跨插件实现导入。它与生成 Client、引擎锁和 Provider catalog 检查一起构成每个 alpha 的发布门槛。
+Pi、Codex、Grok Build、LangGraph.js 实现同一 vendor-neutral contract 和 conformance。LangGraph.js 在 Electron utility process 中执行固定提示图，只是 external-benchmark Engine，不接管 Core Runtime workflow。Engine 退出立即拒绝 pending、结束 stream、发送 `RUN_INTERRUPTED` 并清理队列。Host generation reconciler 恢复 Provider 配置并扫描 recoverable/running/committing：持久结果幂等 Commit；Codex 和 LangGraph.js 还能从私有快照读取已完成结果；句柄缺失转 orphaned；临时不可用保持 recoverable；不支持恢复转 interrupted。旧 generation、重复 cursor 和迟到 terminal event 被拒绝。
+
+## Extension Platform v1
+
+`@dramaip/plugin-api` 根导出是 Public Plugin API v1；第一方 Kernel API 只从 `/internal` 使用。扩展 bundle 在打包时拒绝 Node builtin、dynamic dependency、native addon 和未声明依赖，运行时从不由 Node `import()`。
+
+每个 active revision 使用独立 Electron utility process 与 QuickJS/WASM runtime。默认限制为 64 MiB heap、1 MiB stack、同步 2 秒、完整调用 30 秒、4 并发、100 次/分钟、请求和响应各 1 MiB。五分钟五次崩溃进入 quarantine；retry 必须显式清除预算。QuickJS revision 失败会退出隔离进程，候选更新只有在启动与健康握手成功后才替换旧 revision。
+
+Capability token 由 Runtime 生成并绑定 plugin ID、content revision、permission revision、scope、expiry 和 trace；插件 payload 中自报 identity 被忽略。当前 capability 包括 namespaced storage、manifest-declared event subscription、command、declarative UI、namespaced route、scoped projects/documents/assets、`ai.invoke`、受限 network 与 notification。网络同时经过签名 manifest origin、用户 grant 和 Host SafeHttpTransport；路径、Credential 明文和 vendor object 不进入沙箱。
+
+System 插件拥有 installed revision、grant、publisher、registry source、audit、storage document/index 与 event checkpoint 表。第三方没有 SQLite 连接。存储按签名 manifest 的 JSON Schema 子集校验，并由通用 index-value 表维护声明索引。事件订阅使用 durable consumer 和 checkpoint。
+
+扩展包是确定性 `.dramaip-extension` ZIP。验证拒绝绝对路径、`..`、symlink、重复文件、超限文件数/压缩/解压体积；Registry root 与 publisher package 都使用 Ed25519 canonical signature。`extension:pack`、`extension:verify` 和 `extension:registry:build` 生成可部署到 HTTPS 静态站点的产物。
+
+Marketplace API 位于 `/api/v2/system/extensions`，提供 verified/offline-cached catalog、preview/commit、enable/disable/retry、rollback、uninstall keep/export/delete。权限扩大及 publisher/key 变化必须重新确认；失败更新保留上一 revision。扩展启停只改变独立 Extension Graph revision，不改变官方 Product Profile/Core Graph。
+
+第三方 UI 只有 command、menu、settings、form、table 和 panel 严格 schema。主 Renderer 只使用平台组件、纯文本、固定 icon、受控字段和 slot allowlist；不解释 HTML，不加载脚本、iframe、URL 或第三方 React/Vue bundle。
+
+## 安全和诊断
+
+Renderer/Runtime 公共接口只处理 `FileGrantId`、`DirectoryGrantId`、`ArtifactRef` 与 `credentialRef`。Provider/Extension 网络经过 DNS 固定、IP 分类、redirect 重验、跨源去凭据、大小、类型与 timeout 策略。日志和 diagnostics 递归去除 Authorization、secret、prompt 和绝对路径。
+
+诊断包含 Core/Extension graph revision、active/in-flight router、effect owner、migration、consumer、Host/Engine/Extension generation、restart budget、pending、Run recovery 和 trace。架构 Catalog 从真实注册源生成，不是第二套手写配置。
+
+## 发布边界
+
+Level 3 首版已实现并进入 conformance；仍明确属于未来的能力只有：
+
+- 任意第三方 React/Vue 或网页代码；
+- isolated interactive UI 容器；
+- 远程 Marketplace 发布者后台；
+- 多 Runtime SQLite consumer lease；
+- 未通过 macOS、Windows、Linux 候选包签名/升级/卸载验证的正式 GA 声明。
+
+本地质量门除原有门禁外增加：
+
+```text
+test:extension-host-conformance
+test:extension-security
+test:marketplace
+check:extension-packages
+check:renderer-chunks
+```

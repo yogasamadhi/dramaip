@@ -1,11 +1,11 @@
 import createClient from "openapi-fetch";
-import type { RuntimeBootstrap } from "@dramaip/contracts";
+import type { RuntimeTransport } from "@dramaip/server-connection";
 import type { paths } from "./openapi.generated.js";
 
-export function createGeneratedOpenApiClient(bootstrap: RuntimeBootstrap) {
+export function createGeneratedOpenApiClient(transport: RuntimeTransport) {
   return createClient<paths>({
-    baseUrl: bootstrap.baseUrl,
-    headers: { Authorization: `Bearer ${bootstrap.accessToken}` },
+    baseUrl: transport.baseUrl,
+    fetch: transport.fetch,
   });
 }
 
@@ -36,16 +36,9 @@ export async function requestGeneratedApi(
 }
 
 export async function openGeneratedEventStream(
-  bootstrap: RuntimeBootstrap,
+  transport: RuntimeTransport,
   cursor: number,
   signal: AbortSignal,
 ): Promise<Response> {
-  return fetch(new URL(`/api/v2/events?cursor=${cursor}`, bootstrap.baseUrl), {
-    headers: {
-      Authorization: `Bearer ${bootstrap.accessToken}`,
-      Accept: "text/event-stream",
-      ...(cursor ? { "Last-Event-ID": String(cursor) } : {}),
-    },
-    signal,
-  });
+  return transport.openEventStream(cursor, signal);
 }

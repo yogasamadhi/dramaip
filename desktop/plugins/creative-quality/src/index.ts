@@ -12,6 +12,7 @@ import {
   type CreativeQualityRecordService,
 } from "@dramaip/contracts/creative-quality";
 import {
+  defineRouteContribution,
   defineFirstPartyPlugin,
   type PluginContext,
   type RouteContribution,
@@ -274,20 +275,11 @@ function declaration(input: {
 }
 
 function route(
-  metadata: Omit<RouteContribution, "install">,
+  metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   schema: unknown,
   handler: Handler,
 ): RouteContribution {
-  return {
-    ...metadata,
-    install: (app) => {
-      const register = app.openapi as unknown as (
-        value: unknown,
-        callback: Handler,
-      ) => void;
-      register.call(app, schema, handler);
-    },
-  };
+  return defineRouteContribution({ ...metadata, declaration: schema, handler });
 }
 
 function routes(records: CreativeQualityRecordService): RouteContribution[] {
@@ -884,14 +876,12 @@ export const creativeQualityPlugin = defineFirstPartyPlugin({
   ],
   activate: (context) => {
     const records = makeService(context);
-    context.effect(
+    context.effect(`service:${CREATIVE_QUALITY_SERVICE}`, () =>
       context.services.provide(CREATIVE_QUALITY_SERVICE, records),
-      `service:${CREATIVE_QUALITY_SERVICE}`,
     );
     for (const contribution of [...routes(records), ...resourceRoutes(context)])
-      context.effect(
+      context.effect(`route:${contribution.id}`, () =>
         context.http.register(contribution),
-        `route:${contribution.id}`,
       );
   },
 });
