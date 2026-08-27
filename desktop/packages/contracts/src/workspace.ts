@@ -346,9 +346,52 @@ export const SourceImportPreviewSchema = z.object({
 });
 
 export const SourceImportPreviewInputSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid().optional(),
   capabilityToken: z.string().uuid(),
 });
+
+export const StructuredScriptSceneSchema = z
+  .object({
+    title: z.string().trim().max(240).optional(),
+    content: z.string().optional(),
+    location: z.string().trim().max(240).optional(),
+    time: z.string().trim().max(120).optional(),
+    characters: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
+  })
+  .catchall(z.unknown())
+  .refine((scene) => Boolean(scene.title?.trim() || scene.content?.trim()), {
+    message: "场景必须包含标题或正文。",
+  });
+
+export const StructuredScriptEpisodeSchema = z
+  .object({
+    episodeNumber: z.number().int().positive(),
+    title: z.string().trim().max(240).optional(),
+    content: z.string().optional(),
+    scenes: z.array(StructuredScriptSceneSchema).max(500).default([]),
+  })
+  .refine(
+    (episode) => Boolean(episode.content?.trim() || episode.scenes.length > 0),
+    { message: "每一集必须包含剧本正文或至少一个场景。" },
+  );
+
+export const StructuredScriptDocumentSchema = z
+  .object({
+    title: z.string().trim().max(240).optional(),
+    episodes: z.array(StructuredScriptEpisodeSchema).min(1).max(1000),
+  })
+  .superRefine((document, context) => {
+    const seen = new Set<number>();
+    for (const [index, episode] of document.episodes.entries()) {
+      if (seen.has(episode.episodeNumber))
+        context.addIssue({
+          code: "custom",
+          message: `第 ${episode.episodeNumber} 集重复。`,
+          path: ["episodes", index, "episodeNumber"],
+        });
+      seen.add(episode.episodeNumber);
+    }
+  });
 
 export const SourceImportPreviewResponseSchema = z.object({
   importId: z.string().uuid(),

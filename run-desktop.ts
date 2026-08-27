@@ -37,6 +37,12 @@ interface RuntimeSpec {
   readonly verifyScript?: string;
 }
 
+interface VendorSubmoduleSpec {
+  readonly label: string;
+  readonly path: string;
+  readonly marker: string;
+}
+
 interface Toolchain {
   readonly bun: string;
 }
@@ -104,12 +110,7 @@ function parseOptions(arguments_: readonly string[]): Options | undefined {
     }
   }
 
-  if (
-    check &&
-    (forceInstall ||
-      rebuildEngines ||
-      devArguments.length > 0)
-  ) {
+  if (check && (forceInstall || rebuildEngines || devArguments.length > 0)) {
     fail("--check 是只读操作，不能与安装、重建、跳过检查或启动参数同时使用");
   }
 
@@ -162,6 +163,74 @@ function checkToolchain(): Toolchain {
   const bunVersion = assertBunVersion(process.versions.bun);
   ok(`bun ${bunVersion}`);
   return { bun: process.execPath };
+}
+
+export function vendorSubmoduleSpecs(
+  platform: NodeJS.Platform = process.platform,
+  architecture: string = process.arch,
+): readonly VendorSubmoduleSpec[] {
+  const submodules: VendorSubmoduleSpec[] = [
+    {
+      label: "Codex",
+      path: "desktop/vendor/codex-rust",
+      marker: "codex-rs/Cargo.toml",
+    },
+    {
+      label: "Pi",
+      path: "desktop/vendor/pi",
+      marker: "package-lock.json",
+    },
+  ];
+  if (platform === "darwin" && architecture === "arm64") {
+    submodules.push({
+      label: "Grok Build",
+      path: "desktop/vendor/grok-build",
+      marker: "Cargo.toml",
+    });
+  }
+  return submodules;
+}
+
+async function ensureVendorSubmodules(check: boolean): Promise<void> {
+  const missing = vendorSubmoduleSpecs().filter(
+    (submodule) =>
+      !existsSync(join(repositoryRoot, submodule.path, submodule.marker)),
+  );
+  if (missing.length === 0) {
+    ok("必要的 vendor 子模块已就绪");
+    return;
+  }
+
+  const paths = missing.map((submodule) => submodule.path);
+  if (check) {
+    fail(
+      `vendor 子模块未初始化：${paths.join(", ")}；请运行 bun run-desktop.ts 完成初始化`,
+    );
+  }
+
+  const git = Bun.which("git");
+  if (!git) {
+    fail(`未找到 Git，无法初始化 vendor 子模块：${paths.join(", ")}`);
+  }
+  info(
+    `初始化 vendor 子模块：${missing.map((submodule) => submodule.label).join("、")}……`,
+  );
+  await runCommand(
+    git,
+    ["submodule", "update", "--init", "--", ...paths],
+    repositoryRoot,
+  );
+
+  const incomplete = missing.filter(
+    (submodule) =>
+      !existsSync(join(repositoryRoot, submodule.path, submodule.marker)),
+  );
+  if (incomplete.length > 0) {
+    fail(
+      `vendor 子模块初始化完成，但必要文件仍缺失：${incomplete.map((submodule) => join(submodule.path, submodule.marker)).join(", ")}`,
+    );
+  }
+  ok("必要的 vendor 子模块已就绪");
 }
 
 async function ensureDependencies(
@@ -605,6 +674,7 @@ async function main(): Promise<void> {
 
   process.stdout.write(`${color("1;36", "▶ desktop 一键启动")}\n`);
   const toolchain = checkToolchain();
+  await ensureVendorSubmodules(options.check);
   await ensureDependencies(toolchain.bun, options);
   await ensureAgentRuntimes(toolchain.bun, options);
   await ensureElectron(toolchain.bun, options.check);

@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "productBaseline": "desktop/legacy/desktop (read-only)",
   "sourceOfTruth": "studio/e2e Effective Runtime Graph OpenAPI",
-  "baselineSha256": "57eadb81adbda208978d5f46ca36c26a5a128ab303dbae2cff789bdd372cab3c",
-  "effectiveOpenApiSha256": "e3e288e6feaf71afc608c5cb11c4454e1dd0879de68421fb3ffdf1be7e5e1eed",
+  "baselineSha256": "077f219ca9e3d48a52b74d6b0abcdc33082ab9c5b2e9b2979dd394d4c8711cb6",
+  "effectiveOpenApiSha256": "c51048a222d70fe4876d8d285fd81a131c7aae6f755e0191c6c2790b6ee92428",
   "expected": {
     "legacyOperations": 217,
     "retiredGenericOperations": 5,

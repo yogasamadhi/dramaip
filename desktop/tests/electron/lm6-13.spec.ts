@@ -19,7 +19,7 @@ test.afterAll(async () => {
 });
 test("改编区显示可访问的集级四轨节奏看板", async () => {
   const page = await application.firstWindow();
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "改编" }).click();
   await page
     .getByRole("combobox", { name: "改编项目" })

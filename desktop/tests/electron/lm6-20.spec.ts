@@ -25,7 +25,7 @@ test.afterAll(async () => {
 test("多轨时间线可定位、编辑、撤销并在重开后保留编辑", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作", exact: true }).click();
   await page
     .getByRole("combobox", { name: "改编项目" })

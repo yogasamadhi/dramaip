@@ -7,6 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
+import { createSeriesProject } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -36,11 +37,7 @@ test.afterAll(async () => {
 });
 
 test("小说导入后可审阅五类候选并选择性采用", async () => {
-  await page.getByRole("button", { name: "从灵感开始" }).click();
-  await page
-    .getByRole("textbox", { name: "项目名称" })
-    .fill("LM6 导入候选项目");
-  await page.getByRole("button", { name: "创建项目并开始构思" }).click();
+  await createSeriesProject(page, "LM6 导入候选项目");
 
   await page.getByRole("link", { name: "项目工具", exact: true }).click();
   await page.getByRole("link", { name: "导入内容", exact: true }).click();

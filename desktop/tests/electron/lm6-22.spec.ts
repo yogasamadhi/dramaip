@@ -25,7 +25,7 @@ test.afterAll(async () => {
 test("canonical timeline 提供已验证 NLE 交付及受控的媒体重链接出口", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作", exact: true }).click();
   await page
     .getByRole("combobox", { name: "改编项目" })

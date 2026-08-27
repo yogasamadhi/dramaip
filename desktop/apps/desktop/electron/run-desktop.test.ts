@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 
 import {
   assertBunVersion,
   REQUIRED_BUN_VERSION,
   runtimeSpecs,
+  vendorSubmoduleSpecs,
 } from "../../../../run-desktop";
 
 describe("desktop launcher toolchain", () => {
@@ -25,5 +27,43 @@ describe("desktop launcher engine runtimes", () => {
     expect(labels).toContain("Pi 0.84.2");
     expect(labels.some((label) => label.includes("DeepSeek"))).toBe(false);
     expect(buildScripts).not.toContain("build:dsh");
+  });
+});
+
+describe("desktop launcher vendor sources", () => {
+  test("initializes only sources needed by the current platform", () => {
+    const commonPaths = vendorSubmoduleSpecs("win32", "x64").map(
+      (submodule) => submodule.path,
+    );
+
+    expect(commonPaths).toContain("desktop/vendor/codex-rust");
+    expect(commonPaths).toContain("desktop/vendor/pi");
+    expect(commonPaths).not.toContain("desktop/vendor/deepseek-harness");
+    expect(commonPaths).not.toContain("desktop/vendor/opencode");
+    expect(commonPaths).not.toContain("desktop/vendor/grok-build");
+
+    const macPaths = vendorSubmoduleSpecs("darwin", "arm64").map(
+      (submodule) => submodule.path,
+    );
+    expect(macPaths).toContain("desktop/vendor/grok-build");
+  });
+
+  test("keeps read-only reference sources outside the Bun workspace", () => {
+    const desktopManifest = JSON.parse(
+      readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+    ) as { workspaces: string[] };
+    const kernelManifest = JSON.parse(
+      readFileSync(
+        new URL("../../../packages/kernel/package.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { dependencies: Record<string, string> };
+
+    expect(
+      desktopManifest.workspaces.some((workspace) =>
+        workspace.startsWith("vendor/"),
+      ),
+    ).toBe(false);
+    expect(kernelManifest.dependencies["@deepseek-ai/cordis"]).toBe("4.0.1");
   });
 });

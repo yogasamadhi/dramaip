@@ -35,7 +35,7 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
   await openProjectTool(page, "试制计划");
 

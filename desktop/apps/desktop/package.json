@@ -58,6 +58,7 @@
     "electron": "43.2.0",
     "electron-builder": "^26.11.1",
     "electron-vite": "^5.0.0",
+    "fflate": "0.8.3",
     "tailwindcss": "catalog:",
     "typescript": "^5.9.3",
     "vite": "^7.3.3"

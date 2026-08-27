@@ -1,5 +1,15 @@
 import type { Page } from "playwright";
 
+export async function createSeriesProject(
+  page: Page,
+  title: string,
+): Promise<void> {
+  await page.getByRole("button", { name: /系列长篇/ }).click();
+  await page.getByRole("button", { name: /从灵感开始/ }).click();
+  await page.getByRole("textbox", { name: "项目名称" }).fill(title);
+  await page.getByRole("button", { name: "创建系列长篇" }).click();
+}
+
 export async function openProjectTool(
   page: Page,
   tool: "导入内容" | "项目驾驶舱" | "试制计划" | "系列资料",

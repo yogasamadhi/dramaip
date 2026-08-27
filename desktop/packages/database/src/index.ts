@@ -155,7 +155,9 @@ export const foundationMigrations: readonly PluginMigration[] = [
 ];
 
 export function openDatabase(path: string): DatabaseHandle {
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const directory = dirname(path);
+  if (path !== ":memory:" && directory !== ".")
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
   const sqlite = createSqlite(path);
   sqlite.exec(
     "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;",

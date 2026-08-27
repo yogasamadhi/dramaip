@@ -11,7 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "workspace:4.0.1",
+    "@deepseek-ai/cordis": "4.0.1",
     "@dramaip/contracts": "workspace:*",
     "@dramaip/plugin-api": "workspace:*"
   },

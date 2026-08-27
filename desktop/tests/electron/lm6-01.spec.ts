@@ -18,7 +18,13 @@ test.beforeAll(async () => {
   application = await electron.launch({
     ...(executablePath ? { executablePath } : {}),
     args: executablePath ? [] : [resolve("apps/desktop/out/main/index.js")],
-    env: { ...process.env, DRAMAIP_E2E_USER_DATA: userData },
+    env: {
+      ...process.env,
+      DRAMAIP_E2E_USER_DATA: userData,
+      DRAMAIP_E2E_SOURCE_IMPORT_FILE: resolve(
+        "tests/fixtures/lm6/lm6-00/source-import.md",
+      ),
+    },
   });
   page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
@@ -26,38 +32,50 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await application?.close();
-  if (userData) await rm(userData, { recursive: true, force: true });
+  if (userData)
+    await rm(userData, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
 });
 
 test("三种创建入口进入同一项目上下文，原著路径先展示权益预览", async () => {
-  await expect(page.getByText("选择开始方式", { exact: true })).toBeVisible();
+  await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "从灵感开始" }).click();
+  await page.getByRole("button", { name: /系列长篇/ }).click();
+  await page.getByRole("button", { name: /从灵感开始/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 灵感项目");
-  await page.getByRole("button", { name: "创建项目并开始构思" }).click();
+  await page.getByRole("button", { name: "创建系列长篇" }).click();
   await expect(
     page.getByRole("heading", { name: "LM6 灵感项目" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "项目", exact: true }).click();
-  await page.getByRole("button", { name: "导入原著" }).click();
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("button", { name: /单季短剧/ }).click();
+  await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 原著项目");
-  await page.getByRole("button", { name: "创建项目并预览原著" }).click();
-  await expect(page.getByText("LM6 原著项目", { exact: true })).toBeVisible();
-  await expect(page.getByText("选择拥有授权的内容文件")).toBeVisible();
+  await page.getByRole("button", { name: "选择文件" }).click();
   await expect(
-    page.getByText(
-      "不支持绕过数字版权保护、OCR 识别受限内容或从网络抓取付费内容。",
-    ),
+    page.getByText("source-import.md", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
+    .check();
+  await page.getByRole("button", { name: "创建单季短剧并导入" }).click();
+  await expect(
+    page.getByRole("heading", { name: "LM6 原著项目" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "项目", exact: true }).click();
-  await page.getByRole("button", { name: "直接导入 / 粘贴剧本" }).click();
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("button", { name: /单季短剧/ }).click();
+  await page.getByRole("button", { name: /直接写剧本/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 剧本项目");
   await page
     .getByRole("textbox", { name: "首集剧本" })
     .fill("【雨夜·门口】\n林晚：你终于来了。");
-  await page.getByRole("button", { name: "保存剧本草稿并进入项目" }).click();
+  await page.getByRole("button", { name: "创建单季短剧" }).click();
   await expect(
     page.getByRole("heading", { name: "LM6 剧本项目" }),
   ).toBeVisible();

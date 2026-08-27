@@ -26,7 +26,7 @@ test.afterAll(async () => {
 test("项目工作台提供本地系列边界和版本化资产入口", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
   await openProjectTool(page, "系列资料");
 

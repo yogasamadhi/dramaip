@@ -20,9 +20,9 @@ test.beforeAll(async () => {
   });
   page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await expect(page.getByRole("heading", { name: "选择开始方式" })).toBeVisible(
-    { timeout: 30_000 },
-  );
+  await expect(page.getByRole("heading", { name: "项目工作台" })).toBeVisible({
+    timeout: 30_000,
+  });
 });
 
 test.afterAll(async () => {

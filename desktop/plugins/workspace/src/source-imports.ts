@@ -15,10 +15,13 @@ import {
   SourceImportCommitInputSchema,
   SourceImportCommitResultSchema,
   SourceImportPreviewInputSchema,
+  SourceImportPreviewSchema,
   SourceImportPreviewResponseSchema,
+  StructuredScriptDocumentSchema,
   type ImportExtractionCandidate,
   type ImportExtractionChangeSet,
   type SourceImportPreview,
+  type WorkspaceProjectService,
 } from "@dramaip/contracts/workspace";
 import {
   WRITING_CHAPTER_SERVICE,
@@ -26,7 +29,10 @@ import {
   type WritingChapterService,
   type WritingResourceService,
 } from "@dramaip/contracts/writing";
-import type { DesktopHostClient } from "@dramaip/desktop-host";
+import type {
+  DesktopHostClient,
+  HostGrantedDocument,
+} from "@dramaip/desktop-host";
 import {
   defineRouteContribution,
   type PluginContext,
@@ -37,7 +43,7 @@ import { z, type ZodType } from "zod";
 
 interface PreviewRow {
   id: string;
-  project_id: string;
+  project_id: string | null;
   file_name: string;
   preview_json: string;
   expires_at: string;
@@ -170,15 +176,21 @@ function fingerprint(value: string): string {
     .padStart(8, "0")}`;
 }
 
+export function parseImportedDocument(
+  file: HostGrantedDocument,
+): SourceImportPreview {
+  return file.format === "script-json"
+    ? parseStructuredScript(file.name, file.content)
+    : parseTextSource(file.name, file.content, file.format);
+}
+
 function parseTextSource(
   fileName: string,
   content: string,
+  sourceType: "txt" | "markdown" | "docx" | "epub" = "txt",
 ): SourceImportPreview {
-  const extension = fileName.split(".").pop()?.toLowerCase();
-  if (!extension || !["txt", "md", "markdown"].includes(extension))
-    throw new Error("不支持此文件类型。");
   const normalized = content.replace(/\r\n?/gu, "\n").trim();
-  if (!normalized || normalized.includes("\0") || normalized.length > 1_000_000)
+  if (!normalized || normalized.includes("\0") || normalized.length > 5_000_000)
     throw new Error("文件内容为空或格式无效。");
   const lines = normalized.split("\n");
   const documentTitle =
@@ -210,12 +222,68 @@ function parseTextSource(
   if (!chapters.length) throw new Error("文件中没有可导入的正文。");
   return {
     fileName,
-    sourceType: extension === "txt" ? "txt" : "markdown",
+    sourceType,
     contentKind: "novel",
     title: documentTitle,
     charCount: normalized.length,
     chapters,
     episodes: [],
+    warnings: [],
+  };
+}
+
+function parseStructuredScript(
+  fileName: string,
+  content: string,
+): SourceImportPreview {
+  let value: unknown;
+  try {
+    value = JSON.parse(content);
+  } catch {
+    throw new Error("剧本 JSON 不是有效的 JSON 文件。");
+  }
+  const parsed = StructuredScriptDocumentSchema.safeParse(value);
+  if (!parsed.success)
+    throw new Error(parsed.error.issues[0]?.message ?? "剧本 JSON 结构无效。");
+  const title = parsed.data.title?.trim() || fileName.replace(/\.[^.]+$/u, "");
+  const episodes = parsed.data.episodes.map((episode) => {
+    const scenes = episode.scenes.map((scene, index) => ({
+      ...scene,
+      title:
+        typeof scene.title === "string" && scene.title.trim()
+          ? scene.title.trim()
+          : `场景 ${index + 1}`,
+      content: typeof scene.content === "string" ? scene.content : "",
+    }));
+    const episodeTitle =
+      episode.title?.trim() || `第 ${episode.episodeNumber} 集`;
+    const episodeContent =
+      episode.content?.trim() ||
+      scenes
+        .map((scene) =>
+          `${String(scene.title)}\n${String(scene.content)}`.trim(),
+        )
+        .filter(Boolean)
+        .join("\n\n");
+    return {
+      key: `episode-${episode.episodeNumber}`,
+      episodeNumber: episode.episodeNumber,
+      title: episodeTitle,
+      content: episodeContent,
+      scenes,
+    };
+  });
+  return {
+    fileName,
+    sourceType: "script-json",
+    contentKind: "script",
+    title,
+    charCount: episodes.reduce(
+      (total, episode) => total + episode.content.length,
+      0,
+    ),
+    chapters: [],
+    episodes,
     warnings: [],
   };
 }
@@ -369,11 +437,37 @@ export const sourceImportMigrations = [
         ON workspace_import_extractions(project_id, updated_at DESC, id);
     `,
   },
+  {
+    id: "workspace.0006.projectless-source-imports",
+    pluginId: "workspace",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["workspace.0005.project-modes"],
+    sql: `
+      CREATE TABLE workspace_source_imports_next (
+        id TEXT PRIMARY KEY,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        file_name TEXT NOT NULL,
+        preview_json TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO workspace_source_imports_next(
+        id, project_id, file_name, preview_json, expires_at, created_at
+      )
+      SELECT id, project_id, file_name, preview_json, expires_at, created_at
+      FROM workspace_source_imports;
+      DROP TABLE workspace_source_imports;
+      ALTER TABLE workspace_source_imports_next RENAME TO workspace_source_imports;
+      CREATE INDEX workspace_source_imports_expiry
+        ON workspace_source_imports(expires_at);
+    `,
+  },
 ] as const;
 
 export function sourceImportRoutes(
   context: PluginContext,
   host: DesktopHostClient | undefined,
+  workspace: WorkspaceProjectService,
 ): readonly RouteContribution[] {
   const idParams = z.object({ id: z.string().uuid() });
   const candidateParams = z.object({
@@ -409,19 +503,29 @@ export function sourceImportRoutes(
             "请求参数无效，请检查后重试。",
           );
         try {
-          const file = await host.readGrantedText(parsed.data.capabilityToken);
-          const preview = parseTextSource(file.name, file.content);
-          const writing = context.services.optional<WritingChapterService>(
-            WRITING_CHAPTER_SERVICE,
+          if (parsed.data.projectId && !workspace.get(parsed.data.projectId))
+            return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+          const file = await host.readGrantedDocument(
+            parsed.data.capabilityToken,
           );
-          if (!writing)
+          const preview = parseImportedDocument(file);
+          const writing = parsed.data.projectId
+            ? context.services.optional<WritingChapterService>(
+                WRITING_CHAPTER_SERVICE,
+              )
+            : undefined;
+          if (parsed.data.projectId && !writing)
             return problem(requestContext, 409, "CONFLICT", "写作套件不可用。");
-          const duplicates = writing
-            .list(parsed.data.projectId)
-            .filter((item) =>
-              preview.chapters.some((source) => source.title === item.title),
-            )
-            .map((item) => item.title);
+          const duplicates = parsed.data.projectId
+            ? writing!
+                .list(parsed.data.projectId)
+                .filter((item) =>
+                  preview.chapters.some(
+                    (source) => source.title === item.title,
+                  ),
+                )
+                .map((item) => item.title)
+            : [];
           const id = crypto.randomUUID();
           const now = new Date();
           const expiresAt = new Date(now.getTime() + 30 * 60_000).toISOString();
@@ -429,14 +533,16 @@ export function sourceImportRoutes(
             transaction.run(
               "INSERT INTO workspace_source_imports VALUES (?, ?, ?, ?, ?, ?)",
               id,
-              parsed.data.projectId,
+              parsed.data.projectId ?? null,
               file.name,
               JSON.stringify(preview),
               expiresAt,
               now.toISOString(),
             );
             appendWorkspaceEvent(transaction, "source-import-previewed", id, {
-              projectId: parsed.data.projectId,
+              ...(parsed.data.projectId
+                ? { projectId: parsed.data.projectId }
+                : {}),
               fileName: file.name,
             });
           });
@@ -489,13 +595,21 @@ export function sourceImportRoutes(
         );
         if (!stored)
           return problem(requestContext, 404, "NOT_FOUND", "未找到导入预览。");
+        const originalPreview = SourceImportPreviewSchema.safeParse(
+          JSON.parse(stored.preview_json),
+        );
         if (
           !input.success ||
-          input.data.projectId !== stored.project_id ||
+          !originalPreview.success ||
+          (stored.project_id !== null &&
+            input.data.projectId !== stored.project_id) ||
+          input.data.preview.contentKind !== originalPreview.data.contentKind ||
+          input.data.preview.sourceType !== originalPreview.data.sourceType ||
           !input.data.rightsConfirmed ||
           (input.data.strategy !== "append" &&
             !input.data.destructiveConfirmed) ||
-          stored.expires_at < new Date().toISOString()
+          stored.expires_at < new Date().toISOString() ||
+          !workspace.get(input.data.projectId)
         )
           return problem(
             requestContext,
@@ -503,11 +617,6 @@ export function sourceImportRoutes(
             "VALIDATION_ERROR",
             "导入确认内容无效。",
           );
-        const writing = context.services.optional<WritingChapterService>(
-          WRITING_CHAPTER_SERVICE,
-        );
-        if (!writing)
-          return problem(requestContext, 409, "CONFLICT", "写作套件不可用。");
         if (input.data.strategy !== "append")
           return problem(
             requestContext,
@@ -515,13 +624,125 @@ export function sourceImportRoutes(
             "UNSUPPORTED_OPERATION",
             "当前版本仅允许追加导入。",
           );
-        const created = input.data.preview.chapters.map((chapter) =>
-          writing.create({
-            projectId: input.data.projectId,
-            title: chapter.title,
-            content: chapter.content,
-          }),
+        if (input.data.preview.contentKind === "script") {
+          const production = context.services.optional<ProductionRecordService>(
+            PRODUCTION_RECORD_SERVICE,
+          );
+          if (!production)
+            return problem(requestContext, 409, "CONFLICT", "制作套件不可用。");
+          const createdRecords: Array<{ id: string; version: number }> = [];
+          try {
+            const adaptation = production.create("adaptations", {
+              projectId: input.data.projectId,
+              title: `${input.data.preview.title}·导入改编方案`,
+              payload: {
+                改编方向: "结构化剧本导入",
+                目标集数: input.data.preview.episodes.length,
+                来源文件: input.data.preview.fileName,
+              },
+            });
+            createdRecords.push(adaptation);
+            let createdScenes = 0;
+            for (const episodeSource of input.data.preview.episodes) {
+              const episode = production.create("episodes", {
+                projectId: input.data.projectId,
+                parentId: adaptation.id,
+                title: episodeSource.title,
+                payload: {
+                  集数: episodeSource.episodeNumber,
+                  分集简介: episodeSource.content.slice(0, 240),
+                  导入来源: input.data.preview.fileName,
+                },
+              });
+              createdRecords.push(episode);
+              const script = production.create("scripts", {
+                projectId: input.data.projectId,
+                parentId: episode.id,
+                title: `${episodeSource.title}剧本`,
+                payload: {
+                  关联分集: episodeSource.title,
+                  剧本内容: episodeSource.content,
+                  导入来源: input.data.preview.fileName,
+                },
+              });
+              createdRecords.push(script);
+              for (const [
+                index,
+                sceneSource,
+              ] of episodeSource.scenes.entries()) {
+                const scene = production.create("scenes", {
+                  projectId: input.data.projectId,
+                  parentId: script.id,
+                  title:
+                    typeof sceneSource.title === "string" &&
+                    sceneSource.title.trim()
+                      ? sceneSource.title.trim()
+                      : `场景 ${index + 1}`,
+                  payload: { ...sceneSource, 场景顺序: index + 1 },
+                });
+                createdRecords.push(scene);
+                createdScenes += 1;
+              }
+            }
+            workspace.setCurrentAdaptation(input.data.projectId, adaptation.id);
+            context.uow.execute((transaction) => {
+              transaction.run(
+                "DELETE FROM workspace_source_imports WHERE id = ?",
+                id,
+              );
+              appendWorkspaceEvent(transaction, "source-import-committed", id, {
+                projectId: input.data.projectId,
+                contentKind: "script",
+              });
+            });
+            return requestContext.json(
+              {
+                createdChapters: 0,
+                updatedChapters: 0,
+                createdEpisodes: input.data.preview.episodes.length,
+                createdScripts: input.data.preview.episodes.length,
+                updatedScripts: 0,
+                createdScenes,
+                adaptationProjectId: adaptation.id,
+                checkpointCount: 0,
+              },
+              201,
+            );
+          } catch {
+            for (const record of createdRecords.reverse())
+              production.remove(record.id, record.version);
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              "剧本导入失败，未保留部分制作资料。",
+            );
+          }
+        }
+        const writing = context.services.optional<WritingChapterService>(
+          WRITING_CHAPTER_SERVICE,
         );
+        if (!writing)
+          return problem(requestContext, 409, "CONFLICT", "写作套件不可用。");
+        const created: ReturnType<WritingChapterService["create"]>[] = [];
+        try {
+          for (const chapter of input.data.preview.chapters)
+            created.push(
+              writing.create({
+                projectId: input.data.projectId,
+                title: chapter.title,
+                content: chapter.content,
+              }),
+            );
+        } catch {
+          for (const chapter of created.reverse()) writing.remove(chapter.id);
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "原著导入失败，未保留部分章节。",
+          );
+        }
         const candidates = extractionCandidates(input.data.preview).map(
           (item) => {
             const source = created.find(

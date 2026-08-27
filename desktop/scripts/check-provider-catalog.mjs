@@ -6,7 +6,7 @@ const manifest = JSON.parse(
   await readFile(resolve(root, "package.json"), "utf8"),
 );
 const source = await readFile(
-  resolve(root, "packages/schema/src/provider-catalog.ts"),
+  resolve(root, "packages/contracts/src/provider-catalog.ts"),
   "utf8",
 );
 

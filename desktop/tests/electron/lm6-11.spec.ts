@@ -25,7 +25,7 @@ test.afterAll(async () => {
 test("导演看板支持键盘、拖拽重排、撤销和资产上下文跳转", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作" }).click();
   await page.getByRole("button", { name: "导演看板" }).click();
   await expect(page.getByLabel("导演分镜看板")).toBeVisible();
@@ -61,7 +61,7 @@ test("导演看板支持键盘、拖拽重排、撤销和资产上下文跳转",
   });
   await expect(firstCard).toHaveAttribute("draggable", "true");
   await expect(secondCard).toHaveAttribute("draggable", "true");
-  await firstCard.dragTo(secondCard);
+  await secondCard.dragTo(firstCard);
   await expect(
     page.getByText("已保存分镜顺序；可在下一次调整前撤销这次重排。"),
   ).toBeVisible();

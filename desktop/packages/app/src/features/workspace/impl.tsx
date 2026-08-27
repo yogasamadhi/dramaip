@@ -5,11 +5,11 @@ import type {
   PilotPlan,
   Project,
   ProjectMode,
+  ProjectModeConfig,
   ProjectPackagePreview,
   Series,
   SeriesLibrary,
   SourceImportPreview,
-  SourceImportStrategy,
   StoryBibleChangeSet,
 } from "@dramaip/contracts/product";
 import {
@@ -29,6 +29,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { deriveProjectCockpit } from "../../project-cockpit";
 import {
   defaultProductionBrief,
+  positiveInteger,
   projectInputFromBrief,
   type ProductionBriefDraft,
   type ProjectCreationSource,
@@ -50,12 +51,24 @@ import {
 } from "../../studio-shared";
 import { ChapterAnalysisPanel } from "../creative/impl";
 import { NovelChapterWorkspace } from "../novel/NovelChapterWorkspace";
+import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
 import {
   NovelArtifactGenerator,
   NovelCharactersSection,
   NovelLongformToolsSection,
   NovelOutlineSection,
+  type NovelOutlineMode,
 } from "../novel/NovelProjectSections";
+import {
+  applyNovelStoryPresetToBrief,
+  initializeSingleSeasonMaterials,
+  initializeStoryPresetMaterials,
+  novelStoryPreset,
+  novelStoryPresetForLabel,
+  projectInputFromStoryPreset,
+  storyPresetRefinementInstruction,
+  type NovelStoryPresetId,
+} from "../novel/story-presets";
 import {
   CreativeDiagnosticsPanel,
   PluginResourceWorkspace,
@@ -295,6 +308,294 @@ function projectModeLabel(mode: ProjectMode): string {
   }[mode];
 }
 
+type PendingSourceImport = {
+  importId: string;
+  preview: SourceImportPreview;
+  expiresAt: string;
+  rightsConfirmed: boolean;
+};
+
+function ProjectlessSourceImportEditor(props: {
+  value?: PendingSourceImport;
+  disabled?: boolean;
+  onChange(value: PendingSourceImport | undefined): void;
+  onSuggestedTitle(title: string): void;
+}) {
+  const client = useStudio();
+  const [working, setWorking] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const [selectedChapter, setSelectedChapter] = useState(0);
+  const choose = async () => {
+    setWorking(true);
+    setNotice(undefined);
+    try {
+      const files = await client.host.pickFiles({
+        multiple: false,
+        extensions: ["txt", "md", "markdown", "docx", "epub", "json"],
+      });
+      const file = files?.[0];
+      if (!file) return;
+      if (props.value)
+        await client.sourceImports
+          .discard(props.value.importId)
+          .catch(() => undefined);
+      const result = await client.sourceImports.preview({
+        capabilityToken: file.grantId,
+      });
+      props.onChange({
+        importId: result.importId,
+        preview: result.preview,
+        expiresAt: result.expiresAt,
+        rightsConfirmed: false,
+      });
+      props.onSuggestedTitle(result.preview.title);
+      setSelectedChapter(0);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const updateChapter = (
+    patch: Partial<
+      Pick<SourceImportPreview["chapters"][number], "title" | "content">
+    >,
+  ) => {
+    const current = props.value;
+    if (!current || !current.preview.chapters[selectedChapter]) return;
+    const chapters = current.preview.chapters.map((chapter, index) => {
+      if (index !== selectedChapter) return chapter;
+      const content = patch.content ?? chapter.content;
+      return {
+        ...chapter,
+        ...patch,
+        content,
+        wordCount: [...content.replace(/\s/gu, "")].length,
+      };
+    });
+    props.onChange({
+      ...current,
+      preview: { ...current.preview, chapters },
+    });
+  };
+  const addChapter = () => {
+    const current = props.value;
+    if (!current) return;
+    const chapters = [
+      ...current.preview.chapters,
+      {
+        key: `manual-${crypto.randomUUID()}`,
+        title: `第${current.preview.chapters.length + 1}章`,
+        content: "",
+        orderIndex: current.preview.chapters.length,
+        wordCount: 0,
+      },
+    ];
+    props.onChange({
+      ...current,
+      preview: { ...current.preview, chapters },
+    });
+    setSelectedChapter(chapters.length - 1);
+  };
+  const removeChapter = () => {
+    const current = props.value;
+    if (!current || current.preview.chapters.length <= 1) return;
+    const chapters = current.preview.chapters
+      .filter((_, index) => index !== selectedChapter)
+      .map((chapter, index) => ({ ...chapter, orderIndex: index }));
+    props.onChange({
+      ...current,
+      preview: { ...current.preview, chapters },
+    });
+    setSelectedChapter(Math.max(0, selectedChapter - 1));
+  };
+  const splitChapter = () => {
+    const current = props.value;
+    const chapter = current?.preview.chapters[selectedChapter];
+    if (!current || !chapter?.content.trim()) {
+      setNotice("当前章节没有可拆分的正文。");
+      return;
+    }
+    const midpoint = Math.floor(chapter.content.length / 2);
+    const followingBreak = chapter.content.indexOf("\n\n", midpoint);
+    const precedingBreak = chapter.content.lastIndexOf("\n\n", midpoint);
+    const splitAt =
+      followingBreak >= 0
+        ? followingBreak
+        : precedingBreak > 0
+          ? precedingBreak
+          : midpoint;
+    if (splitAt <= 0 || splitAt >= chapter.content.length) {
+      setNotice("未找到适合拆分的位置，请先在正文中增加段落。");
+      return;
+    }
+    const before = chapter.content.slice(0, splitAt).trim();
+    const after = chapter.content.slice(splitAt).trim();
+    const chapters = [...current.preview.chapters];
+    chapters.splice(
+      selectedChapter,
+      1,
+      {
+        ...chapter,
+        content: before,
+        wordCount: [...before.replace(/\s/gu, "")].length,
+      },
+      {
+        ...chapter,
+        key: `split-${crypto.randomUUID()}`,
+        title: `${chapter.title}（续）`,
+        content: after,
+        wordCount: [...after.replace(/\s/gu, "")].length,
+      },
+    );
+    props.onChange({
+      ...current,
+      preview: {
+        ...current.preview,
+        chapters: chapters.map((item, index) => ({
+          ...item,
+          orderIndex: index,
+        })),
+      },
+    });
+    setSelectedChapter(selectedChapter + 1);
+    setNotice(undefined);
+  };
+  const preview = props.value?.preview;
+  return (
+    <section className="mt-4 rounded-xl border border-line bg-surface-raised p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">先选择文件并确认预览</p>
+          <p className="mt-1 text-xs text-muted">
+            支持 TXT、Markdown、Word、EPUB 和结构化剧本
+            JSON；确认前不会创建项目。
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={props.disabled || working}
+          onClick={() => void choose()}
+        >
+          {working ? "正在解析…" : preview ? "重新选择" : "选择文件"}
+        </Button>
+      </div>
+      {preview && props.value && (
+        <div className="mt-4 space-y-3 border-t border-line pt-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium">{preview.fileName}</span>
+            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand">
+              {sourceTypeLabel(preview.sourceType)}
+            </span>
+            <span className="text-xs text-muted">
+              {preview.contentKind === "script"
+                ? `${preview.episodes.length} 集 · ${preview.episodes.reduce((sum, episode) => sum + episode.scenes.length, 0)} 个场景`
+                : `${preview.chapters.length} 章 · ${preview.charCount.toLocaleString("zh-CN")} 字符`}
+            </span>
+          </div>
+          {preview.contentKind === "script" ? (
+            <div className="max-h-48 space-y-2 overflow-auto">
+              {preview.episodes.map((episode) => (
+                <div
+                  key={episode.key}
+                  className="rounded-lg border border-line bg-surface p-3 text-sm"
+                >
+                  <p className="font-medium">
+                    第 {episode.episodeNumber} 集 · {episode.title}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {episode.scenes.length} 个场景 · {episode.content.length}{" "}
+                    字符
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid max-h-64 grid-cols-[10rem_1fr] gap-3">
+              <div className="overflow-auto rounded-lg border border-line p-2">
+                {preview.chapters.map((chapter, index) => (
+                  <BareButton
+                    key={chapter.key}
+                    className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${index === selectedChapter ? "bg-brand text-white" : "hover:bg-brand-soft"}`}
+                    onClick={() => setSelectedChapter(index)}
+                  >
+                    {chapter.title}
+                  </BareButton>
+                ))}
+                <Button
+                  className="mt-2 w-full"
+                  size="sm"
+                  variant="secondary"
+                  onClick={addChapter}
+                >
+                  新增章节
+                </Button>
+              </div>
+              {preview.chapters[selectedChapter] && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      aria-label="导入章节标题"
+                      value={preview.chapters[selectedChapter].title}
+                      onChange={(event) =>
+                        updateChapter({ title: event.target.value })
+                      }
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={splitChapter}
+                    >
+                      拆分
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={preview.chapters.length <= 1}
+                      onClick={removeChapter}
+                    >
+                      删除
+                    </Button>
+                  </div>
+                  <Textarea
+                    className="min-h-40 font-editor"
+                    aria-label="导入章节正文"
+                    value={preview.chapters[selectedChapter].content}
+                    onChange={(event) =>
+                      updateChapter({ content: event.target.value })
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              className="mt-1"
+              type="checkbox"
+              checked={props.value.rightsConfirmed}
+              onChange={(event) =>
+                props.onChange({
+                  ...props.value!,
+                  rightsConfirmed: event.target.checked,
+                })
+              }
+            />
+            我确认拥有此内容的使用权，或已经取得必要授权。
+          </label>
+          <p className="text-xs text-muted">
+            预览有效至{" "}
+            {new Date(props.value.expiresAt).toLocaleTimeString("zh-CN")}
+            ；原文件不会上传或写入项目数据库。
+          </p>
+        </div>
+      )}
+      {notice && <InlineNotice tone="danger">{notice}</InlineNotice>}
+    </section>
+  );
+}
+
 function projectModeNextStep(project: Project): string {
   if (project.lifecycleStatus === "initializing") return "正在初始化…";
   switch (project.mode) {
@@ -338,21 +639,21 @@ function projectStartOptions(mode: ProjectMode): readonly ProjectStartOption[] {
     return [
       {
         source: "inspiration",
-        title: "先写小说",
-        description: "先用章节编辑器完成故事，再汇入本季季纲、分集和剧本。",
-        outcome: "创建后进入小说写作",
+        title: "从创意开始",
+        description: "从一个精简故事开始，建立故事母稿、人物、季纲和第一集。",
+        outcome: "创建后进入单季故事规划",
         recommended: true,
       },
       {
         source: "source-import",
-        title: "导入原著",
+        title: "导入小说 / IP",
         description: "导入已授权小说或 IP，预览确认后开始单季改编。",
-        outcome: "创建后进入原著导入预览",
+        outcome: "确认预览后才创建项目",
       },
       {
         source: "script",
         title: "直接写剧本",
-        description: "粘贴首集剧本草稿，或在下一步选择已有剧本文件。",
+        description: "粘贴首集剧本草稿，或预览并导入结构化剧本 JSON。",
         outcome: "创建后进入首集剧本",
       },
     ];
@@ -392,7 +693,9 @@ function projectModeBrief(
   const modeDefaults: Record<ProjectMode, Partial<ProductionBriefDraft>> = {
     series_longform: {
       shortDramaType: "逆袭爽文",
-      targetEpisodeCount: "80",
+      targetChapterCount: "300",
+      targetSeasonCount: "5",
+      targetEpisodesPerSeason: "80",
       episodeDuration: "60—90 秒",
     },
     single_season: {
@@ -422,6 +725,61 @@ function projectModeBrief(
   };
 }
 
+export function projectModeConfigFromDraft(
+  mode: ProjectMode,
+  source: ProjectCreationSource,
+  brief: ProductionBriefDraft,
+  creatorTopic: string,
+): ProjectModeConfig | undefined {
+  if (mode === "series_longform") {
+    const targetChapterCount = positiveInteger(brief.targetChapterCount);
+    const targetSeasonCount = positiveInteger(brief.targetSeasonCount);
+    const targetEpisodesPerSeason = positiveInteger(
+      brief.targetEpisodesPerSeason,
+    );
+    return targetChapterCount && targetSeasonCount && targetEpisodesPerSeason
+      ? {
+          mode,
+          targetChapterCount,
+          targetSeasonCount,
+          targetEpisodesPerSeason,
+        }
+      : undefined;
+  }
+  if (mode === "single_season") {
+    const targetEpisodeCount = positiveInteger(brief.targetEpisodeCount);
+    return targetEpisodeCount
+      ? {
+          mode,
+          entryPath:
+            source === "script"
+              ? "script"
+              : source === "source-import"
+                ? "source-import"
+                : "novel",
+          targetEpisodeCount,
+        }
+      : undefined;
+  }
+  if (mode === "personal_theater") {
+    const episodeCount = positiveInteger(brief.targetEpisodeCount);
+    const durationMatch = brief.episodeDuration.match(
+      /^\s*(\d+)(?:\s*分钟)?\s*$/u,
+    );
+    const episodeDurationMinutes = positiveInteger(durationMatch?.[1] ?? "");
+    return episodeCount && episodeDurationMinutes
+      ? {
+          mode,
+          storyMethod: source === "script" ? "freeform" : "template",
+          episodeCount,
+          episodeDurationMinutes,
+        }
+      : undefined;
+  }
+  const topic = creatorTopic.trim();
+  return topic ? { mode, topic, riskDomain: "general" } : undefined;
+}
+
 function projectCreateLabel(mode: ProjectMode): string {
   return {
     series_longform: "创建系列长篇",
@@ -439,6 +797,9 @@ export function ProjectHome() {
     useState<ProjectCreationSource>("inspiration");
   const [projectMode, setProjectMode] =
     useState<ProjectMode>("series_longform");
+  const [storyPresetId, setStoryPresetId] = useState<NovelStoryPresetId>();
+  const [pendingImport, setPendingImport] = useState<PendingSourceImport>();
+  const pendingImportRef = useRef<PendingSourceImport | undefined>(undefined);
   const [creatorTopic, setCreatorTopic] = useState("");
   const [brief, setBrief] = useState<ProductionBriefDraft>(() =>
     projectModeBrief("series_longform", "inspiration"),
@@ -450,8 +811,22 @@ export function ProjectHome() {
   const [showTrash, setShowTrash] = useState(false);
   const [trashedProjects, setTrashedProjects] = useState<Project[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeCreateStep, setActiveCreateStep] = useState<1 | 2 | 3>(1);
   const startMethodRef = useRef<HTMLDivElement>(null);
   const projectFormRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    pendingImportRef.current = pendingImport;
+  }, [pendingImport]);
+  useEffect(
+    () => () => {
+      const current = pendingImportRef.current;
+      if (current)
+        void client.sourceImports
+          .discard(current.importId)
+          .catch(() => undefined);
+    },
+    [client],
+  );
   const load = () =>
     void client.projects
       .list()
@@ -463,10 +838,20 @@ export function ProjectHome() {
       .listTrash()
       .then(setTrashedProjects)
       .catch((cause) => setError(message(cause)));
+  const discardPendingImport = (current = pendingImport) => {
+    setPendingImport(undefined);
+    if (current)
+      void client.sourceImports
+        .discard(current.importId)
+        .catch(() => undefined);
+  };
   const selectCreationSource = (source: ProjectCreationSource) => {
+    discardPendingImport();
     setCreationSource(source);
-    setBrief((current) => projectModeBrief(projectMode, source, current));
+    setStoryPresetId(undefined);
+    setBrief((current) => ({ ...current, creationSource: source }));
     setScriptContent("");
+    setActiveCreateStep(3);
     setError(undefined);
     window.setTimeout(
       () =>
@@ -478,104 +863,148 @@ export function ProjectHome() {
     );
   };
   const selectProjectMode = (mode: ProjectMode) => {
+    discardPendingImport();
     const source = projectStartOptions(mode)[0]!.source;
     setProjectMode(mode);
     setCreationSource(source);
+    setStoryPresetId(undefined);
     setBrief((current) => projectModeBrief(mode, source, current));
     setScriptContent("");
     setShowAdvanced(false);
     setError(undefined);
+    setCreatorTopic("");
+    setActiveCreateStep(mode === "creator_channel" ? 3 : 2);
     window.setTimeout(
       () =>
-        startMethodRef.current?.scrollIntoView({
+        (mode === "creator_channel"
+          ? projectFormRef.current
+          : startMethodRef.current
+        )?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         }),
       0,
     );
   };
-  const modeConfig = () => {
-    if (projectMode === "series_longform")
-      return {
-        mode: projectMode,
-        targetChapterCount: 300,
-        targetSeasonCount: 5,
-      };
-    if (projectMode === "single_season")
-      return {
-        mode: projectMode,
-        entryPath: (creationSource === "script"
-          ? "script"
-          : creationSource === "source-import"
-            ? "source-import"
-            : "novel") as "novel" | "source-import" | "script",
-        targetEpisodeCount: 80,
-      };
-    if (projectMode === "personal_theater")
-      return {
-        mode: projectMode,
-        storyMethod:
-          creationSource === "script"
-            ? ("freeform" as const)
-            : ("template" as const),
-        episodeCount: 1,
-        episodeDurationMinutes: 5,
-      };
-    return {
-      mode: projectMode,
-      topic: creatorTopic.trim() || "待确定主题",
-      riskDomain: "general" as const,
-    };
-  };
+  const modeConfig = projectModeConfigFromDraft(
+    projectMode,
+    creationSource,
+    brief,
+    creatorTopic,
+  );
   const updateBrief = <Key extends keyof ProductionBriefDraft>(
     key: Key,
     value: ProductionBriefDraft[Key],
   ) => setBrief((current) => ({ ...current, [key]: value }));
-  const cleanupUnfinishedProject = async (project: Project) => {
+  const clearStoryPreset = (shortDramaType?: string) => {
+    setStoryPresetId(undefined);
+    setBrief((current) => {
+      const defaults = projectModeBrief(projectMode, creationSource, current);
+      return {
+        ...current,
+        shortDramaType: shortDramaType ?? defaults.shortDramaType,
+        targetAudience: defaults.targetAudience,
+        visualStyleDirection: defaults.visualStyleDirection,
+      };
+    });
+  };
+  const cleanupUnfinishedProject = async (
+    project: Project,
+  ): Promise<boolean> => {
     try {
       await client.projects.trash(project.id);
       await client.projects.purge(project.id, project.title);
+      return true;
     } catch {
       // The source write itself is transactional. A failed local cleanup never
       // hides the error or makes an unverified draft look like an imported one.
+      return false;
     }
   };
   const createFromBrief = async (
     mode: "inspiration" | "source-file" | "script-draft" | "script-file",
   ) => {
-    if (
-      !creationSource ||
-      !brief.title.trim() ||
-      !brief.shortDramaType.trim() ||
-      (projectMode === "creator_channel" && !creatorTopic.trim())
-    )
-      return;
+    if (!creationSource || !brief.title.trim() || !modeConfig) return;
     if (mode === "script-draft" && !scriptContent.trim()) return;
+    const sourceFile = mode === "source-file" || mode === "script-file";
+    if (sourceFile && (!pendingImport || !pendingImport.rightsConfirmed))
+      return;
     setSaving(true);
     setError(undefined);
     try {
+      const storyPreset =
+        mode === "inspiration" &&
+        (projectMode === "series_longform" || projectMode === "single_season")
+          ? novelStoryPreset(storyPresetId)
+          : undefined;
       const project = (
         await client.projects.create({
-          ...projectInputFromBrief(brief),
-          mode: projectMode,
-          modeConfig: modeConfig(),
+          ...(storyPreset
+            ? projectInputFromStoryPreset(brief, storyPreset, modeConfig)
+            : projectInputFromBrief(brief, modeConfig)),
         })
       ).project;
+      if (sourceFile && pendingImport) {
+        try {
+          await client.sourceImports.commit(pendingImport.importId, {
+            projectId: project.id,
+            strategy: "append",
+            rightsConfirmed: true,
+            destructiveConfirmed: false,
+            preview: pendingImport.preview,
+          });
+          setPendingImport(undefined);
+        } catch (cause) {
+          const cleaned = await cleanupUnfinishedProject(project);
+          if (!cleaned) {
+            load();
+            throw new Error(
+              `${message(cause)}；空项目未能自动清理，请在项目列表中手动删除。`,
+            );
+          }
+          throw cause;
+        }
+      }
       if (mode === "inspiration" && projectMode !== "creator_channel") {
         try {
-          const chapter = await client.chapters.create({
-            projectId: project.id,
-            title:
-              projectMode === "personal_theater" ? "第 1 集故事" : "第 1 章",
-            summary: "",
-            content: "",
-          });
+          const chapter =
+            projectMode === "single_season"
+              ? await initializeSingleSeasonMaterials(client, project.id, {
+                  idea: brief.idea,
+                  targetEpisodeCount:
+                    modeConfig.mode === "single_season"
+                      ? (modeConfig.targetEpisodeCount ?? 80)
+                      : 80,
+                  preset: storyPreset,
+                })
+              : storyPreset
+                ? await initializeStoryPresetMaterials(
+                    client,
+                    project.id,
+                    storyPreset,
+                    brief.idea,
+                  )
+                : await client.chapters.create({
+                    projectId: project.id,
+                    title:
+                      projectMode === "personal_theater"
+                        ? "第 1 集故事"
+                        : "第 1 章",
+                    summary: "",
+                    content: "",
+                  });
           window.localStorage.setItem(
             `dramaip-novel-last-chapter:${project.id}`,
             chapter.id,
           );
         } catch (cause) {
-          await cleanupUnfinishedProject(project);
+          const cleaned = await cleanupUnfinishedProject(project);
+          if (!cleaned) {
+            load();
+            throw new Error(
+              `${message(cause)}；未完成项目未能自动清理，请在项目列表中手动删除。`,
+            );
+          }
           throw cause;
         }
       }
@@ -594,17 +1023,18 @@ export function ProjectHome() {
             content: scriptContent.trim(),
           });
         } catch (cause) {
-          await cleanupUnfinishedProject(project);
+          const cleaned = await cleanupUnfinishedProject(project);
+          if (!cleaned) {
+            load();
+            throw new Error(
+              `${message(cause)}；未完成项目未能自动清理，请在项目列表中手动删除。`,
+            );
+          }
           throw cause;
         }
       }
       setProjects((items) => [project, ...items]);
-      const sourceImport = mode === "source-file" || mode === "script-file";
-      navigate(
-        sourceImport
-          ? `/projects/${project.id}/tools/import`
-          : `/projects/${project.id}`,
-      );
+      navigate(`/projects/${project.id}`);
     } catch (cause) {
       setError(message(cause));
     } finally {
@@ -658,6 +1088,49 @@ export function ProjectHome() {
       setError(message(cause));
     }
   };
+  const modeCards = [
+    {
+      mode: "series_longform" as const,
+      title: "系列长篇",
+      badge: "IP 孵化",
+      description: "建立长篇故事母本，再按季改编为持续生长的系列短剧。",
+      next: "母本、故事圣经与分季改编",
+      primary: true,
+    },
+    {
+      mode: "single_season" as const,
+      title: "单季短剧",
+      badge: "支持漫剧 / 真人短剧",
+      description: "从原创故事、小说或剧本开始，用一季讲完并进入制作。",
+      next: "季纲、分集、剧本与分镜",
+      primary: true,
+    },
+    {
+      mode: "personal_theater" as const,
+      title: "我的AI小剧场",
+      badge: "个人故事",
+      description: "以自己和已授权亲友为主角，创作一集五分钟的小故事。",
+      next: "故事模板与人物授权",
+      primary: false,
+    },
+    {
+      mode: "creator_channel" as const,
+      title: "博主内容工作室",
+      badge: "内容创作",
+      description: "围绕一个主题持续生产选题、研究、文章和口播。",
+      next: "账号定位与首个选题",
+      primary: false,
+    },
+  ];
+  const importReady = Boolean(pendingImport?.rightsConfirmed);
+  const scaleSummary =
+    modeConfig?.mode === "series_longform"
+      ? `${modeConfig.targetChapterCount}章 / ${modeConfig.targetSeasonCount}季 / 每季${modeConfig.targetEpisodesPerSeason}集`
+      : modeConfig?.mode === "single_season"
+        ? `${modeConfig.targetEpisodeCount}集 · ${brief.episodeDuration}`
+        : modeConfig?.mode === "personal_theater"
+          ? `${modeConfig.episodeCount}集 · ${brief.episodeDuration}`
+          : "持续内容项目";
   return (
     <div className="space-y-6">
       <WorkspaceIntro
@@ -674,136 +1147,180 @@ export function ProjectHome() {
               按三个步骤完成创建。数量和时长都是建议值，创建后仍可调整。
             </p>
           </div>
-          <Button
-            variant="secondary"
-            disabled={saving || creatingDemo}
-            onClick={() => void createDemo()}
-          >
-            {creatingDemo ? "正在创建示例…" : "创建示例项目"}
-          </Button>
         </div>
-        <div className="mt-5 flex items-center gap-3">
-          <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-            1
-          </span>
-          <div>
-            <h3 className="font-semibold">选择创作模式</h3>
-            <p className="text-xs text-muted">决定项目的工作台和生产流程</p>
+        {activeCreateStep === 1 ? (
+          <>
+            <div className="mt-5 flex items-center gap-3">
+              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                1
+              </span>
+              <div>
+                <h3 className="font-semibold">选择创作模式</h3>
+                <p className="text-xs text-muted">决定项目的工作台和生产流程</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted">
+              核心创作
+            </p>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              {modeCards
+                .filter((item) => item.primary)
+                .map((item) => (
+                  <BareButton
+                    key={item.mode}
+                    className="group relative min-h-40 rounded-xl border border-line bg-surface-raised p-5 text-left transition hover:border-brand hover:bg-brand-soft"
+                    onClick={() => selectProjectMode(item.mode)}
+                  >
+                    <span className="absolute right-4 top-4 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand-strong">
+                      {item.badge}
+                    </span>
+                    <p className="text-lg font-semibold">{item.title}</p>
+                    <p className="mt-2 max-w-xl pr-20 text-sm leading-6 text-muted">
+                      {item.description}
+                    </p>
+                    <p className="mt-4 text-xs font-medium text-rust">
+                      {item.next} →
+                    </p>
+                  </BareButton>
+                ))}
+            </div>
+            <p className="mt-5 text-xs font-medium uppercase tracking-wider text-muted">
+              更多创作方式
+            </p>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              {modeCards
+                .filter((item) => !item.primary)
+                .map((item) => (
+                  <BareButton
+                    key={item.mode}
+                    className="rounded-xl border border-line bg-surface-raised p-4 text-left transition hover:border-line-strong hover:bg-surface-muted"
+                    onClick={() => selectProjectMode(item.mode)}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="font-medium">{item.title}</span>
+                      <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] text-muted">
+                        {item.badge}
+                      </span>
+                    </span>
+                    <span className="mt-2 block text-sm text-muted">
+                      {item.description}
+                    </span>
+                  </BareButton>
+                ))}
+            </div>
+          </>
+        ) : (
+          <div className="mt-5 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
+            <div className="flex items-center gap-3">
+              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                ✓
+              </span>
+              <div>
+                <p className="text-xs text-muted">创作模式</p>
+                <p className="text-sm font-semibold">
+                  {projectModeLabel(projectMode)}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setActiveCreateStep(1)}
+            >
+              修改
+            </Button>
           </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              mode: "series_longform" as const,
-              title: "系列长篇",
-              description: "先写300章级爽文母本，再按季改编为多季短剧。",
-              next: "建立母本、故事圣经与分季改编",
-            },
-            {
-              mode: "single_season" as const,
-              title: "单季短剧",
-              description: "从小说、已授权原著或剧本开始，建议80集。",
-              next: "完成季纲、分集、剧本和分镜",
-            },
-            {
-              mode: "personal_theater" as const,
-              title: "我的AI小剧场",
-              description: "以自己和已授权亲友为主角，默认一集五分钟。",
-              next: "先建立人物授权，再选择故事模板",
-            },
-            {
-              mode: "creator_channel" as const,
-              title: "博主内容工作室",
-              description: "围绕一个主题持续生产选题、研究、文章和口播。",
-              next: "确定账号定位与首个选题",
-            },
-          ].map((item) => {
-            const selected = projectMode === item.mode;
-            return (
-              <BareButton
-                key={item.mode}
-                className={`group relative min-h-40 rounded-xl border p-4 text-left transition ${selected ? "border-brand bg-brand-soft shadow-control" : "border-line bg-surface-raised hover:border-line-strong hover:bg-surface-muted"}`}
-                aria-pressed={selected}
-                onClick={() => selectProjectMode(item.mode)}
-              >
-                <span
-                  className={`absolute right-4 top-4 text-xs font-medium ${selected ? "text-brand-strong" : "text-muted"}`}
-                >
-                  {selected ? "✓ 已选择" : "选择"}
-                </span>
-                <p className="font-medium">{item.title}</p>
-                <p className="mt-2 pr-12 text-sm leading-6 text-muted">
-                  {item.description}
+        )}
+        {projectMode !== "creator_channel" && activeCreateStep === 2 && (
+          <div
+            ref={startMethodRef}
+            className="mt-6 scroll-mt-20 border-t border-line pt-5"
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                2
+              </span>
+              <div>
+                <h3 className="font-semibold">选择怎么开始</h3>
+                <p className="text-xs text-muted">
+                  已选择“{projectModeLabel(projectMode)}”，请选择一种开始方式
                 </p>
-                <p className="mt-3 text-xs font-medium text-rust">
-                  {item.next}
-                </p>
-              </BareButton>
-            );
-          })}
-        </div>
-        <div
-          ref={startMethodRef}
-          className="scroll-mt-20 border-t border-line pt-5 mt-6"
-        >
-          <div className="flex items-center gap-3">
-            <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-              2
-            </span>
-            <div>
-              <h3 className="font-semibold">选择怎么开始</h3>
-              <p className="text-xs text-muted">
-                已选择“{projectModeLabel(projectMode)}”，推荐方式已自动选中
-              </p>
+              </div>
+            </div>
+            <div
+              className={`mt-4 grid gap-3 ${projectStartOptions(projectMode).length === 1 ? "md:grid-cols-1" : projectStartOptions(projectMode).length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}
+            >
+              {projectStartOptions(projectMode).map((path) => {
+                const selected = creationSource === path.source;
+                return (
+                  <BareButton
+                    key={path.source}
+                    className={`group relative min-h-28 overflow-hidden rounded-xl border px-5 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-focus ${selected ? "border-brand bg-brand-soft text-brand-strong shadow-control" : "border-line bg-surface-raised text-ink shadow-control hover:border-line-strong hover:bg-surface-muted"}`}
+                    aria-pressed={selected}
+                    onClick={() => selectCreationSource(path.source)}
+                  >
+                    {selected && (
+                      <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong">
+                        <span
+                          aria-hidden="true"
+                          className="grid size-4 place-items-center rounded-full bg-brand text-[10px] text-white"
+                        >
+                          ✓
+                        </span>
+                        {path.recommended ? "推荐 · 已选择" : "已选择"}
+                      </span>
+                    )}
+                    <p
+                      className={`pr-20 font-medium transition-colors ${selected ? "text-rust" : "text-ink"}`}
+                    >
+                      {path.title}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {path.description}
+                    </p>
+                    <p className="mt-3 text-xs font-medium text-rust/90">
+                      {path.outcome}
+                    </p>
+                  </BareButton>
+                );
+              })}
             </div>
           </div>
-          <div
-            className={`mt-4 grid gap-3 ${projectStartOptions(projectMode).length === 1 ? "md:grid-cols-1" : projectStartOptions(projectMode).length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}
-          >
-            {projectStartOptions(projectMode).map((path) => {
-              const selected = creationSource === path.source;
-              return (
-                <BareButton
-                  key={path.source}
-                  className={`group relative min-h-28 overflow-hidden rounded-xl border px-5 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-focus ${selected ? "border-brand bg-brand-soft text-brand-strong shadow-control" : "border-line bg-surface-raised text-ink shadow-control hover:border-line-strong hover:bg-surface-muted"}`}
-                  aria-pressed={selected}
-                  onClick={() => selectCreationSource(path.source)}
-                >
-                  {selected && (
-                    <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong">
-                      <span
-                        aria-hidden="true"
-                        className="grid size-4 place-items-center rounded-full bg-brand text-[10px] text-white"
-                      >
-                        ✓
-                      </span>
-                      {path.recommended ? "推荐 · 已选择" : "已选择"}
-                    </span>
-                  )}
-                  <p
-                    className={`pr-20 font-medium transition-colors ${selected ? "text-rust" : "text-ink"}`}
-                  >
-                    {path.title}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {path.description}
-                  </p>
-                  <p className="mt-3 text-xs font-medium text-rust/90">
-                    {path.outcome}
-                  </p>
-                </BareButton>
-              );
-            })}
+        )}
+        {projectMode !== "creator_channel" && activeCreateStep === 3 && (
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
+            <div className="flex items-center gap-3">
+              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                ✓
+              </span>
+              <div>
+                <p className="text-xs text-muted">开始方式</p>
+                <p className="text-sm font-semibold">
+                  {
+                    projectStartOptions(projectMode).find(
+                      (item) => item.source === creationSource,
+                    )?.title
+                  }
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setActiveCreateStep(2)}
+            >
+              修改
+            </Button>
           </div>
-        </div>
-        {creationSource && (
+        )}
+        {activeCreateStep === 3 && creationSource && (
           <div
             ref={projectFormRef}
             className="mt-6 scroll-mt-20 border-t border-line pt-5"
           >
             <div className="flex items-center gap-3">
               <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                3
+                {projectMode === "creator_channel" ? "2" : "3"}
               </span>
               <div>
                 <h3 className="font-semibold">填写名称并创建</h3>
@@ -839,16 +1356,37 @@ export function ProjectHome() {
               )}
               {projectMode !== "creator_channel" && (
                 <label className="mt-4 grid gap-1 text-sm">
-                  {projectMode === "personal_theater" ? "故事类型" : "题材方向"}
+                  {projectMode === "personal_theater"
+                    ? "故事类型（可选）"
+                    : "题材方向（可选）"}
                   <Input
                     value={brief.shortDramaType}
-                    onChange={(event) =>
-                      updateBrief("shortDramaType", event.target.value)
-                    }
+                    onChange={(event) => {
+                      if (storyPresetId) clearStoryPreset(event.target.value);
+                      else updateBrief("shortDramaType", event.target.value);
+                    }}
                   />
                 </label>
               )}
             </div>
+            {creationSource === "inspiration" &&
+              (projectMode === "series_longform" ||
+                projectMode === "single_season") && (
+                <NovelStoryPresetPicker
+                  selectedId={storyPresetId}
+                  mode={projectMode}
+                  compact
+                  onSelect={(id) => {
+                    const preset = novelStoryPreset(id);
+                    if (!preset) return;
+                    setStoryPresetId(id);
+                    setBrief((current) =>
+                      applyNovelStoryPresetToBrief(current, preset),
+                    );
+                  }}
+                  onClear={() => clearStoryPreset()}
+                />
+              )}
             {creationSource !== "script" && (
               <label className="mt-3 grid gap-1 text-sm">
                 {projectMode === "creator_channel"
@@ -869,27 +1407,48 @@ export function ProjectHome() {
               </label>
             )}
             {creationSource === "script" && (
-              <label className="mt-3 grid gap-1 text-sm">
-                {projectMode === "personal_theater" ? "故事描述" : "首集剧本"}
-                <span className="text-xs text-muted">
-                  可以直接粘贴；如果已有文件，也可以在下方选择文件导入
-                </span>
-                <Textarea
-                  className="min-h-40 font-editor"
-                  placeholder={
-                    projectMode === "personal_theater"
-                      ? "描述主角、发生的事情和希望呈现的情绪"
-                      : "粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目"
+              <>
+                <label className="mt-3 grid gap-1 text-sm">
+                  {projectMode === "personal_theater" ? "故事描述" : "首集剧本"}
+                  <span className="text-xs text-muted">
+                    可以直接粘贴，也可以在下方导入结构化剧本 JSON。
+                  </span>
+                  <Textarea
+                    className="min-h-40 font-editor"
+                    placeholder={
+                      projectMode === "personal_theater"
+                        ? "描述主角、发生的事情和希望呈现的情绪"
+                        : "粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目"
+                    }
+                    value={scriptContent}
+                    onChange={(event) => setScriptContent(event.target.value)}
+                  />
+                </label>
+                <ProjectlessSourceImportEditor
+                  value={pendingImport}
+                  disabled={saving}
+                  onChange={setPendingImport}
+                  onSuggestedTitle={(title) =>
+                    setBrief((current) => ({
+                      ...current,
+                      title: current.title.trim() ? current.title : title,
+                    }))
                   }
-                  value={scriptContent}
-                  onChange={(event) => setScriptContent(event.target.value)}
                 />
-              </label>
+              </>
             )}
             {creationSource === "source-import" && (
-              <p className="mt-4 rounded-lg bg-brand-soft/40 p-3 text-sm text-muted">
-                下一步会先选择本地文件并生成导入预览。只有确认内容权利后，章节、剧本和场景才会写入项目。
-              </p>
+              <ProjectlessSourceImportEditor
+                value={pendingImport}
+                disabled={saving}
+                onChange={setPendingImport}
+                onSuggestedTitle={(title) =>
+                  setBrief((current) => ({
+                    ...current,
+                    title: current.title.trim() ? current.title : title,
+                  }))
+                }
+              />
             )}
             <BareButton
               className="mt-4 text-sm font-medium text-brand hover:text-brand-strong"
@@ -918,7 +1477,60 @@ export function ProjectHome() {
                     }
                   />
                 </label>
-                {projectMode !== "creator_channel" && (
+                {projectMode === "series_longform" && (
+                  <>
+                    <label className="grid gap-1 text-sm">
+                      母本章节数
+                      <Input
+                        inputMode="numeric"
+                        value={brief.targetChapterCount}
+                        onChange={(event) =>
+                          updateBrief("targetChapterCount", event.target.value)
+                        }
+                      />
+                      {!positiveInteger(brief.targetChapterCount) && (
+                        <span className="text-xs text-red-600">
+                          请输入正整数
+                        </span>
+                      )}
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      计划季数
+                      <Input
+                        inputMode="numeric"
+                        value={brief.targetSeasonCount}
+                        onChange={(event) =>
+                          updateBrief("targetSeasonCount", event.target.value)
+                        }
+                      />
+                      {!positiveInteger(brief.targetSeasonCount) && (
+                        <span className="text-xs text-red-600">
+                          请输入正整数
+                        </span>
+                      )}
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      每季集数
+                      <Input
+                        inputMode="numeric"
+                        value={brief.targetEpisodesPerSeason}
+                        onChange={(event) =>
+                          updateBrief(
+                            "targetEpisodesPerSeason",
+                            event.target.value,
+                          )
+                        }
+                      />
+                      {!positiveInteger(brief.targetEpisodesPerSeason) && (
+                        <span className="text-xs text-red-600">
+                          请输入正整数
+                        </span>
+                      )}
+                    </label>
+                  </>
+                )}
+                {(projectMode === "single_season" ||
+                  projectMode === "personal_theater") && (
                   <>
                     <label className="grid gap-1 text-sm">
                       单集时长
@@ -928,9 +1540,17 @@ export function ProjectHome() {
                           updateBrief("episodeDuration", event.target.value)
                         }
                       />
+                      {projectMode === "personal_theater" &&
+                        !/^\s*[1-9]\d*(?:\s*分钟)?\s*$/u.test(
+                          brief.episodeDuration,
+                        ) && (
+                          <span className="text-xs text-red-600">
+                            请输入正整数分钟数
+                          </span>
+                        )}
                     </label>
                     <label className="grid gap-1 text-sm">
-                      建议集数
+                      计划集数
                       <Input
                         inputMode="numeric"
                         value={brief.targetEpisodeCount}
@@ -938,6 +1558,11 @@ export function ProjectHome() {
                           updateBrief("targetEpisodeCount", event.target.value)
                         }
                       />
+                      {!positiveInteger(brief.targetEpisodeCount) && (
+                        <span className="text-xs text-red-600">
+                          请输入正整数
+                        </span>
+                      )}
                     </label>
                   </>
                 )}
@@ -961,16 +1586,23 @@ export function ProjectHome() {
                 </label>
               </div>
             )}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/25 bg-brand-soft/50 p-4">
+            <div className="sticky bottom-3 z-10 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/25 bg-brand-soft/95 p-4 shadow-card backdrop-blur">
               <div>
                 <p className="text-xs font-medium text-brand">即将创建</p>
                 <p className="mt-1 text-sm font-semibold">
+                  {brief.title.trim() || "未命名项目"} ·{" "}
                   {projectModeLabel(projectMode)} ·{" "}
                   {
                     projectStartOptions(projectMode).find(
                       (item) => item.source === creationSource,
                     )?.title
                   }
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {storyPresetId
+                    ? `${novelStoryPreset(storyPresetId)?.label}预设 · `
+                    : ""}
+                  {scaleSummary}
                 </p>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
@@ -979,6 +1611,8 @@ export function ProjectHome() {
                   disabled={saving}
                   onClick={() => {
                     setBrief(projectModeBrief(projectMode, creationSource));
+                    setStoryPresetId(undefined);
+                    discardPendingImport();
                     setCreatorTopic("");
                     setScriptContent("");
                     setShowAdvanced(false);
@@ -989,12 +1623,7 @@ export function ProjectHome() {
                 {creationSource === "inspiration" && (
                   <Button
                     variant="primary"
-                    disabled={
-                      saving ||
-                      !brief.title.trim() ||
-                      (projectMode === "creator_channel" &&
-                        !creatorTopic.trim())
-                    }
+                    disabled={saving || !brief.title.trim() || !modeConfig}
                     onClick={() => void createFromBrief("inspiration")}
                   >
                     {saving ? "正在创建…" : projectCreateLabel(projectMode)}
@@ -1003,7 +1632,12 @@ export function ProjectHome() {
                 {creationSource === "source-import" && (
                   <Button
                     variant="primary"
-                    disabled={saving || !brief.title.trim()}
+                    disabled={
+                      saving ||
+                      !brief.title.trim() ||
+                      !modeConfig ||
+                      !importReady
+                    }
                     onClick={() => void createFromBrief("source-file")}
                   >
                     {saving
@@ -1013,19 +1647,29 @@ export function ProjectHome() {
                 )}
                 {creationSource === "script" && (
                   <>
-                    <Button
-                      variant="secondary"
-                      disabled={saving || !brief.title.trim()}
-                      onClick={() => void createFromBrief("script-file")}
-                    >
-                      {projectMode === "personal_theater"
-                        ? "创建并选择故事文件"
-                        : "创建并选择剧本文件"}
-                    </Button>
+                    {pendingImport && (
+                      <Button
+                        variant="secondary"
+                        disabled={
+                          saving ||
+                          !brief.title.trim() ||
+                          !modeConfig ||
+                          !importReady
+                        }
+                        onClick={() => void createFromBrief("script-file")}
+                      >
+                        {saving
+                          ? "正在导入…"
+                          : `${projectCreateLabel(projectMode)}并导入`}
+                      </Button>
+                    )}
                     <Button
                       variant="primary"
                       disabled={
-                        saving || !brief.title.trim() || !scriptContent.trim()
+                        saving ||
+                        !brief.title.trim() ||
+                        !modeConfig ||
+                        !scriptContent.trim()
                       }
                       onClick={() => void createFromBrief("script-draft")}
                     >
@@ -1106,6 +1750,15 @@ export function ProjectHome() {
               className="col-span-full"
               title="创建第一个项目"
               description="从灵感、原著或已有剧本开始搭建故事世界。"
+              action={
+                <Button
+                  variant="secondary"
+                  disabled={creatingDemo}
+                  onClick={() => void createDemo()}
+                >
+                  {creatingDemo ? "正在创建示例…" : "先看看示例"}
+                </Button>
+              }
             />
           )}
         </div>
@@ -1706,6 +2359,7 @@ export function ProjectWorkspace() {
   const [novelSection, setNovelSection] = useState<
     "settings" | "characters" | "outlines" | "chapters" | "story-bible" | "more"
   >("chapters");
+  const [outlineMode, setOutlineMode] = useState<NovelOutlineMode>("book");
   const [exporting, setExporting] = useState<
     | "markdown"
     | "submission-markdown"
@@ -1852,6 +2506,12 @@ export function ProjectWorkspace() {
     }
   };
   if (!project) return <LoadingState label="正在加载项目…" />;
+  const matchedStoryPreset = novelStoryPresetForLabel(project.shortDramaType);
+  const storyPreset =
+    matchedStoryPreset &&
+    project.productionBrief?.includes(`故事预设：${matchedStoryPreset.label}`)
+      ? matchedStoryPreset
+      : undefined;
   const modeGuide = {
     series_longform: {
       title: "系列长篇工作台",
@@ -1984,6 +2644,60 @@ export function ProjectWorkspace() {
           </Link>
         </div>
       </section>
+      {storyPreset && (
+        <section
+          className="shrink-0 border-b border-brand/20 bg-brand-soft/45 px-4 py-3 lg:px-6"
+          aria-label="继续完善预设"
+        >
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+            <div className="min-w-56 flex-1">
+              <p className="text-sm font-medium text-brand-strong">
+                继续完善“{storyPreset.label}”预设
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-muted">
+                确定性骨架已经创建；可分区补充细节，每次 AI
+                方案都需预览确认后才会写入。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setNovelSection("settings")}
+              >
+                项目设定
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setNovelSection("characters")}
+              >
+                人物
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setOutlineMode("book");
+                  setNovelSection("outlines");
+                }}
+              >
+                全书大纲
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setOutlineMode("arc");
+                  setNovelSection("outlines");
+                }}
+              >
+                故事弧
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
       {novelSection === "chapters" ? (
         <div className="min-h-0 flex-1 p-2 lg:p-3">
           <NovelChapterWorkspace
@@ -2032,6 +2746,14 @@ export function ProjectWorkspace() {
                     taskType="generate_project"
                     title="智能补全项目设定"
                     description="可以只写一句话，也可以补充目标读者、题材偏好和不希望出现的内容。"
+                    defaultInstruction={
+                      storyPreset
+                        ? storyPresetRefinementInstruction(
+                            storyPreset,
+                            "project",
+                          )
+                        : undefined
+                    }
                     onCommitted={load}
                   />
                 </section>
@@ -2042,10 +2764,34 @@ export function ProjectWorkspace() {
               </div>
             )}
             {novelSection === "characters" && (
-              <NovelCharactersSection client={client} projectId={project.id} />
+              <NovelCharactersSection
+                client={client}
+                projectId={project.id}
+                defaultInstruction={
+                  storyPreset
+                    ? storyPresetRefinementInstruction(
+                        storyPreset,
+                        "characters",
+                      )
+                    : undefined
+                }
+              />
             )}
             {novelSection === "outlines" && (
-              <NovelOutlineSection client={client} projectId={project.id} />
+              <NovelOutlineSection
+                client={client}
+                projectId={project.id}
+                mode={outlineMode}
+                onModeChange={setOutlineMode}
+                defaultInstruction={
+                  storyPreset
+                    ? storyPresetRefinementInstruction(
+                        storyPreset,
+                        outlineMode === "arc" ? "arc" : "outline",
+                      )
+                    : undefined
+                }
+              />
             )}
             {novelSection === "story-bible" && (
               <StoryBibleChangeSetPanel projectId={project.id} />
@@ -3032,9 +3778,7 @@ export function SourceImportPanel(props: {
     episodes: [],
   });
   const [selectedChapter, setSelectedChapter] = useState(0);
-  const [strategy, setStrategy] = useState<SourceImportStrategy>("append");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
-  const [destructiveConfirmed, setDestructiveConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string>();
 
@@ -3056,9 +3800,7 @@ export function SourceImportPanel(props: {
     setPreview(undefined);
     setDuplicates({ chapters: [], episodes: [] });
     setSelectedChapter(0);
-    setStrategy("append");
     setRightsConfirmed(false);
-    setDestructiveConfirmed(false);
   };
   const close = () => {
     void reset();
@@ -3083,9 +3825,7 @@ export function SourceImportPanel(props: {
       setPreview(result.preview);
       setDuplicates(result.duplicates);
       setSelectedChapter(0);
-      setStrategy("append");
       setRightsConfirmed(false);
-      setDestructiveConfirmed(false);
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -3148,9 +3888,9 @@ export function SourceImportPanel(props: {
     try {
       const result = await client.sourceImports.commit(importId, {
         projectId: props.projectId,
-        strategy,
+        strategy: "append",
         rightsConfirmed,
-        destructiveConfirmed,
+        destructiveConfirmed: false,
         preview,
       });
       setNotice(
@@ -3170,12 +3910,7 @@ export function SourceImportPanel(props: {
   };
   const activeChapter = preview?.chapters[selectedChapter];
   const canCommit = Boolean(
-    importId &&
-    preview &&
-    totalEntries > 0 &&
-    rightsConfirmed &&
-    (strategy === "append" || destructiveConfirmed) &&
-    !working,
+    importId && preview && totalEntries > 0 && rightsConfirmed && !working,
   );
   return (
     <section className="rounded-xl border border-line bg-surface p-5">
@@ -3342,34 +4077,12 @@ export function SourceImportPanel(props: {
                   />
                   我确认拥有此内容的使用权，或已经取得必要授权。
                 </label>
-                <label className="flex flex-wrap items-center gap-2">
-                  重复内容处理方式
-                  <select
-                    className="rounded-lg border border-line bg-surface-raised px-2 py-1"
-                    value={strategy}
-                    onChange={(event) => {
-                      setStrategy(event.target.value as SourceImportStrategy);
-                      setDestructiveConfirmed(false);
-                    }}
-                  >
-                    <option value="append">默认新建，不覆盖已有内容</option>
-                    <option value="merge">合并到同名内容</option>
-                    <option value="replace">覆盖同名内容</option>
-                  </select>
-                </label>
-                {strategy !== "append" && (
-                  <label className="flex items-start gap-2 text-amber-800">
-                    <input
-                      className="mt-1"
-                      type="checkbox"
-                      checked={destructiveConfirmed}
-                      onChange={(event) =>
-                        setDestructiveConfirmed(event.target.checked)
-                      }
-                    />
-                    我理解这会修改已有内容；系统会先保存可恢复的内容检查点。
-                  </label>
-                )}
+                <p className="text-sm">
+                  导入方式：
+                  <span className="font-medium">
+                    追加新内容，不覆盖已有内容
+                  </span>
+                </p>
                 <p className="text-xs text-muted">
                   写入在同一个数据库事务中完成；解析、校验或写入失败不会留下部分章节、剧本或场景。
                 </p>

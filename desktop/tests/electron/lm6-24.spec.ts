@@ -25,7 +25,7 @@ test.afterAll(async () => {
 test("审核交付页明确展示可选云审片的最小上传与安全连接入口", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "审核交付" }).click();
   await page
     .getByRole("combobox", { name: "项目", exact: true })

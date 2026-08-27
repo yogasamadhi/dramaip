@@ -344,6 +344,10 @@
     "owner": "workspace"
   },
   {
+    "table": "workspace_source_imports_next",
+    "owner": "workspace"
+  },
+  {
     "table": "writing_chapter_versions",
     "owner": "writing"
   },

@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 
-export * from "./provider-catalog";
+// This transitional surface is owned and built by @dramaip/contracts.
+export * from "./provider-catalog.js";
 
 /** Effect Schema is the wire-contract authority; interfaces provide ergonomic React types. */
 export const Id = Schema.String.pipe(Schema.brand("DramaIP.Id"));
@@ -2852,11 +2853,11 @@ export interface SourceImportPreview {
 }
 
 export const SourceImportPreviewInput = Schema.Struct({
-  projectId: Id,
+  projectId: Schema.optionalKey(Id),
   capabilityToken: Schema.String,
 });
 export interface SourceImportPreviewInput {
-  projectId: Id;
+  projectId?: Id;
   capabilityToken: string;
 }
 

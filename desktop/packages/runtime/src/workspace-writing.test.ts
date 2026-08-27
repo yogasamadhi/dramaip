@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { applyMigrations, openDatabase } from "@dramaip/database";
 import { PersistentEventRuntime } from "@dramaip/events";
 import { createRuntimeHttp } from "@dramaip/http";
+import type { DesktopHostClient } from "@dramaip/desktop-host";
 import { bootKernel, type RunningKernel } from "@dramaip/kernel";
 import type {
   FirstPartyPlugin,
@@ -17,22 +18,23 @@ import { productionPlugin } from "@dramaip/production";
 import { reviewPlugin } from "@dramaip/review";
 import { createSystemPlugin } from "@dramaip/system";
 import { timelinePlugin } from "@dramaip/timeline";
-import { workspacePlugin } from "@dramaip/workspace";
+import { createWorkspacePlugin } from "@dramaip/workspace";
 import { writingPlugin } from "@dramaip/writing";
 
 interface Fixture {
   request(path: string, init?: RequestInit): Promise<Response>;
+  expireSourceImport(id: string): void;
   close(): Promise<void>;
 }
 
 const fixtures: Fixture[] = [];
 
-async function fixture(): Promise<Fixture> {
+async function fixture(host?: DesktopHostClient): Promise<Fixture> {
   const database = openDatabase(":memory:");
   const plugins: readonly FirstPartyPlugin[] = [
     foundationPlugin,
     createSystemPlugin(),
-    workspacePlugin,
+    createWorkspacePlugin(host),
     automationPlugin,
     writingPlugin,
     knowledgePlugin,
@@ -104,6 +106,14 @@ async function fixture(): Promise<Fixture> {
           },
         }),
       ),
+    expireSourceImport: (id) =>
+      database.uow.execute((transaction) => {
+        transaction.run(
+          "UPDATE workspace_source_imports SET expires_at = ? WHERE id = ?",
+          "2000-01-01T00:00:00.000Z",
+          id,
+        );
+      }),
     close: async () => {
       await kernel!.dispose();
       database.close();
@@ -467,5 +477,263 @@ describe("workspace and writing vertical slice", () => {
       },
     );
     expect(confirmed.status, await confirmed.text()).toBe(200);
+  });
+
+  it("previews outside a project, binds once and imports a novel after confirmation", async () => {
+    const runtime = await fixture({
+      readGrantedDocument: async () => ({
+        name: "雨夜来信.md",
+        format: "markdown",
+        size: 45,
+        content: "# 雨夜来信\n\n## 第一章\n\n一封没有署名的信。",
+      }),
+    } as unknown as DesktopHostClient);
+    const before = await runtime.request("/api/v2/projects");
+    expect(before.status).toBe(200);
+    await expect(before.json()).resolves.toHaveLength(0);
+
+    const previewResponse = await runtime.request(
+      "/api/v2/source-imports/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: crypto.randomUUID() }),
+      },
+    );
+    expect(previewResponse.status, await previewResponse.clone().text()).toBe(
+      201,
+    );
+    const result = (await previewResponse.json()) as {
+      importId: string;
+      preview: {
+        sourceType: string;
+        title: string;
+        chapters: Array<{ title: string; content: string }>;
+      };
+    };
+    expect(result.preview).toMatchObject({
+      sourceType: "markdown",
+      title: "雨夜来信",
+      chapters: [{ title: "第一章" }],
+    });
+    const afterPreview = await runtime.request("/api/v2/projects");
+    await expect(afterPreview.json()).resolves.toHaveLength(0);
+
+    const projectResponse = await runtime.request("/api/v2/projects", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({
+        title: result.preview.title,
+        mode: "single_season",
+        modeConfig: {
+          mode: "single_season",
+          entryPath: "source-import",
+          targetEpisodeCount: 80,
+        },
+      }),
+    });
+    expect(projectResponse.status).toBe(201);
+    const project = (await projectResponse.json()) as {
+      project: { id: string };
+    };
+    const commitBody = {
+      projectId: project.project.id,
+      strategy: "append",
+      rightsConfirmed: true,
+      destructiveConfirmed: false,
+      preview: result.preview,
+    };
+    const committed = await runtime.request(
+      `/api/v2/source-imports/${result.importId}/commit`,
+      { method: "POST", body: JSON.stringify(commitBody) },
+    );
+    expect(committed.status, await committed.clone().text()).toBe(201);
+    await expect(committed.json()).resolves.toMatchObject({
+      createdChapters: 1,
+    });
+    const chapters = await runtime.request(
+      `/api/v2/projects/${project.project.id}/chapters`,
+    );
+    await expect(chapters.json()).resolves.toEqual([
+      expect.objectContaining({ title: "第一章" }),
+    ]);
+    const duplicate = await runtime.request(
+      `/api/v2/source-imports/${result.importId}/commit`,
+      { method: "POST", body: JSON.stringify(commitBody) },
+    );
+    expect(duplicate.status).toBe(404);
+  });
+
+  it("imports structured script JSON into production records", async () => {
+    const runtime = await fixture({
+      readGrantedDocument: async () => ({
+        name: "首集.json",
+        format: "script-json",
+        size: 200,
+        content: JSON.stringify({
+          title: "雨夜来信",
+          episodes: [
+            {
+              episodeNumber: 1,
+              scenes: [
+                {
+                  location: "旧车站",
+                  time: "夜",
+                  characters: ["林晚"],
+                  content: "林晚拆开信封。",
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    } as unknown as DesktopHostClient);
+    const previewResponse = await runtime.request(
+      "/api/v2/source-imports/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: crypto.randomUUID() }),
+      },
+    );
+    const result = (await previewResponse.json()) as {
+      importId: string;
+      preview: {
+        title: string;
+        sourceType: string;
+        contentKind: string;
+        episodes: unknown[];
+      };
+    };
+    expect(previewResponse.status).toBe(201);
+    expect(result.preview).toMatchObject({
+      title: "雨夜来信",
+      sourceType: "script-json",
+      contentKind: "script",
+    });
+
+    const projectResponse = await runtime.request("/api/v2/projects", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ title: result.preview.title }),
+    });
+    const project = (await projectResponse.json()) as {
+      project: { id: string };
+    };
+    const committed = await runtime.request(
+      `/api/v2/source-imports/${result.importId}/commit`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.project.id,
+          strategy: "append",
+          rightsConfirmed: true,
+          destructiveConfirmed: false,
+          preview: result.preview,
+        }),
+      },
+    );
+    expect(committed.status, await committed.clone().text()).toBe(201);
+    await expect(committed.json()).resolves.toMatchObject({
+      createdEpisodes: 1,
+      createdScripts: 1,
+      createdScenes: 1,
+    });
+    const graph = await runtime.request(
+      `/api/v2/projects/${project.project.id}/production-graph`,
+    );
+    await expect(graph.json()).resolves.toMatchObject({
+      coverage: { episodes: 1, scripts: 1, scenes: 1 },
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ kind: "adaptations" }),
+      ]),
+    });
+    const refreshedProject = await runtime.request(
+      `/api/v2/projects/${project.project.id}`,
+    );
+    await expect(refreshedProject.json()).resolves.toMatchObject({
+      currentAdaptationId: expect.any(String),
+    });
+  });
+
+  it("rejects the wrong bound project and expired previews, and discards without creating data", async () => {
+    const runtime = await fixture({
+      readGrantedDocument: async () => ({
+        name: "story.txt",
+        format: "txt",
+        size: 20,
+        content: "第一章\n正文",
+      }),
+    } as unknown as DesktopHostClient);
+    const createProject = async (title: string) => {
+      const response = await runtime.request("/api/v2/projects", {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({ title }),
+      });
+      return (await response.json()) as { project: { id: string } };
+    };
+    const first = await createProject("绑定项目");
+    const second = await createProject("错误项目");
+    const previewFor = async (projectId?: string) => {
+      const response = await runtime.request("/api/v2/source-imports/preview", {
+        method: "POST",
+        body: JSON.stringify({
+          ...(projectId ? { projectId } : {}),
+          capabilityToken: crypto.randomUUID(),
+        }),
+      });
+      expect(response.status).toBe(201);
+      return (await response.json()) as {
+        importId: string;
+        preview: Record<string, unknown>;
+      };
+    };
+    const commitBody = (
+      projectId: string,
+      preview: Record<string, unknown>,
+    ) => ({
+      projectId,
+      strategy: "append",
+      rightsConfirmed: true,
+      destructiveConfirmed: false,
+      preview,
+    });
+
+    const bound = await previewFor(first.project.id);
+    const wrongProject = await runtime.request(
+      `/api/v2/source-imports/${bound.importId}/commit`,
+      {
+        method: "POST",
+        body: JSON.stringify(commitBody(second.project.id, bound.preview)),
+      },
+    );
+    expect(wrongProject.status).toBe(400);
+    runtime.expireSourceImport(bound.importId);
+    const expired = await runtime.request(
+      `/api/v2/source-imports/${bound.importId}/commit`,
+      {
+        method: "POST",
+        body: JSON.stringify(commitBody(first.project.id, bound.preview)),
+      },
+    );
+    expect(expired.status).toBe(400);
+
+    const disposable = await previewFor();
+    const discarded = await runtime.request(
+      `/api/v2/source-imports/${disposable.importId}`,
+      { method: "DELETE" },
+    );
+    expect(discarded.status).toBe(204);
+    const afterDiscard = await runtime.request(
+      `/api/v2/source-imports/${disposable.importId}/commit`,
+      {
+        method: "POST",
+        body: JSON.stringify(commitBody(first.project.id, disposable.preview)),
+      },
+    );
+    expect(afterDiscard.status).toBe(404);
+    const chapters = await runtime.request(
+      `/api/v2/projects/${first.project.id}/chapters`,
+    );
+    await expect(chapters.json()).resolves.toHaveLength(0);
   });
 });

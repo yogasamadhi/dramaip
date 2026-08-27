@@ -1,7 +1,8 @@
 import { access, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 
 async function files(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -125,7 +126,7 @@ for (const directory of activeSourceRoots) {
     );
     await assertAbsent(
       path,
-      /\/api\/v1(?:\/|["'])/u,
+      /(?:^|[^A-Za-z0-9])\/api\/v1(?:\/|["'])/u,
       "Active source must not expose the legacy HTTP API",
     );
     await assertAbsent(
@@ -241,7 +242,8 @@ for (const path of pluginFiles) {
     "Cordis must not escape the Kernel boundary",
   );
   const source = await readFile(path, "utf8");
-  const owner = path.split("/plugins/")[1]?.split("/")[0];
+  const relativeParts = path.replace(root, "").split(/[\\/]/u).filter(Boolean);
+  const owner = relativeParts[0] === "plugins" ? relativeParts[1] : undefined;
   for (const match of source.matchAll(/from\s+["']@dramaip\/([a-z-]+)["']/gu)) {
     const dependency = match[1];
     if (

@@ -46,6 +46,7 @@ import {
 } from "./windows/window-manager";
 import { shutdownApplication } from "./application-supervisor";
 import { ExtensionProcessSupervisor } from "./extensions/extension-process-supervisor";
+import { extractGrantedDocument } from "./document-import";
 
 const require = createRequire(import.meta.url);
 const developmentIconPath = join(__dirname, "../../build/icon.png");
@@ -1423,6 +1424,22 @@ function createHost(accessToken: string) {
           content: text,
           size: content.byteLength,
         };
+      },
+      async readGrantedDocument(grantId, maximumBytes) {
+        const grant = fileCapabilities.get(grantId);
+        if (
+          !grant ||
+          grant.kind !== "file" ||
+          grant.expiresAt <= Date.now() ||
+          !grant.permissions.includes("read")
+        )
+          throw new Error("文件授权无效或已过期");
+        const source = await readFile(grant.path);
+        return extractGrantedDocument(
+          grant.path.split(/[\\/]/).pop() ?? "导入文件",
+          source,
+          { maximumBytes },
+        );
       },
       async importPortraitMedia(grantId) {
         const grant = fileCapabilities.get(grantId);

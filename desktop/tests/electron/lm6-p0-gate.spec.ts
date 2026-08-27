@@ -51,26 +51,27 @@ async function createPilotFromEntry(
   title: string,
 ): Promise<void> {
   if (entry === "inspiration") {
+    await selectByKeyboard(page, "系列长篇");
     await selectByKeyboard(page, "从灵感开始");
     await page.getByRole("textbox", { name: "项目名称" }).fill(title);
-    await page.getByRole("button", { name: "创建项目并开始构思" }).click();
-    await page.getByRole("button", { name: "＋" }).click();
+    await page.getByRole("button", { name: "创建系列长篇" }).click();
   } else if (entry === "source-import") {
-    await selectByKeyboard(page, "导入原著");
+    await selectByKeyboard(page, "单季短剧");
+    await selectByKeyboard(page, "导入小说 / IP");
     await page.getByRole("textbox", { name: "项目名称" }).fill(title);
-    await page.getByRole("button", { name: "创建项目并预览原著" }).click();
-    await page.getByRole("button", { name: "选择文件并解析" }).click();
+    await page.getByRole("button", { name: "选择文件" }).click();
     await page
       .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
       .check();
-    await page.getByRole("button", { name: "确认导入" }).click();
+    await page.getByRole("button", { name: "创建单季短剧并导入" }).click();
   } else {
-    await selectByKeyboard(page, "直接导入 / 粘贴剧本");
+    await selectByKeyboard(page, "单季短剧");
+    await selectByKeyboard(page, "直接写剧本");
     await page.getByRole("textbox", { name: "项目名称" }).fill(title);
     await page
       .getByRole("textbox", { name: "首集剧本" })
       .fill("【雨夜·门口】\\n林晚：你终于来了。");
-    await page.getByRole("button", { name: "保存剧本草稿并进入项目" }).click();
+    await page.getByRole("button", { name: "创建单季短剧" }).click();
   }
 
   await openProjectTool(page, "试制计划");
@@ -121,20 +122,16 @@ test("坏文件在本地预览阶段被拒绝，未伪造导入结果", async ()
       userData,
       resolve("tests/fixtures/lm6/lm6-06/unsupported.source"),
     );
-    await selectByKeyboard(running.page, "导入原著");
+    await selectByKeyboard(running.page, "单季短剧");
+    await selectByKeyboard(running.page, "导入小说 / IP");
     await running.page
       .getByRole("textbox", { name: "项目名称" })
       .fill("P0 坏文件项目");
-    await running.page
-      .getByRole("button", { name: "创建项目并预览原著" })
-      .click();
-    await running.page.getByRole("button", { name: "选择文件并解析" }).click();
+    await running.page.getByRole("button", { name: "选择文件" }).click();
     await expect(
       running.page.getByText("请求参数无效，请检查后重试"),
     ).toBeVisible();
-    await expect(
-      running.page.getByText("选择拥有授权的内容文件"),
-    ).toBeVisible();
+    await expect(running.page.getByText("先选择文件并确认预览")).toBeVisible();
   } finally {
     await running?.application.close();
     await rm(userData, { recursive: true, force: true });

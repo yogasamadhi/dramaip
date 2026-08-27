@@ -36,9 +36,10 @@ test("只把现有 Codex 登录缓存导入隔离目录", async () => {
     expect(await readFile(join(destinationHome, "auth.json"), "utf8")).toBe(
       AUTH,
     );
-    expect((await lstat(join(destinationHome, "auth.json"))).mode & 0o777).toBe(
-      0o600,
-    );
+    if (process.platform !== "win32")
+      expect(
+        (await lstat(join(destinationHome, "auth.json"))).mode & 0o777,
+      ).toBe(0o600);
     expect(await Bun.file(join(destinationHome, "config.toml")).exists()).toBe(
       false,
     );
@@ -97,17 +98,17 @@ test("拒绝符号链接和无效的认证文件", async () => {
     const target = join(root, "target.json");
     const sourceHome = join(root, "source");
     await mkdir(sourceHome);
-    await writeFile(target, AUTH);
-    await symlink(target, join(sourceHome, "auth.json"));
-
-    expect(
-      await bootstrapCodexAuthentication({
-        sourceHome,
-        destinationHome: join(root, "destination-one"),
-      }),
-    ).toBe("source_invalid");
-
-    await rm(join(sourceHome, "auth.json"));
+    if (process.platform !== "win32") {
+      await writeFile(target, AUTH);
+      await symlink(target, join(sourceHome, "auth.json"));
+      expect(
+        await bootstrapCodexAuthentication({
+          sourceHome,
+          destinationHome: join(root, "destination-one"),
+        }),
+      ).toBe("source_invalid");
+      await rm(join(sourceHome, "auth.json"));
+    }
     await writeFile(join(sourceHome, "auth.json"), "{}");
     await chmod(join(sourceHome, "auth.json"), 0o600);
     expect(

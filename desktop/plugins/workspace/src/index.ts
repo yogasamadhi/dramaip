@@ -1770,9 +1770,10 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
     migrations: [
       ...workspaceMigrations.slice(0, 1),
       ...seriesMigrations,
-      ...sourceImportMigrations,
+      ...sourceImportMigrations.slice(0, 1),
       ...workspaceMaintenanceMigrations,
       ...workspaceMigrations.slice(1),
+      ...sourceImportMigrations.slice(1),
     ],
     activate: (context) => {
       const service: WorkspaceProjectService = {
@@ -1827,7 +1828,7 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
       for (const contribution of [
         ...projectRoutes(context),
         ...seriesRoutes(context),
-        ...sourceImportRoutes(context, host),
+        ...sourceImportRoutes(context, host, service),
         ...workspaceMaintenanceRoutes(context, host, service),
       ])
         context.effect(`route:${contribution.id}`, () =>

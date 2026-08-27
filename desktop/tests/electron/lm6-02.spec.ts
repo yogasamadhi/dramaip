@@ -7,7 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
-import { openProjectTool } from "./project-tools";
+import { createSeriesProject, openProjectTool } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -31,9 +31,7 @@ test.afterAll(async () => {
 });
 
 test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定到当前项目", async () => {
-  await page.getByRole("button", { name: "从灵感开始" }).click();
-  await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 驾驶舱项目");
-  await page.getByRole("button", { name: "创建项目并开始构思" }).click();
+  await createSeriesProject(page, "LM6 驾驶舱项目");
   await openProjectTool(page, "项目驾驶舱");
   await expect(page.getByLabel("项目驾驶舱")).toBeVisible();
   await expect(page.getByText("准备改编", { exact: true })).toBeVisible();

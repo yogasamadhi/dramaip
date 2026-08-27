@@ -17,13 +17,13 @@ Desktop (`desktop/`):
 - `bun run test` (typecheck + unit), `bun run test:e2e` (build + Playwright; needs a GUI — CI Linux wraps the Bun-owned Electron Playwright launcher in `xvfb-run`)
 - Single test: `bun scripts/run-electron-playwright.ts test tests/electron/<file>.spec.ts --reporter=list`; runtime unit suites run via `bun run test:runtime` under Bun, while Electron E2E is the embedded-Node acceptance gate. Do not use `bunx` for JS CLIs because it may select a system Node.
 - SQLite uses `bun:sqlite` in Headless/Server and `node:sqlite` in Electron utility processes; do not reintroduce `better-sqlite3` or a system-Node ABI rebuild step.
-- Full quality gate (CI order): `lint` (oxlint `--deny-warnings`), `format:check` (prettier), `typecheck`, `test`, `check:generated`, `check:engine-locks`, `check:provider-catalog`, `build`.
+- Full quality gate (CI order): `lint` (oxlint `--deny-warnings`), `format:check` (prettier), `typecheck`, `test`, `check:architecture`, `check:generated`, `check:migration:complete`, `check:engine-locks`, `check:provider-catalog`, `build`; tag jobs then add `test:e2e`, `package`, `release:metadata`.
 
 Platform (`platform/`):
 
 - `make test` (mvn verify + clients typecheck/test + `contracts:check` + `web-route-smoke`), `make platform-up` / `platform-e2e` / `platform-down` (Docker Compose, `--profile java`)
 - Java only: `mvn -B -ntp verify` in `server/`
-- Clients: `bun run lint`, `typecheck`, `contracts:check`, `test` in `clients/`. The clients workspace also compiles/tests the root `run-platform-dev.ts` / `run-platform-clients.ts` launchers via its `typecheck:launchers` / `test:launchers` scripts.
+- Clients: `bun run lint`, `typecheck`, `contracts:check`, `test` in `clients/` (CI also runs `build:web` + `build:admin`; `test` includes a mobile security test). The clients workspace also compiles/tests the root `run-platform-dev.ts` / `run-platform-clients.ts` launchers via its `typecheck:launchers` / `test:launchers` scripts.
 - Host-JDK debug mode: `bun run run-platform-dev.ts` (runs services 8081–8087 on host, infra in Docker); clients: `bun run run-platform-clients.ts`
 
 Root Python launcher tests: `python3 -m unittest discover -s tests` (unittest-based; pytest is NOT installed — do not use it). Caveats: `test_run_platform_dev.py` asserts the installed Bun is exactly 1.4.0 (fails on any other version) and `test_run_platform_cicd.py` imports the deleted root `run-platform-cicd.py` (errors today) — see "Platform release" below.
@@ -62,8 +62,8 @@ Platform:
 
 ## Stale references and dead dirs
 
-- Root README links `./desktop2/` (missing — the archived app lives at `desktop/legacy/desktop2`), `docs/技术架构.md`, `docs/差异演进.md` and `docs/CICD_平台发布操作.md` (all missing; the real platform doc is `docs/后端技术架构.md` and the release flow is `platform/deploy/release/*.sh`); `docs/README.md` is empty and `platform/README.md` links the missing `../docs/技术架构.md`. Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
-- `desktop/legacy/` is archived and never enters a build or runtime dependency. `desktop/legacy/desktop2` may be read only as an architecture-pattern reference; do not restore or import its code. Root `run-desktop-legacy.ts` launches the archived `desktop/legacy/desktop` app — never use it. `desktop/packages/core/`, `desktop/packages/export/` and the other non-workspace `packages/*` leftovers never build.
+- Root README links `./desktop2/` (missing — the archived app lives at `desktop/legacy/desktop2`), `docs/技术架构.md`, `docs/差异演进.md` and `docs/CICD_平台发布操作.md` (all missing; the real platform doc is `docs/后端技术架构.md` and the release flow is `platform/deploy/release/*.sh`); `docs/README.md` is a docs index (not empty); `platform/README.md` links the missing `../docs/技术架构.md`. Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
+- `desktop/legacy/` is archived and never enters a build or runtime dependency. `desktop/legacy/desktop2` may be read only as an architecture-pattern reference; do not restore or import its code. Root `run-desktop-legacy.ts` launches the archived `desktop/legacy/desktop` app — never use it. `desktop/packages/schema/` (`@dramaip/product-contracts-internal`) is a non-workspace leftover — it is not in `desktop/package.json`'s workspaces and never builds.
 - `desktop/vendor/{pi,codex-rust,grok-build,deepseek-harness,opencode}` are git submodules (submodule URLs point at GitHub while the remote is Gitee) — fresh clones need `git submodule update --init`; vendor content is read-only reference/integrity material, only Pi is packaged into the runtime.
 
 Architecture details: `docs/后端技术架构.md` (platform red lines), `docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md` (desktop target architecture), `desktop/docs/engineering/ARCHITECTURE.md` (desktop implementation notes).

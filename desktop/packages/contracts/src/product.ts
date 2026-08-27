@@ -4,7 +4,7 @@
  * modules. Consumers import this stable @dramaip/contracts subpath; the
  * historical package boundary is not exposed.
  */
-export * from "../../schema/src/index.js";
+export * from "./product-contracts.js";
 // Four-mode Renderer contracts stay on the transitional product surface while
 // ownership remains in their bounded-context modules.
 export type { CreatorContentRecord } from "./writing.js";

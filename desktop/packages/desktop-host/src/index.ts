@@ -51,6 +51,13 @@ export interface ProviderHttpResponse {
   base64?: string;
 }
 
+export interface HostGrantedDocument {
+  name: string;
+  format: "txt" | "markdown" | "docx" | "epub" | "script-json";
+  content: string;
+  size: number;
+}
+
 export interface PublicSearchResult {
   title: string;
   url: string;
@@ -223,6 +230,19 @@ export class DesktopHostClient {
   ): Promise<{ name: string; content: string; size: number }> {
     return this.request(
       `/host/v1/files/grants/${encodeURIComponent(grantId)}/text`,
+      {
+        method: "POST",
+        body: JSON.stringify({ maximumBytes }),
+      },
+    );
+  }
+
+  readGrantedDocument(
+    grantId: string,
+    maximumBytes = 32 * 1024 * 1024,
+  ): Promise<HostGrantedDocument> {
+    return this.request(
+      `/host/v1/files/grants/${encodeURIComponent(grantId)}/document`,
       {
         method: "POST",
         body: JSON.stringify({ maximumBytes }),
@@ -551,6 +571,10 @@ export interface DesktopHostActions {
     grantId: string,
     maximumBytes: number,
   ): Promise<{ name: string; content: string; size: number }>;
+  readGrantedDocument?(
+    grantId: string,
+    maximumBytes: number,
+  ): Promise<HostGrantedDocument>;
   importPortraitMedia?(grantId: string): Promise<HostManagedMedia>;
   removeManagedMedia?(mediaRef: string): Promise<void>;
   publicSearch?(input: {
@@ -870,6 +894,24 @@ export function createDesktopHost(
       return context.json({ code: "INVALID_FILE_LIMIT" }, 400);
     return context.json(
       await options.actions.readGrantedText(
+        context.req.param("grantId"),
+        maximumBytes,
+      ),
+    );
+  });
+  app.post("/host/v1/files/grants/:grantId/document", async (context) => {
+    if (!options.actions.readGrantedDocument)
+      return unavailable(context, "files.read-document");
+    const body = readObject(await context.req.json());
+    const maximumBytes = Number(body.maximumBytes);
+    if (
+      !Number.isInteger(maximumBytes) ||
+      maximumBytes < 1 ||
+      maximumBytes > 32 * 1024 * 1024
+    )
+      return context.json({ code: "INVALID_FILE_LIMIT" }, 400);
+    return context.json(
+      await options.actions.readGrantedDocument(
         context.req.param("grantId"),
         maximumBytes,
       ),

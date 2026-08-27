@@ -7,6 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
+import { createSeriesProject } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -30,11 +31,7 @@ test.afterAll(async () => {
 });
 
 test("默认上下文助手只展示推荐动作，高级模式保留完整控制", async () => {
-  await page.getByRole("button", { name: "从灵感开始" }).click();
-  await page
-    .getByRole("textbox", { name: "项目名称" })
-    .fill("LM6 上下文助手项目");
-  await page.getByRole("button", { name: "创建项目并开始构思" }).click();
+  await createSeriesProject(page, "LM6 上下文助手项目");
   await page.getByRole("button", { name: "更多", exact: true }).click();
   await page.getByRole("menuitem", { name: "任务", exact: true }).click();
 

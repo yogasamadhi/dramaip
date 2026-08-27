@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 import { bootRuntime, loadProfile } from "../../runtime/src/index.js";
 
@@ -11,7 +12,7 @@ export async function generateEffectiveOpenApi(check: boolean): Promise<void> {
   const runtime = await bootRuntime({
     databasePath: join(temporaryDirectory, "openapi.db"),
     profile: loadProfile(
-      new URL("../../../profiles/studio.json", import.meta.url).pathname,
+      fileURLToPath(new URL("../../../profiles/studio.json", import.meta.url)),
     ),
     accessToken: "openapi-generation-token",
     mode: "headless",

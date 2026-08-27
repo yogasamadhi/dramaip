@@ -39,6 +39,16 @@ export type StoryBibleSidecarModel = {
   staleMarks: StoryBibleStaleMark[];
 };
 
+const SIDECAR_GROUP_ORDER: readonly StoryBibleSidecarItem["group"][] = [
+  "人物",
+  "关系与设定",
+  "时间线",
+  "伏笔",
+  "视觉锁",
+  "章节记忆",
+  "变更草案",
+];
+
 const payload = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -168,7 +178,8 @@ export function buildStoryBibleSidecar(input: {
   return {
     items: items.sort(
       (left, right) =>
-        left.group.localeCompare(right.group) ||
+        SIDECAR_GROUP_ORDER.indexOf(left.group) -
+          SIDECAR_GROUP_ORDER.indexOf(right.group) ||
         left.title.localeCompare(right.title),
     ),
     relevantChangeSets,

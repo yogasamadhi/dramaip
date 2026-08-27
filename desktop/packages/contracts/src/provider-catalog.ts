@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 
+/** Manually verified provider catalog shipped as part of @dramaip/contracts. */
 export const MODEL_PROVIDER_CATALOG_RELEASE = "3.0.0-alpha.3";
 export const MODEL_PROVIDER_CATALOG_UPDATED_AT = "2026-08-11";
 

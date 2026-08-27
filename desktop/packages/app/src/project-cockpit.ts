@@ -101,7 +101,7 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
       coverage,
       recentTaskOrNode(tasks, graph),
     );
-  if (!chapters.length)
+  if (!chapters.length && !graph.coverage.scripts)
     return cockpit(
       "needs-input",
       "等待内容输入",

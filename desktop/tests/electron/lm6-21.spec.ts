@@ -25,7 +25,7 @@ test.afterAll(async () => {
 test("已采用的音轨可以审查、选择采用为时间线 change set，并保护人工锁定", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作", exact: true }).click();
   await page
     .getByRole("combobox", { name: "改编项目" })

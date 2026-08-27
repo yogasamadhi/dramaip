@@ -3,7 +3,7 @@ import {
   MODEL_PROVIDER_CATALOG,
   MODEL_PROVIDER_CATALOG_UPDATED_AT,
   recommendedProviderModel,
-} from "./provider-catalog";
+} from "./provider-catalog.js";
 
 test("常用模型服务商目录拥有唯一厂商、模型和推荐项", () => {
   expect(MODEL_PROVIDER_CATALOG.length).toBeGreaterThanOrEqual(8);

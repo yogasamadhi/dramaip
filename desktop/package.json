@@ -15,6 +15,7 @@
     "@hono/node-server": "2.1.1",
     "@hono/zod-openapi": "1.6.0",
     "esbuild": "0.28.1",
+    "fflate": "0.8.3",
     "hono": "4.13.2",
     "openapi-typescript": "7.13.0",
     "oxlint": "^1.43.0",
@@ -103,11 +104,6 @@
     "packages/agent-runtime",
     "packages/ui-runtime",
     "packages/extension-host",
-    "plugins/*",
-    "vendor/deepseek-harness/vendor/cordis",
-    "vendor/deepseek-harness/vendor/cosmokit",
-    "vendor/deepseek-harness/vendor/loader",
-    "vendor/deepseek-harness/vendor/group",
-    "vendor/deepseek-harness/vendor/include"
+    "plugins/*"
   ]
 }

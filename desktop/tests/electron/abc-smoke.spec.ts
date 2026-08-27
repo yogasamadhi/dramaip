@@ -4,16 +4,58 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { strToU8, zipSync } from "fflate";
 
 let application: ElectronApplication;
 let page: Page;
 let userData: string;
+let importFixtures: Array<{ name: string; path: string; script: boolean }>;
 
 test.beforeAll(async () => {
   userData = await mkdtemp(join(tmpdir(), "dramaip-electron-e2e-"));
+  const fixtureDirectory = join(userData, "source-import-fixtures");
+  await mkdir(fixtureDirectory);
+  const fixtures = {
+    "story.txt": strToU8("# 文本故事\n\n## 第一章\n\nTXT 正文"),
+    "story.md": strToU8("# Markdown 故事\n\n## 第一章\n\nMarkdown 正文"),
+    "story.docx": zipSync({
+      "[Content_Types].xml": strToU8("<Types></Types>"),
+      "word/document.xml": strToU8(
+        '<w:document><w:body><w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Word 故事</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>第一章</w:t></w:r></w:p><w:p><w:r><w:t>DOCX 正文</w:t></w:r></w:p></w:body></w:document>',
+      ),
+    }),
+    "story.epub": zipSync({
+      "META-INF/container.xml": strToU8(
+        '<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>',
+      ),
+      "OPS/book.opf": strToU8(
+        '<package><metadata><dc:title>EPUB 故事</dc:title></metadata><manifest><item id="c1" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c1"/></spine></package>',
+      ),
+      "OPS/chapter.xhtml": strToU8(
+        "<html><body><h1>第一章</h1><p>EPUB 正文</p></body></html>",
+      ),
+    }),
+    "script.json": strToU8(
+      JSON.stringify({
+        title: "结构化剧本",
+        episodes: [
+          {
+            episodeNumber: 1,
+            scenes: [{ title: "雨夜门口", content: "主角拆开信封。" }],
+          },
+        ],
+      }),
+    ),
+  };
+  importFixtures = [];
+  for (const [name, content] of Object.entries(fixtures)) {
+    const path = join(fixtureDirectory, name);
+    await writeFile(path, content);
+    importFixtures.push({ name, path, script: name.endsWith(".json") });
+  }
   const executablePath = process.env.DRAMAIP_E2E_EXECUTABLE;
   application = await electron.launch({
     ...(executablePath ? { executablePath } : {}),
@@ -21,20 +63,43 @@ test.beforeAll(async () => {
     env: {
       ...process.env,
       DRAMAIP_E2E_USER_DATA: userData,
+      DRAMAIP_E2E_SOURCE_IMPORT_FILE: resolve(
+        "tests/fixtures/lm6/lm6-00/source-import.md",
+      ),
     },
   });
   page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await expect(page.getByRole("heading", { name: "选择开始方式" })).toBeVisible(
-    {
-      timeout: 30_000,
-    },
-  );
+  await expect(page.getByRole("heading", { name: "项目工作台" })).toBeVisible({
+    timeout: 30_000,
+  });
 });
+
+async function runtimeJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const bootstrap = await page.evaluate(() =>
+    window.runtimeBootstrap.resolve(),
+  );
+  const response = await fetch(`${bootstrap.baseUrl}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${bootstrap.accessToken}`,
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+  expect(response.ok, await response.clone().text()).toBe(true);
+  return (await response.json()) as T;
+}
 
 test.afterAll(async () => {
   await application?.close();
-  if (userData) await rm(userData, { recursive: true, force: true });
+  if (userData)
+    await rm(userData, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
 });
 
 test("桌面窗口使用更宽高的默认工作区", async () => {
@@ -57,7 +122,7 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
     );
   expect(englishOnly).toEqual([]);
 
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await expect(page.getByText("示例短剧：雨夜归来")).toBeVisible();
   await page.getByRole("button", { name: "更多", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置", exact: true }).click();
@@ -165,6 +230,164 @@ test("智能助手只在用户打开弹窗后显示", async () => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡片呈现", async () => {
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
+  await expect(page.getByText("更多创作方式", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /系列长篇/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /单季短剧/ })).toContainText(
+    "支持漫剧 / 真人短剧",
+  );
+  await expect(
+    page.getByRole("button", { name: /我的AI小剧场/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /博主内容工作室/ }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: /博主内容工作室/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "填写名称并创建" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "选择怎么开始" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "修改" }).click();
+});
+
+test("系列长篇把用户修改后的章节、季和每季集数持久化", async () => {
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("button", { name: /系列长篇/ }).click();
+  await page.getByRole("button", { name: /从灵感开始/ }).click();
+  await page.getByLabel("项目名称").fill("六季长篇持久化验证");
+  await page.getByRole("button", { name: /展开受众、平台与视觉设置/ }).click();
+  await page.getByLabel("母本章节数").fill("360");
+  await page.getByLabel("计划季数").fill("6");
+  await page.getByLabel("每季集数").fill("72");
+  await page.getByRole("button", { name: "创建系列长篇" }).click();
+
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  const projectId = page.url().split("/").at(-1)!;
+  const project = await runtimeJson<{
+    modeConfig: Record<string, unknown>;
+    productionBrief?: string;
+  }>(`/api/v2/projects/${projectId}`);
+  expect(project.modeConfig).toEqual({
+    mode: "series_longform",
+    targetChapterCount: 360,
+    targetSeasonCount: 6,
+    targetEpisodesPerSeason: 72,
+  });
+  expect(project.productionBrief).toContain("母本章节：360 章");
+  expect(project.productionBrief).not.toContain("计划集数：80 集");
+});
+
+test("单季短剧从创意开始生成母稿、四个人物、季纲和首集", async () => {
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("button", { name: /单季短剧/ }).click();
+  await page.getByRole("button", { name: /从创意开始/ }).click();
+  await page.getByLabel("项目名称").fill("单季初始化验收");
+  await page
+    .getByLabel("故事构思（可选）")
+    .fill("雨夜的一封匿名信牵出旧案。\n");
+  await page.getByRole("button", { name: "创建单季短剧" }).click();
+
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  const projectId = page.url().split("/").at(-1)!;
+  const [project, chapters, characters, adaptations, episodes] =
+    await Promise.all([
+      runtimeJson<{ currentAdaptationId?: string }>(
+        `/api/v2/projects/${projectId}`,
+      ),
+      runtimeJson<Array<{ title: string }>>(
+        `/api/v2/projects/${projectId}/chapters`,
+      ),
+      runtimeJson<Array<{ title: string }>>(
+        `/api/v2/characters?projectId=${projectId}`,
+      ),
+      runtimeJson<Array<{ id: string; title: string }>>(
+        `/api/v2/adaptations?projectId=${projectId}`,
+      ),
+      runtimeJson<Array<{ parentId?: string; title: string }>>(
+        `/api/v2/episodes?projectId=${projectId}`,
+      ),
+    ]);
+  expect(chapters.map((chapter) => chapter.title)).toContain("单季故事母稿");
+  expect(characters).toHaveLength(4);
+  expect(adaptations).toEqual([
+    expect.objectContaining({ title: "第一季季纲" }),
+  ]);
+  expect(episodes).toEqual([
+    expect.objectContaining({
+      title: "第 1 集",
+      parentId: adaptations[0]!.id,
+    }),
+  ]);
+  expect(project.currentAdaptationId).toBe(adaptations[0]!.id);
+});
+
+test("项目外导入预览不创建项目，确认后才创建并导入", async () => {
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+  await page.getByRole("button", { name: /单季短剧/ }).click();
+  await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
+  await page.getByRole("button", { name: "选择文件" }).click();
+  await expect(
+    page.getByText("source-import.md", { exact: true }),
+  ).toBeVisible();
+  const afterPreview =
+    await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+  expect(afterPreview).toHaveLength(before.length);
+  await page
+    .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
+    .check();
+  await page.getByRole("button", { name: "创建单季短剧" }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  const afterCommit =
+    await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+  expect(afterCommit).toHaveLength(before.length + 1);
+  const projectId = page.url().split("/").at(-1)!;
+  const chapters = await runtimeJson<Array<{ title: string }>>(
+    `/api/v2/projects/${projectId}/chapters`,
+  );
+  expect(chapters.map((chapter) => chapter.title)).toEqual([
+    "第一章 雨夜来信",
+    "第二章 失联电话",
+  ]);
+});
+
+test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览并取消", async () => {
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  for (const fixture of importFixtures) {
+    await application.evaluate((_, filePath) => {
+      process.env.DRAMAIP_E2E_SOURCE_IMPORT_FILE = filePath;
+    }, fixture.path);
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "项目工作台" }),
+    ).toBeVisible();
+    const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+    await page.getByRole("button", { name: /单季短剧/ }).click();
+    await page
+      .getByRole("button", {
+        name: fixture.script ? /直接写剧本/ : /导入小说 \/ IP/,
+      })
+      .click();
+    await page.getByRole("button", { name: "选择文件" }).click();
+    await expect(page.getByText(fixture.name, { exact: true })).toBeVisible();
+    const afterPreview =
+      await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+    expect(afterPreview, fixture.name).toHaveLength(before.length);
+
+    await page.getByRole("button", { name: "修改" }).nth(1).click();
+    await page.getByRole("button", { name: /从创意开始/ }).click();
+    await expect(page.getByText(fixture.name, { exact: true })).toHaveCount(0);
+    const afterCancel =
+      await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+    expect(afterCancel, fixture.name).toHaveLength(before.length);
+  }
+});
+
 test("只填作品名即可创建小说、首章并进入写作", async () => {
   await page.getByRole("link", { name: "小说写作", exact: true }).click();
   await page.getByRole("link", { name: "新建小说", exact: true }).click();
@@ -189,15 +412,96 @@ test("只填作品名即可创建小说、首章并进入写作", async () => {
   await expect(page.getByLabel("项目辅助区")).toHaveCount(0);
 });
 
+test("快捷入口选择末世囤货后初始化首章、人物、大纲和故事弧", async () => {
+  await page.getByRole("link", { name: "小说写作", exact: true }).click();
+  await page.getByRole("link", { name: "新建小说", exact: true }).click();
+  await page.getByRole("textbox", { name: "作品名称" }).fill("末日早餐店");
+  await page
+    .getByRole("textbox", { name: "一句话灵感" })
+    .fill("主角必须先救下经营早餐店的邻居。");
+  await page
+    .getByLabel("完整故事预设")
+    .getByRole("button", { name: /末世囤货/ })
+    .click();
+  await expect(page.getByText("将创建：末世囤货完整骨架")).toBeVisible();
+  await page.getByRole("button", { name: "创建并开始写作" }).click();
+
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  const guide = page.getByLabel("继续完善预设");
+  await expect(guide.getByText("继续完善“末世囤货”预设")).toBeVisible();
+  await page.getByRole("button", { name: "章节要点", exact: true }).click();
+  const chapterDetails = page.getByRole("dialog", {
+    name: "章节要点",
+  });
+  await expect(chapterDetails.getByLabel("章节摘要")).toHaveValue(/倒计时/);
+  await expect(chapterDetails.getByLabel("核心冲突")).not.toHaveValue("");
+  await expect(chapterDetails.getByLabel("开场钩子")).not.toHaveValue("");
+  await expect(chapterDetails.getByLabel("结尾悬念")).not.toHaveValue("");
+  await page.keyboard.press("Escape");
+  await expect(chapterDetails).toBeHidden();
+
+  await guide.getByRole("button", { name: "人物", exact: true }).click();
+  await expect(page.getByText("预警者槽位（待命名）")).toBeVisible();
+  await guide.getByRole("button", { name: "全书大纲", exact: true }).click();
+  await expect(page.getByText("末世囤货·全书骨架")).toBeVisible();
+  await guide.getByRole("button", { name: "故事弧", exact: true }).click();
+  await expect(page.getByText("第一阶段·灾前倒计时")).toBeVisible();
+});
+
+test("完整向导创建嘉豪预设并提供四个分区的可确认 AI 润色入口", async () => {
+  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("button", { name: /系列长篇/ }).click();
+  await page.getByRole("button", { name: /从灵感开始/ }).click();
+  await page.getByLabel("项目名称").fill("普通人的主角镜头");
+  await page
+    .getByLabel("完整故事预设")
+    .getByRole("button", { name: /嘉豪/ })
+    .click();
+  await page.getByRole("button", { name: "创建系列长篇" }).click();
+
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  const guide = page.getByLabel("继续完善预设");
+  await expect(guide.getByText("继续完善“嘉豪”预设")).toBeVisible();
+
+  await guide.getByRole("button", { name: "项目设定", exact: true }).click();
+  const projectGenerator = page.getByRole("button", {
+    name: /智能补全项目设定/,
+  });
+  await expect(projectGenerator).toBeVisible();
+  await projectGenerator.click();
+  await expect(
+    page.getByPlaceholder("补充你的想法或要求；留空也可以直接生成。"),
+  ).toHaveValue(/保留用户灵感和“嘉豪”预设/);
+
+  await guide.getByRole("button", { name: "人物", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: /智能生成人物卡/ }),
+  ).toBeVisible();
+  await guide.getByRole("button", { name: "全书大纲", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: /智能生成全书大纲/ }),
+  ).toBeVisible();
+  await guide.getByRole("button", { name: "故事弧", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: /智能规划卷与单元/ }),
+  ).toBeVisible();
+});
+
 test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", async () => {
+  const novelNavigation = page.getByLabel("小说创作入口");
   for (const label of ["正文", "大纲", "人物", "设定", "故事圣经"])
     await expect(
-      page.getByRole("button", { name: label, exact: true }),
+      novelNavigation.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "长篇工具", exact: true }),
+    novelNavigation.getByRole("button", {
+      name: "长篇工具",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "正文", exact: true }).click();
+  await novelNavigation
+    .getByRole("button", { name: "正文", exact: true })
+    .click();
   await expect(
     page.getByRole("textbox", { name: "章节正文编辑器" }),
   ).toBeVisible();
@@ -243,7 +547,9 @@ test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", as
   await panel.getByRole("button", { name: "关闭章节辅助栏" }).click();
   await page.setViewportSize({ width: 1440, height: 920 });
 
-  await page.getByRole("button", { name: "长篇工具", exact: true }).click();
+  await novelNavigation
+    .getByRole("button", { name: "长篇工具", exact: true })
+    .click();
   for (const label of [
     "章节记忆",
     "人物状态",

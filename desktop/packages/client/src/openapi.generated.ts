@@ -10793,7 +10793,7 @@ export interface operations {
       content: {
         "application/json": {
           /** Format: uuid */
-          projectId: string;
+          projectId?: string;
           /** Format: uuid */
           capabilityToken: string;
         };

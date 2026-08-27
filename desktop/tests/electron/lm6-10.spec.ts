@@ -25,7 +25,7 @@ test.afterAll(async () => {
 test("示例项目在统一资产中心展示筛选、状态和版本比较入口", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await expect(page.getByRole("link", { name: "雨夜归来" })).toBeVisible();
   await page.getByRole("link", { name: "制作" }).click();
   await page.getByRole("button", { name: "资产中心" }).click();

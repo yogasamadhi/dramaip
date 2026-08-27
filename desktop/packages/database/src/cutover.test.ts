@@ -20,6 +20,15 @@ import {
 } from "./index.js";
 import { createSqlite } from "./sqlite.js";
 
+const removeTemporaryDirectory = (directory: string) => {
+  rmSync(directory, {
+    recursive: true,
+    force: true,
+    maxRetries: process.platform === "win32" ? 10 : 0,
+    retryDelay: 50,
+  });
+};
+
 describe("migration compatibility", () => {
   it("accepts the immutable alpha.2 foundation migration during alpha.3 startup", () => {
     const directory = mkdtempSync(
@@ -46,7 +55,7 @@ describe("migration compatibility", () => {
       ).not.toThrow();
     } finally {
       database.close();
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 
@@ -100,7 +109,7 @@ describe("migration compatibility", () => {
       backup.close();
     } finally {
       database.close();
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 
@@ -140,7 +149,7 @@ describe("migration compatibility", () => {
       ).toBeNull();
     } finally {
       database.close();
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 });
@@ -173,7 +182,7 @@ describe("destructive v3 cutover", () => {
       });
       expect(repeated.manifest?.backupPath).toBe(cutover.manifest?.backupPath);
     } finally {
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 
@@ -206,7 +215,7 @@ describe("destructive v3 cutover", () => {
         '"stage": "complete"',
       );
     } finally {
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
   it("moves a verified legacy database once and records a durable completion state", () => {
@@ -239,7 +248,7 @@ describe("destructive v3 cutover", () => {
       });
       expect(repeated.manifest?.backupPath).toBe(cutover.manifest?.backupPath);
     } finally {
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 
@@ -282,7 +291,7 @@ describe("destructive v3 cutover", () => {
       expect(existsSync(databasePath)).toBe(false);
       expect(existsSync(backupPath)).toBe(true);
     } finally {
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 
@@ -308,7 +317,7 @@ describe("destructive v3 cutover", () => {
       );
       expect(state).toContain('"stage": "failed"');
     } finally {
-      rmSync(directory, { recursive: true, force: true });
+      removeTemporaryDirectory(directory);
     }
   });
 });

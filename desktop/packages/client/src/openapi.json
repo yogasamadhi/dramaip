@@ -7408,7 +7408,7 @@
                   "projectId": { "type": "string", "format": "uuid" },
                   "capabilityToken": { "type": "string", "format": "uuid" }
                 },
-                "required": ["projectId", "capabilityToken"]
+                "required": ["capabilityToken"]
               }
             }
           }

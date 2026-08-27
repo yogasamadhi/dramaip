@@ -21,6 +21,14 @@ import {
   message,
   useStudio,
 } from "../../studio-shared";
+import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
+import {
+  applyNovelStoryPresetToBrief,
+  initializeStoryPresetMaterials,
+  novelStoryPreset,
+  projectInputFromStoryPreset,
+  type NovelStoryPresetId,
+} from "../novel/story-presets";
 export function NovelWritingHome() {
   const client = useStudio();
   const {
@@ -129,6 +137,7 @@ export function NovelQuickStart() {
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
   const [genre, setGenre] = useState<string>("都市情感");
+  const [storyPresetId, setStoryPresetId] = useState<NovelStoryPresetId>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -147,24 +156,40 @@ export function NovelQuickStart() {
     setError(undefined);
     let project: Project | undefined;
     try {
-      const draft = defaultProductionBrief(
+      let draft = defaultProductionBrief(
         mode === "source" ? "source-import" : "inspiration",
       );
       draft.title = title.trim();
       draft.idea = idea.trim();
       draft.shortDramaType = genre || "都市情感";
-      project = (await client.projects.create(projectInputFromBrief(draft)))
-        .project;
+      const preset =
+        mode === "inspiration" ? novelStoryPreset(storyPresetId) : undefined;
+      if (preset) draft = applyNovelStoryPresetToBrief(draft, preset);
+      const modeConfig = {
+        mode: "series_longform" as const,
+        targetChapterCount: 300,
+        targetSeasonCount: 5,
+        targetEpisodesPerSeason: 80,
+      };
+      project = (
+        await client.projects.create(
+          preset
+            ? projectInputFromStoryPreset(draft, preset, modeConfig)
+            : projectInputFromBrief(draft, modeConfig),
+        )
+      ).project;
       if (mode === "source") {
         navigate(`/projects/${project.id}/tools/import`);
         return;
       }
-      const chapter = await client.chapters.create({
-        projectId: project.id,
-        title: "第 1 章",
-        summary: "",
-        content: "",
-      });
+      const chapter = preset
+        ? await initializeStoryPresetMaterials(client, project.id, preset, idea)
+        : await client.chapters.create({
+            projectId: project.id,
+            title: "第 1 章",
+            summary: "",
+            content: "",
+          });
       window.localStorage.setItem(
         `dramaip-novel-last-chapter:${project.id}`,
         chapter.id,
@@ -199,7 +224,13 @@ export function NovelQuickStart() {
             <BareButton
               key={value}
               className={`rounded-md px-3 py-2.5 text-sm font-medium ${mode === value ? "bg-surface-raised text-brand shadow-control" : "text-muted hover:text-ink"}`}
-              onClick={() => setMode(value)}
+              onClick={() => {
+                setMode(value);
+                if (value === "source") {
+                  setStoryPresetId(undefined);
+                  setGenre("都市情感");
+                }
+              }}
             >
               {label}
             </BareButton>
@@ -229,6 +260,21 @@ export function NovelQuickStart() {
               onChange={(event) => setIdea(event.target.value)}
             />
           </label>
+          {mode === "inspiration" && (
+            <NovelStoryPresetPicker
+              selectedId={storyPresetId}
+              onSelect={(id) => {
+                const preset = novelStoryPreset(id);
+                if (!preset) return;
+                setStoryPresetId(id);
+                setGenre(preset.label);
+              }}
+              onClear={() => {
+                setStoryPresetId(undefined);
+                setGenre("都市情感");
+              }}
+            />
+          )}
           <fieldset>
             <legend className="text-sm font-medium">题材（可选）</legend>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -238,7 +284,10 @@ export function NovelQuickStart() {
                   type="button"
                   aria-pressed={genre === item}
                   className={`rounded-full border px-3 py-1.5 text-sm ${genre === item ? "border-brand bg-brand-soft text-brand" : "border-line text-muted hover:border-line-strong hover:text-ink"}`}
-                  onClick={() => setGenre(item)}
+                  onClick={() => {
+                    setStoryPresetId(undefined);
+                    setGenre(item);
+                  }}
                 >
                   {item}
                 </BareButton>

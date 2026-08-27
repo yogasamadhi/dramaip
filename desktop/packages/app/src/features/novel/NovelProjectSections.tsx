@@ -263,6 +263,7 @@ function displayValue(value: unknown): string {
 export function NovelCharactersSection(props: {
   client: StudioClient;
   projectId: string;
+  defaultInstruction?: string;
 }) {
   return (
     <NovelResourceSection
@@ -277,16 +278,27 @@ export function NovelCharactersSection(props: {
         taskType: "generate_characters",
         title: "智能生成人物卡",
         description: "根据项目设定一次生成主要人物，采用前可以逐张核对。",
+        defaultInstruction: props.defaultInstruction,
       }}
     />
   );
 }
 
+export type NovelOutlineMode = "book" | "chapter" | "arc";
+
 export function NovelOutlineSection(props: {
   client: StudioClient;
   projectId: string;
+  mode?: NovelOutlineMode;
+  onModeChange?(mode: NovelOutlineMode): void;
+  defaultInstruction?: string;
 }) {
-  const [mode, setMode] = useState<"book" | "chapter" | "arc">("book");
+  const [internalMode, setInternalMode] = useState<NovelOutlineMode>("book");
+  const mode = props.mode ?? internalMode;
+  const setMode = (value: NovelOutlineMode) => {
+    if (props.mode === undefined) setInternalMode(value);
+    props.onModeChange?.(value);
+  };
   const configuration =
     mode === "arc"
       ? {
@@ -344,7 +356,8 @@ export function NovelOutlineSection(props: {
       </nav>
       <NovelResourceSection
         key={mode}
-        {...props}
+        client={props.client}
+        projectId={props.projectId}
         domain={configuration.domain}
         title={configuration.title}
         description={configuration.description}
@@ -363,6 +376,7 @@ export function NovelOutlineSection(props: {
           title: configuration.generatorTitle,
           description:
             "沿用旧版 Prompt 与采用后落库策略，结果不会直接覆盖正式资料。",
+          defaultInstruction: props.defaultInstruction,
         }}
       />
     </div>
@@ -450,6 +464,7 @@ function NovelResourceSection(props: {
     taskType: AgentTaskType;
     title: string;
     description: string;
+    defaultInstruction?: string;
   };
 }) {
   const [items, setItems] = useState<DomainEntity[]>([]);
@@ -933,10 +948,13 @@ export function NovelArtifactGenerator(props: {
   taskType: AgentTaskType;
   title: string;
   description: string;
+  defaultInstruction?: string;
   onCommitted(): void | Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [instruction, setInstruction] = useState("");
+  const [instruction, setInstruction] = useState(
+    () => props.defaultInstruction ?? "",
+  );
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
   const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [task, setTask] = useState<Task>();

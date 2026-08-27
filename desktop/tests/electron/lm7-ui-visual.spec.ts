@@ -43,16 +43,14 @@ test.beforeAll(async () => {
     console.error("LM7 renderer error", error);
   });
   await page.setViewportSize({ width: 1440, height: 920 });
-  await expect(page.getByRole("heading", { name: "选择开始方式" })).toBeVisible(
-    {
-      timeout: 30_000,
-    },
-  );
+  await expect(page.getByRole("heading", { name: "项目工作台" })).toBeVisible({
+    timeout: 30_000,
+  });
   await page.addStyleTag({
     content:
       "*,*::before,*::after{animation-duration:0s!important;transition-duration:0s!important;caret-color:transparent!important}",
   });
-  await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page.getByRole("button", { name: "先看看示例" }).click();
   await page
     .getByRole("link", { name: /示例短剧：雨夜归来/ })
     .first()

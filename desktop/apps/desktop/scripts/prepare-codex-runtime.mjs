@@ -132,7 +132,7 @@ if (process.argv.includes("--update-protocol-lock")) {
   } catch {
     throw new Error("缺少 Codex 协议锁定文件，请先运行 update:codex-protocol");
   }
-  if (expected !== protocolSerialized)
+  if (expected.replaceAll("\r\n", "\n") !== protocolSerialized)
     throw new Error(
       "Codex App Server 协议与锁定快照不一致，必须单独审核并更新",
     );
