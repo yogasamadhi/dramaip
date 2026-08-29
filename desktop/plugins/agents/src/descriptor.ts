@@ -9,6 +9,23 @@ export const AGENTS_DESCRIPTOR = {
 
 export const AGENTS_UI_CONTRIBUTIONS = [
   {
+    id: "agents.route.inspiration",
+    pluginId: "agents",
+    kind: "route",
+    metadata: { path: "/inspiration", title: "灵感空间" },
+  },
+  {
+    id: "agents.navigation.inspiration",
+    pluginId: "agents",
+    kind: "navigation",
+    metadata: {
+      section: "main",
+      order: 15,
+      label: "灵感空间",
+      to: "/inspiration",
+    },
+  },
+  {
     id: "agents.slot.assistant",
     pluginId: "agents",
     kind: "slot",

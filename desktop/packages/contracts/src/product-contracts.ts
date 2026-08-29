@@ -521,8 +521,52 @@ export const AgentSessionStatus = Schema.Literals([
 ]);
 export type AgentSessionStatus =
   "idle" | "running" | "failed" | "interrupted" | "disposed";
-export const AssistantSurface = Schema.Literals(["novel", "global", "legacy"]);
-export type AssistantSurface = "novel" | "global" | "legacy";
+export const AssistantSurface = Schema.Literals([
+  "novel",
+  "global",
+  "inspiration",
+  "legacy",
+]);
+export type AssistantSurface = "novel" | "global" | "inspiration" | "legacy";
+export const CreativeMode = Schema.Literals([
+  "free",
+  "guided",
+  "character_interview",
+  "world_simulation",
+  "conflict_lab",
+]);
+export type CreativeMode =
+  | "free"
+  | "guided"
+  | "character_interview"
+  | "world_simulation"
+  | "conflict_lab";
+export const InspirationCardKind = Schema.Literals([
+  "premise",
+  "character",
+  "world",
+  "conflict",
+  "scene",
+  "style",
+  "question",
+]);
+export type InspirationCardKind =
+  | "premise"
+  | "character"
+  | "world"
+  | "conflict"
+  | "scene"
+  | "style"
+  | "question";
+export const CreativeMemoryKind = Schema.Literals([
+  "preference",
+  "theme",
+  "constraint",
+  "avoid",
+  "goal",
+]);
+export type CreativeMemoryKind =
+  "preference" | "theme" | "constraint" | "avoid" | "goal";
 export const AgentModelSelection = Schema.Struct({
   providerId: Schema.optionalKey(Schema.String),
   modelId: Schema.optionalKey(Schema.String),
@@ -539,6 +583,10 @@ export const AgentSession = Schema.Struct({
   engineKind: AgentEngineKind,
   projectId: Schema.optionalKey(Id),
   surface: AssistantSurface,
+  creativeMode: Schema.optionalKey(CreativeMode),
+  parentSessionId: Schema.optionalKey(Id),
+  promptPolicyVersion: Schema.optionalKey(Schema.String),
+  webAccessMode: Schema.Literals(["auto", "off"]),
   chapterId: Schema.optionalKey(Id),
   taskType: Schema.optionalKey(AgentTaskType),
   title: Schema.optionalKey(Schema.String),
@@ -555,6 +603,10 @@ export interface AgentSession {
   engineKind: AgentEngineKind;
   projectId?: Id;
   surface: AssistantSurface;
+  creativeMode?: CreativeMode;
+  parentSessionId?: Id;
+  promptPolicyVersion?: string;
+  webAccessMode: "auto" | "off";
   chapterId?: Id;
   taskType?: AgentTaskType;
   title?: string;
@@ -568,20 +620,24 @@ export interface AgentSession {
 export const AgentSessionInput = Schema.Struct({
   projectId: Schema.optionalKey(Id),
   surface: Schema.optionalKey(AssistantSurface),
+  creativeMode: Schema.optionalKey(CreativeMode),
   chapterId: Schema.optionalKey(Id),
   engineKind: Schema.optionalKey(AgentEngineKind),
   taskType: Schema.optionalKey(AgentTaskType),
   title: Schema.optionalKey(Schema.String),
   model: Schema.optionalKey(AgentModelSelection),
+  webAccessMode: Schema.optionalKey(Schema.Literals(["auto", "off"])),
 });
 export interface AgentSessionInput {
   projectId?: Id;
   surface?: AssistantSurface;
+  creativeMode?: CreativeMode;
   chapterId?: Id;
   engineKind?: AgentEngineKind;
   taskType?: AgentTaskType;
   title?: string;
   model?: AgentModelSelection;
+  webAccessMode?: "auto" | "off";
 }
 export const AgentRunOperation = Schema.Union([
   Schema.Literal("diagnostic"),
@@ -811,10 +867,32 @@ export interface AssistantTurn {
 export const AssistantConversationPatch = Schema.Struct({
   title: Schema.optionalKey(Schema.String),
   archived: Schema.optionalKey(Schema.Boolean),
+  creativeMode: Schema.optionalKey(CreativeMode),
+  webAccessMode: Schema.optionalKey(Schema.Literals(["auto", "off"])),
 });
 export interface AssistantConversationPatch {
   title?: string;
   archived?: boolean;
+  creativeMode?: CreativeMode;
+  webAccessMode?: "auto" | "off";
+}
+
+export const AssistantWebResearchSettings = Schema.Struct({
+  consented: Schema.Boolean,
+  consentedAt: Schema.optionalKey(IsoDateTime),
+  updatedAt: IsoDateTime,
+});
+export interface AssistantWebResearchSettings {
+  consented: boolean;
+  consentedAt?: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const AssistantWebResearchConsentInput = Schema.Struct({
+  consented: Schema.Boolean,
+});
+export interface AssistantWebResearchConsentInput {
+  consented: boolean;
 }
 
 export const AssistantConversationBindInput = Schema.Struct({ projectId: Id });
@@ -865,6 +943,189 @@ export interface AssistantConversationDetail {
   items: AgentItem[];
   changePreviews: unknown[];
   providerActionPreviews: unknown[];
+}
+
+export const InspirationCard = Schema.Struct({
+  id: Id,
+  conversationId: Id,
+  kind: InspirationCardKind,
+  title: Schema.String,
+  content: Schema.String,
+  sourceTurnId: Schema.optionalKey(Id),
+  adopted: Schema.Boolean,
+  version: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface InspirationCard {
+  id: Id;
+  conversationId: Id;
+  kind: InspirationCardKind;
+  title: string;
+  content: string;
+  sourceTurnId?: Id;
+  adopted: boolean;
+  version: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const InspirationCardInput = Schema.Struct({
+  conversationId: Id,
+  kind: InspirationCardKind,
+  title: RequiredText,
+  content: RequiredText,
+  sourceTurnId: Schema.optionalKey(Id),
+});
+export interface InspirationCardInput {
+  conversationId: Id;
+  kind: InspirationCardKind;
+  title: string;
+  content: string;
+  sourceTurnId?: Id;
+}
+export const InspirationCardPatch = Schema.Struct({
+  kind: Schema.optionalKey(InspirationCardKind),
+  title: Schema.optionalKey(RequiredText),
+  content: Schema.optionalKey(RequiredText),
+  adopted: Schema.optionalKey(Schema.Boolean),
+  version: Schema.Int,
+});
+export interface InspirationCardPatch {
+  kind?: InspirationCardKind;
+  title?: string;
+  content?: string;
+  adopted?: boolean;
+  version: number;
+}
+
+export const CreativeMemorySettings = Schema.Struct({
+  enabled: Schema.Boolean,
+  consentedAt: Schema.optionalKey(IsoDateTime),
+  updatedAt: IsoDateTime,
+});
+export interface CreativeMemorySettings {
+  enabled: boolean;
+  consentedAt?: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const CreativeMemorySettingsInput = Schema.Struct({
+  enabled: Schema.Boolean,
+});
+export interface CreativeMemorySettingsInput {
+  enabled: boolean;
+}
+export const CreativeMemory = Schema.Struct({
+  id: Id,
+  kind: CreativeMemoryKind,
+  content: Schema.String,
+  confidence: Schema.Number,
+  sourceConversationIds: Schema.Array(Id),
+  status: Schema.Literals(["active", "disabled"]),
+  version: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface CreativeMemory {
+  id: Id;
+  kind: CreativeMemoryKind;
+  content: string;
+  confidence: number;
+  sourceConversationIds: Id[];
+  status: "active" | "disabled";
+  version: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const CreativeMemoryPatch = Schema.Struct({
+  kind: Schema.optionalKey(CreativeMemoryKind),
+  content: Schema.optionalKey(RequiredText),
+  status: Schema.optionalKey(Schema.Literals(["active", "disabled"])),
+  version: Schema.Int,
+});
+export interface CreativeMemoryPatch {
+  kind?: CreativeMemoryKind;
+  content?: string;
+  status?: "active" | "disabled";
+  version: number;
+}
+
+export const InspirationMemoryJob = Schema.Struct({
+  id: Id,
+  conversationId: Id,
+  throughTurnCount: Schema.Int,
+  status: Schema.Literals(["pending", "running", "completed", "failed"]),
+  reason: Schema.Literals(["six_turns", "archive", "manual"]),
+  error: Schema.optionalKey(Schema.String),
+  model: Schema.optionalKey(Schema.String),
+  inputTokens: Schema.Int,
+  outputTokens: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface InspirationMemoryJob {
+  id: Id;
+  conversationId: Id;
+  throughTurnCount: number;
+  status: "pending" | "running" | "completed" | "failed";
+  reason: "six_turns" | "archive" | "manual";
+  error?: string;
+  model?: string;
+  inputTokens: number;
+  outputTokens: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const InspirationProjectPreviewInput = Schema.Struct({
+  conversationId: Id,
+  project: ProjectInput,
+  cardIds: Schema.Array(Id),
+});
+export interface InspirationProjectPreviewInput {
+  conversationId: Id;
+  project: ProjectInput;
+  cardIds: Id[];
+}
+export const InspirationProjectPreview = Schema.Struct({
+  id: Id,
+  conversationId: Id,
+  project: ProjectInput,
+  cards: Schema.Array(InspirationCard),
+  status: Schema.Literals([
+    "pending",
+    "project_created",
+    "cards_copied",
+    "completed",
+    "failed",
+  ]),
+  projectId: Schema.optionalKey(Id),
+  error: Schema.optionalKey(Schema.String),
+  expiresAt: IsoDateTime,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface InspirationProjectPreview {
+  id: Id;
+  conversationId: Id;
+  project: ProjectInput;
+  cards: InspirationCard[];
+  status:
+    "pending" | "project_created" | "cards_copied" | "completed" | "failed";
+  projectId?: Id;
+  error?: string;
+  expiresAt: IsoDateTime;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const InspirationProjectCommitResult = Schema.Struct({
+  preview: InspirationProjectPreview,
+  project: Project,
+  cardsCopied: Schema.Int,
+});
+export interface InspirationProjectCommitResult {
+  preview: InspirationProjectPreview;
+  project: Project;
+  cardsCopied: number;
 }
 
 export const AgentEngineCapabilities = Schema.Struct({

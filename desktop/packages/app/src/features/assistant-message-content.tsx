@@ -85,6 +85,8 @@ const TOOL_LABELS: Record<string, string> = {
   dramaip_list_scenes: "读取场景资料",
   dramaip_list_shots: "读取分镜资料",
   dramaip_list_asset_metadata: "读取资产信息",
+  dramaip_web_search: "搜索公开网络",
+  dramaip_read_web_page: "读取公开网页",
 };
 
 const TOOL_PURPOSES: Record<string, string> = {
@@ -101,6 +103,8 @@ const TOOL_PURPOSES: Record<string, string> = {
   dramaip_list_scenes: "核对场景结构和上下文",
   dramaip_list_shots: "核对分镜安排和镜头信息",
   dramaip_list_asset_metadata: "确认已存在的项目资产及其状态",
+  dramaip_web_search: "查找与当前问题有关的公开网页来源",
+  dramaip_read_web_page: "读取并核实所选公开网页的正文",
 };
 
 export function assistantToolLabel(value?: string): string {
@@ -159,13 +163,21 @@ export function AssistantToolActivity(props: {
       ? (props.item.payload as Record<string, unknown>)
       : undefined;
   const completed = props.item.status === "completed";
+  const failed = props.item.status === "failed";
+  const isWebTool =
+    tool === "dramaip_web_search" || tool === "dramaip_read_web_page";
+  const result = recordValue(payload?.result);
+  const resultCount = Array.isArray(result?.results)
+    ? result.results.length
+    : undefined;
+  const expandByDefault = !isWebTool || (!completed && !failed);
   return (
     <details
-      open
+      open={expandByDefault}
       className="rounded-lg border border-line bg-surface-muted/70 px-3 py-2 text-xs"
     >
       <summary className="cursor-pointer font-medium text-ink">
-        {completed ? "✓" : "●"} {assistantToolLabel(tool)}
+        {completed ? "✓" : failed ? "!" : "●"} {assistantToolLabel(tool)}
       </summary>
       <div className="mt-2 space-y-2 border-l border-line pl-3 text-muted">
         <p>
@@ -176,10 +188,29 @@ export function AssistantToolActivity(props: {
           <span className="font-medium text-ink">工具：</span>
           {tool || "DramaIP 只读工具"}
         </p>
-        {payload?.arguments !== undefined && (
+        {isWebTool && !completed && !failed && (
+          <p className="animate-pulse">
+            {tool === "dramaip_web_search"
+              ? "正在搜索公开网络…"
+              : "正在读取网页…"}
+          </p>
+        )}
+        {isWebTool && completed && (
+          <p>
+            {tool === "dramaip_web_search"
+              ? `已找到 ${resultCount ?? 0} 条公开网页来源。`
+              : "网页已安全读取，正文仅用于本次回答。"}
+          </p>
+        )}
+        {isWebTool && failed && (
+          <p className="text-danger">
+            本次联网操作未完成；回答不应声称已经搜索或核实。
+          </p>
+        )}
+        {!isWebTool && payload?.arguments !== undefined && (
           <ActivityValue label="输入" value={payload.arguments} />
         )}
-        {payload?.result !== undefined && (
+        {!isWebTool && payload?.result !== undefined && (
           <ActivityValue label="结果摘要" value={payload.result} />
         )}
         {payload?.error !== undefined && (
@@ -188,11 +219,174 @@ export function AssistantToolActivity(props: {
             {String(payload.error)}
           </p>
         )}
-        {!completed && payload?.result === undefined && (
+        {!completed && !failed && payload?.result === undefined && (
           <p className="animate-pulse">正在等待工具返回…</p>
         )}
       </div>
     </details>
+  );
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+export type AssistantWebSource = {
+  title: string;
+  url: string;
+  excerpt?: string;
+  publishedAt?: string;
+  retrievedAt?: string;
+  provider?: string;
+};
+
+export function assistantWebSources(payload: unknown): AssistantWebSource[] {
+  const wrapper = recordValue(payload);
+  const result = recordValue(wrapper?.result);
+  if (!Array.isArray(result?.results)) return [];
+  return result.results.slice(0, 10).flatMap((value) => {
+    const source = recordValue(value);
+    if (
+      typeof source?.title !== "string" ||
+      typeof source.url !== "string" ||
+      !source.url.startsWith("https://")
+    )
+      return [];
+    return [
+      {
+        title: source.title,
+        url: source.url,
+        ...(typeof source.excerpt === "string"
+          ? { excerpt: source.excerpt }
+          : {}),
+        ...(typeof source.publishedAt === "string"
+          ? { publishedAt: source.publishedAt }
+          : {}),
+        ...(typeof source.retrievedAt === "string"
+          ? { retrievedAt: source.retrievedAt }
+          : {}),
+        ...(typeof source.provider === "string"
+          ? { provider: source.provider }
+          : {}),
+      },
+    ];
+  });
+}
+
+function sourceDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "公开网页";
+  }
+}
+
+function shortDate(value?: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+export function AssistantWebSourceCards(props: {
+  payload?: unknown;
+  onOpen: (url: string) => void;
+  verifiedUrls?: ReadonlySet<string>;
+}) {
+  const sources = assistantWebSources(props.payload);
+  if (!sources.length) return null;
+  return (
+    <details
+      className="group overflow-hidden rounded-xl border border-line bg-surface-muted/40"
+      aria-label="公开网络来源"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 transition hover:bg-surface-muted [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="text-xs font-medium text-ink">来源</span>
+          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-[10px] text-muted">
+            {sources.length} 条
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+          展开查看
+          <span
+            aria-hidden="true"
+            className="transition-transform group-open:rotate-180"
+          >
+            ⌄
+          </span>
+        </span>
+      </summary>
+      <div className="grid gap-2 border-t border-line p-3 sm:grid-cols-2">
+        {sources.map((source) => (
+          <button
+            key={`${source.provider ?? "web"}:${source.url}`}
+            type="button"
+            className="min-w-0 rounded-xl border border-line bg-surface-raised p-3 text-left transition hover:border-brand/50 hover:shadow-control"
+            onClick={() => props.onOpen(source.url)}
+          >
+            <span className="block truncate text-[11px] font-medium text-brand-strong">
+              {sourceDomain(source.url)}
+              {source.provider ? ` · ${source.provider}` : ""}
+            </span>
+            <strong className="mt-1 block line-clamp-2 text-sm leading-5 text-ink">
+              {source.title}
+            </strong>
+            {source.excerpt && (
+              <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted">
+                {source.excerpt}
+              </span>
+            )}
+            <span className="mt-2 block text-[10px] text-muted">
+              {props.verifiedUrls?.has(source.url)
+                ? "已读取正文 · "
+                : "仅搜索摘要 · "}
+              {shortDate(source.publishedAt)
+                ? `发布 ${shortDate(source.publishedAt)} · `
+                : ""}
+              检索 {shortDate(source.retrievedAt) ?? "刚刚"}
+            </span>
+          </button>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+export function AssistantWebAccessControl(props: {
+  mode: "auto" | "off";
+  disabled?: boolean;
+  onChange: (mode: "auto" | "off") => void;
+}) {
+  const automatic = props.mode === "auto";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={automatic}
+      disabled={props.disabled}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${automatic ? "border-brand/25 bg-brand-soft text-brand-strong" : "border-line bg-surface-muted text-muted"} disabled:cursor-not-allowed disabled:opacity-60`}
+      onClick={() => props.onChange(automatic ? "off" : "auto")}
+      title={
+        props.disabled
+          ? "本轮运行期间已锁定，完成后可修改"
+          : automatic
+            ? "由智能助手判断是否需要联网"
+            : "本对话不会访问公开网络"
+      }
+    >
+      <span
+        aria-hidden="true"
+        className={`h-1.5 w-1.5 rounded-full ${automatic ? "bg-brand" : "bg-line-strong"}`}
+      />
+      联网搜索 · {automatic ? "自动" : "关闭"}
+    </button>
   );
 }
 

@@ -1,0 +1,85 @@
+package com.dramaip.platform.billing.service;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+
+import com.dramaip.platform.billing.client.QuotaProvisionClient;
+import com.dramaip.platform.billing.client.QuotaRefundClient;
+import com.dramaip.platform.billing.controller.BillingController;
+import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.web.BusinessException;
+import java.util.Collections;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowMapper;
+
+class PlanServiceTest {
+    @Test
+    void missingOwnedResourcesAndUnknownPlansReturnStableErrors() {
+        PlanService service = service(new EmptyJdbcTemplate());
+
+        assertEquals(List.of(), service.listPlans());
+        assertEquals("BILLING_PLAN_NOT_FOUND", assertThrows(
+                BusinessException.class,
+                () -> service.createOrder("user", new PlanService.CreateOrder("missing", "simulated"))
+        ).code());
+        assertEquals("BILLING_ORDER_NOT_FOUND", assertThrows(
+                BusinessException.class,
+                () -> service.order("order", "other-user")
+        ).code());
+        assertEquals("BILLING_SUBSCRIPTION_NOT_FOUND", assertThrows(
+                BusinessException.class,
+                () -> service.currentSubscription("user")
+        ).code());
+        assertEquals("BILLING_ORDER_NOT_FOUND", assertThrows(
+                BusinessException.class,
+                () -> service.confirmSimulatedPayment("user", "order")
+        ).code());
+    }
+
+    @Test
+    void reconciliationBoundsRowsAndProducesEmptyAdminProjection() {
+        PlanService service = service(new EmptyJdbcTemplate());
+
+        assertEquals(List.of(), service.orders("user"));
+        assertEquals(List.of(), service.reconciliation("user", 0));
+        assertEquals(List.of(), new BillingController(service, mock(DramaipMetrics.class)).listPlans().data());
+        PlanService.AdminReconciliation projection = service.adminReconciliation(null, 1000);
+        assertEquals(null, projection.latestRun());
+        assertEquals(List.of(), projection.items());
+    }
+
+    private PlanService service(JdbcTemplate jdbc) {
+        return new PlanService(jdbc, mock(QuotaProvisionClient.class), mock(QuotaRefundClient.class), "internal-token");
+    }
+
+    private static final class EmptyJdbcTemplate extends JdbcTemplate {
+        @Override
+        public int update(String sql, Object... args) {
+            return 1;
+        }
+
+        @Override
+        public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public <T> List<T> query(String sql, RowMapper<T> rowMapper) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public <T> T query(String sql, ResultSetExtractor<T> resultSetExtractor, Object... args) {
+            return null;
+        }
+
+        @Override
+        public <T> T query(String sql, ResultSetExtractor<T> resultSetExtractor) {
+            return null;
+        }
+    }
+}

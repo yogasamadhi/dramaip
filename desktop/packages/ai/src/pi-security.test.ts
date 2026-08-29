@@ -15,6 +15,8 @@ test("DramaIP Pi adapter exposes only authenticated read-only MCP tools", async 
     'body: JSON.stringify({ jsonrpc: "2.0", id, method, params })',
   );
   expect(source).toContain("tools.map((tool) => mcpTool(tool, mcp))");
+  expect(source).toContain('status: event.isError ? "failed" : "completed"');
+  expect(source).toContain(": { result: event.result }");
   expect(source).toContain("这些能力没有授权，也没有提供");
   expect(source).not.toContain('from "node:child_process"');
   expect(source).not.toContain('from "node:fs"');

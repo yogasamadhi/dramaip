@@ -10,6 +10,28 @@
     "metadataHash": "46705d67de9077a7806a92dbbb7611d84db355b22e27d31841a0c5a65c625099"
   },
   {
+    "id": "agents.navigation.inspiration",
+    "owner": "agents",
+    "kind": "navigation",
+    "metadata": {
+      "section": "main",
+      "order": 15,
+      "label": "灵感空间",
+      "to": "/inspiration"
+    },
+    "metadataHash": "c78f942e0ab88a1379c2d1c2747e54189563bc812e578b2e4d69cf53d313b698"
+  },
+  {
+    "id": "agents.route.inspiration",
+    "owner": "agents",
+    "kind": "route",
+    "metadata": {
+      "path": "/inspiration",
+      "title": "灵感空间"
+    },
+    "metadataHash": "00a66b773b4a9e09a40c683b6a8c803fa106f4e6a5b59f6512bbf7c4aafd1bd7"
+  },
+  {
     "id": "agents.settings.engines",
     "owner": "agents",
     "kind": "settings",

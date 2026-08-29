@@ -1,16 +1,17 @@
 import { lookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { isIP } from "node:net";
+import { isIP, type LookupFunction } from "node:net";
 
 export interface SafeHttpRequest {
   url: string;
   method: "GET" | "POST";
   body?: Record<string, unknown>;
-  accept: "json" | "binary";
+  accept: "json" | "binary" | "text" | "mcp";
   maximumBytes: number;
   timeoutMs: number;
   authorization: string;
+  apiKey?: string;
   allowHttp?: boolean;
   allowPrivateNetwork?: boolean;
 }
@@ -19,6 +20,7 @@ export interface SafeHttpResponse {
   status: number;
   contentType: string;
   bytes: Buffer;
+  finalUrl: string;
 }
 
 function ipv4Parts(address: string): readonly number[] | undefined {
@@ -68,6 +70,20 @@ export function isPublicAddress(address: string): boolean {
   return true;
 }
 
+export async function selectPinnedAddress(
+  results: readonly { address: string; family: number }[],
+  allowPrivateNetwork: boolean,
+): Promise<{ address: string; family: 4 | 6 }> {
+  if (results.length === 0) throw new Error("Provider DNS resolution failed");
+  for (const result of results)
+    if (!allowPrivateNetwork && !isPublicAddress(result.address))
+      throw new Error("Provider address is not publicly routable");
+  const selected = results[0]!;
+  if (selected.family !== 4 && selected.family !== 6)
+    throw new Error("Provider DNS address family is not supported");
+  return { address: selected.address, family: selected.family as 4 | 6 };
+}
+
 async function resolvePinnedAddress(
   url: URL,
   allowPrivateNetwork: boolean,
@@ -76,21 +92,51 @@ async function resolvePinnedAddress(
   const results = literalFamily
     ? [{ address: url.hostname, family: literalFamily }]
     : await lookup(url.hostname, { all: true, verbatim: true });
-  if (results.length === 0) throw new Error("Provider DNS resolution failed");
-  for (const result of results)
-    if (!allowPrivateNetwork && !isPublicAddress(result.address))
-      throw new Error("Provider address is not publicly routable");
-  const selected = results[0]!;
-  return { address: selected.address, family: selected.family as 4 | 6 };
+  return selectPinnedAddress(results, allowPrivateNetwork);
 }
 
-function allowedContentType(
+/**
+ * Node may request every DNS result from a custom lookup callback by setting
+ * `all: true` (Electron's embedded Node does this for automatic family
+ * selection). Preserve the DNS-pinned address while honoring both callback
+ * shapes so the request cannot silently fall back to a second DNS lookup.
+ */
+export function createPinnedLookup(pinned: {
+  address: string;
+  family: 4 | 6;
+}): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [{ address: pinned.address, family: pinned.family }]);
+      return;
+    }
+    callback(null, pinned.address, pinned.family);
+  };
+}
+
+export function isAllowedResponseContentType(
   contentType: string,
   accept: SafeHttpRequest["accept"],
 ): boolean {
   const normalized = contentType.toLowerCase().split(";", 1)[0]!.trim();
   if (accept === "json")
     return normalized === "application/json" || normalized.endsWith("+json");
+  if (accept === "mcp")
+    return (
+      normalized === "application/json" ||
+      normalized.endsWith("+json") ||
+      normalized === "text/event-stream"
+    );
+  if (accept === "text")
+    return (
+      normalized === "text/html" ||
+      normalized === "application/xhtml+xml" ||
+      normalized === "text/plain" ||
+      normalized === "text/markdown" ||
+      normalized === "text/x-markdown" ||
+      normalized === "application/json" ||
+      normalized.endsWith("+json")
+    );
   return (
     normalized.startsWith("image/") ||
     normalized.startsWith("audio/") ||
@@ -107,6 +153,7 @@ async function requestOnce(
   input: SafeHttpRequest,
   url: URL,
   authorization: string | undefined,
+  apiKey: string | undefined,
 ): Promise<SafeHttpResponse & { location?: string }> {
   if (
     url.username ||
@@ -129,7 +176,14 @@ async function requestOnce(
       {
         method: input.method,
         headers: {
-          Accept: input.accept === "binary" ? "*/*" : "application/json",
+          Accept:
+            input.accept === "binary"
+              ? "*/*"
+              : input.accept === "text"
+                ? "text/markdown, text/plain;q=0.9, text/html;q=0.8, application/xhtml+xml;q=0.7"
+                : input.accept === "mcp"
+                  ? "application/json, text/event-stream"
+                  : "application/json",
           ...(body
             ? {
                 "Content-Type": "application/json",
@@ -137,10 +191,10 @@ async function requestOnce(
               }
             : {}),
           ...(authorization ? { Authorization: authorization } : {}),
+          ...(apiKey ? { "x-api-key": apiKey } : {}),
           "User-Agent": "DramaIP-Desktop/3.0",
         },
-        lookup: (_hostname, _options, callback) =>
-          callback(null, pinned.address, pinned.family),
+        lookup: createPinnedLookup(pinned),
         signal: AbortSignal.timeout(input.timeoutMs),
       },
       (response) => {
@@ -149,10 +203,16 @@ async function requestOnce(
         const location = response.headers.location;
         if (status >= 300 && status < 400 && location) {
           response.resume();
-          resolve({ status, contentType, bytes: Buffer.alloc(0), location });
+          resolve({
+            status,
+            contentType,
+            bytes: Buffer.alloc(0),
+            finalUrl: url.toString(),
+            location,
+          });
           return;
         }
-        if (!allowedContentType(contentType, input.accept)) {
+        if (!isAllowedResponseContentType(contentType, input.accept)) {
           response.destroy();
           reject(new Error("Provider response content type is not allowed"));
           return;
@@ -169,7 +229,12 @@ async function requestOnce(
         });
         response.once("error", reject);
         response.once("end", () =>
-          resolve({ status, contentType, bytes: Buffer.concat(chunks) }),
+          resolve({
+            status,
+            contentType,
+            bytes: Buffer.concat(chunks),
+            finalUrl: url.toString(),
+          }),
         );
       },
     );
@@ -189,6 +254,7 @@ export async function safeHttpRequest(
       input,
       url,
       url.origin === credentialOrigin ? input.authorization : undefined,
+      url.origin === credentialOrigin ? input.apiKey : undefined,
     );
     if (!response.location) return response;
     if (redirects === 3) throw new Error("Provider redirect limit exceeded");

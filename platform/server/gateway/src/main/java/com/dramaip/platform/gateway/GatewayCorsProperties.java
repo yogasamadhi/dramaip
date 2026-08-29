@@ -10,4 +10,9 @@ public record GatewayCorsProperties(List<String> allowedOrigins) {
                 .map(String::trim).filter(origin -> !origin.isEmpty()).distinct().toList();
         if (allowedOrigins.isEmpty()) throw new IllegalArgumentException("dramaip.cors.allowed-origins must not be empty");
     }
+
+    @Override
+    public List<String> allowedOrigins() {
+        return List.copyOf(allowedOrigins);
+    }
 }

@@ -2,23 +2,25 @@
 set -euo pipefail
 
 # Scan the complete local release bundle.  The Trivy database must be refreshed
-# explicitly by run-platform-cicd.py update-trivy-db; a release never downloads
+# explicitly by update-trivy-db.sh; a release never downloads
 # a mutable database during its security gate.
 root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 manifest="${DRAMAIP_IMAGE_MANIFEST:-$root/deploy/release/images.tsv}"
+manifest_checker="$root/deploy/release/check-manifest.sh"
 registry="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required, e.g. harbor.home.arpa/dramaip}"
 tag="${IMAGE_TAG:?IMAGE_TAG is required, e.g. sha-<full-git-sha>}"
 trivy_image="${TRIVY_IMAGE:-harbor.home.arpa/ci-tools/trivy:0.72.0}"
-cache_dir="${TRIVY_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/dramaip/trivy}"
+repo="$(CDPATH= cd -- "$root/.." && pwd)"
+cache_dir="${TRIVY_CACHE_DIR:-${XDG_CACHE_HOME:-$repo/.cache}/dramaip/trivy}"
 report_dir="${TRIVY_REPORT_DIR:-$PWD/trivy-reports}"
 max_db_age="${TRIVY_MAX_DB_AGE_SECONDS:-172800}"
 timestamp_file="$cache_dir/last-successful-update"
 pass_marker="$report_dir/.passed"
 
-[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
+"$manifest_checker" "$manifest"
 command -v docker >/dev/null || { echo "docker is required" >&2; exit 127; }
-[[ -s "$cache_dir/db/trivy.db" && -s "$cache_dir/db/metadata.json" && -s "$timestamp_file" ]] || {
-  echo "Trivy database is missing; run run-platform-cicd.py update-trivy-db" >&2; exit 1;
+[[ -s "$cache_dir/db/trivy.db" && -s "$cache_dir/db/metadata.json" && -s "$cache_dir/java-db/trivy-java.db" && -s "$cache_dir/java-db/metadata.json" && -s "$timestamp_file" ]] || {
+  echo "Trivy database is missing; run $root/deploy/release/update-trivy-db.sh" >&2; exit 1;
 }
 last_update="$(cat "$timestamp_file")"
 [[ "$last_update" =~ ^[0-9]+$ ]] || { echo "invalid Trivy database timestamp" >&2; exit 1; }

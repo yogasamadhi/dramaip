@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PostgreSQL 备份：自定义格式全量 pg_dump，按时间戳归档到 docker-data/backups。
-# 对应 docs/技术架构.md §13：PostgreSQL 是权威源，必须有定期全量备份与可演练的恢复。
+# 对应 docs/后端技术架构.md §13：PostgreSQL 是权威源，必须有定期全量备份与可演练的恢复。
 #
 # 用法：
 #   ./scripts/backup-postgres.sh

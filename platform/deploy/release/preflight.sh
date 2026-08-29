@@ -30,7 +30,8 @@ if [[ -n "$tracked_secret_files" ]]; then
 fi
 
 git -C "$repo" diff --check
-bash -n "$platform/deploy/release/build-images.sh" "$platform/deploy/release/scan-images.sh" "$platform/deploy/release/push-images.sh" "$platform/deploy/release/helm-release.sh" "$platform/deploy/release/staging-prerequisites.sh" "$platform/deploy/release/staging-smoke.sh" "$platform/deploy/release/sync-release-workspace.sh" "$platform/deploy/release/preflight.sh"
+"$platform/deploy/release/check-manifest.sh"
+bash -n "$platform"/deploy/release/*.sh
 docker compose -f "$platform/deploy/docker-drama/docker-compose.yaml" --profile java config --quiet
 helm lint "$chart" -f "$chart/values-staging.yaml"
 helm template dramaip-platform "$chart" -f "$chart/values-staging.yaml" >/dev/null
@@ -41,8 +42,12 @@ if [[ -f "$chart/values-dev.yaml" ]]; then
 fi
 (
   cd "$platform/clients"
+  [[ "$(bun --version)" == "1.4.0" ]] || { echo "Platform clients require Bun 1.4.0 exactly" >&2; exit 2; }
   bun run lint
   bun run typecheck
+  bun run contracts:check
+  bun run test
+  bun run build:web
   bun run build:admin
 )
 (

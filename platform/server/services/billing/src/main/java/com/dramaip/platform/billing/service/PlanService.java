@@ -4,6 +4,7 @@ import com.dramaip.platform.billing.client.QuotaProvisionClient;
 import com.dramaip.platform.billing.client.QuotaRefundClient;
 import com.dramaip.platform.common.web.BusinessException;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -95,7 +96,7 @@ public class PlanService {
         jdbc.update("""
                 insert into billing.subscriptions(id, user_id, plan_id, provider, provider_subscription_id, status, current_period_start, current_period_end)
                 values (?::uuid, ?::uuid, ?::uuid, 'simulated', ?, 'quota_pending', ?::timestamptz, ?::timestamptz)
-                """, subscriptionId, userId, order.planId(), "simulated_" + subscriptionId, now, end);
+                """, subscriptionId, userId, order.planId(), "simulated_" + subscriptionId, timestamp(now), timestamp(end));
         jdbc.update("update billing.orders set status = 'paid', paid_at = now(), updated_at = now(), subscription_id = ?::uuid where id = ?::uuid", subscriptionId, orderId);
         String paymentId = UUID.randomUUID().toString();
         jdbc.update("""
@@ -117,7 +118,7 @@ public class PlanService {
                        'checkout', now(), 'java_billing'
                 from billing.plans plan where plan.id = ?::uuid
                 on conflict (subscription_id, period_start) do nothing
-                """, UUID.randomUUID().toString(), subscriptionId, userId, orderId, now, end, order.planId());
+                """, UUID.randomUUID().toString(), subscriptionId, userId, orderId, timestamp(now), timestamp(end), order.planId());
         jdbc.update("""
                 insert into billing.outbox_events(id, aggregate_type, aggregate_id, event_type, payload)
                 values (?::uuid, 'billing.payment', ?::uuid, 'payment.succeeded.v1', jsonb_build_object('paymentId', ?, 'orderId', ?, 'subscriptionId', ?))
@@ -128,7 +129,7 @@ public class PlanService {
             quota.tryProvision(internalToken, new QuotaProvisionClient.ProvisionRequest(userId, subscriptionId, plan.code(), plan.name(), plan.billingPeriod(), plan.amountMinor(), plan.currency(), plan.monthlyTokenQuota(), plan.maxRpm(), plan.maxContextTokens(), plan.modelLevel(), now, end));
             quota.confirm(internalToken, subscriptionId, new QuotaProvisionClient.PeriodRequest(now));
             jdbc.update("update billing.subscriptions set status = 'active', quota_provisioned_at = now(), updated_at = now() where id = ?::uuid", subscriptionId);
-            jdbc.update("update billing.subscription_periods set status = 'active', activated_at = now(), updated_at = now() where subscription_id = ?::uuid and period_start = ?::timestamptz", subscriptionId, now);
+            jdbc.update("update billing.subscription_periods set status = 'active', activated_at = now(), updated_at = now() where subscription_id = ?::uuid and period_start = ?::timestamptz", subscriptionId, timestamp(now));
         } catch (RuntimeException exception) {
             try { quota.cancel(internalToken, subscriptionId, new QuotaProvisionClient.PeriodRequest(now)); } catch (RuntimeException ignored) { /* TCC fence preserves forward recovery */ }
             throw new BusinessException("BILLING_QUOTA_PROVISION_FAILED", "payment is pending quota provisioning", HttpStatus.SERVICE_UNAVAILABLE);
@@ -166,8 +167,8 @@ public class PlanService {
                 insert into billing.subscription_changes(id, subscription_id, user_id, kind, status, idempotency_key, effective_at, details)
                 values (?::uuid, ?::uuid, ?::uuid, 'plan_change', 'scheduled', ?, ?::timestamptz, jsonb_build_object('planCode', ?))
                 on conflict (subscription_id, idempotency_key) do nothing
-                """, UUID.randomUUID().toString(), subscription.id(), userId, key, subscription.currentPeriodEnd(), target.code());
-        jdbc.update("update billing.subscriptions set scheduled_plan_id = ?::uuid, scheduled_change_at = ?::timestamptz, renewal_plan_code = ?, updated_at = now() where id = ?::uuid", target.id(), subscription.currentPeriodEnd(), target.code(), subscription.id());
+                """, UUID.randomUUID().toString(), subscription.id(), userId, key, timestamp(subscription.currentPeriodEnd()), target.code());
+        jdbc.update("update billing.subscriptions set scheduled_plan_id = ?::uuid, scheduled_change_at = ?::timestamptz, renewal_plan_code = ?, updated_at = now() where id = ?::uuid", target.id(), timestamp(subscription.currentPeriodEnd()), target.code(), subscription.id());
         return subscription(subscription.id(), userId);
     }
 
@@ -252,6 +253,7 @@ public class PlanService {
         var timestamp = rs.getTimestamp(index);
         return timestamp == null ? null : timestamp.toInstant();
     }
+    private static Timestamp timestamp(Instant instant) { return Timestamp.from(instant); }
 
     public record Plan(String id, String code, String name, String billingPeriod, long amountMinor, String currency, long monthlyTokenQuota, int maxRpm, long maxContextTokens, String modelLevel, String purchaseMode, String entitlements) { }
     public record CreateOrder(String planCode, String provider) { }

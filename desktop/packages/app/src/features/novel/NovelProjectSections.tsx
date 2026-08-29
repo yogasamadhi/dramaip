@@ -113,7 +113,8 @@ const LONGFORM_TOOL_CONFIG = {
     label: "伏笔",
     domain: "foreshadowings",
     title: "伏笔管理",
-    description: "跟踪伏笔的埋设章节、回收计划和状态，不让长篇线索无故消失。",
+    description:
+      "跟踪伏笔的完整生命周期、实际证据、观众认知和逾期状态，不让长篇线索无故消失。",
     itemName: "伏笔",
     titleLabel: "伏笔标题",
     taskType: "extract_foreshadowing",
@@ -121,9 +122,21 @@ const LONGFORM_TOOL_CONFIG = {
     fields: [
       { key: "埋设章节", label: "埋设章节" },
       { key: "回收章节", label: "回收章节" },
-      { key: "状态", label: "状态", placeholder: "计划、已埋设、已回收或放弃" },
+      {
+        key: "状态",
+        label: "状态",
+        placeholder: "埋设、强化、误导、揭示、回收或废弃",
+      },
+      { key: "计划章节", label: "计划章节" },
+      { key: "逾期状态", label: "逾期状态", placeholder: "正常、临近或逾期" },
+      {
+        key: "观众认知",
+        label: "观众认知",
+        placeholder: "unknown、suspects、misbelieves 或 knows",
+      },
       { key: "伏笔说明", label: "伏笔说明", multiline: true },
       { key: "回收计划", label: "回收计划", multiline: true },
+      { key: "实际证据", label: "实际证据", multiline: true },
     ],
   },
   visual: {
@@ -185,7 +198,7 @@ const LONGFORM_TOOL_CONFIG = {
     domain: "analysis",
     title: "编剧室",
     description:
-      "让所选引擎以主编视角审阅当前项目，输出问题清单、取舍理由和下一轮行动。",
+      "让单个所选模型分别扮演主编、人物、冲突喜剧、世界逻辑、受众和视觉制作编辑，输出分歧矩阵与可选择建议。",
     itemName: "编剧室纪要",
     titleLabel: "纪要名称",
     taskType: "writing_room_review",
@@ -890,6 +903,13 @@ function NovelInsightRunner(props: {
         placeholder="例如：重点检查第 1–10 章的人物动机和时间线。"
         onChange={(event) => setInstruction(event.target.value)}
       />
+      {props.taskType === "writing_room_review" && (
+        <p className="mt-2 rounded-lg border border-line bg-surface-raised px-3 py-2 text-xs leading-5 text-muted">
+          默认执行：当前所选模型 1 次结构化调用，模拟 6 个隔离角色并由主编整合；
+          实际 Token
+          与费用在运行记录中展示。四引擎盲测不会自动开启，需在实验入口单独确认。
+        </p>
+      )}
       <label className="mt-3 grid max-w-md gap-1 text-xs text-muted">
         分析范围
         <select

@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type {
   AgentEngineDescriptor,
   AgentEngineKind,
+  JsonValue,
 } from "@dramaip/contracts";
 import {
   AgentRuntimeError,
@@ -69,6 +70,33 @@ export interface PublicSearchResponse {
   source: "duckduckgo" | "gdelt" | "wikimedia";
   results: readonly PublicSearchResult[];
   coverage: string;
+}
+
+export type PublicWebSearchProvider = "exa" | "parallel";
+
+export interface PublicWebSearchRequest {
+  provider: PublicWebSearchProvider;
+  query: string;
+  limit: number;
+  sessionId: string;
+  recencyDays?: number;
+  domains?: readonly string[];
+  credentialRef?: string;
+}
+
+export interface PublicWebSearchResponse {
+  provider: PublicWebSearchProvider;
+  text: string;
+  coverage: string;
+}
+
+export interface PublicWebPageResponse {
+  title: string;
+  url: string;
+  content: string;
+  contentType: string;
+  retrievedAt: string;
+  truncated: boolean;
 }
 
 export interface CodexAuthenticationProvider {
@@ -167,6 +195,7 @@ export type HostEngineStreamEvent =
       status: "started" | "completed" | "failed";
       tool: string;
       itemId?: string;
+      detail?: JsonValue;
     }
   | {
       type: "usage";
@@ -271,6 +300,23 @@ export class DesktopHostClient {
     query: string;
   }): Promise<PublicSearchResponse> {
     return this.request("/host/v1/public-search", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  webSearch(input: PublicWebSearchRequest): Promise<PublicWebSearchResponse> {
+    return this.request("/host/v1/web/search", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  readWebPage(input: {
+    url: string;
+    maxCharacters: number;
+  }): Promise<PublicWebPageResponse> {
+    return this.request("/host/v1/web/read", {
       method: "POST",
       body: JSON.stringify(input),
     });
@@ -536,6 +582,7 @@ export interface HostCapabilityDescriptor {
     | "agent-provider"
     | "provider-http"
     | "public-search"
+    | "web-research"
     | "codex-auth"
     | "notifications"
     | "extensions"
@@ -581,6 +628,11 @@ export interface DesktopHostActions {
     source: "duckduckgo" | "gdelt" | "wikimedia";
     query: string;
   }): Promise<PublicSearchResponse>;
+  webSearch?(input: PublicWebSearchRequest): Promise<PublicWebSearchResponse>;
+  readWebPage?(input: {
+    url: string;
+    maxCharacters: number;
+  }): Promise<PublicWebPageResponse>;
   saveTextFile(input: {
     suggestedName: string;
     content: string;
@@ -815,7 +867,14 @@ function isHostEngineStreamEvent(
       typeof event.tool === "string" &&
       (event.status === "started" ||
         event.status === "completed" ||
-        event.status === "failed")
+        event.status === "failed") &&
+      (event.detail === undefined ||
+        typeof event.detail === "string" ||
+        typeof event.detail === "number" ||
+        typeof event.detail === "boolean" ||
+        event.detail === null ||
+        Array.isArray(event.detail) ||
+        typeof event.detail === "object")
     );
   if (event.type === "usage") return true;
   return false;
@@ -950,6 +1009,76 @@ export function createDesktopHost(
       await options.actions.publicSearch({
         source: body.source as "duckduckgo" | "gdelt" | "wikimedia",
         query: body.query.trim(),
+      }),
+    );
+  });
+  app.post("/host/v1/web/search", async (context) => {
+    if (!options.actions.webSearch) return unavailable(context, "web.search");
+    const body = readObject(await context.req.json());
+    const domains = Array.isArray(body.domains)
+      ? body.domains.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    if (
+      !["exa", "parallel"].includes(String(body.provider)) ||
+      typeof body.query !== "string" ||
+      !body.query.trim() ||
+      body.query.length > 500 ||
+      typeof body.sessionId !== "string" ||
+      !body.sessionId ||
+      body.sessionId.length > 200 ||
+      !Number.isInteger(body.limit) ||
+      Number(body.limit) < 1 ||
+      Number(body.limit) > 10 ||
+      domains.length > 10 ||
+      domains.some((domain) => !/^[A-Za-z0-9.-]{1,253}$/u.test(domain)) ||
+      (body.recencyDays !== undefined &&
+        (!Number.isInteger(body.recencyDays) ||
+          Number(body.recencyDays) < 1 ||
+          Number(body.recencyDays) > 3_650)) ||
+      (body.credentialRef !== undefined &&
+        typeof body.credentialRef !== "string")
+    )
+      return context.json({ code: "INVALID_WEB_SEARCH" }, 400);
+    return context.json(
+      await options.actions.webSearch({
+        provider: body.provider as PublicWebSearchProvider,
+        query: body.query.trim(),
+        limit: Number(body.limit),
+        sessionId: body.sessionId,
+        ...(body.recencyDays === undefined
+          ? {}
+          : { recencyDays: Number(body.recencyDays) }),
+        ...(domains.length ? { domains } : {}),
+        ...(typeof body.credentialRef === "string"
+          ? { credentialRef: body.credentialRef }
+          : {}),
+      }),
+    );
+  });
+  app.post("/host/v1/web/read", async (context) => {
+    if (!options.actions.readWebPage) return unavailable(context, "web.read");
+    const body = readObject(await context.req.json());
+    if (
+      typeof body.url !== "string" ||
+      body.url.length > 4_000 ||
+      !Number.isInteger(body.maxCharacters) ||
+      Number(body.maxCharacters) < 1_000 ||
+      Number(body.maxCharacters) > 50_000
+    )
+      return context.json({ code: "INVALID_WEB_READ" }, 400);
+    try {
+      const url = new URL(body.url);
+      if (url.protocol !== "https:" || url.username || url.password)
+        return context.json({ code: "INVALID_WEB_URL" }, 400);
+    } catch {
+      return context.json({ code: "INVALID_WEB_URL" }, 400);
+    }
+    return context.json(
+      await options.actions.readWebPage({
+        url: body.url,
+        maxCharacters: Number(body.maxCharacters),
       }),
     );
   });
@@ -1534,6 +1663,9 @@ export function createHostAgentRuntime(
                     status: event.status,
                     tool: event.tool,
                     ...(event.itemId ? { itemId: event.itemId } : {}),
+                    ...(event.detail !== undefined
+                      ? { detail: event.detail }
+                      : {}),
                   }
                 : event.type === "usage"
                   ? {

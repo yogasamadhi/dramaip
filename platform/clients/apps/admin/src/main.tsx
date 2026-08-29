@@ -1,14 +1,12 @@
-import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { init, use } from "echarts/core";
-import { PieChart } from "echarts/charts";
-import { TooltipComponent } from "echarts/components";
-import { CanvasRenderer } from "echarts/renderers";
 import {
   adminAPI,
   APIError,
   AuditEntry,
   CostAlert,
+  CorpusJob,
+  CorpusSource,
   Customer,
   DeliveryAttempt,
   OrderSummary,
@@ -21,7 +19,7 @@ import {
 } from "./api";
 import "./styles.css";
 
-use([PieChart, TooltipComponent, CanvasRenderer]);
+const OverviewChart = lazy(() => import("./OverviewChart"));
 
 type Dashboard = {
   overview: Overview;
@@ -97,40 +95,6 @@ function short(value: string) {
   return value.length > 14
     ? `${value.slice(0, 8)}…${value.slice(-4)}`
     : value || "—";
-}
-
-function OverviewChart({ overview }: { overview: Overview }) {
-  const node = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (!node.current) return;
-    const chart = init(node.current);
-    chart.setOption({
-      tooltip: { trigger: "item" },
-      series: [
-        {
-          type: "pie",
-          radius: ["54%", "78%"],
-          label: { color: "#c9d5ee" },
-          data: [
-            { value: overview.paid_order_count, name: "已支付订单" },
-            { value: overview.active_subscription_count, name: "活跃订阅" },
-            {
-              value: overview.open_exception_count,
-              name: "待处理异常",
-              itemStyle: { color: "#f08f62" },
-            },
-          ],
-        },
-      ],
-    });
-    const observer = new ResizeObserver(() => chart.resize());
-    observer.observe(node.current);
-    return () => {
-      observer.disconnect();
-      chart.dispose();
-    };
-  }, [overview]);
-  return <div className="chart" ref={node} aria-label="运营概览图表" />;
 }
 
 function Login({
@@ -214,6 +178,8 @@ function App() {
   const [deliveryAttempts, setDeliveryAttempts] = useState<DeliveryAttempt[]>(
     [],
   );
+  const [corpusSources, setCorpusSources] = useState<CorpusSource[]>([]);
+  const [corpusJobs, setCorpusJobs] = useState<CorpusJob[]>([]);
   const [pendingOperation, setPendingOperation] =
     useState<PendingOperation | null>(null);
   const [pendingJobOperation, setPendingJobOperation] =
@@ -232,6 +198,7 @@ function App() {
     try {
       const canBilling = principal?.permissions.includes("billing.write");
       const canNotify = principal?.permissions.includes("notification.write");
+      const canReadCorpus = principal?.permissions.includes("corpus.read");
       const [
         overview,
         users,
@@ -242,6 +209,8 @@ function App() {
         costs,
         reconciliationResult,
         deliveryResult,
+        sourcesResult,
+        corpusJobsResult,
       ] = await Promise.all([
           adminAPI.overview(activeToken),
           adminAPI.users(activeToken, "", userQuery),
@@ -256,6 +225,12 @@ function App() {
           canNotify
             ? adminAPI.deliveryAttempts(activeToken)
             : Promise.resolve(null),
+          canReadCorpus
+            ? adminAPI.corpusSources(activeToken)
+            : Promise.resolve([]),
+          canReadCorpus
+            ? adminAPI.corpusJobs(activeToken)
+            : Promise.resolve([]),
         ]);
       setData({
         overview,
@@ -269,6 +244,8 @@ function App() {
       setCostAlerts(costs.alerts);
       setReconciliation(reconciliationResult);
       setDeliveryAttempts(deliveryResult?.attempts || []);
+      setCorpusSources(sourcesResult);
+      setCorpusJobs(corpusJobsResult);
     } catch (cause) {
       const message =
         cause instanceof APIError ? cause.message : "报表暂不可用";
@@ -512,6 +489,51 @@ function App() {
       setLoading(false);
     }
   }
+  async function submitCorpusSource() {
+    if (!token) return;
+    const url = window.prompt("提交公开 HTTP/HTTPS 来源 URL");
+    if (!url?.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      await adminAPI.submitCorpusSource(token, url.trim());
+      await refresh(token);
+    } catch (cause) {
+      setError(cause instanceof APIError ? cause.message : "来源提交失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function governCorpusSource(
+    source: CorpusSource,
+    action: "allow" | "block" | "takedown",
+  ) {
+    if (!token) return;
+    const reason = window.prompt(
+      action === "allow" ? "记录公开复核说明（可选）" : "必须填写治理原因（至少 4 个字符）",
+    );
+    if (reason === null || (action !== "allow" && reason.trim().length < 4)) return;
+    setLoading(true);
+    setError("");
+    try {
+      let confirmationID: string | undefined;
+      if (action === "block" || action === "takedown") {
+        const confirmation = await adminAPI.createConfirmation(
+          token,
+          `corpus.source.${action}`,
+          source.id,
+          reason.trim(),
+        );
+        confirmationID = confirmation.confirmation.id;
+      }
+      await adminAPI.governCorpusSource(token, source, action, reason.trim(), confirmationID);
+      await refresh(token);
+    } catch (cause) {
+      setError(cause instanceof APIError ? cause.message : "语料治理操作失败");
+    } finally {
+      setLoading(false);
+    }
+  }
   const filteredUsers = data?.users || [];
   if (!token || !principal)
     return (
@@ -580,8 +602,58 @@ function App() {
               <h2>运营信号</h2>
               <p>订单、订阅与投影异常。</p>
             </div>
-            <OverviewChart overview={data.overview} />
+            <Suspense fallback={<div className="chart" aria-label="运营概览图表加载中" />}>
+              <OverviewChart overview={data.overview} />
+            </Suspense>
           </section>
+          {principal.permissions.includes("corpus.read") && (
+            <section className="panel operations-panel">
+              <div className="panel-heading">
+                <div>
+                  <h2>公共创意语料治理</h2>
+                  <p>
+                    这里只显示公开来源、最多 500 字短摘录、队列和权利状态；私人收藏、对话、记忆与创意指纹不可见。
+                  </p>
+                </div>
+                {principal.permissions.includes("corpus.write") && (
+                  <button className="quiet" disabled={loading} onClick={() => void submitCorpusSource()}>
+                    提交来源
+                  </button>
+                )}
+              </div>
+              <p className="operation-meta">
+                队列：待处理 {corpusJobs.filter((job) => job.status === "pending").length} ·
+                失败 {corpusJobs.filter((job) => job.status === "failed").length} ·
+                robots/策略阻止 {corpusJobs.filter((job) => job.status === "blocked").length}
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>来源</th>
+                    <th>短摘录</th>
+                    <th>采集 / 权利</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {corpusSources.length ? corpusSources.map((source) => (
+                    <tr key={source.id}>
+                      <td title={source.canonicalUrl}>{source.title || source.domain}<small>{source.domain}</small></td>
+                      <td className="corpus-excerpt">{source.excerpt || "正文未保留或尚未提炼"}</td>
+                      <td>{source.status}<small>{source.rightsStatus} · HTTP {source.httpStatus ?? "—"}</small></td>
+                      <td>{formatDate(source.updatedAt)}</td>
+                      <td><div className="action-row compact">
+                        {principal.permissions.includes("corpus.write") && source.status === "fetched" && <button className="quiet" disabled={loading} onClick={() => void governCorpusSource(source, "allow")}>允许公开</button>}
+                        {principal.permissions.includes("corpus.takedown") && !["blocked", "takedown"].includes(source.status) && <button className="quiet" disabled={loading} onClick={() => void governCorpusSource(source, "block")}>封禁域名</button>}
+                        {principal.permissions.includes("corpus.takedown") && source.status !== "takedown" && <button className="danger" disabled={loading} onClick={() => void governCorpusSource(source, "takedown")}>下架</button>}
+                      </div></td>
+                    </tr>
+                  )) : <tr><td className="empty" colSpan={5}>暂无公开来源</td></tr>}
+                </tbody>
+              </table>
+            </section>
+          )}
           <section className="panel">
             <div className="panel-heading">
               <div>

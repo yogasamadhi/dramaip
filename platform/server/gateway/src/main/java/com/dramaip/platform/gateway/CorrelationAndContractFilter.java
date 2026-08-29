@@ -5,8 +5,6 @@ import com.dramaip.platform.common.observability.TraceCorrelation;
 import io.micrometer.core.instrument.Timer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
@@ -14,6 +12,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono;
 
 /** Establishes correlation IDs and enforces the v2 boundary before routes are selected. */
 @Component
-public class CorrelationAndContractFilter implements GlobalFilter, Ordered {
+public class CorrelationAndContractFilter implements WebFilter, Ordered {
     private static final Logger LOG = LoggerFactory.getLogger(CorrelationAndContractFilter.class);
     static final String REQUEST_ID = "X-Request-Id";
     static final String TRACE_ID = "X-Trace-Id";
@@ -31,7 +31,7 @@ public class CorrelationAndContractFilter implements GlobalFilter, Ordered {
     public CorrelationAndContractFilter(DramaipMetrics metrics) { this.metrics = metrics; }
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String requestId = identifier(exchange.getRequest().getHeaders().getFirst(REQUEST_ID));
         String traceId = TraceCorrelation.resolve(exchange.getRequest().getHeaders().getFirst("traceparent"),
                 exchange.getRequest().getHeaders().getFirst(TRACE_ID));

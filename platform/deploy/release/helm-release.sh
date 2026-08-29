@@ -6,12 +6,13 @@ set -euo pipefail
 # operation.
 root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 manifest="${DRAMAIP_IMAGE_MANIFEST:-$root/deploy/release/images.tsv}"
+manifest_checker="$root/deploy/release/check-manifest.sh"
 if [[ -n "${DRAMAIP_GITOPS_DIR:-}" ]]; then
   chart="$DRAMAIP_GITOPS_DIR/helm/dramaip-platform"
 else
   chart="$root/deploy/helm/dramaip-platform"
 fi
-[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
+"$manifest_checker" "$manifest"
 [[ -f "$chart/Chart.yaml" ]] || { echo "Helm Chart not found: $chart" >&2; exit 2; }
 environment="${1:?usage: helm-release.sh <staging|production> <apply|rollback> [revision]}"
 action="${2:?usage: helm-release.sh <staging|production> <apply|rollback> [revision]}"
@@ -25,7 +26,7 @@ if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
   helm_cmd+=(--kube-context "$DRAMAIP_KUBE_CONTEXT")
   kubectl_cmd+=(--context "$DRAMAIP_KUBE_CONTEXT")
 fi
-echo "warning: helm-release.sh is an emergency operator fallback; normal Staging delivery is run-platform-cicd.py release -> Argo CD" >&2
+echo "operator release flow: run preflight.sh, then invoke helm-release.sh with an approved environment and action" >&2
 
 case "$environment" in
   staging) values="$chart/values-staging.yaml" ;;

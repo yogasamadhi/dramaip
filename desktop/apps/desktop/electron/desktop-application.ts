@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
+import type { JsonValue } from "@dramaip/contracts";
 import {
   createDesktopHost,
   type AgentProviderActivationInput,
@@ -21,6 +22,7 @@ import {
   type HostEngineStreamEvent,
   type ProviderHttpRequest,
   type ProviderHttpResponse,
+  type PublicWebSearchRequest,
 } from "@dramaip/desktop-host";
 import { sha256, verifyExtensionRegistry } from "@dramaip/extension-host";
 import { bootstrapCodexAuthentication } from "./codex-auth-bootstrap";
@@ -30,6 +32,7 @@ import {
 } from "./local-credential-vault";
 import { CredentialCaptureManager } from "./credential-capture";
 import { safeHttpRequest } from "./host/safe-http-transport";
+import { extractSafeWebPage } from "./host/web-page-content";
 import { EngineEventChannel } from "./engines/engine-event-channel";
 import {
   ManagedComponentState,
@@ -715,7 +718,7 @@ async function publicSearch(input: {
     const response = await safeHttpRequest({
       url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(input.query)}`,
       method: "GET",
-      accept: "binary",
+      accept: "text",
       maximumBytes: 2 * 1024 * 1024,
       timeoutMs: 15_000,
       authorization: "",
@@ -795,6 +798,148 @@ async function publicSearch(input: {
   };
 }
 
+function mcpSearchText(body: string): string {
+  const candidates = [
+    body.trim(),
+    ...body
+      .replaceAll("\r\n", "\n")
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim()),
+  ];
+  for (const candidate of candidates) {
+    if (!candidate.startsWith("{")) continue;
+    try {
+      const value = JSON.parse(candidate) as Record<string, unknown>;
+      const result = isRecord(value.result) ? value.result : undefined;
+      const content = Array.isArray(result?.content) ? result.content : [];
+      const text = content
+        .flatMap((item) =>
+          isRecord(item) &&
+          item.type === "text" &&
+          typeof item.text === "string"
+            ? [item.text]
+            : [],
+        )
+        .join("\n\n")
+        .trim();
+      if (text) return text.slice(0, 200_000);
+      const error = isRecord(value.error)
+        ? (value.error as Record<string, unknown>)
+        : undefined;
+      if (typeof error?.message === "string") throw new Error(error.message);
+    } catch (cause) {
+      if (cause instanceof Error && !cause.message.includes("JSON"))
+        throw cause;
+    }
+  }
+  throw new Error("Web search provider returned no readable result");
+}
+
+async function webSearch(input: PublicWebSearchRequest) {
+  let credential: string | undefined;
+  if (input.credentialRef)
+    credential = await resolveCredential(input.credentialRef, {
+      purpose: "public-web-search",
+      origin:
+        input.provider === "exa"
+          ? "https://mcp.exa.ai"
+          : "https://search.parallel.ai",
+    });
+  const query = [
+    input.query,
+    ...(input.domains?.length
+      ? [`(${input.domains.map((domain) => `site:${domain}`).join(" OR ")})`]
+      : []),
+    ...(input.recencyDays
+      ? [
+          `after:${new Date(Date.now() - input.recencyDays * 86_400_000)
+            .toISOString()
+            .slice(0, 10)}`,
+        ]
+      : []),
+  ]
+    .join(" ")
+    .slice(0, 1_000);
+  const endpoint =
+    input.provider === "exa"
+      ? "https://mcp.exa.ai/mcp"
+      : "https://search.parallel.ai/mcp";
+  const response = await safeHttpRequest({
+    url: endpoint,
+    method: "POST",
+    accept: "mcp",
+    maximumBytes: 2 * 1024 * 1024,
+    timeoutMs: 15_000,
+    authorization:
+      input.provider === "parallel" && credential ? `Bearer ${credential}` : "",
+    ...(input.provider === "exa" && credential ? { apiKey: credential } : {}),
+    body: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: input.provider === "exa" ? "web_search_exa" : "web_search",
+        arguments:
+          input.provider === "exa"
+            ? {
+                query,
+                numResults: input.limit,
+              }
+            : {
+                objective: query,
+                search_queries: [query],
+                session_id: input.sessionId,
+                model_name: "dramaip-agent",
+              },
+      },
+    },
+  });
+  if (response.status < 200 || response.status >= 300)
+    throw new Error(
+      `${input.provider === "exa" ? "Exa" : "Parallel"} returned ${response.status}`,
+    );
+  return {
+    provider: input.provider,
+    text: mcpSearchText(response.bytes.toString("utf8")),
+    coverage:
+      input.provider === "exa"
+        ? "Exa 公开网页搜索结果；匿名服务可能受到速率和可用性限制。"
+        : "Parallel 公开网页搜索结果；匿名服务可能受到速率和可用性限制。",
+  };
+}
+
+async function readWebPage(input: { url: string; maxCharacters: number }) {
+  const response = await safeHttpRequest({
+    url: input.url,
+    method: "GET",
+    accept: "text",
+    maximumBytes: 2 * 1024 * 1024,
+    timeoutMs: 15_000,
+    authorization: "",
+  });
+  if (response.status < 200 || response.status >= 300)
+    throw new Error(`Web page returned ${response.status}`);
+  const source = new TextDecoder("utf-8", { fatal: false }).decode(
+    response.bytes,
+  );
+  const mime = response.contentType.toLowerCase().split(";", 1)[0]!.trim();
+  const isHtml = mime === "text/html" || mime === "application/xhtml+xml";
+  const extracted = isHtml ? extractSafeWebPage(source) : undefined;
+  const converted = extracted?.markdown ?? source.trim();
+  if (!converted) throw new Error("Web page did not contain readable text");
+  const finalUrl = new URL(response.finalUrl);
+  const title = extracted?.title ?? finalUrl.hostname.replace(/^www\./u, "");
+  return {
+    title,
+    url: finalUrl.toString(),
+    content: converted.slice(0, input.maxCharacters),
+    contentType: response.contentType.slice(0, 200),
+    retrievedAt: new Date().toISOString(),
+    truncated: converted.length > input.maxCharacters,
+  };
+}
+
 async function restartSidecar(previous: ManagedProcess): Promise<void> {
   const budget = restartBudgets.get(previous.name);
   const delay = budget?.nextDelay();
@@ -854,6 +999,7 @@ async function restartRuntimeTree(previous: ManagedProcess): Promise<void> {
     "codex-engine": randomUUID(),
     "pi-engine": randomUUID(),
     "grok-engine": randomUUID(),
+    "langgraph-engine": randomUUID(),
   } as const;
   previous.command.accessToken = accessToken;
   previous.command.engineMcpTokens = Object.values(mcpTokens);
@@ -940,6 +1086,114 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function structuredToolValue(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined;
+  if (isRecord(value.structuredContent)) return value.structuredContent;
+  const content = Array.isArray(value.content) ? value.content : [];
+  for (const item of content) {
+    if (!isRecord(item) || typeof item.text !== "string") continue;
+    try {
+      const parsed = JSON.parse(item.text) as unknown;
+      if (isRecord(parsed)) return parsed;
+    } catch {
+      // Non-JSON tool text is intentionally not projected into Runtime state.
+    }
+  }
+  return value;
+}
+
+function webToolDetail(value: Record<string, unknown>): JsonValue | undefined {
+  const tool = String(value.tool ?? "");
+  if (tool !== "dramaip_web_search" && tool !== "dramaip_read_web_page")
+    return undefined;
+  if (value.status === "started") {
+    const args = isRecord(value.arguments) ? value.arguments : {};
+    return {
+      arguments:
+        tool === "dramaip_web_search"
+          ? {
+              ...(typeof args.query === "string"
+                ? { query: args.query.slice(0, 500) }
+                : {}),
+              ...(typeof args.limit === "number" ? { limit: args.limit } : {}),
+            }
+          : {
+              ...(typeof args.url === "string"
+                ? { url: args.url.slice(0, 4_000) }
+                : {}),
+              ...(typeof args.maxCharacters === "number"
+                ? { maxCharacters: args.maxCharacters }
+                : {}),
+            },
+    };
+  }
+  if (typeof value.error === "string")
+    return { error: value.error.slice(0, 500) };
+  const result = structuredToolValue(value.result);
+  if (!result) return undefined;
+  if (tool === "dramaip_read_web_page")
+    return {
+      result: {
+        ...(typeof result.title === "string"
+          ? { title: result.title.slice(0, 500) }
+          : {}),
+        ...(typeof result.url === "string"
+          ? { url: result.url.slice(0, 4_000) }
+          : {}),
+        ...(typeof result.contentType === "string"
+          ? { contentType: result.contentType.slice(0, 200) }
+          : {}),
+        ...(typeof result.retrievedAt === "string"
+          ? { retrievedAt: result.retrievedAt }
+          : {}),
+        ...(typeof result.truncated === "boolean"
+          ? { truncated: result.truncated }
+          : {}),
+      },
+    };
+  const sources = Array.isArray(result.results)
+    ? result.results.slice(0, 10).flatMap((source) => {
+        if (!isRecord(source) || typeof source.url !== "string") return [];
+        return [
+          {
+            ...(typeof source.title === "string"
+              ? { title: source.title.slice(0, 500) }
+              : {}),
+            url: source.url.slice(0, 4_000),
+            ...(typeof source.excerpt === "string"
+              ? { excerpt: source.excerpt.slice(0, 4_000) }
+              : {}),
+            ...(typeof source.publishedAt === "string"
+              ? { publishedAt: source.publishedAt.slice(0, 80) }
+              : {}),
+            ...(typeof source.retrievedAt === "string"
+              ? { retrievedAt: source.retrievedAt }
+              : {}),
+            ...(typeof source.provider === "string"
+              ? { provider: source.provider.slice(0, 30) }
+              : {}),
+          },
+        ];
+      })
+    : [];
+  return {
+    result: {
+      ...(typeof result.query === "string"
+        ? { query: result.query.slice(0, 500) }
+        : {}),
+      ...(Array.isArray(result.providers)
+        ? { providers: result.providers.slice(0, 5).map(String) }
+        : {}),
+      ...(typeof result.fallbackUsed === "boolean"
+        ? { fallbackUsed: result.fallbackUsed }
+        : {}),
+      results: sources,
+    },
+  };
+}
+
 function hostEngineStreamEvent(
   value: Record<string, unknown>,
 ): HostEngineStreamEvent | undefined {
@@ -951,13 +1205,17 @@ function hostEngineStreamEvent(
     (value.status === "started" ||
       value.status === "completed" ||
       value.status === "failed")
-  )
+  ) {
+    const detail = webToolDetail(value);
+    const status = typeof value.error === "string" ? "failed" : value.status;
     return {
       type: "tool",
-      status: value.status,
+      status,
       tool: value.tool,
       ...(typeof value.itemId === "string" ? { itemId: value.itemId } : {}),
+      ...(detail ? { detail } : {}),
     };
+  }
   if (value.type === "usage")
     return {
       type: "usage",
@@ -1338,6 +1596,7 @@ function createHost(accessToken: string) {
       { id: "agent-provider", available: true },
       { id: "provider-http", available: true },
       { id: "public-search", available: true },
+      { id: "web-research", available: true },
       { id: "codex-auth", available: true },
       { id: "notifications", available: true },
       { id: "extensions", available: true },
@@ -1527,6 +1786,8 @@ function createHost(accessToken: string) {
       activateAgentProvider,
       providerRequest: executeProviderHttpRequest,
       publicSearch,
+      webSearch,
+      readWebPage,
       codexAuthenticationStatus: readCodexAuthenticationStatus,
       loginCodex,
       logoutCodex,
@@ -1665,6 +1926,7 @@ async function initialize(): Promise<Ready> {
     codex: randomUUID(),
     pi: randomUUID(),
     grok: randomUUID(),
+    langgraph: randomUUID(),
   } as const;
   const hostToken = randomUUID();
   const host = createHost(hostToken);
@@ -1763,6 +2025,7 @@ async function initialize(): Promise<Ready> {
           "agent-sessions",
           "langgraph",
         ),
+        mcp: { url: mcpUrl, token: mcpTokens.langgraph },
       },
       false,
     ),

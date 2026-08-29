@@ -7,12 +7,13 @@ set -euo pipefail
 root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 repo="$(CDPATH= cd -- "$root/.." && pwd)"
 manifest="${DRAMAIP_IMAGE_MANIFEST:-$root/deploy/release/images.tsv}"
+manifest_checker="$root/deploy/release/check-manifest.sh"
 registry="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required, e.g. harbor.home.arpa/dramaip}"
 tag="${IMAGE_TAG:?IMAGE_TAG is required, e.g. sha-<full-git-sha>}"
 revision="${IMAGE_REVISION:-$(git -C "$repo" rev-parse HEAD)}"
 source_url="${IMAGE_SOURCE:-$(git -C "$repo" config --get remote.origin.url || true)}"
 
-[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
+"$manifest_checker" "$manifest"
 [[ "${PUSH_IMAGES:-0}" != "1" ]] || {
   echo "build-images.sh never pushes; run scan-images.sh then push-images.sh" >&2
   exit 2

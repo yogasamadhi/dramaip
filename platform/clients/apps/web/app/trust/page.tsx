@@ -3,7 +3,10 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: '信任中心' }
 
 const boundaries = [
-  ['永远留在本地', '小说原文、Prompt、API Key、权利证明原件、源素材、生产母版。'],
+  ['Desktop 本地空间', 'Desktop 的项目原文、灵感对话、长期记忆、API Key、权利证明原件、源素材和生产母版不会自动同步到云端。'],
+  ['Web 灵感空间', '登录后创建的云端创意会话、摘要和灵感卡片会持久化到账号；长期记忆仅在单独授权后跨会话启用，可查看、停用或清空。'],
+  ['公共创意语料', '只采集允许公开访问且符合站点规则的网页；正文加密暂存最长 7 天，长期仅保留来源、哈希、短摘录和抽象创作机制，并支持权利投诉与下架。'],
+  ['个人创意指纹', '与长期记忆分开授权，只学习你明确采用、拒绝、评分或保存的结果。可修正、冻结、暂停或清空，不用于训练平台模型。'],
   ['只在你主动调用时发送给 Provider', '生成所需的 Prompt、参考资产和遮罩；具体地区、留存、训练政策在调用前展示。'],
   ['只在主动发布云审片时上传', '严格审片 manifest、最高 540×960 的 H.264/AAC 代理、最长边 1080 px 的图片、缩略图与评论。'],
   ['匿名产品分析（默认关闭）', '仅随机安装标识、版本、OS、白名单事件、耗时区间与标准错误码；撤回后清空待发送队列。'],
@@ -14,7 +17,7 @@ export default function TrustPage() {
     <main className="mx-auto max-w-6xl px-5 py-16 lg:px-8">
       <p className="eyebrow">Trust is a production feature</p>
       <h1 className="mt-4 max-w-4xl text-5xl font-semibold tracking-tight text-ink">清楚知道什么留在本地，<br />什么会被发送，以及为什么。</h1>
-      <p className="mt-6 max-w-3xl leading-7 text-stone-600">DramaIP 采用本地优先和 BYOK。renderer 不接触 API Key、云分享令牌明文或原始上传字节；跨边界动作必须由用户明确发起。</p>
+      <p className="mt-6 max-w-3xl leading-7 text-stone-600">DramaIP Desktop 采用本地优先和 BYOK；Web 灵感空间则按云端账号持久化。提示词、记忆正文、私人收藏、创意指纹和模型响应不会进入管理员视图、应用日志或异常文本，也不会用于训练平台模型。跨端只通过用户确认的 schema v4 创作简报包衔接。</p>
 
       <div className="mt-12 grid gap-4 md:grid-cols-2">
         {boundaries.map(([title, description], index) => (

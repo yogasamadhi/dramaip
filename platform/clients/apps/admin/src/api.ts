@@ -55,6 +55,22 @@ const JavaAdminPrincipalSchema = z.object({ id: z.string(), email: z.string().em
 const JavaAdminLoginSchema = z.object({ accessToken: z.string(), expiresIn: z.number().int().positive(), principal: JavaAdminPrincipalSchema })
 const JavaAdminConfirmationSchema = z.object({ id: z.string() })
 const JavaAdminAuditSchema = z.object({ id: z.string(), actorId: z.string(), action: z.string(), resourceType: z.string(), resourceId: z.string(), reason: z.string(), traceId: z.string(), createdAt: z.string() })
+export const CorpusSourceSchema = z.object({
+  id: z.string(), submittedBy: z.string().nullish(), canonicalUrl: z.string(), domain: z.string(),
+  title: z.string().nullish(), excerpt: z.string().max(500).nullish(), contentHash: z.string().nullish(),
+  status: z.enum(['quarantined', 'fetched', 'allowed', 'blocked', 'takedown', 'failed']),
+  rightsStatus: z.enum(['unknown', 'review_required', 'allowed', 'restricted', 'removed']),
+  locale: z.string(), httpStatus: z.number().int().nullish(), retrievedAt: z.string().nullish(),
+  lastErrorCode: z.string().nullish(), version: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string(),
+})
+export type CorpusSource = z.infer<typeof CorpusSourceSchema>
+export const CorpusJobSchema = z.object({
+  id: z.string(), sourceId: z.string(), depth: z.number().int().nonnegative(),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'blocked']), attempts: z.number().int().nonnegative(),
+  nextAttemptAt: z.string(), leaseUntil: z.string().nullish(), errorCode: z.string().nullish(),
+  createdAt: z.string(), updatedAt: z.string(), finishedAt: z.string().nullish(),
+})
+export type CorpusJob = z.infer<typeof CorpusJobSchema>
 function adminPrincipal(value: z.infer<typeof JavaAdminPrincipalSchema>) {
   return { id: value.id, email: value.email, status: value.status, roles: value.roles, permissions: value.permissions }
 }
@@ -112,4 +128,8 @@ export const adminAPI = {
   applyReconciliationAction: (token: string, itemID: string, action: string, confirmationID: string) => request('/api/v1/admin/billing/reconciliation/items/actions', AdminReconciliationActionResponseSchema, token, { method: 'POST', body: JSON.stringify({ item_id: itemID, action, confirmation_id: confirmationID }) }),
   deliveryAttempts: (token: string, status = 'failed') => request(`/api/v1/admin/notifications/delivery-attempts?limit=${defaultListQuery.limit}${status ? `&status=${encodeURIComponent(status)}` : ''}`, AdminDeliveryAttemptsResponseSchema, token),
   retryDelivery: (token: string, deliveryAttemptID: string, confirmationID: string) => request('/api/v1/admin/notifications/delivery-attempts/retry', AdminDeliveryRetryResponseSchema, token, { method: 'POST', body: JSON.stringify({ delivery_attempt_id: deliveryAttemptID, confirmation_id: confirmationID }) }),
+  corpusSources: (token: string) => request('/api/v1/admin/creative-corpus/sources?limit=100', z.array(CorpusSourceSchema), token),
+  corpusJobs: (token: string) => request('/api/v1/admin/creative-corpus/jobs?limit=100', z.array(CorpusJobSchema), token),
+  submitCorpusSource: (token: string, url: string) => request('/api/v1/admin/creative-corpus/sources', CorpusSourceSchema, token, { method: 'POST', body: JSON.stringify({ url }) }),
+  governCorpusSource: (token: string, source: CorpusSource, action: 'allow' | 'block' | 'takedown', reason: string, confirmationID?: string) => request(`/api/v1/admin/creative-corpus/sources/${encodeURIComponent(source.id)}/actions`, CorpusSourceSchema, token, { method: 'POST', body: JSON.stringify({ version: source.version, action, reason, confirmationId: confirmationID }) }),
 }

@@ -245,6 +245,16 @@ export const agentRouteMetadata: Record<
     path: "/api/v2/assistant-conversations",
     operationId: "assistant-conversations.list",
   },
+  "agents:assistant-web-research-settings-get": {
+    method: "get",
+    path: "/api/v2/assistant-web-research-settings",
+    operationId: "assistant-web-research-settings.get",
+  },
+  "agents:assistant-web-research-settings-update": {
+    method: "put",
+    path: "/api/v2/assistant-web-research-settings",
+    operationId: "assistant-web-research-settings.update",
+  },
   "agents:assistant-conversations-create": {
     method: "post",
     path: "/api/v2/assistant-conversations",

@@ -13,11 +13,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -76,7 +76,7 @@ public class ReviewPackageService {
         jdbc.update("""
                 insert into review.packages(id, workspace_id, owner_user_id, desktop_package_id, title, token_hash, pin_hash, status, manifest, storage_bytes, expires_at)
                 values (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, 'uploading', ?::jsonb, ?, ?::timestamptz)
-                """, packageId, workspace.id(), userId, request.desktopPackageId().trim(), request.title().trim(), digest(rawToken), pinHash, valid.manifest(), valid.totalBytes(), expiresAt);
+                """, packageId, workspace.id(), userId, request.desktopPackageId().trim(), request.title().trim(), digest(rawToken), pinHash, valid.manifest(), valid.totalBytes(), Timestamp.from(expiresAt));
         for (MediaDeclaration media : valid.media()) {
             String mediaId = UUID.randomUUID().toString();
             String objectKey = "review/" + workspace.id() + "/" + packageId + "/" + mediaId;

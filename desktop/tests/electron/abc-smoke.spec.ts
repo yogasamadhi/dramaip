@@ -202,6 +202,97 @@ test("最小窗口下应用栏可用且页面无横向溢出", async () => {
   await page.setViewportSize({ width: 1440, height: 920 });
 });
 
+test("灵感空间的输入框和发送按钮始终位于视口内", async () => {
+  await page.setViewportSize({ width: 1080, height: 700 });
+  await page.getByRole("link", { name: "灵感空间", exact: true }).click();
+  const consentDialog = page
+    .getByRole("dialog")
+    .filter({ hasText: "是否允许灵感空间自动学习" });
+  await expect(consentDialog).toBeVisible();
+  await consentDialog.getByRole("button", { name: "取消" }).click();
+
+  const webAccess = page.getByRole("switch", {
+    name: "联网搜索 · 自动",
+  });
+  await expect(webAccess).toBeVisible();
+  await webAccess.click();
+  await expect(
+    page.getByRole("switch", { name: "联网搜索 · 关闭" }),
+  ).toBeVisible();
+  await page.getByRole("switch", { name: "联网搜索 · 关闭" }).click();
+  const webConsent = page
+    .getByRole("dialog", { name: "确认操作" })
+    .filter({ hasText: "搜索词" });
+  await expect(webConsent).toContainText("不会自动发送项目文件");
+  await webConsent.getByRole("button", { name: "取消" }).click();
+  await expect(
+    page.getByRole("switch", { name: "联网搜索 · 关闭" }),
+  ).toBeVisible();
+  await page.getByRole("switch", { name: "联网搜索 · 关闭" }).click();
+  await webConsent.getByRole("button", { name: "确认", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "联网搜索 · 自动" }),
+  ).toBeVisible();
+  await expect(
+    runtimeJson<{ consented: boolean }>(
+      "/api/v2/assistant-web-research-settings",
+    ),
+  ).resolves.toMatchObject({ consented: true });
+
+  const composer = page.getByPlaceholder(
+    "说出一个画面、人物、疑问，或任何还没成形的念头…",
+  );
+  const sendButton = page.getByRole("button", { name: "发送", exact: true });
+  await expect(composer).toBeVisible();
+  await expect(sendButton).toBeVisible();
+  const privateAddButton = page.getByRole("button", { name: "私人添加" });
+  const newExperimentButton = page.getByRole("button", { name: "新实验" });
+  await expect(privateAddButton).toBeVisible();
+  await expect(newExperimentButton).toBeVisible();
+  for (const button of [privateAddButton, newExperimentButton]) {
+    const metrics = await button.evaluate((element) => ({
+      height: element.getBoundingClientRect().height,
+      whiteSpace: getComputedStyle(element).whiteSpace,
+    }));
+    expect(metrics.height).toBeLessThanOrEqual(36);
+    expect(metrics.whiteSpace).toBe("nowrap");
+  }
+  await expect(page.getByText("制作复杂度", { exact: true })).toHaveCount(1);
+  const modeTabs = page.getByRole("tablist", { name: "灵感模式" });
+  await expect(modeTabs).toBeVisible();
+  const modeLayout = await modeTabs.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    tabTops: Array.from(element.querySelectorAll('[role="tab"]')).map((tab) =>
+      Math.round(tab.getBoundingClientRect().top),
+    ),
+  }));
+  expect(modeLayout.scrollWidth).toBeLessThanOrEqual(
+    modeLayout.clientWidth + 1,
+  );
+  expect(new Set(modeLayout.tabTops).size).toBe(1);
+
+  const layout = await page.evaluate(() => {
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[placeholder="说出一个画面、人物、疑问，或任何还没成形的念头…"]',
+    );
+    const send = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "发送",
+    );
+    return {
+      documentHeight: document.documentElement.scrollHeight,
+      textareaBottom: textarea?.getBoundingClientRect().bottom ?? Infinity,
+      sendBottom: send?.getBoundingClientRect().bottom ?? Infinity,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(layout.textareaBottom).toBeLessThanOrEqual(layout.viewportHeight);
+  expect(layout.sendBottom).toBeLessThanOrEqual(layout.viewportHeight);
+  expect(layout.documentHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  await page.setViewportSize({ width: 1440, height: 920 });
+});
+
 test("智能助手只在用户打开弹窗后显示", async () => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
@@ -224,6 +315,9 @@ test("智能助手只在用户打开弹窗后显示", async () => {
   ]);
   await expect(
     dialog.getByRole("textbox", { name: "给 AI 办事助手发消息" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("switch", { name: "联网搜索 · 自动" }),
   ).toBeVisible();
 
   await dialog.getByRole("button", { name: "关闭智能助手" }).click();
@@ -249,6 +343,15 @@ test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡�
   await expect(
     page.getByRole("heading", { name: "填写名称并创建" }),
   ).toBeVisible();
+  await expect(page.getByText(/还没有想好项目名称/)).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("link", { name: "灵感空间" }),
+  ).toHaveAttribute("href", "#/inspiration");
+  await page.getByRole("button", { name: "打开智能助手获取灵感" }).click();
+  await expect(
+    page.getByRole("dialog").getByRole("heading", { name: "DramaIP 智能助手" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭智能助手" }).click();
   await expect(page.getByRole("heading", { name: "选择怎么开始" })).toHaveCount(
     0,
   );
@@ -259,7 +362,20 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
   await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();
   await page.getByRole("button", { name: /从灵感开始/ }).click();
-  await page.getByLabel("项目名称").fill("六季长篇持久化验证");
+  const titleInput = page.getByLabel("项目名称");
+  const genreSelect = page.getByRole("combobox", {
+    name: "题材方向（可选）",
+  });
+  const [titleTop, genreTop] = await Promise.all([
+    titleInput.evaluate((element) => element.getBoundingClientRect().top),
+    genreSelect.evaluate((element) => element.getBoundingClientRect().top),
+  ]);
+  expect(Math.abs(titleTop - genreTop)).toBeLessThanOrEqual(1);
+  await genreSelect.click();
+  await expect(page.getByText("都市与现实", { exact: true })).toBeVisible();
+  await expect(page.getByText("幻想与科幻", { exact: true })).toBeVisible();
+  await page.getByRole("option", { name: "女频复仇" }).click();
+  await titleInput.fill("六季长篇持久化验证");
   await page.getByRole("button", { name: /展开受众、平台与视觉设置/ }).click();
   await page.getByLabel("母本章节数").fill("360");
   await page.getByLabel("计划季数").fill("6");
@@ -271,6 +387,7 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
   const project = await runtimeJson<{
     modeConfig: Record<string, unknown>;
     productionBrief?: string;
+    shortDramaType?: string;
   }>(`/api/v2/projects/${projectId}`);
   expect(project.modeConfig).toEqual({
     mode: "series_longform",
@@ -278,6 +395,7 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
     targetSeasonCount: 6,
     targetEpisodesPerSeason: 72,
   });
+  expect(project.shortDramaType).toBe("女频复仇");
   expect(project.productionBrief).toContain("母本章节：360 章");
   expect(project.productionBrief).not.toContain("计划集数：80 集");
 });

@@ -29,10 +29,8 @@ static_checks:
     entrypoint: [""]
   script:
     - git diff --check
-    - "test \"$(awk -F '|' 'NF == 4 && $1 !~ /^#/ { count += 1 } END { print count }' platform/deploy/release/images.tsv)\" = 9"
-    - "test \"$(awk -F '|' '$3 == \"java\" { count += 1 } END { print count }' platform/deploy/release/images.tsv)\" = 8"
-    - "test \"$(awk -F '|' '$3 == \"web\" { count += 1 } END { print count }' platform/deploy/release/images.tsv)\" = 1"
-    - bash -n platform/deploy/release/build-images.sh platform/deploy/release/scan-images.sh platform/deploy/release/push-images.sh
+    - platform/deploy/release/check-manifest.sh
+    - bash -n platform/deploy/release/*.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -109,6 +107,45 @@ platform_clients:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+platform_e2e:
+  stage: validate
+  image:
+    name: node:24.18.0-bookworm-slim
+    entrypoint: [""]
+  needs:
+    - job: java_server
+      artifacts: true
+  before_script:
+    - |
+      set -eu
+      apt-get update
+      apt-get install -y --no-install-recommends ca-certificates curl gnupg make
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+      chmod a+r /etc/apt/keyrings/docker.asc
+      . /etc/os-release
+      printf 'Types: deb\nURIs: https://download.docker.com/linux/debian\nSuites: %s\nComponents: stable\nArchitectures: %s\nSigned-By: /etc/apt/keyrings/docker.asc\n' "$VERSION_CODENAME" "$(dpkg --print-architecture)" > /etc/apt/sources.list.d/docker.sources
+      apt-get update
+      apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin
+      docker info
+  script:
+    - export COMPOSE_PROJECT_NAME="dramaip-ci-${CI_PIPELINE_ID}-${CI_JOB_ID}"
+    - cd platform
+    - make platform-ci-e2e
+  after_script:
+    - export COMPOSE_PROJECT_NAME="dramaip-ci-${CI_PIPELINE_ID}-${CI_JOB_ID}"
+    - cd platform
+    - if [ "$CI_JOB_STATUS" != "success" ]; then docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile e2e logs --no-color > ../platform-e2e-compose.log 2>&1 || true; fi
+    - make platform-ci-down || true
+  artifacts:
+    when: always
+    paths:
+      - platform-e2e-compose.log
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 desktop_linux:
   stage: validate
   image:
@@ -145,6 +182,9 @@ desktop_linux:
     - bun run check:migration:complete
     - bun run check:engine-locks
     - bun run check:provider-catalog
+    - bun run check:extension-packages
+    - bun run check:renderer-chunks
+    - bun run check:timeline-exports
     - bun run build
     - xvfb-run -a bun scripts/run-electron-playwright.ts test
     - bun run package
@@ -177,6 +217,9 @@ desktop_macos_release:
     - bun run check:migration:complete
     - bun run check:engine-locks
     - bun run check:provider-catalog
+    - bun run check:extension-packages
+    - bun run check:renderer-chunks
+    - bun run check:timeline-exports
     - bun run test:e2e
     - bun run package
     - bun run release:metadata
@@ -207,6 +250,9 @@ desktop_windows_release:
     - bun run check:migration:complete
     - bun run check:engine-locks
     - bun run check:provider-catalog
+    - bun run check:extension-packages
+    - bun run check:renderer-chunks
+    - bun run check:timeline-exports
     - bun run test:e2e
     - bun run package
     - bun run release:metadata

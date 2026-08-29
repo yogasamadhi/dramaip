@@ -131,6 +131,13 @@ class ServiceRegistry {
     }
   >();
 
+  resolve<T>(contract: ServiceContract<T>): T | undefined {
+    const value = this.values.get(contract.id);
+    if (value && value.major !== contract.major)
+      throw new Error(`service major mismatch: ${contract.id}`);
+    return value?.service as T | undefined;
+  }
+
   forOwner(owner: string): TypedServiceRegistry {
     return {
       provide: <T>(contract: ServiceContract<T>, service: T): Cleanup => {
@@ -203,6 +210,7 @@ export interface KernelOptions {
 export interface RunningKernel {
   readonly pluginOrder: readonly string[];
   readonly ui: UiRegistry;
+  service<T>(contract: ServiceContract<T>): T | undefined;
   diagnostics(): KernelDiagnostics;
   dispose(): Promise<void>;
 }
@@ -342,6 +350,7 @@ export async function bootKernel(
   return {
     pluginOrder: order,
     ui,
+    service: <T>(contract: ServiceContract<T>) => services.resolve(contract),
     diagnostics,
     async dispose() {
       if (disposed) return;

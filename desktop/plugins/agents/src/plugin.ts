@@ -29,12 +29,17 @@ import {
   assistantConversationRoutes,
   typedAgentSessionRoutes,
 } from "./sessions/routes.js";
+import { inspirationRoutes } from "./inspiration/routes.js";
+import { startInspirationMemoryWorker } from "./inspiration/worker.js";
 export function createAgentsPlugin(host?: DesktopHostClient) {
   return defineFirstPartyPlugin({
     descriptor: AGENTS_DESCRIPTOR,
     ui: AGENTS_UI_CONTRIBUTIONS,
     migrations: agentMigrations,
     activate: async (context) => {
+      context.effect("worker:inspiration-memory", () =>
+        startInspirationMemoryWorker(context, host),
+      );
       recoverAgentRuns(context, host);
       const providerService: ConfiguredProviderService = {
         get: (id) => {
@@ -76,9 +81,11 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
             "agents:assistant-conversations-send-message",
           ),
         }),
+        ...inspirationRoutes(context),
         ...evaluationRoutes(context, host),
       ]) {
-        const registered = materializeAgentRoute(route);
+        const registered =
+          "bind" in route ? materializeAgentRoute(route) : route;
         context.effect(`route:${registered.id}`, () =>
           context.http.register(registered),
         );

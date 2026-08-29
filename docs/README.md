@@ -32,5 +32,8 @@ Level 1 / 2 / 3
 ## Platform
 
 - [平台后端技术架构](./后端技术架构.md)
+- [创意竞争力系统说明](./product/CREATIVE_INTELLIGENCE.md)
+- [创意语料治理与下架手册](../platform/docs/CREATIVE_CORPUS_OPERATIONS.md)
+- [项目包 schema v4](../desktop/docs/engineering/PROJECT_PACKAGE_V4.md)
 
 Platform 发布通过 `platform/deploy/release/` 中的脚本完成；不要引用已删除的旧发布启动器或文档。

@@ -12,9 +12,9 @@ public class ServiceSecurityConfiguration {
     @Bean
     @ConditionalOnProperty(name = "dramaip.security.jwt.enabled", havingValue = "true")
     SecurityFilterChain jwtFilterChain(HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf.ignoringRequestMatchers("/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/review-packages/public/**"))
+        return http.csrf(csrf -> csrf.ignoringRequestMatchers("/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/review-packages/public/**", "/internal/v1/quota/**"))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/**", "/.well-known/jwks.json", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/review-packages/public/**", "/internal/v1/health").permitAll()
+                        .requestMatchers("/actuator/**", "/.well-known/jwks.json", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/review-packages/public/**", "/api/v1/creative-corpus/snapshots/latest", "/internal/v1/health", "/internal/v1/quota/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(jwt -> { }))
                 .build();
@@ -25,7 +25,7 @@ public class ServiceSecurityConfiguration {
     SecurityFilterChain lockedDownFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/**", "/.well-known/jwks.json", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/review-packages/public/**", "/internal/v1/health").permitAll()
+                        .requestMatchers("/actuator/**", "/.well-known/jwks.json", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/review-packages/public/**", "/api/v1/creative-corpus/snapshots/latest", "/internal/v1/health", "/internal/v1/quota/**").permitAll()
                         .anyRequest().denyAll())
                 .build();
     }

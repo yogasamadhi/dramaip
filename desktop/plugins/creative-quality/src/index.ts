@@ -19,6 +19,10 @@ import {
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  creativeIntelligenceQualityMigrations,
+  creativeIntelligenceQualityRoutes,
+} from "./intelligence.js";
 
 interface Row {
   id: string;
@@ -809,7 +813,7 @@ export const creativeQualityPlugin = defineFirstPartyPlugin({
     version: "3.0.0-alpha.3",
     apiVersion: "2",
     requires: ["foundation", "automation", "writing", "knowledge"],
-    provides: ["creative-quality.records"],
+    provides: ["creative-quality.records", "creative-quality.intelligence"],
     stability: "internal",
   },
   ui: [
@@ -873,13 +877,18 @@ export const creativeQualityPlugin = defineFirstPartyPlugin({
           ON creative_quality_resources(project_id, kind, updated_at DESC, id);
       `,
     },
+    ...creativeIntelligenceQualityMigrations,
   ],
   activate: (context) => {
     const records = makeService(context);
     context.effect(`service:${CREATIVE_QUALITY_SERVICE}`, () =>
       context.services.provide(CREATIVE_QUALITY_SERVICE, records),
     );
-    for (const contribution of [...routes(records), ...resourceRoutes(context)])
+    for (const contribution of [
+      ...routes(records),
+      ...resourceRoutes(context),
+      ...creativeIntelligenceQualityRoutes(context),
+    ])
       context.effect(`route:${contribution.id}`, () =>
         context.http.register(contribution),
       );

@@ -28,6 +28,7 @@ import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import io.micrometer.core.instrument.Timer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -50,18 +51,20 @@ public class ChatService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final DramaipMetrics metrics;
+    private final String internalToken;
     private final HttpClient streamClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ExecutorService streams = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
     private final ConcurrentHashMap<String, FutureTask<Void>> activeStreams = new ConcurrentHashMap<>();
 
     public ChatService(AiProperties properties, QuotaClient quota, RestClient.Builder restClient, JdbcTemplate jdbc, ObjectMapper json,
-            DramaipMetrics metrics) {
+            DramaipMetrics metrics, @Value("${dramaip.internal.token:}") String internalToken) {
         this.properties = properties;
         this.quota = quota;
         this.restClient = restClient.build();
         this.jdbc = jdbc;
         this.json = json;
         this.metrics = metrics;
+        this.internalToken = internalToken;
     }
 
     public List<String> models() {
@@ -75,6 +78,12 @@ public class ChatService {
 
     public Chat chat(String userId, String idempotencyKey, String model, List<Message> messages, int maxTokens) {
         return execute(userId, idempotencyKey, model, messages, maxTokens, null);
+    }
+
+    /** Server-owned conversation products may persist each delta before exposing replayable SSE. */
+    public Chat streamTo(String userId, String idempotencyKey, String model, List<Message> messages, int maxTokens,
+            Consumer<String> delta) {
+        return execute(userId, idempotencyKey, model, messages, maxTokens, delta);
     }
 
     /** Exposes only persisted summary fields; prompt text is never read back or stored. */
@@ -181,13 +190,15 @@ public class ChatService {
         Timer.Sample providerSample = null;
         try {
             requireProvider();
-            reservation = quota.reserve(new QuotaClient.ReserveRequest(idempotencyKey, estimateTokens(messages, preflight.maxTokens()))).data();
+            reservation = quota.reserve(internalToken,
+                    new QuotaClient.ReserveRequest(userId, idempotencyKey, estimateTokens(messages, preflight.maxTokens()))).data();
             jdbc.update("update ai_gateway.request_audits set reservation_id = ?::uuid, updated_at = now() where id = ?::uuid", reservation.id(), claimed.id());
             providerSample = metrics.startProvider();
             ProviderReply reply = delta == null
                     ? providerCompletion(model, messages, preflight.maxTokens())
                     : providerStream(model, messages, preflight.maxTokens(), delta);
-            QuotaClient.Usage usage = quota.settle(reservation.id(), new QuotaClient.SettleRequest(idempotencyKey, model, reply.promptTokens(), reply.completionTokens())).data();
+            QuotaClient.Usage usage = quota.settle(internalToken, reservation.id(),
+                    new QuotaClient.SettleRequest(userId, idempotencyKey, model, reply.promptTokens(), reply.completionTokens())).data();
             jdbc.update("""
                     update ai_gateway.request_audits
                     set prompt_tokens = ?, completion_tokens = ?, total_tokens = ?, status = 'succeeded',
@@ -247,10 +258,18 @@ public class ChatService {
     }
 
     private ProviderReply providerCompletion(String model, List<Message> messages, int maxTokens) {
-        JsonNode response = restClient.post().uri(endpoint())
+        String responseBody = restClient.post().uri(endpoint())
                 .contentType(MediaType.APPLICATION_JSON).header("Authorization", "Bearer " + properties.getApiKey())
-                .body(new ProviderRequest(model, messages, maxTokens, false)).retrieve().body(JsonNode.class);
-        if (response == null) throw new BusinessException("AI_PROVIDER_EMPTY_RESPONSE", "provider returned no response", HttpStatus.BAD_GATEWAY);
+                .body(new ProviderRequest(model, messages, maxTokens, false)).retrieve().body(String.class);
+        if (responseBody == null || responseBody.isBlank()) {
+            throw new BusinessException("AI_PROVIDER_EMPTY_RESPONSE", "provider returned no response", HttpStatus.BAD_GATEWAY);
+        }
+        JsonNode response;
+        try {
+            response = json.readTree(responseBody);
+        } catch (IOException exception) {
+            throw new BusinessException("AI_PROVIDER_INVALID_RESPONSE", "provider response is invalid", HttpStatus.BAD_GATEWAY);
+        }
         String content = response.path("choices").path(0).path("message").path("content").asText();
         if (content.isBlank()) throw new BusinessException("AI_PROVIDER_EMPTY_RESPONSE", "provider returned no content", HttpStatus.BAD_GATEWAY);
         long prompt = response.path("usage").path("prompt_tokens").asLong(estimateTokens(messages, 0));
@@ -301,7 +320,7 @@ public class ChatService {
 
     private void compensate(String userId, QuotaClient.Reservation reservation, String auditId, String status, String error) {
         if (reservation != null) {
-            try { quota.cancel(reservation.id()); } catch (RuntimeException ignored) { /* quota expiry reconciliation is idempotent */ }
+            try { quota.cancel(internalToken, reservation.id(), new QuotaClient.CancelRequest(userId)); } catch (RuntimeException ignored) { /* quota expiry reconciliation is idempotent */ }
         }
         jdbc.update("update ai_gateway.request_audits set status = ?, error = ?, finished_at = now(), updated_at = now() where id = ?::uuid", status, error, auditId);
     }

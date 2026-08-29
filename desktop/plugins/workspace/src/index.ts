@@ -1778,6 +1778,34 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
     activate: (context) => {
       const service: WorkspaceProjectService = {
         create: (input) => createProjectRecord(context, input),
+        createIdempotent: (input, idempotencyKey) => {
+          const replay = context.uow.execute((transaction) =>
+            transaction.get<{ response_json: string }>(
+              "SELECT response_json FROM workspace_project_create_idempotency WHERE idempotency_key = ?",
+              idempotencyKey,
+            ),
+          );
+          if (replay) {
+            const value = JSON.parse(replay.response_json) as {
+              project?: Project;
+            };
+            if (value.project) return value.project;
+          }
+          const created = createProjectRecord(context, input);
+          const value = {
+            project: created,
+            initialization: initialization(context, created.id),
+          };
+          context.uow.execute((transaction) =>
+            transaction.run(
+              "INSERT OR IGNORE INTO workspace_project_create_idempotency(idempotency_key, response_json, created_at) VALUES (?, ?, ?)",
+              idempotencyKey,
+              JSON.stringify(value),
+              new Date().toISOString(),
+            ),
+          );
+          return created;
+        },
         get: (id, options) =>
           context.uow.execute((transaction) => {
             const row = transaction.get<ProjectRow>(

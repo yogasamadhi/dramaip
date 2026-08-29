@@ -2,10 +2,10 @@ package com.dramaip.platform.quota.service;
 
 import com.dramaip.platform.common.web.BusinessException;
 import com.dramaip.platform.common.observability.DramaipMetrics;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -60,7 +60,7 @@ public class QuotaService {
         if (fence != null && "cancelled".equals(fence.status())) throw new BusinessException("QUOTA_TCC_HANGING", "provision was cancelled before try", HttpStatus.CONFLICT);
         if (fence != null && !fence.accountId().isBlank()) return provision(fence.accountId());
         if (fence == null) jdbc.update("insert into quota.tcc_provision_fences(business_key, status) values (?, 'tried')", key);
-        String existing = jdbc.query("select id::text from quota.token_accounts where subscription_id = ?::uuid and period_start = ?::timestamptz for update", rs -> rs.next() ? rs.getString(1) : null, request.subscriptionId(), request.periodStart());
+        String existing = jdbc.query("select id::text from quota.token_accounts where subscription_id = ?::uuid and period_start = ?::timestamptz for update", rs -> rs.next() ? rs.getString(1) : null, request.subscriptionId(), timestamp(request.periodStart()));
         String accountId = existing == null ? UUID.randomUUID().toString() : existing;
         if (existing == null) {
             jdbc.update("""
@@ -69,7 +69,7 @@ public class QuotaService {
                                                      plan_snapshot_source, plan_snapshot_at, status)
                     values (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::numeric / 100, ?, ?::timestamptz, ?::timestamptz, ?, ?, ?, ?, 'billing_tcc', now(), 'tcc_pending')
                     """, accountId, request.userId(), request.subscriptionId(), request.planCode(), request.planName(), request.billingPeriod(),
-                    request.planAmountMinor(), request.currency(), request.periodStart(), request.periodEnd(), request.quotaTokens(), request.maxRpm(), request.maxContextTokens(), request.modelLevel());
+                    request.planAmountMinor(), request.currency(), timestamp(request.periodStart()), timestamp(request.periodEnd()), request.quotaTokens(), request.maxRpm(), request.maxContextTokens(), request.modelLevel());
         }
         jdbc.update("update quota.tcc_provision_fences set account_id = ?::uuid, status = 'tried', updated_at = now() where business_key = ?", accountId, key);
         return provision(accountId);
@@ -271,6 +271,7 @@ public class QuotaService {
         var timestamp = result.getTimestamp(name);
         return timestamp == null ? null : timestamp.toInstant();
     }
+    private static Timestamp timestamp(Instant instant) { return Timestamp.from(instant); }
     private record Account(String id, long quotaTokens, long usedTokens) { }
     private record Fence(String status, String accountId) { }
     public record Balance(String planCode, long quotaTokens, long usedTokens, long remainingTokens, Instant periodStart, Instant periodEnd) { }

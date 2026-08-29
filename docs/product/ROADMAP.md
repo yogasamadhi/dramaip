@@ -64,10 +64,11 @@ v0.1 已在 `PROJECT_BRIEF.md` 中定义。本文档从 v0.2 开始描述。
 4. 智能拆书：本地样本库支持 `.md`、`.txt`、`.docx` 导入、拆章、结构抽取和创作卡片；只保存抽象结构，不默认保存或传播第三方原文。
 5. 创作闭环：新鲜度、反套路、叙事曲线、质量闸门、观众模拟和视频风险可以沉淀为修稿任务；采用后记录内容版本并支持复检。
 6. 项目级配置：项目 Skills、项目 Agent 方案、任务组模型绑定进入上下文预览，避免隐式 prompt 不可解释。
-7. 灵感台：汇总类型模板、样本卡片、反套路方案、类型化灵感和移动导入灵感，可收藏并插入项目设定或章节要求。
-8. 商业交付：支持小说投稿包、短剧提案包、分集交付包、分镜交付 Markdown / JSON / CSV，以及完整项目包 v6。
-9. 视频前置资产：角色选角、音色、旁白、字幕、封面、首帧图等资产进入项目包和视频任务上下文。
-10. 发布验证：Electron E2E smoke 覆盖 P0 主流程、Agent 指挥台、拆书卡片、修稿采用、小说投稿包和项目包往返。
+7. 灵感空间：Desktop 与 Web 均提供不依赖项目的长期创意对话、五种引导模式、分支、卡片和授权式长期记忆；它与项目内“AI 办事助手”隔离，只把用户确认的简报和卡片转入项目。两端数据不自动同步，跨端桥梁为 schema v4 创作简报包。
+8. 创意竞争力：公共创意语料网络、私有收藏、独立授权的创意指纹和三档创意实验已经接入灵感空间；Desktop 增加因果图、观众认知、情景模拟、IP 孪生、结构化编剧室和来源风险复核。公共语料可通过签名快照离线使用，私人数据不自动跨端同步。
+9. 商业交付：支持小说投稿包、短剧提案包、分集交付包、分镜交付 Markdown / JSON / CSV，以及完整项目包 schema v4。
+10. 视频前置资产：角色选角、音色、旁白、字幕、封面、首帧图等资产进入项目包和视频任务上下文。
+11. 发布验证：Electron E2E smoke 覆盖 P0 主流程、Agent 指挥台、拆书卡片、修稿采用、小说投稿包和项目包往返。
 
 仍保持本地优先：云同步、资源市场、公共知识库和云端语义搜索不作为当前主流程依赖。移动端当前只定义轻量灵感记录与桌面导入，详见 [MOBILE_INSPIRATION_IMPORT.md](./MOBILE_INSPIRATION_IMPORT.md)；生态后续边界见 [ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md](./ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)。
 
@@ -1350,10 +1351,11 @@ docs/README.md
 docs/product/README.md
 docs/product/PROJECT_BRIEF.md
 docs/product/ROADMAP.md
-docs/engineering/CONTRIBUTING.md
-docs/engineering/DEVELOPMENT.md
-docs/engineering/PROMPT_GUIDE.md
-docs/engineering/AI_VIDEO_GUIDE.md
+desktop/README.md
+desktop/docs/README.md
+desktop/docs/engineering/ARCHITECTURE.md
+desktop/docs/engineering/PROMPT_GUIDE.md
+desktop/docs/engineering/AI_VIDEO_GUIDE.md
 ```
 
 ---
@@ -1397,7 +1399,7 @@ docs/engineering/AI_VIDEO_GUIDE.md
 
 新增任务：`analyze_trope_freshness`、`generate_anti_trope_variants`、`analyze_narrative_curve`、`generate_revision_tasks`、`run_quality_gate`、`simulate_audience_reaction`、`analyze_video_cost_risk`、`extract_case_structure`。
 
-项目包升级到 v2，包含上述创意诊断数据和本地样本库。
+该阶段最初以项目包 v2 落地；当前统一升级为 schema v4，并向后接受 v1–v3。v4 允许携带用户选中的抽象语料、因果边和脱敏谱系，不包含网页正文、完整对话、长期记忆、创意指纹或账号信息。
 
 v1.0 之后可以考虑：
 

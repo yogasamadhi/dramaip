@@ -1,9 +1,7 @@
 'use client'
 
-import * as echarts from 'echarts'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -25,6 +23,7 @@ const profileSchema = z.object({
 
 type ProfileForm = z.infer<typeof profileSchema>
 type AccountTab = 'profile' | 'subscription' | 'orders' | 'usage' | 'notifications' | 'report'
+const UsageTrendChart = lazy(() => import('./UsageTrendChart'))
 
 export function AccountDashboard() {
   const queryClient = useQueryClient()
@@ -150,20 +149,6 @@ export function AccountDashboard() {
     ),
     getCoreRowModel: getCoreRowModel(),
   })
-
-  const chartRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (!chartRef.current || tab !== 'report') return
-    const chart = echarts.init(chartRef.current)
-    chart.setOption({
-      tooltip: {},
-      grid: { left: 32, right: 16, top: 24, bottom: 28 },
-      xAxis: { type: 'category', data: (usageTrend?.points ?? []).map((point) => point.date) },
-      yAxis: { type: 'value' },
-      series: [{ type: 'bar', data: (usageTrend?.points ?? []).map((point) => point.total_tokens), itemStyle: { color: '#2563eb' } }],
-    })
-    return () => chart.dispose()
-  }, [tab, usageTrend?.points])
 
   if (account.isLoading) {
     return <Panel><p className="text-sm text-slate-600">正在加载账号数据...</p></Panel>
@@ -321,7 +306,11 @@ export function AccountDashboard() {
             {sections?.usage.status === 'unavailable' ? <SectionUnavailable section="用量汇总" traceID={sections.usage.trace_id} updatedAt={sections.usage.last_updated} /> : null}
             {sections?.notifications.status === 'unavailable' ? <SectionUnavailable section="通知汇总" traceID={sections.notifications.trace_id} updatedAt={sections.notifications.last_updated} /> : null}
           </div>
-          {sections?.usage_trend.status === 'unavailable' ? <SectionUnavailable section="30 天用量趋势" traceID={sections.usage_trend.trace_id} updatedAt={sections.usage_trend.last_updated} /> : <div ref={chartRef} className="mt-6 h-64 w-full" />}
+          {sections?.usage_trend.status === 'unavailable' ? <SectionUnavailable section="30 天用量趋势" traceID={sections.usage_trend.trace_id} updatedAt={sections.usage_trend.last_updated} /> : (
+            <Suspense fallback={<div className="mt-6 h-64 w-full" aria-label="30 天用量趋势加载中" />}>
+              <UsageTrendChart points={usageTrend?.points ?? []} />
+            </Suspense>
+          )}
         </Panel>
       ) : null}
     </div>

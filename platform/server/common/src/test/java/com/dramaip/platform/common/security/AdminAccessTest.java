@@ -18,6 +18,9 @@ class AdminAccessTest {
         assertEquals("principal-1", AdminAccess.require(authentication, "audit.read"));
         assertEquals("principal-1", AdminAccess.require(authentication, "billing.write"));
         assertEquals("principal-1", AdminAccess.require(authentication, "notification.write"));
+        assertEquals("principal-1", AdminAccess.require(authentication, "corpus.read"));
+        assertEquals("principal-1", AdminAccess.require(authentication, "corpus.write"));
+        assertEquals("principal-1", AdminAccess.require(authentication, "corpus.takedown"));
     }
 
     @Test
@@ -29,6 +32,11 @@ class AdminAccessTest {
         BusinessException permissionError = assertThrows(BusinessException.class,
                 () -> AdminAccess.require(admin(List.of("viewer")), "billing.write"));
         assertEquals("IDENTITY_ADMIN_PERMISSION_DENIED", permissionError.code());
+
+        assertEquals("principal-1", AdminAccess.require(admin(List.of("viewer")), "corpus.read"));
+        BusinessException takedownError = assertThrows(BusinessException.class,
+                () -> AdminAccess.require(admin(List.of("operator")), "corpus.takedown"));
+        assertEquals("IDENTITY_ADMIN_PERMISSION_DENIED", takedownError.code());
     }
 
     private static JwtAuthenticationToken admin(List<String> roles) { return token("admin", roles); }

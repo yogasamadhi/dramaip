@@ -249,8 +249,13 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
     );
     const runtimeSessionId = session.runtimeSessionId ?? runtime.sessionId;
     if (!runtimeSessionId) throw new Error("Grok ACP 会话编号缺失");
+    const grant = capabilityGrantFrom(payload);
+    const authorizedSessionId = grant
+      ? await runtime.rebindSessionMcp(runtimeSessionId, grant.token)
+      : runtimeSessionId;
+    session.runtimeSessionId = authorizedSessionId;
     const result = await runtime.runSession(
-      runtimeSessionId,
+      authorizedSessionId,
       prompt,
       (event: GrokRuntimeEvent) =>
         parentPort!.postMessage({ type: "event", runId, event }),
@@ -263,6 +268,23 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   } finally {
     session.activeRunId = undefined;
   }
+}
+
+function capabilityGrantFrom(
+  payload: Record<string, unknown>,
+): { token: string; expiresAt: string } | undefined {
+  const value = payload.capabilityGrant;
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.token !== "string" ||
+    !record.token ||
+    typeof record.expiresAt !== "string" ||
+    Date.parse(record.expiresAt) <= Date.now()
+  )
+    return undefined;
+  return { token: record.token, expiresAt: record.expiresAt };
 }
 
 async function ensureRuntime(

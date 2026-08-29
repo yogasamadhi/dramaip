@@ -24,6 +24,18 @@
     "owner": "agents"
   },
   {
+    "table": "agent_creative_memories",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_creative_memory_settings",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_creative_memory_sources",
+    "owner": "agents"
+  },
+  {
     "table": "agent_evaluation_candidates",
     "owner": "agents"
   },
@@ -40,6 +52,22 @@
     "owner": "agents"
   },
   {
+    "table": "agent_inspiration_cards",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_inspiration_memory_jobs",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_inspiration_project_previews",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_inspiration_summaries",
+    "owner": "agents"
+  },
+  {
     "table": "agent_project_settings",
     "owner": "agents"
   },
@@ -49,6 +77,10 @@
   },
   {
     "table": "agent_provider_settings",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_web_research_settings",
     "owner": "agents"
   },
   {
@@ -90,6 +122,18 @@
   {
     "table": "chapters",
     "owner": "writing"
+  },
+  {
+    "table": "creative_experiments",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "creative_fingerprint_dimensions",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "creative_fingerprint_settings",
+    "owner": "creative-quality"
   },
   {
     "table": "creative_quality_records",
@@ -184,7 +228,39 @@
     "owner": "system"
   },
   {
+    "table": "knowledge_audience_states",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_causal_edges",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_causal_nodes",
+    "owner": "knowledge"
+  },
+  {
     "table": "knowledge_chapter_memories",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_corpus_collections",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_corpus_items",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_corpus_sources",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_ip_twin_snapshots",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_provenance_edges",
     "owner": "knowledge"
   },
   {
@@ -201,6 +277,10 @@
   },
   {
     "table": "knowledge_research_topics",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_scenario_runs",
     "owner": "knowledge"
   },
   {

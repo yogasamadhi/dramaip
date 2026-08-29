@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { generateKeyPairSync, sign } from "node:crypto";
 import { applyMigrations, openDatabase } from "@dramaip/database";
 import { PersistentEventRuntime } from "@dramaip/events";
 import { createRuntimeHttp } from "@dramaip/http";
@@ -652,6 +653,366 @@ describe("workspace and writing vertical slice", () => {
     await expect(refreshedProject.json()).resolves.toMatchObject({
       currentAdaptationId: expect.any(String),
     });
+  });
+
+  it("previews and imports a schema v4 projectless brief with creative intelligence", async () => {
+    const corpusId = crypto.randomUUID();
+    const nodeId = crypto.randomUUID();
+    const packageDocument = {
+      format: "dramaip-project-package",
+      schemaVersion: 4,
+      exportedAt: "2026-08-27T00:00:00.000Z",
+      project: {
+        title: "海上梦城",
+        mode: "single_season",
+        modeConfig: {
+          mode: "single_season",
+          entryPath: "novel",
+          targetEpisodeCount: 12,
+        },
+      },
+      chapters: [],
+      resources: [
+        {
+          id: crypto.randomUUID(),
+          owner: "automation",
+          kind: "inspirations",
+          title: "城市回应梦境",
+          payload: {
+            类型: "premise",
+            内容: "一座漂流城市会把居民的梦变成真实街区。",
+          },
+        },
+      ],
+      structure: {
+        volumes: [],
+        seasons: [],
+        creatorContent: [],
+        researchTopics: [],
+      },
+      creativeIntelligence: {
+        corpusItems: [
+          {
+            id: corpusId,
+            kind: "meme",
+            title: "梦境具象化",
+            trigger: "欲望被城市听见",
+            mechanism: "把人物无法说出口的愿望转换为空间笑点和剧情障碍。",
+            emotionalEffect: "惊喜",
+            contexts: ["奇幻城市"],
+            riskTags: [],
+            tags: ["梦境"],
+            freshness: "emerging",
+            rightsStatus: "allowed",
+            locale: "zh-CN",
+          },
+        ],
+        causalNodes: [
+          {
+            id: nodeId,
+            kind: "rule",
+            title: "城市回应梦境",
+            summary: "被压抑的梦会变成街区。",
+            sourceType: "corpus_item",
+            sourceId: corpusId,
+            sourceVersion: 1,
+            confirmed: true,
+            version: 0,
+            createdAt: "2026-08-27T00:00:00.000Z",
+            updatedAt: "2026-08-27T00:00:00.000Z",
+          },
+        ],
+        causalEdges: [],
+        audienceStates: [],
+        provenance: [
+          {
+            id: crypto.randomUUID(),
+            fromType: "story_rule",
+            fromId: nodeId,
+            relation: "inspired_by",
+            toType: "corpus_item",
+            toId: corpusId,
+            version: 0,
+            createdAt: "2026-08-27T00:00:00.000Z",
+          },
+        ],
+      },
+      warnings: [],
+    };
+    const runtime = await fixture({
+      readGrantedText: async () => ({
+        name: "海上梦城.dramaip.json",
+        content: JSON.stringify(packageDocument),
+      }),
+    } as unknown as DesktopHostClient);
+
+    const previewResponse = await runtime.request(
+      "/api/v2/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: crypto.randomUUID() }),
+      },
+    );
+    expect(previewResponse.status, await previewResponse.clone().text()).toBe(
+      201,
+    );
+    const preview = (await previewResponse.json()) as {
+      id: string;
+      projectTitle: string;
+      chapterCount: number;
+      resourceCount: number;
+    };
+    expect(preview).toMatchObject({
+      projectTitle: "海上梦城",
+      chapterCount: 0,
+      resourceCount: 1,
+    });
+    const beforeCommit = await runtime.request("/api/v2/projects");
+    await expect(beforeCommit.json()).resolves.toHaveLength(0);
+
+    const committed = await runtime.request(
+      `/api/v2/project-packages/${preview.id}/commit`,
+      {
+        method: "POST",
+        body: JSON.stringify({ title: "海上梦城（已确认）" }),
+      },
+    );
+    expect(committed.status, await committed.clone().text()).toBe(201);
+    const result = (await committed.json()) as {
+      project: { id: string; title: string };
+      chaptersCreated: number;
+      resourcesCreated: number;
+    };
+    expect(result).toMatchObject({
+      project: { title: "海上梦城（已确认）" },
+      chaptersCreated: 0,
+      resourcesCreated: 4,
+    });
+    const inspirations = await runtime.request(
+      `/api/v2/inspirations?projectId=${result.project.id}`,
+    );
+    await expect(inspirations.json()).resolves.toEqual([
+      expect.objectContaining({
+        title: "城市回应梦境",
+        payload: expect.objectContaining({ 类型: "premise" }),
+      }),
+    ]);
+
+    const invalidRuntime = await fixture({
+      readGrantedText: async () => ({
+        name: "invalid.dramaip.json",
+        content: JSON.stringify({ ...packageDocument, schemaVersion: 5 }),
+      }),
+    } as unknown as DesktopHostClient);
+    const invalid = await invalidRuntime.request(
+      "/api/v2/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: crypto.randomUUID() }),
+      },
+    );
+    expect(invalid.status).toBe(400);
+  });
+
+  it("learns a creative fingerprint only after separate consent and an explicit experiment choice", async () => {
+    const runtime = await fixture();
+    const createExperiment = async (prompt: string) => {
+      const response = await runtime.request("/api/v2/creative-experiments", {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({ originType: "inspiration", prompt }),
+      });
+      expect(response.status, await response.clone().text()).toBe(201);
+      return (await response.json()) as {
+        id: string;
+        version: number;
+        variants: { id: string; lane: string }[];
+      };
+    };
+    const review = async (
+      experiment: Awaited<ReturnType<typeof createExperiment>>,
+    ) => {
+      const selected = experiment.variants.find(
+        (value) => value.lane === "balanced",
+      )!;
+      const response = await runtime.request(
+        `/api/v2/creative-experiments/${experiment.id}/review`,
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify({
+            version: experiment.version,
+            selectedVariantId: selected.id,
+            rejected: false,
+          }),
+        },
+      );
+      expect(response.status, await response.clone().text()).toBe(200);
+    };
+
+    const beforeConsent = await createExperiment("让一场家庭晚餐产生意外反转");
+    expect(beforeConsent.variants.map((value) => value.lane)).toEqual([
+      "conservative",
+      "balanced",
+      "wild",
+    ]);
+    await review(beforeConsent);
+    const disabled = await runtime.request("/api/v2/creative-fingerprint");
+    const disabledFingerprint = (await disabled.json()) as {
+      enabled: boolean;
+      dimensions: { confidence: number; evidenceIds: string[] }[];
+    };
+    expect(disabledFingerprint.enabled).toBe(false);
+    expect(
+      disabledFingerprint.dimensions.every((value) => value.confidence === 0),
+    ).toBe(true);
+
+    const consent = await runtime.request(
+      "/api/v2/creative-fingerprint/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({ enabled: true }),
+      },
+    );
+    expect(consent.status).toBe(200);
+    const afterConsent = await createExperiment("把职场误会改造成一场喜剧冲突");
+    await review(afterConsent);
+    const learned = await runtime.request("/api/v2/creative-fingerprint");
+    const learnedFingerprint = (await learned.json()) as {
+      enabled: boolean;
+      dimensions: { confidence: number; evidenceIds: string[] }[];
+    };
+    expect(learnedFingerprint.enabled).toBe(true);
+    expect(
+      learnedFingerprint.dimensions.some(
+        (value) =>
+          value.confidence > 0 && value.evidenceIds.includes(afterConsent.id),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts only signed corpus snapshots and preserves private notes after a public tombstone", async () => {
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    const previousKey = process.env.DRAMAIP_CORPUS_SNAPSHOT_PUBLIC_KEY_PEM;
+    process.env.DRAMAIP_CORPUS_SNAPSHOT_PUBLIC_KEY_PEM = publicKey
+      .export({ format: "pem", type: "spki" })
+      .toString();
+    try {
+      const runtime = await fixture();
+      const sourceId = crypto.randomUUID();
+      const itemId = crypto.randomUUID();
+      const now = "2026-08-27T00:00:00.000Z";
+      const unsigned = {
+        format: "dramaip-creative-corpus-snapshot" as const,
+        schemaVersion: 1 as const,
+        version: "2026.08.27",
+        sources: [
+          {
+            id: sourceId,
+            url: "https://example.com/public-story",
+            domain: "example.com",
+            title: "公开创意来源",
+            excerpt: "一段用于验证的短摘录",
+            contentHash: "a".repeat(64),
+            status: "allowed" as const,
+            rightsStatus: "allowed" as const,
+            locale: "zh-CN",
+            retrievedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        items: [
+          {
+            id: itemId,
+            sourceId,
+            visibility: "public" as const,
+            kind: "comic_device" as const,
+            title: "误会升级",
+            trigger: "双方都隐藏同一件事",
+            mechanism: "让双方基于相反假设采取相同动作。",
+            emotionalEffect: "喜剧紧张",
+            contexts: ["关系喜剧"],
+            riskTags: [],
+            tags: ["误会"],
+            freshness: "stable" as const,
+            rightsStatus: "allowed" as const,
+            locale: "zh-CN",
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        tombstones: [] as string[],
+      };
+      const importSnapshot = async (payload: typeof unsigned, key: string) => {
+        const signature = sign(
+          null,
+          Buffer.from(JSON.stringify(payload)),
+          privateKey,
+        ).toString("base64");
+        return runtime.request("/api/v2/creative-corpus/snapshots/import", {
+          method: "POST",
+          headers: { "Idempotency-Key": key },
+          body: JSON.stringify({ ...payload, signature }),
+        });
+      };
+      const imported = await importSnapshot(unsigned, crypto.randomUUID());
+      expect(imported.status, await imported.clone().text()).toBe(200);
+      const collection = await runtime.request(
+        "/api/v2/creative-corpus/collections",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify({
+            corpusItemId: itemId,
+            title: "我的误会机制",
+            mechanism: "保留机制，但换成人物自己的秘密。",
+            notes: "用于家庭场景，避免照搬表达。",
+            tags: ["私人备注"],
+          }),
+        },
+      );
+      expect(collection.status, await collection.clone().text()).toBe(201);
+
+      const tombstone = {
+        ...unsigned,
+        version: "2026.08.28",
+        sources: [],
+        items: [],
+        tombstones: [itemId],
+      };
+      const removed = await importSnapshot(tombstone, crypto.randomUUID());
+      expect(removed.status, await removed.clone().text()).toBe(200);
+      const publicItems = await runtime.request(
+        "/api/v2/creative-corpus/items?visibility=public",
+      );
+      await expect(publicItems.json()).resolves.toEqual({ items: [] });
+      const collections = await runtime.request(
+        "/api/v2/creative-corpus/collections",
+      );
+      await expect(collections.json()).resolves.toEqual({
+        items: [
+          expect.objectContaining({
+            corpusItemId: itemId,
+            notes: "用于家庭场景，避免照搬表达。",
+          }),
+        ],
+      });
+
+      const invalid = await runtime.request(
+        "/api/v2/creative-corpus/snapshots/import",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify({ ...unsigned, signature: "invalid" }),
+        },
+      );
+      expect(invalid.status).toBe(400);
+    } finally {
+      if (previousKey === undefined)
+        delete process.env.DRAMAIP_CORPUS_SNAPSHOT_PUBLIC_KEY_PEM;
+      else process.env.DRAMAIP_CORPUS_SNAPSHOT_PUBLIC_KEY_PEM = previousKey;
+    }
   });
 
   it("rejects the wrong bound project and expired previews, and discards without creating data", async () => {

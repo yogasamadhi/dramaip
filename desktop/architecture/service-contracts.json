@@ -25,6 +25,15 @@
     ]
   },
   {
+    "id": "automation.resources.v1",
+    "owner": "automation",
+    "major": 1,
+    "capabilities": [
+      "create",
+      "getBySource"
+    ]
+  },
+  {
     "id": "automation.tasks.v1",
     "owner": "automation",
     "major": 1,
@@ -69,6 +78,16 @@
     ]
   },
   {
+    "id": "knowledge.creative-intelligence.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "write",
+      "simulate"
+    ]
+  },
+  {
     "id": "knowledge.research.v1",
     "owner": "knowledge",
     "major": 1,
@@ -76,6 +95,15 @@
       "read",
       "write",
       "search"
+    ]
+  },
+  {
+    "id": "knowledge.web-research.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "search",
+      "read"
     ]
   },
   {

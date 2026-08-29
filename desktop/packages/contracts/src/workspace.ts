@@ -249,6 +249,7 @@ export const WORKSPACE_PROJECT_SERVICE =
 
 export interface WorkspaceProjectService {
   create(input: ProjectInput): Project;
+  createIdempotent(input: ProjectInput, idempotencyKey: string): Project;
   get(id: string, options?: { includeDeleted?: boolean }): Project | undefined;
   list(options?: { includeDeleted?: boolean }): readonly Project[];
   update(id: string, patch: ProjectPatch): Project | "conflict" | undefined;

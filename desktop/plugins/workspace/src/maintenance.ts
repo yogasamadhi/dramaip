@@ -1,6 +1,15 @@
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
+  CREATIVE_KNOWLEDGE_SERVICE,
+  CreativePackageAssetsSchema,
+  type CreativeKnowledgeService,
+} from "@dramaip/contracts";
+import {
+  AUTOMATION_RESOURCE_SERVICE,
+  type AutomationResourceService,
+} from "@dramaip/contracts/automation";
+import {
   CREATIVE_QUALITY_SERVICE,
   type CreativeQualityRecordKind,
   type CreativeQualityRecordService,
@@ -105,6 +114,7 @@ const exportParams = idParams.extend({
     "script",
     "storyboard",
     "delivery",
+    "automation",
   ]),
 });
 const searchParams = z.object({ query: z.string() });
@@ -118,6 +128,7 @@ const packageResourceSchema = z.object({
     "creative-quality",
     "review",
     "delivery",
+    "automation",
   ]),
   kind: z.string(),
   parentId: z.string().uuid().optional(),
@@ -127,7 +138,12 @@ const packageResourceSchema = z.object({
 
 const projectPackageSchema = z.object({
   format: z.literal("dramaip-project-package"),
-  schemaVersion: z.union([z.literal(1), z.literal(2)]),
+  schemaVersion: z.union([
+    z.literal(1),
+    z.literal(2),
+    z.literal(3),
+    z.literal(4),
+  ]),
   exportedAt: z.string().datetime(),
   project: ProjectInputSchema,
   chapters: z.array(
@@ -156,6 +172,7 @@ const projectPackageSchema = z.object({
       researchTopics: z.array(z.unknown()).default([]),
     })
     .optional(),
+  creativeIntelligence: CreativePackageAssetsSchema.optional(),
   warnings: z.array(z.string()),
 });
 type ProjectPackage = z.infer<typeof projectPackageSchema>;
@@ -314,6 +331,9 @@ function services(context: PluginContext) {
     delivery: context.services.optional<DeliveryRecordService>(
       DELIVERY_RECORD_SERVICE,
     ),
+    automation: context.services.optional<AutomationResourceService>(
+      AUTOMATION_RESOURCE_SERVICE,
+    ),
   };
 }
 
@@ -402,6 +422,9 @@ function buildPackage(
   const research = context.services.optional<KnowledgeResearchService>(
     KNOWLEDGE_RESEARCH_SERVICE,
   );
+  const creativeKnowledge = context.services.optional<CreativeKnowledgeService>(
+    CREATIVE_KNOWLEDGE_SERVICE,
+  );
   for (const kind of writingKinds)
     resources.push(
       ...values.writing.list(kind, projectId).map((record) => ({
@@ -467,7 +490,7 @@ function buildPackage(
     );
   return {
     format: "dramaip-project-package",
-    schemaVersion: 2,
+    schemaVersion: 4,
     exportedAt: new Date().toISOString(),
     project: projectInput(project),
     chapters: values.chapters.list(projectId).map((chapter) => ({
@@ -512,9 +535,16 @@ function buildPackage(
           )
         : [],
     },
+    creativeIntelligence: creativeKnowledge?.exportPackageAssets(projectId) ?? {
+      corpusItems: [],
+      causalNodes: [],
+      causalEdges: [],
+      audienceStates: [],
+      provenance: [],
+    },
     warnings: [
       "安全凭据、绝对路径和本地媒体明文不进入项目包；导入后需重新授权。",
-      "项目包 schema v2 保留模式、卷季结构、博主内容和研究专题；照片与授权需在导入后重新附加和确认。",
+      "项目包 schema v4 保留模式、卷季结构、抽象语料、因果节点和脱敏谱系；网页正文、完整对话、长期记忆和创意指纹不会导出。",
     ],
   };
 }
@@ -624,6 +654,17 @@ function importResources(
         projectId,
         ...(parentId ? { parentId } : {}),
         value: record.payload,
+      }).id;
+    if (
+      record.owner === "automation" &&
+      record.kind === "inspirations" &&
+      value.automation
+    )
+      id = value.automation.createInspiration({
+        projectId,
+        title: record.title ?? "创作灵感",
+        payload: record.payload,
+        sourceRef: `project-package:${record.id}`,
       }).id;
     if (id) {
       mapped.set(record.id, id);
@@ -1061,7 +1102,18 @@ export function workspaceMaintenanceRoutes(
             payload: value.data.payload,
           });
         }
-        const resourcesCreated = importResources(context, project.id, snapshot);
+        const creativeKnowledge =
+          context.services.optional<CreativeKnowledgeService>(
+            CREATIVE_KNOWLEDGE_SERVICE,
+          );
+        const resourcesCreated =
+          importResources(context, project.id, snapshot) +
+          (snapshot.creativeIntelligence && creativeKnowledge
+            ? creativeKnowledge.importPackageAssets(
+                project.id,
+                snapshot.creativeIntelligence,
+              )
+            : 0);
         context.uow.execute((transaction) => {
           transaction.run(
             "DELETE FROM project_package_previews WHERE id = ?",

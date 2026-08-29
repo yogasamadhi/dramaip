@@ -12,7 +12,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -27,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AdminService {
     private static final BCryptPasswordEncoder PASSWORDS = new BCryptPasswordEncoder();
-    private static final Set<String> ACTIONS = Set.of("principal.suspend", "reporting.exception.resolve", "customer.status.set", "billing.refund.request", "billing.subscription.resume", "quota.adjust", "notification.send", "billing.reconciliation.start", "billing.reconciliation.action", "notification.delivery.retry");
+    private static final Set<String> ACTIONS = Set.of("principal.suspend", "reporting.exception.resolve", "customer.status.set", "billing.refund.request", "billing.subscription.resume", "quota.adjust", "notification.send", "billing.reconciliation.start", "billing.reconciliation.action", "notification.delivery.retry", "corpus.source.block", "corpus.source.takedown");
     private final JdbcTemplate jdbc;
     private final TokenService tokens;
 
@@ -96,6 +95,15 @@ public class AdminService {
         return publicPrincipal(principalById(targetId));
     }
 
+    @Transactional
+    public ConsumedConfirmation consumeConfirmation(Principal actor, String confirmationId, String action, String targetId) {
+        requirePermission(actor, permissionFor(action));
+        ConfirmationRow confirmation = confirmation(actor.id(), action, targetId, confirmationId);
+        jdbc.update("update admin.confirmations set consumed_at = now() where id = ?::uuid", confirmation.id());
+        appendAudit(actor.id(), action, "creative_corpus_source", targetId, confirmation.reason(), "pending", "confirmed");
+        return new ConsumedConfirmation(confirmation.id(), action, targetId, confirmation.reason());
+    }
+
     public List<AuditLog> audit(Principal actor, int limit) {
         requirePermission(actor, "audit.read");
         int bounded = Math.max(1, Math.min(limit, 100));
@@ -142,10 +150,10 @@ public class AdminService {
     private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException { var timestamp = rs.getTimestamp(index); return timestamp == null ? null : timestamp.toInstant(); }
     private static Principal publicPrincipal(Principal principal) { return new Principal(principal.id(), principal.email(), "", principal.status(), principal.roles(), permissions(principal.roles())); }
     private static List<String> permissions(List<String> roles) { return roles.stream().flatMap(role -> switch (role) {
-        case "viewer" -> java.util.stream.Stream.of("audit.read");
-        case "operator" -> java.util.stream.Stream.of("audit.read", "reporting.write", "customer.write", "notification.write");
+        case "viewer" -> java.util.stream.Stream.of("audit.read", "corpus.read");
+        case "operator" -> java.util.stream.Stream.of("audit.read", "reporting.write", "customer.write", "notification.write", "corpus.read", "corpus.write");
         case "finance_admin" -> java.util.stream.Stream.of("audit.read", "billing.write", "quota.write");
-        case "security_admin" -> java.util.stream.Stream.of("audit.read", "principal.write", "reporting.write", "customer.write", "billing.write", "quota.write", "notification.write");
+        case "security_admin" -> java.util.stream.Stream.of("audit.read", "principal.write", "reporting.write", "customer.write", "billing.write", "quota.write", "notification.write", "corpus.read", "corpus.write", "corpus.takedown");
         default -> java.util.stream.Stream.empty();
     }).distinct().sorted().toList(); }
     private static String permissionFor(String action) { return switch (action) {
@@ -155,6 +163,7 @@ public class AdminService {
         case "billing.refund.request", "billing.subscription.resume", "billing.reconciliation.start", "billing.reconciliation.action" -> "billing.write";
         case "quota.adjust" -> "quota.write";
         case "notification.send", "notification.delivery.retry" -> "notification.write";
+        case "corpus.source.block", "corpus.source.takedown" -> "corpus.takedown";
         default -> "";
     }; }
     private static String hash(String value) { try { return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8))); } catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); } }
@@ -163,7 +172,15 @@ public class AdminService {
     private static void invalid(String message) { throw new BusinessException("IDENTITY_ADMIN_INVALID_REQUEST", message, HttpStatus.BAD_REQUEST); }
     private record ConfirmationRow(String id, String reason) { }
     public record Login(String accessToken, long expiresIn, Principal principal) { }
-    public record Principal(String id, String email, @JsonIgnore String passwordHash, String status, List<String> roles, List<String> permissions) { }
+    public record Principal(String id, String email, @JsonIgnore String passwordHash, String status, List<String> roles, List<String> permissions) {
+        public Principal {
+            roles = List.copyOf(roles);
+            permissions = List.copyOf(permissions);
+        }
+        @Override public List<String> roles() { return List.copyOf(roles); }
+        @Override public List<String> permissions() { return List.copyOf(permissions); }
+    }
     public record Confirmation(String id, String action, String targetId, Instant expiresAt) { }
+    public record ConsumedConfirmation(String id, String action, String targetId, String reason) { }
     public record AuditLog(String id, String actorId, String action, String resourceType, String resourceId, String reason, String beforeState, String afterState, String traceId, Instant createdAt) { }
 }

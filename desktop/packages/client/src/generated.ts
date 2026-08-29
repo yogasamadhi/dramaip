@@ -27,9 +27,22 @@ import type {
   AssistantConversationPatch,
   AssistantConversationBindInput,
   AssistantConversationDetail,
+  AssistantWebResearchConsentInput,
+  AssistantWebResearchSettings,
   AssistantMessageInput,
   AssistantSurface,
   AssistantTurnStart,
+  CreativeMemory,
+  CreativeMemoryPatch,
+  CreativeMemorySettings,
+  CreativeMemorySettingsInput,
+  InspirationCard,
+  InspirationCardInput,
+  InspirationCardPatch,
+  InspirationMemoryJob,
+  InspirationProjectCommitResult,
+  InspirationProjectPreview,
+  InspirationProjectPreviewInput,
   ChangePreview,
   ChangePreviewContentInput,
   CodexAuthStatus,
@@ -200,6 +213,21 @@ import type {
   TaskInput,
   TaskRetryInput,
 } from "@dramaip/contracts/product";
+import type {
+  AudienceKnowledgeState,
+  CorpusCollectionItem,
+  CorpusItem,
+  CorpusItemInput,
+  CorpusItemPatch,
+  CreativeExperiment,
+  CreativeFingerprint,
+  IPTwinSnapshot,
+  OriginalityRisk,
+  ProvenanceEdge,
+  ScenarioRun,
+  StoryCausalEdge,
+  StoryCausalNode,
+} from "@dramaip/contracts";
 
 export type StudioClientOptions = RuntimeTransport;
 
@@ -375,6 +403,10 @@ export interface StudioClient {
     abort(id: string): Promise<{ ok: true }>;
   };
   assistantConversations: {
+    getWebResearchSettings(): Promise<AssistantWebResearchSettings>;
+    updateWebResearchSettings(
+      input: AssistantWebResearchConsentInput,
+    ): Promise<AssistantWebResearchSettings>;
     list(input?: {
       surface?: AssistantSurface;
       projectId?: string;
@@ -395,6 +427,122 @@ export interface StudioClient {
       input: AssistantMessageInput,
     ): Promise<AssistantTurnStart>;
     remove(id: string): Promise<void>;
+  };
+  inspiration: {
+    listCards(conversationId: string): Promise<InspirationCard[]>;
+    createCard(input: InspirationCardInput): Promise<InspirationCard>;
+    updateCard(
+      id: string,
+      input: InspirationCardPatch,
+    ): Promise<InspirationCard>;
+    removeCard(id: string): Promise<void>;
+    getMemorySettings(): Promise<CreativeMemorySettings>;
+    updateMemorySettings(
+      input: CreativeMemorySettingsInput,
+    ): Promise<CreativeMemorySettings>;
+    listMemories(): Promise<CreativeMemory[]>;
+    listMemoryJobs(conversationId: string): Promise<InspirationMemoryJob[]>;
+    updateMemory(
+      id: string,
+      input: CreativeMemoryPatch,
+    ): Promise<CreativeMemory>;
+    removeMemory(id: string): Promise<void>;
+    clearMemories(): Promise<void>;
+    rebuildMemories(conversationId: string): Promise<{ queued: true }>;
+    createProjectPreview(
+      input: InspirationProjectPreviewInput,
+    ): Promise<InspirationProjectPreview>;
+    getProjectPreview(id: string): Promise<InspirationProjectPreview>;
+    commitProjectPreview(id: string): Promise<InspirationProjectCommitResult>;
+  };
+  creativeCorpus: {
+    list(input?: {
+      query?: string;
+      visibility?: "public" | "private";
+      limit?: number;
+    }): Promise<CorpusItem[]>;
+    create(input: CorpusItemInput): Promise<CorpusItem>;
+    update(id: string, input: CorpusItemPatch): Promise<CorpusItem>;
+    listCollections(): Promise<CorpusCollectionItem[]>;
+    collect(input: {
+      corpusItemId?: string;
+      title: string;
+      mechanism: string;
+      notes?: string;
+      tags?: string[];
+    }): Promise<CorpusCollectionItem>;
+  };
+  creativeFingerprint: {
+    get(): Promise<CreativeFingerprint>;
+    setEnabled(enabled: boolean): Promise<CreativeFingerprint>;
+    update(input: {
+      version: number;
+      dimensions?: {
+        key: CreativeFingerprint["dimensions"][number]["key"];
+        score?: number;
+        frozen?: boolean;
+      }[];
+      avoidances?: string[];
+      goals?: string[];
+    }): Promise<CreativeFingerprint>;
+    clear(): Promise<void>;
+  };
+  creativeExperiments: {
+    list(projectId?: string): Promise<CreativeExperiment[]>;
+    create(input: {
+      originType: CreativeExperiment["originType"];
+      originId?: string;
+      projectId?: string;
+      prompt: string;
+    }): Promise<CreativeExperiment>;
+    review(
+      id: string,
+      input: {
+        version: number;
+        selectedVariantId?: string;
+        rejected?: boolean;
+      },
+    ): Promise<CreativeExperiment>;
+  };
+  provenance: {
+    list(projectId?: string): Promise<ProvenanceEdge[]>;
+    create(
+      input: Omit<ProvenanceEdge, "id" | "version" | "createdAt">,
+    ): Promise<ProvenanceEdge>;
+  };
+  storyIntelligence: {
+    graph(projectId: string): Promise<{
+      nodes: StoryCausalNode[];
+      edges: StoryCausalEdge[];
+      audienceStates: AudienceKnowledgeState[];
+    }>;
+    createNode(
+      projectId: string,
+      input: Omit<
+        StoryCausalNode,
+        "id" | "projectId" | "version" | "createdAt" | "updatedAt"
+      >,
+    ): Promise<StoryCausalNode>;
+    createEdge(
+      projectId: string,
+      input: Omit<
+        StoryCausalEdge,
+        "id" | "projectId" | "version" | "createdAt" | "updatedAt"
+      >,
+    ): Promise<StoryCausalEdge>;
+    createAudienceState(
+      projectId: string,
+      input: Omit<
+        AudienceKnowledgeState,
+        "id" | "projectId" | "version" | "createdAt" | "updatedAt"
+      >,
+    ): Promise<AudienceKnowledgeState>;
+    buildTwin(projectId: string): Promise<IPTwinSnapshot>;
+    createSimulation(
+      projectId: string,
+      input: { snapshotId: string; hypothesis: string },
+    ): Promise<ScenarioRun>;
+    originalityRisks(projectId: string): Promise<OriginalityRisk[]>;
   };
   agentEngines: {
     list(): Promise<AgentEngineDescriptor[]>;
@@ -1213,6 +1361,13 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(`/api/v2/agent-sessions/${id}/abort`, { method: "POST" }),
     },
     assistantConversations: {
+      getWebResearchSettings: () =>
+        request("/api/v2/assistant-web-research-settings"),
+      updateWebResearchSettings: (input) =>
+        request("/api/v2/assistant-web-research-settings", {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
       list: (input = {}) => {
         const query = new URLSearchParams();
         if (input.surface) query.set("surface", input.surface);
@@ -1248,6 +1403,207 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(`/api/v2/assistant-conversations/${encodeURIComponent(id)}`, {
           method: "DELETE",
         }),
+    },
+    inspiration: {
+      listCards: (conversationId) =>
+        request(
+          `/api/v2/inspiration-cards?conversationId=${encodeURIComponent(conversationId)}`,
+        ),
+      createCard: (input) =>
+        request("/api/v2/inspiration-cards", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      updateCard: (id, input) =>
+        request(`/api/v2/inspiration-cards/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "If-Match": `"${input.version}"` },
+          body: JSON.stringify(input),
+        }),
+      removeCard: (id) =>
+        request(`/api/v2/inspiration-cards/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        }),
+      getMemorySettings: () => request("/api/v2/inspiration-memory-settings"),
+      updateMemorySettings: (input) =>
+        request("/api/v2/inspiration-memory-settings", {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
+      listMemories: () => request("/api/v2/inspiration-memories"),
+      listMemoryJobs: (conversationId) =>
+        request(
+          `/api/v2/inspiration-memory-jobs?conversationId=${encodeURIComponent(conversationId)}`,
+        ),
+      updateMemory: (id, input) =>
+        request(`/api/v2/inspiration-memories/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "If-Match": `"${input.version}"` },
+          body: JSON.stringify(input),
+        }),
+      removeMemory: (id) =>
+        request(`/api/v2/inspiration-memories/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        }),
+      clearMemories: () =>
+        request("/api/v2/inspiration-memories/clear", { method: "POST" }),
+      rebuildMemories: (conversationId) =>
+        request("/api/v2/inspiration-memories/rebuild", {
+          method: "POST",
+          body: JSON.stringify({ conversationId }),
+        }),
+      createProjectPreview: (input) =>
+        request("/api/v2/inspiration-project-previews", {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify(input),
+        }),
+      getProjectPreview: (id) =>
+        request(
+          `/api/v2/inspiration-project-previews/${encodeURIComponent(id)}`,
+        ),
+      commitProjectPreview: (id) =>
+        request(
+          `/api/v2/inspiration-project-previews/${encodeURIComponent(id)}/commit`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+          },
+        ),
+    },
+    creativeCorpus: {
+      list: (input = {}) => {
+        const query = new URLSearchParams();
+        if (input.query) query.set("query", input.query);
+        if (input.visibility) query.set("visibility", input.visibility);
+        if (input.limit) query.set("limit", String(input.limit));
+        const suffix = query.size ? `?${query.toString()}` : "";
+        return request<{ items: CorpusItem[] }>(
+          `/api/v2/creative-corpus/items${suffix}`,
+        ).then((value) => value.items);
+      },
+      create: (input) =>
+        request("/api/v2/creative-corpus/items", {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify(input),
+        }),
+      update: (id, input) =>
+        request(`/api/v2/creative-corpus/items/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "If-Match": `"${input.version}"` },
+          body: JSON.stringify(input),
+        }),
+      listCollections: () =>
+        request<{ items: CorpusCollectionItem[] }>(
+          "/api/v2/creative-corpus/collections",
+        ).then((value) => value.items),
+      collect: (input) =>
+        request("/api/v2/creative-corpus/collections", {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify(input),
+        }),
+    },
+    creativeFingerprint: {
+      get: () => request("/api/v2/creative-fingerprint"),
+      setEnabled: (enabled) =>
+        request("/api/v2/creative-fingerprint/settings", {
+          method: "PUT",
+          body: JSON.stringify({ enabled }),
+        }),
+      update: (input) =>
+        request("/api/v2/creative-fingerprint", {
+          method: "PATCH",
+          headers: { "If-Match": `"${input.version}"` },
+          body: JSON.stringify(input),
+        }),
+      clear: () =>
+        request("/api/v2/creative-fingerprint", { method: "DELETE" }),
+    },
+    creativeExperiments: {
+      list: (projectId) =>
+        request<{ items: CreativeExperiment[] }>(
+          `/api/v2/creative-experiments${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
+        ).then((value) => value.items),
+      create: (input) =>
+        request("/api/v2/creative-experiments", {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify(input),
+        }),
+      review: (id, input) =>
+        request(
+          `/api/v2/creative-experiments/${encodeURIComponent(id)}/review`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+            body: JSON.stringify(input),
+          },
+        ),
+    },
+    provenance: {
+      list: (projectId) =>
+        request<{ items: ProvenanceEdge[] }>(
+          `/api/v2/provenance${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
+        ).then((value) => value.items),
+      create: (input) =>
+        request("/api/v2/provenance", {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify(input),
+        }),
+    },
+    storyIntelligence: {
+      graph: (projectId) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-graph`,
+        ),
+      createNode: (projectId, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-graph/nodes`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+            body: JSON.stringify(input),
+          },
+        ),
+      createEdge: (projectId, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-graph/edges`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+            body: JSON.stringify(input),
+          },
+        ),
+      createAudienceState: (projectId, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/audience-knowledge`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+            body: JSON.stringify(input),
+          },
+        ),
+      buildTwin: (projectId) =>
+        request(`/api/v2/projects/${encodeURIComponent(projectId)}/ip-twin`, {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+        }),
+      createSimulation: (projectId, input) =>
+        request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-simulations`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": crypto.randomUUID() },
+            body: JSON.stringify(input),
+          },
+        ),
+      originalityRisks: (projectId) =>
+        request<{ items: OriginalityRisk[] }>(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/originality-risks`,
+        ).then((value) => value.items),
     },
     agentEngines: {
       list: () => request("/api/v2/agent-engines"),

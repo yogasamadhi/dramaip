@@ -5,6 +5,7 @@ export {
   defineServiceContract,
   type ServiceContract,
 } from "./service-contract.js";
+export * from "./creative-intelligence.js";
 
 /** The HTTP wire protocol is deliberately independent from product releases. */
 export const DRAMAIP_HTTP_API_VERSION = "2" as const;

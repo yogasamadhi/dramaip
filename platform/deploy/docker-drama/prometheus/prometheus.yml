@@ -1,4 +1,4 @@
-# Prometheus 抓取配置（对应 docs/技术架构.md 指标支柱）。
+# Prometheus 抓取配置（对应 docs/后端技术架构.md 指标支柱）。
 # 容器在 compose 默认网络内，可用 service name 互访；
 
 global:

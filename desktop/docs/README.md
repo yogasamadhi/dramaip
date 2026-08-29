@@ -7,13 +7,17 @@
 - [项目介绍](../README.md)
 - [用户手册](./product/USER_GUIDE.md)
 - [故障排查](./product/TROUBLESHOOTING.md)
+- 灵感空间是一级入口 `/inspiration`：无需先创建项目，Desktop 本地保存会话与授权式长期记忆；转项目采用 Preview/Commit，不删除原对话。
 
 ## 开发资料
 
-- [开发文档](./engineering/DEVELOPMENT.md)
-- [贡献指南](./engineering/CONTRIBUTING.md)
+- [Desktop 项目与开发入口](../README.md)
+- [当前实现架构](./engineering/ARCHITECTURE.md)
+- [仓库协作与质量门禁](../../AGENTS.md)
 - [Prompt 工程指南](./engineering/PROMPT_GUIDE.md)
 - [AI 视频生成链路指南](./engineering/AI_VIDEO_GUIDE.md)
+- [项目包 schema v4 与跨端边界](./engineering/PROJECT_PACKAGE_V4.md)
+- [创意竞争力系统说明](../../docs/product/CREATIVE_INTELLIGENCE.md)
 
 ## 发布资料
 

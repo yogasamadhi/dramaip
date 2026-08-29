@@ -1,6 +1,6 @@
 # ============================================================================
 # Root .gitignore — applies across the whole dramaip monorepo.
-# Sub-projects (desktop/, desktop2/, platform/) have their own .gitignore
+# Sub-projects (desktop/, platform/) have their own .gitignore
 # for specifics; this file is the cross-cutting default so common artifacts are
 # never accidentally committed at any level.
 # ============================================================================
@@ -86,6 +86,7 @@ node_modules/
 
 # ---- TypeScript / JS build output ----
 *.tsbuildinfo
+vite.config.ts.timestamp-*.mjs
 dist/
 out/
 .next/

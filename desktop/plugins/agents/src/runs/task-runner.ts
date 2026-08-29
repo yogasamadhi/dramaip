@@ -13,7 +13,7 @@ import {
   modelSelection,
 } from "../providers/routes.js";
 import { engineResponseText } from "../sessions/routes.js";
-import { AGENT_TASK_CATALOG } from "../task-catalog.js";
+import { AGENT_TASK_CATALOG, taskPrompt } from "../task-catalog.js";
 export function createAgentTaskRunner(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
@@ -144,7 +144,7 @@ export function createAgentTaskRunner(
           { sessionId, engineSessionId: engineSession.engineSessionId },
           {
             runId,
-            prompt: input.prompt,
+            prompt: taskPrompt(input.taskType, input.prompt),
             responseMode: "structured",
             capabilityGrant: {
               endpoint: "",

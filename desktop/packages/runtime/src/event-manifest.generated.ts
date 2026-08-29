@@ -45,6 +45,12 @@ export const DOMAIN_EVENT_MANIFEST = {
   "agents.evaluation-ready.v1": {
     owner: "agents",
   },
+  "agents.inspiration-card-created.v1": {
+    owner: "agents",
+  },
+  "agents.inspiration-memory-completed.v1": {
+    owner: "agents",
+  },
   "agents.project-engine-default-updated.v1": {
     owner: "agents",
   },
@@ -82,6 +88,9 @@ export const DOMAIN_EVENT_MANIFEST = {
     owner: "agents",
   },
   "agents.session-forked.v1": {
+    owner: "agents",
+  },
+  "agents.web-research-consent-updated.v1": {
     owner: "agents",
   },
   "automation.change-preview-content-updated.v1": {

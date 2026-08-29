@@ -41,7 +41,7 @@ type PiRuntimeEvent =
   | { type: "content.delta"; delta: string }
   | {
       type: "tool";
-      status: "started" | "completed";
+      status: "started" | "completed" | "failed";
       tool: string;
       itemId: string;
       arguments?: unknown;

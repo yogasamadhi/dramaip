@@ -130,7 +130,12 @@ describe("agents provider configurations", () => {
     const plugin = createAgentsPlugin();
     const migrations = plugin.migrations ?? [];
     const beforeLangGraph = migrations.filter(
-      (migration) => migration.id !== "agents.0008.langgraph-four-engine",
+      (migration) =>
+        ![
+          "agents.0008.langgraph-four-engine",
+          "agents.0009.inspiration-space",
+          "agents.0010.web-research-consent",
+        ].includes(migration.id),
     );
     applyMigrations(database.sqlite, [
       ...(foundationPlugin.migrations ?? []),
@@ -470,15 +475,15 @@ describe("agents provider configurations", () => {
       }),
     );
     expect(noSseStream.status).toBe(405);
-    expect(
-      (
-        await request({
-          jsonrpc: "2.0",
-          id: 2,
-          method: "tools/list",
-        })
-      ).status,
-    ).toBe(200);
+    const staticTools = await request({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list",
+    });
+    expect(staticTools.status).toBe(200);
+    await expect(staticTools.json()).resolves.toMatchObject({
+      result: { tools: [] },
+    });
     const rejected = await http.fetch(
       new Request("http://runtime.test/engine/v1/mcp", {
         method: "POST",
@@ -487,6 +492,186 @@ describe("agents provider configurations", () => {
       }),
     );
     expect(rejected.status).toBe(401);
+  });
+
+  it("exposes and invokes web tools only for the run-scoped capabilities", async () => {
+    const calls: Array<{
+      runId: string;
+      name: string;
+      arguments: Record<string, unknown>;
+    }> = [];
+    const http = createRuntimeHttp({
+      accessToken: "runtime-token",
+      allowedOrigins: [],
+      engineMcpTokens: ["engine-token"],
+      capabilityGrantResolve: (authorization) =>
+        authorization === "Bearer scoped-token"
+          ? {
+              grantId: "grant-1",
+              runId: "run-1",
+              expiresAt: new Date(Date.now() + 60_000).toISOString(),
+              capabilities: ["web.search", "web.read"],
+            }
+          : authorization === "Bearer search-only-token"
+            ? {
+                grantId: "grant-2",
+                runId: "run-2",
+                expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                capabilities: ["web.search"],
+              }
+            : undefined,
+      engineMcpToolCall: async (input) => {
+        calls.push(input);
+        return input.name === "dramaip_web_search"
+          ? {
+              query: String(input.arguments.query),
+              providers: ["exa"],
+              fallbackUsed: false,
+              results: [],
+            }
+          : {
+              title: "Example",
+              url: String(input.arguments.url),
+              content: "verified page",
+              contentType: "text/html",
+              retrievedAt: new Date().toISOString(),
+              truncated: false,
+            };
+      },
+      events: {
+        publishLive: () => undefined,
+        subscribeLive: () => () => undefined,
+        subscribeDomain: () => () => undefined,
+        replay: () => [],
+        registerConsumer: () => () => undefined,
+        diagnostics: () => [],
+        retryConsumer: () => false,
+        dispose: () => undefined,
+      },
+      version: "3.0.0-alpha.3",
+      runtimeInfo: () => ({
+        runtimeId: "3a4d5f92-3ea6-4a34-8a83-52b360cf3b99",
+        runtimeGeneration: 1,
+        graphRevision: "a".repeat(64),
+        startedAt: "2026-08-23T00:00:00.000Z",
+        runtimeVersion: "3.0.0-alpha.3",
+        apiVersion: "2",
+        pluginApiVersion: "1",
+        runtimeKind: "electron-node",
+        mode: "desktop",
+        profile: "studio",
+        bundles: [],
+        plugins: [],
+        capabilities: {},
+        engineStatus: {},
+        uiContributions: [],
+      }),
+      onDiagnostics: () => ({}),
+    });
+    const request = (token: string, body: Record<string, unknown>) =>
+      http.fetch(
+        new Request("http://runtime.test/engine/v1/mcp", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+
+    for (const token of [
+      "expired-token",
+      "consumed-token",
+      "wrong-run-token",
+    ]) {
+      const rejected = await request(token, {
+        jsonrpc: "2.0",
+        id: `reject-${token}`,
+        method: "tools/list",
+      });
+      expect(rejected.status).toBe(401);
+    }
+
+    const listed = await request("scoped-token", {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/list",
+    });
+    const listedBody = (await listed.json()) as {
+      result: { tools: Array<{ name: string }> };
+    };
+    expect(listedBody.result.tools.map((tool) => tool.name)).toEqual([
+      "dramaip_web_search",
+      "dramaip_read_web_page",
+    ]);
+
+    const searchOnly = await request("search-only-token", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list",
+    });
+    await expect(searchOnly.json()).resolves.toMatchObject({
+      result: { tools: [{ name: "dramaip_web_search" }] },
+    });
+    const forbiddenRead = await request("search-only-token", {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "dramaip_read_web_page",
+        arguments: { url: "https://example.com" },
+      },
+    });
+    await expect(forbiddenRead.json()).resolves.toMatchObject({
+      error: { code: -32602 },
+    });
+
+    const called = await request("scoped-token", {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "dramaip_web_search",
+        arguments: { query: "DramaIP" },
+      },
+    });
+    await expect(called.json()).resolves.toMatchObject({
+      result: { structuredContent: { query: "DramaIP" } },
+    });
+    expect(calls).toEqual([
+      expect.objectContaining({
+        runId: "run-1",
+        name: "dramaip_web_search",
+        arguments: { query: "DramaIP" },
+      }),
+    ]);
+    for (let index = 0; index < 3; index += 1)
+      await request("scoped-token", {
+        jsonrpc: "2.0",
+        id: 10 + index,
+        method: "tools/call",
+        params: {
+          name: "dramaip_web_search",
+          arguments: { query: `DramaIP ${index}` },
+        },
+      });
+    const quotaExceeded = await request("scoped-token", {
+      jsonrpc: "2.0",
+      id: 20,
+      method: "tools/call",
+      params: {
+        name: "dramaip_web_search",
+        arguments: { query: "fifth search" },
+      },
+    });
+    await expect(quotaExceeded.json()).resolves.toMatchObject({
+      result: {
+        isError: true,
+        content: [{ text: expect.stringContaining("最多允许四次") }],
+      },
+    });
+    expect(calls).toHaveLength(4);
   });
 
   it("restores the saved intelligent-assistant provider when Runtime starts", async () => {
@@ -869,6 +1054,280 @@ describe("agents provider configurations", () => {
       runs: [expect.objectContaining({ status: "completed" })],
       items: [expect.objectContaining({ content: "你好，DramaIP 已收到。" })],
     });
+  });
+
+  it("keeps inspiration conversations projectless and persists their cards and consent", async () => {
+    const engineCalls: Array<{
+      operation: string;
+      payload: Record<string, unknown>;
+    }> = [];
+    const host = {
+      activateAgentProvider: async () => ({ available: true }),
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        authenticated: true,
+      }),
+      engineOperation: async (
+        _engine: string,
+        operation: string,
+        payload: Record<string, unknown>,
+      ) => {
+        engineCalls.push({ operation, payload });
+        if (operation === "create") return { id: "inspiration-engine-session" };
+        if (operation === "fork") return { id: "inspiration-engine-fork" };
+        if (operation === "dispose") return { ok: true };
+        throw new Error(`unexpected operation: ${operation}`);
+      },
+      async *engineStream(_engine: string, payload: Record<string, unknown>) {
+        engineCalls.push({ operation: "stream", payload });
+        yield {
+          type: "tool",
+          status: "started",
+          tool: "dramaip_web_search",
+          itemId: "search-1",
+          detail: {
+            arguments: {
+              query:
+                "公开资料 Bearer secret-run-token /Users/alice/private/story.txt",
+            },
+          },
+        };
+        yield {
+          type: "tool",
+          status: "completed",
+          tool: "dramaip_web_search",
+          itemId: "search-1",
+          detail: {
+            result: {
+              query: "公开资料",
+              providers: ["exa"],
+              fallbackUsed: false,
+              results: [
+                {
+                  title: "公开来源",
+                  url: "https://example.com/source",
+                  excerpt: "可保存摘要",
+                  provider: "exa",
+                  retrievedAt: "2026-08-29T00:00:00.000Z",
+                  content: "UNPERSISTED_SEARCH_BODY",
+                },
+              ],
+              rawResponse: "UNPERSISTED_PROVIDER_RESPONSE",
+            },
+          },
+        };
+        yield {
+          type: "tool",
+          status: "started",
+          tool: "dramaip_read_web_page",
+          itemId: "read-1",
+          detail: {
+            arguments: { url: "https://example.com/source" },
+          },
+        };
+        yield {
+          type: "tool",
+          status: "completed",
+          tool: "dramaip_read_web_page",
+          itemId: "read-1",
+          detail: {
+            result: {
+              title: "公开来源",
+              url: "https://example.com/source",
+              contentType: "text/html",
+              retrievedAt: "2026-08-29T00:00:00.000Z",
+              truncated: false,
+              content: "UNPERSISTED_WEB_BODY",
+              authorization: "Bearer UNPERSISTED_GRANT",
+            },
+          },
+        };
+        yield { type: "content.delta", delta: "我们先追问这个画面。" };
+        yield {
+          type: "result",
+          result: { parts: [{ type: "text", text: "我们先追问这个画面。" }] },
+        };
+      },
+    } as unknown as DesktopHostClient;
+    const fixture = installProviderRoutes(host);
+
+    const forbidden = await fixture.app.request(
+      "http://runtime.test/api/v2/assistant-conversations",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          surface: "inspiration",
+          projectId: crypto.randomUUID(),
+          engineKind: "codex",
+        }),
+      },
+    );
+    expect(forbidden.status).toBe(400);
+
+    const createdResponse = await fixture.app.request(
+      "http://runtime.test/api/v2/assistant-conversations",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          surface: "inspiration",
+          creativeMode: "guided",
+          engineKind: "codex",
+        }),
+      },
+    );
+    expect(createdResponse.status).toBe(201);
+    const created = (await createdResponse.json()) as { id: string };
+    const createdDetail = await fixture.app.request(
+      `http://runtime.test/api/v2/assistant-conversations/${created.id}`,
+    );
+    await expect(createdDetail.json()).resolves.toMatchObject({
+      conversation: {
+        id: created.id,
+        surface: "inspiration",
+        creativeMode: "guided",
+        promptPolicyVersion: "inspiration.v1",
+      },
+    });
+
+    const settings = await fixture.app.request(
+      "http://runtime.test/api/v2/inspiration-memory-settings",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: true }),
+      },
+    );
+    await expect(settings.json()).resolves.toMatchObject({ enabled: true });
+
+    const webSettings = await fixture.app.request(
+      "http://runtime.test/api/v2/assistant-web-research-settings",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consented: true }),
+      },
+    );
+    await expect(webSettings.json()).resolves.toMatchObject({
+      consented: true,
+    });
+
+    const card = await fixture.app.request(
+      "http://runtime.test/api/v2/inspiration-cards",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: created.id,
+          kind: "premise",
+          title: "月球上的旧剧院",
+          content: "停电后，所有观众都忘记了自己的身份。",
+        }),
+      },
+    );
+    expect(card.status).toBe(201);
+    const cards = await fixture.app.request(
+      `http://runtime.test/api/v2/inspiration-cards?conversationId=${created.id}`,
+    );
+    await expect(cards.json()).resolves.toEqual([
+      expect.objectContaining({ kind: "premise", title: "月球上的旧剧院" }),
+    ]);
+
+    const sent = await fixture.app.request(
+      `http://runtime.test/api/v2/assistant-conversations/${created.id}/messages`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "我只看见一排空座位。" }),
+      },
+    );
+    expect(sent.status).toBe(200);
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const detailResponse = await fixture.app.request(
+        `http://runtime.test/api/v2/assistant-conversations/${created.id}`,
+      );
+      const detail = (await detailResponse.json()) as {
+        conversation: { status: string };
+      };
+      if (detail.conversation.status === "idle") break;
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+    const stream = engineCalls.find((call) => call.operation === "stream");
+    expect(stream).toBeDefined();
+    expect(stream?.payload).toMatchObject({
+      capabilityGrant: {
+        token: expect.any(String),
+        expiresAt: expect.any(String),
+      },
+    });
+    expect(
+      fixture.uow.execute(
+        (transaction) =>
+          transaction.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM agent_capability_grants",
+          )?.count,
+      ),
+    ).toBe(1);
+    const grant = fixture.uow.execute((transaction) =>
+      transaction.get<{
+        id: string;
+        consumed_at: string | null;
+        capabilities_json: string;
+      }>(
+        "SELECT id, consumed_at, capabilities_json FROM agent_capability_grants LIMIT 1",
+      ),
+    );
+    expect(grant?.consumed_at).not.toBeNull();
+    expect(JSON.parse(grant?.capabilities_json ?? "[]")).toEqual([
+      "web.search",
+      "web.read",
+    ]);
+    const persistedToolPayloads = fixture.uow.execute((transaction) =>
+      transaction
+        .all<{ payload_json: string }>(
+          "SELECT payload_json FROM agent_assistant_items WHERE type IN ('tool_call', 'tool_result') ORDER BY sequence",
+        )
+        .map((item) => item.payload_json)
+        .join("\n"),
+    );
+    expect(persistedToolPayloads).toContain("公开来源");
+    expect(persistedToolPayloads).toContain("可保存摘要");
+    expect(persistedToolPayloads).not.toMatch(
+      /secret-run-token|\/Users\/alice|UNPERSISTED_SEARCH_BODY|UNPERSISTED_PROVIDER_RESPONSE|UNPERSISTED_WEB_BODY|UNPERSISTED_GRANT/u,
+    );
+    expect(persistedToolPayloads).not.toContain(grant?.id ?? "missing-grant");
+
+    const forkedResponse = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-sessions/${created.id}/fork`,
+      { method: "POST" },
+    );
+    expect(forkedResponse.status).toBe(201);
+    const forked = (await forkedResponse.json()) as {
+      id: string;
+      parentSessionId: string;
+    };
+    expect(forked.parentSessionId).toBe(created.id);
+    const forkedDetailResponse = await fixture.app.request(
+      `http://runtime.test/api/v2/assistant-conversations/${forked.id}`,
+    );
+    const forkedDetail = (await forkedDetailResponse.json()) as {
+      turns: Array<{ userMessage: string }>;
+      items: Array<{ content?: string }>;
+    };
+    expect(forkedDetail.turns).toEqual([
+      expect.objectContaining({ userMessage: "我只看见一排空座位。" }),
+    ]);
+    expect(forkedDetail.items).toContainEqual(
+      expect.objectContaining({ content: "我们先追问这个画面。" }),
+    );
+    const forkedCards = await fixture.app.request(
+      `http://runtime.test/api/v2/inspiration-cards?conversationId=${forked.id}`,
+    );
+    await expect(forkedCards.json()).resolves.toEqual([
+      expect.objectContaining({ kind: "premise", title: "月球上的旧剧院" }),
+    ]);
   });
 
   it("persists and restores a Host-owned Codex compatible provider", async () => {

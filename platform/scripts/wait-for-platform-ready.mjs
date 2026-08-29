@@ -28,6 +28,10 @@ function healthURLFromEnvironment() {
   return new URL('/actuator/health', baseURL)
 }
 
+function readinessURLFromHealthURL(healthURL) {
+  return new URL('/api/v1/auth/register', healthURL)
+}
+
 function publicURL(url) {
   return `${url.protocol}//${url.host}${url.pathname}`
 }
@@ -37,6 +41,7 @@ function sleep(ms) {
 }
 
 const healthURL = healthURLFromEnvironment()
+const readinessURL = readinessURLFromHealthURL(healthURL)
 const timeoutMs = positiveInteger('DRAMAIP_PLATFORM_READY_TIMEOUT_MS', defaultTimeoutMs)
 const intervalMs = positiveInteger('DRAMAIP_PLATFORM_READY_INTERVAL_MS', defaultIntervalMs)
 const requestTimeoutMs = positiveInteger(
@@ -72,10 +77,29 @@ while (Date.now() <= deadline) {
         lastFailure = 'health response was not JSON'
       }
       if (body?.status === 'UP') {
-        console.log(JSON.stringify({ ok: true, healthURL: publicURL(healthURL), attempts }))
-        process.exit(0)
+        const readinessResponse = await fetch(readinessURL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-DramaIP-Contract-Version': '2',
+          },
+          body: '{}',
+          signal: abort.signal,
+        })
+        if (readinessResponse.status === 400) {
+          console.log(JSON.stringify({
+            ok: true,
+            healthURL: publicURL(healthURL),
+            readinessURL: publicURL(readinessURL),
+            attempts,
+          }))
+          process.exit(0)
+        }
+        lastFailure = `identity readiness route returned HTTP ${readinessResponse.status}`
+        nextDelayMs = intervalMs
+      } else if (body) {
+        lastFailure = 'health response did not contain status=UP'
       }
-      if (body) lastFailure = 'health response did not contain status=UP'
       nextDelayMs = intervalMs
     }
   } catch (error) {

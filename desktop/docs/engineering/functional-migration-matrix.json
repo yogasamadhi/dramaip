@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "productBaseline": "desktop/legacy/desktop (read-only)",
   "sourceOfTruth": "studio/e2e Effective Runtime Graph OpenAPI",
-  "baselineSha256": "077f219ca9e3d48a52b74d6b0abcdc33082ab9c5b2e9b2979dd394d4c8711cb6",
-  "effectiveOpenApiSha256": "c51048a222d70fe4876d8d285fd81a131c7aae6f755e0191c6c2790b6ee92428",
+  "baselineSha256": "57eadb81adbda208978d5f46ca36c26a5a128ab303dbae2cff789bdd372cab3c",
+  "effectiveOpenApiSha256": "d3512709b451befa3cb27e65ee867141f39d4ba00ab6cf93e6ec18a606e7fafb",
   "expected": {
     "legacyOperations": 217,
     "retiredGenericOperations": 5,
@@ -11,10 +11,10 @@
     "visualBaselines": 12
   },
   "actual": {
-    "effectiveOperations": 503,
-    "uniqueOperationIds": 503,
-    "uniqueMethodPaths": 503,
-    "newV2Operations": 291
+    "effectiveOperations": 542,
+    "uniqueOperationIds": 542,
+    "uniqueMethodPaths": 542,
+    "newV2Operations": 330
   },
   "summary": {
     "implemented": 211,
@@ -5807,6 +5807,30 @@
       ]
     },
     {
+      "operationId": "assistant-web-research-settings.get",
+      "method": "GET",
+      "path": "/api/v2/assistant-web-research-settings",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "assistant-web-research-settings.update",
+      "method": "PUT",
+      "path": "/api/v2/assistant-web-research-settings",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "audience-knowledge.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/audience-knowledge",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
       "operationId": "audio.create",
       "method": "POST",
       "path": "/api/v2/audio",
@@ -6044,6 +6068,110 @@
       "path": "/api/v2/compliance/{id}",
       "tags": [
         "review"
+      ]
+    },
+    {
+      "operationId": "creative-collections.create",
+      "method": "POST",
+      "path": "/api/v2/creative-corpus/collections",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-collections.list",
+      "method": "GET",
+      "path": "/api/v2/creative-corpus/collections",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-corpus.create",
+      "method": "POST",
+      "path": "/api/v2/creative-corpus/items",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-corpus.importSnapshot",
+      "method": "POST",
+      "path": "/api/v2/creative-corpus/snapshots/import",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-corpus.list",
+      "method": "GET",
+      "path": "/api/v2/creative-corpus/items",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-corpus.update",
+      "method": "PATCH",
+      "path": "/api/v2/creative-corpus/items/{id}",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-experiments.create",
+      "method": "POST",
+      "path": "/api/v2/creative-experiments",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-experiments.list",
+      "method": "GET",
+      "path": "/api/v2/creative-experiments",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-experiments.review",
+      "method": "POST",
+      "path": "/api/v2/creative-experiments/{id}/review",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-fingerprint.clear",
+      "method": "DELETE",
+      "path": "/api/v2/creative-fingerprint",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-fingerprint.get",
+      "method": "GET",
+      "path": "/api/v2/creative-fingerprint",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-fingerprint.update",
+      "method": "PATCH",
+      "path": "/api/v2/creative-fingerprint",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creative-fingerprint.updateSettings",
+      "method": "PUT",
+      "path": "/api/v2/creative-fingerprint/settings",
+      "tags": [
+        "creative-intelligence"
       ]
     },
     {
@@ -6511,6 +6639,126 @@
       ]
     },
     {
+      "operationId": "inspiration-cards.create",
+      "method": "POST",
+      "path": "/api/v2/inspiration-cards",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-cards.list",
+      "method": "GET",
+      "path": "/api/v2/inspiration-cards",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-cards.remove",
+      "method": "DELETE",
+      "path": "/api/v2/inspiration-cards/{id}",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-cards.update",
+      "method": "PATCH",
+      "path": "/api/v2/inspiration-cards/{id}",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memories.clear",
+      "method": "POST",
+      "path": "/api/v2/inspiration-memories/clear",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memories.list",
+      "method": "GET",
+      "path": "/api/v2/inspiration-memories",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memories.rebuild",
+      "method": "POST",
+      "path": "/api/v2/inspiration-memories/rebuild",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memories.remove",
+      "method": "DELETE",
+      "path": "/api/v2/inspiration-memories/{id}",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memories.update",
+      "method": "PATCH",
+      "path": "/api/v2/inspiration-memories/{id}",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memory-jobs.list",
+      "method": "GET",
+      "path": "/api/v2/inspiration-memory-jobs",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memory-settings.get",
+      "method": "GET",
+      "path": "/api/v2/inspiration-memory-settings",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-memory-settings.update",
+      "method": "PUT",
+      "path": "/api/v2/inspiration-memory-settings",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-project-previews.commit",
+      "method": "POST",
+      "path": "/api/v2/inspiration-project-previews/{id}/commit",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-project-previews.create",
+      "method": "POST",
+      "path": "/api/v2/inspiration-project-previews",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
+      "operationId": "inspiration-project-previews.get",
+      "method": "GET",
+      "path": "/api/v2/inspiration-project-previews/{id}",
+      "tags": [
+        "inspiration"
+      ]
+    },
+    {
       "operationId": "inspirations.create",
       "method": "POST",
       "path": "/api/v2/inspirations",
@@ -6548,6 +6796,14 @@
       "path": "/api/v2/inspirations/{id}",
       "tags": [
         "automation"
+      ]
+    },
+    {
+      "operationId": "ip-twin.build",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/ip-twin",
+      "tags": [
+        "creative-intelligence"
       ]
     },
     {
@@ -6679,6 +6935,14 @@
       ]
     },
     {
+      "operationId": "originality-risks.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/originality-risks",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
       "operationId": "outlines.create",
       "method": "POST",
       "path": "/api/v2/outlines",
@@ -6788,6 +7052,22 @@
       "path": "/api/v2/projects/{id}/initialization/retry",
       "tags": [
         "projects"
+      ]
+    },
+    {
+      "operationId": "provenance.create",
+      "method": "POST",
+      "path": "/api/v2/provenance",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "provenance.list",
+      "method": "GET",
+      "path": "/api/v2/provenance",
+      "tags": [
+        "creative-intelligence"
       ]
     },
     {
@@ -7396,6 +7676,38 @@
       "path": "/api/v2/story-events/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "story-graph.createEdge",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/story-graph/edges",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "story-graph.createNode",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/story-graph/nodes",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "story-graph.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/story-graph",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "story-simulations.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/story-simulations",
+      "tags": [
+        "creative-intelligence"
       ]
     },
     {

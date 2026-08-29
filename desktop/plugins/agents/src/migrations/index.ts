@@ -271,4 +271,122 @@ export const agentMigrations = [
       DROP TABLE agent_evaluation_reviews_three_engine;
     `,
   },
+  {
+    id: "agents.0009.inspiration-space",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0008.langgraph-four-engine"],
+    sql: `
+      ALTER TABLE agent_assistant_sessions ADD COLUMN creative_mode TEXT NOT NULL
+        DEFAULT 'free'
+        CHECK(creative_mode IN ('free', 'guided', 'character_interview', 'world_simulation', 'conflict_lab'));
+      ALTER TABLE agent_assistant_sessions ADD COLUMN parent_session_id TEXT
+        REFERENCES agent_assistant_sessions(id) ON DELETE SET NULL;
+      ALTER TABLE agent_assistant_sessions ADD COLUMN prompt_policy_version TEXT NOT NULL
+        DEFAULT 'inspiration.v1';
+
+      CREATE TABLE agent_inspiration_cards (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK(kind IN ('premise', 'character', 'world', 'conflict', 'scene', 'style', 'question')),
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source_turn_id TEXT REFERENCES agent_assistant_turns(id) ON DELETE SET NULL,
+        adopted INTEGER NOT NULL DEFAULT 0 CHECK(adopted IN (0, 1)),
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX agent_inspiration_cards_conversation
+        ON agent_inspiration_cards(conversation_id, updated_at DESC, id);
+
+      CREATE TABLE agent_creative_memory_settings (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0, 1)),
+        consented_at TEXT,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO agent_creative_memory_settings(singleton, enabled, consented_at, updated_at)
+        VALUES (1, 0, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+      CREATE TABLE agent_creative_memories (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK(kind IN ('preference', 'theme', 'constraint', 'avoid', 'goal')),
+        content TEXT NOT NULL,
+        confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'disabled')),
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE agent_creative_memory_sources (
+        memory_id TEXT NOT NULL REFERENCES agent_creative_memories(id) ON DELETE CASCADE,
+        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,
+        turn_id TEXT REFERENCES agent_assistant_turns(id) ON DELETE SET NULL,
+        PRIMARY KEY(memory_id, conversation_id)
+      );
+      CREATE INDEX agent_creative_memory_sources_conversation
+        ON agent_creative_memory_sources(conversation_id, memory_id);
+
+      CREATE TABLE agent_inspiration_summaries (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,
+        through_turn_count INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX agent_inspiration_summaries_conversation
+        ON agent_inspiration_summaries(conversation_id, through_turn_count DESC);
+      CREATE TABLE agent_inspiration_memory_jobs (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,
+        through_turn_count INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'completed', 'failed')),
+        reason TEXT NOT NULL CHECK(reason IN ('six_turns', 'archive', 'manual')),
+        error TEXT,
+        model TEXT,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX agent_inspiration_memory_jobs_six_turn_once
+        ON agent_inspiration_memory_jobs(conversation_id, through_turn_count)
+        WHERE reason = 'six_turns';
+
+      CREATE TABLE agent_inspiration_project_previews (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,
+        project_json TEXT NOT NULL,
+        card_ids_json TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'project_created', 'cards_copied', 'completed', 'failed')),
+        project_id TEXT,
+        copied_count INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX agent_inspiration_project_previews_conversation
+        ON agent_inspiration_project_previews(conversation_id, created_at DESC);
+    `,
+  },
+  {
+    id: "agents.0010.web-research-consent",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0009.inspiration-space"],
+    sql: `
+      ALTER TABLE agent_assistant_sessions ADD COLUMN web_access_mode TEXT NOT NULL
+        DEFAULT 'auto' CHECK(web_access_mode IN ('auto', 'off'));
+      CREATE TABLE agent_web_research_settings (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        consented_at TEXT,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO agent_web_research_settings(singleton, consented_at, updated_at)
+        VALUES (1, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    `,
+  },
 ] as const satisfies readonly PluginMigration[];

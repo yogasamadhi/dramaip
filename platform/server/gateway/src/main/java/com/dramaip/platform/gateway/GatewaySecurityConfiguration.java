@@ -31,7 +31,7 @@ class GatewaySecurityConfiguration {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .pathMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**").permitAll()
+                        .pathMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**", "/api/v1/creative-corpus/snapshots/latest").permitAll()
                         .anyExchange().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer.bearerTokenConverter(browserBearerTokenConverter).jwt(jwt -> { }))
                 .build();

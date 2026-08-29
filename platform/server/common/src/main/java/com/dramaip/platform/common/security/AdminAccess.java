@@ -29,10 +29,10 @@ public final class AdminAccess {
         for (String role : roles) {
             if (role == null) continue;
             switch (role) {
-                case "viewer" -> permissions.add("audit.read");
-                case "operator" -> permissions.addAll(Set.of("audit.read", "reporting.write", "customer.write", "notification.write"));
+                case "viewer" -> permissions.addAll(Set.of("audit.read", "corpus.read"));
+                case "operator" -> permissions.addAll(Set.of("audit.read", "reporting.write", "customer.write", "notification.write", "corpus.read", "corpus.write"));
                 case "finance_admin" -> permissions.addAll(Set.of("audit.read", "billing.write", "quota.write"));
-                case "security_admin" -> permissions.addAll(Set.of("audit.read", "principal.write", "reporting.write", "customer.write", "billing.write", "quota.write", "notification.write"));
+                case "security_admin" -> permissions.addAll(Set.of("audit.read", "principal.write", "reporting.write", "customer.write", "billing.write", "quota.write", "notification.write", "corpus.read", "corpus.write", "corpus.takedown"));
                 default -> { }
             }
         }

@@ -2420,6 +2420,182 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/creative-corpus/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creative-corpus.list"];
+    put?: never;
+    post: operations["creative-corpus.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creative-corpus/items/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["creative-corpus.update"];
+    trace?: never;
+  };
+  "/api/v2/creative-corpus/collections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creative-collections.list"];
+    put?: never;
+    post: operations["creative-collections.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creative-corpus/snapshots/import": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["creative-corpus.importSnapshot"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/provenance": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["provenance.list"];
+    put?: never;
+    post: operations["provenance.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/story-graph": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["story-graph.get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/story-graph/nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["story-graph.createNode"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/story-graph/edges": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["story-graph.createEdge"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/audience-knowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["audience-knowledge.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/ip-twin": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["ip-twin.build"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/story-simulations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["story-simulations.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/creative/case-studies": {
     parameters: {
       query?: never;
@@ -2788,6 +2964,86 @@ export interface paths {
     patch: operations["quality.update"];
     trace?: never;
   };
+  "/api/v2/creative-fingerprint": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creative-fingerprint.get"];
+    put?: never;
+    post?: never;
+    delete: operations["creative-fingerprint.clear"];
+    options?: never;
+    head?: never;
+    patch: operations["creative-fingerprint.update"];
+    trace?: never;
+  };
+  "/api/v2/creative-fingerprint/settings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: operations["creative-fingerprint.updateSettings"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creative-experiments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["creative-experiments.list"];
+    put?: never;
+    post: operations["creative-experiments.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/creative-experiments/{id}/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["creative-experiments.review"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/originality-risks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["originality-risks.list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/agent-engines": {
     parameters: {
       query?: never;
@@ -2958,6 +3214,22 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations["providers.testConnection"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/assistant-web-research-settings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["assistant-web-research-settings.get"];
+    put: operations["assistant-web-research-settings.update"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3198,6 +3470,182 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations["agent-sessions.abort"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-cards": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["inspiration-cards.list"];
+    put?: never;
+    post: operations["inspiration-cards.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-cards/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["inspiration-cards.remove"];
+    options?: never;
+    head?: never;
+    patch: operations["inspiration-cards.update"];
+    trace?: never;
+  };
+  "/api/v2/inspiration-memory-settings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["inspiration-memory-settings.get"];
+    put: operations["inspiration-memory-settings.update"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-memories": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["inspiration-memories.list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-memory-jobs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["inspiration-memory-jobs.list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-memories/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["inspiration-memories.remove"];
+    options?: never;
+    head?: never;
+    patch: operations["inspiration-memories.update"];
+    trace?: never;
+  };
+  "/api/v2/inspiration-memories/clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["inspiration-memories.clear"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-memories/rebuild": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["inspiration-memories.rebuild"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-project-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["inspiration-project-previews.create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-project-previews/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["inspiration-project-previews.get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/inspiration-project-previews/{id}/commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["inspiration-project-previews.commit"];
     delete?: never;
     options?: never;
     head?: never;
@@ -12020,7 +12468,8 @@ export interface operations {
           | "submission-json"
           | "script"
           | "storyboard"
-          | "delivery";
+          | "delivery"
+          | "automation";
       };
       cookie?: never;
     };
@@ -30041,6 +30490,1987 @@ export interface operations {
       };
     };
   };
+  "creative-corpus.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              sourceId?: string;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              /** @enum {string} */
+              kind:
+                | "meme"
+                | "comic_device"
+                | "dialogue_pattern"
+                | "character_hook"
+                | "relationship_hook"
+                | "conflict"
+                | "reversal"
+                | "scene"
+                | "world_rule"
+                | "style"
+                | "social_observation";
+              title: string;
+              /** @default  */
+              trigger: string;
+              mechanism: string;
+              /** @default  */
+              emotionalEffect: string;
+              /** @default [] */
+              contexts: string[];
+              /** @default [] */
+              riskTags: string[];
+              /** @default [] */
+              tags: string[];
+              /** @enum {string} */
+              freshness:
+                "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+              /** @enum {string} */
+              rightsStatus:
+                | "unknown"
+                | "review_required"
+                | "allowed"
+                | "restricted"
+                | "removed";
+              locale: string;
+              /** Format: date-time */
+              tombstonedAt?: string;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-corpus.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          sourceId?: string;
+          /** @enum {string} */
+          visibility: "public" | "private";
+          /** @enum {string} */
+          kind:
+            | "meme"
+            | "comic_device"
+            | "dialogue_pattern"
+            | "character_hook"
+            | "relationship_hook"
+            | "conflict"
+            | "reversal"
+            | "scene"
+            | "world_rule"
+            | "style"
+            | "social_observation";
+          title: string;
+          /** @default  */
+          trigger?: string;
+          mechanism: string;
+          /** @default  */
+          emotionalEffect?: string;
+          /** @default [] */
+          contexts?: string[];
+          /** @default [] */
+          riskTags?: string[];
+          /** @default [] */
+          tags?: string[];
+          /** @enum {string} */
+          freshness?:
+            "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+          /** @enum {string} */
+          rightsStatus?:
+            | "unknown"
+            | "review_required"
+            | "allowed"
+            | "restricted"
+            | "removed";
+          locale?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sourceId?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            /** @enum {string} */
+            kind:
+              | "meme"
+              | "comic_device"
+              | "dialogue_pattern"
+              | "character_hook"
+              | "relationship_hook"
+              | "conflict"
+              | "reversal"
+              | "scene"
+              | "world_rule"
+              | "style"
+              | "social_observation";
+            title: string;
+            /** @default  */
+            trigger: string;
+            mechanism: string;
+            /** @default  */
+            emotionalEffect: string;
+            /** @default [] */
+            contexts: string[];
+            /** @default [] */
+            riskTags: string[];
+            /** @default [] */
+            tags: string[];
+            /** @enum {string} */
+            freshness:
+              "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+            /** @enum {string} */
+            rightsStatus:
+              | "unknown"
+              | "review_required"
+              | "allowed"
+              | "restricted"
+              | "removed";
+            locale: string;
+            /** Format: date-time */
+            tombstonedAt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-corpus.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          sourceId?: string;
+          /** @enum {string} */
+          visibility?: "public" | "private";
+          /** @enum {string} */
+          kind?:
+            | "meme"
+            | "comic_device"
+            | "dialogue_pattern"
+            | "character_hook"
+            | "relationship_hook"
+            | "conflict"
+            | "reversal"
+            | "scene"
+            | "world_rule"
+            | "style"
+            | "social_observation";
+          title?: string;
+          /** @default  */
+          trigger?: string;
+          mechanism?: string;
+          /** @default  */
+          emotionalEffect?: string;
+          /** @default [] */
+          contexts?: string[];
+          /** @default [] */
+          riskTags?: string[];
+          /** @default [] */
+          tags?: string[];
+          /** @enum {string} */
+          freshness?:
+            "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+          /** @enum {string} */
+          rightsStatus?:
+            | "unknown"
+            | "review_required"
+            | "allowed"
+            | "restricted"
+            | "removed";
+          locale?: string;
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sourceId?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            /** @enum {string} */
+            kind:
+              | "meme"
+              | "comic_device"
+              | "dialogue_pattern"
+              | "character_hook"
+              | "relationship_hook"
+              | "conflict"
+              | "reversal"
+              | "scene"
+              | "world_rule"
+              | "style"
+              | "social_observation";
+            title: string;
+            /** @default  */
+            trigger: string;
+            mechanism: string;
+            /** @default  */
+            emotionalEffect: string;
+            /** @default [] */
+            contexts: string[];
+            /** @default [] */
+            riskTags: string[];
+            /** @default [] */
+            tags: string[];
+            /** @enum {string} */
+            freshness:
+              "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+            /** @enum {string} */
+            rightsStatus:
+              | "unknown"
+              | "review_required"
+              | "allowed"
+              | "restricted"
+              | "removed";
+            locale: string;
+            /** Format: date-time */
+            tombstonedAt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-collections.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              corpusItemId?: string;
+              title: string;
+              mechanism: string;
+              /** @default  */
+              notes: string;
+              /** @default [] */
+              tags: string[];
+              adopted: boolean;
+              useCount: number;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-collections.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          corpusItemId?: string;
+          title: string;
+          mechanism: string;
+          /** @default  */
+          notes?: string;
+          /** @default [] */
+          tags?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            corpusItemId?: string;
+            title: string;
+            mechanism: string;
+            /** @default  */
+            notes: string;
+            /** @default [] */
+            tags: string[];
+            adopted: boolean;
+            useCount: number;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-corpus.importSnapshot": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          format: "dramaip-creative-corpus-snapshot";
+          /** @enum {number} */
+          schemaVersion: 1;
+          version: string;
+          sources: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            url?: string;
+            domain?: string;
+            title: string;
+            excerpt?: string;
+            contentHash?: string;
+            /** @enum {string} */
+            status: "quarantined" | "allowed" | "blocked" | "takedown";
+            /** @enum {string} */
+            rightsStatus:
+              | "unknown"
+              | "review_required"
+              | "allowed"
+              | "restricted"
+              | "removed";
+            /** @default zh-CN */
+            locale?: string;
+            /** Format: date-time */
+            retrievedAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          }[];
+          items: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sourceId?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            /** @enum {string} */
+            kind:
+              | "meme"
+              | "comic_device"
+              | "dialogue_pattern"
+              | "character_hook"
+              | "relationship_hook"
+              | "conflict"
+              | "reversal"
+              | "scene"
+              | "world_rule"
+              | "style"
+              | "social_observation";
+            title: string;
+            /** @default  */
+            trigger?: string;
+            mechanism: string;
+            /** @default  */
+            emotionalEffect?: string;
+            /** @default [] */
+            contexts?: string[];
+            /** @default [] */
+            riskTags?: string[];
+            /** @default [] */
+            tags?: string[];
+            /** @enum {string} */
+            freshness:
+              "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+            /** @enum {string} */
+            rightsStatus:
+              | "unknown"
+              | "review_required"
+              | "allowed"
+              | "restricted"
+              | "removed";
+            locale: string;
+            /** Format: date-time */
+            tombstonedAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          }[];
+          /** @default [] */
+          tombstones?: string[];
+          signature: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            imported: number;
+            tombstoned: number;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "provenance.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId?: string;
+              fromType: string;
+              fromId: string;
+              /** @enum {string} */
+              relation:
+                | "collected_from"
+                | "inspired_by"
+                | "derived_from"
+                | "generated_from"
+                | "adopted_from"
+                | "quoted_from";
+              toType: string;
+              toId: string;
+              quoteExcerpt?: string;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "provenance.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId?: string;
+          fromType: string;
+          fromId: string;
+          /** @enum {string} */
+          relation:
+            | "collected_from"
+            | "inspired_by"
+            | "derived_from"
+            | "generated_from"
+            | "adopted_from"
+            | "quoted_from";
+          toType: string;
+          toId: string;
+          quoteExcerpt?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId?: string;
+            fromType: string;
+            fromId: string;
+            /** @enum {string} */
+            relation:
+              | "collected_from"
+              | "inspired_by"
+              | "derived_from"
+              | "generated_from"
+              | "adopted_from"
+              | "quoted_from";
+            toType: string;
+            toId: string;
+            quoteExcerpt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "story-graph.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            nodes: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** @enum {string} */
+              kind:
+                | "character"
+                | "event"
+                | "secret"
+                | "rule"
+                | "location"
+                | "organization"
+                | "resource"
+                | "relationship"
+                | "inspiration";
+              title: string;
+              summary: string;
+              sourceType: string;
+              sourceId: string;
+              sourceVersion: number;
+              confirmed: boolean;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            edges: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              fromNodeId: string;
+              /** Format: uuid */
+              toNodeId: string;
+              /** @enum {string} */
+              relation:
+                | "causes"
+                | "enables"
+                | "blocks"
+                | "reveals"
+                | "conflicts_with"
+                | "depends_on";
+              rationale: string;
+              confidence: number;
+              confirmed: boolean;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            audienceStates: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** @enum {string} */
+              subjectType: "audience" | "character";
+              subjectId: string;
+              /** Format: uuid */
+              knowledgeNodeId: string;
+              storyOrder: number;
+              /** @enum {string} */
+              state: "unknown" | "suspects" | "misbelieves" | "knows";
+              evidence: string;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "story-graph.createNode": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          kind:
+            | "character"
+            | "event"
+            | "secret"
+            | "rule"
+            | "location"
+            | "organization"
+            | "resource"
+            | "relationship"
+            | "inspiration";
+          title: string;
+          summary: string;
+          sourceType: string;
+          sourceId: string;
+          sourceVersion: number;
+          confirmed: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** @enum {string} */
+            kind:
+              | "character"
+              | "event"
+              | "secret"
+              | "rule"
+              | "location"
+              | "organization"
+              | "resource"
+              | "relationship"
+              | "inspiration";
+            title: string;
+            summary: string;
+            sourceType: string;
+            sourceId: string;
+            sourceVersion: number;
+            confirmed: boolean;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "story-graph.createEdge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          fromNodeId: string;
+          /** Format: uuid */
+          toNodeId: string;
+          /** @enum {string} */
+          relation:
+            | "causes"
+            | "enables"
+            | "blocks"
+            | "reveals"
+            | "conflicts_with"
+            | "depends_on";
+          rationale: string;
+          confidence: number;
+          confirmed: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            fromNodeId: string;
+            /** Format: uuid */
+            toNodeId: string;
+            /** @enum {string} */
+            relation:
+              | "causes"
+              | "enables"
+              | "blocks"
+              | "reveals"
+              | "conflicts_with"
+              | "depends_on";
+            rationale: string;
+            confidence: number;
+            confirmed: boolean;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "audience-knowledge.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          subjectType: "audience" | "character";
+          subjectId: string;
+          /** Format: uuid */
+          knowledgeNodeId: string;
+          storyOrder: number;
+          /** @enum {string} */
+          state: "unknown" | "suspects" | "misbelieves" | "knows";
+          evidence: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** @enum {string} */
+            subjectType: "audience" | "character";
+            subjectId: string;
+            /** Format: uuid */
+            knowledgeNodeId: string;
+            storyOrder: number;
+            /** @enum {string} */
+            state: "unknown" | "suspects" | "misbelieves" | "knows";
+            evidence: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "ip-twin.build": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            sourceFingerprint: string;
+            stale: boolean;
+            nodes: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** @enum {string} */
+              kind:
+                | "character"
+                | "event"
+                | "secret"
+                | "rule"
+                | "location"
+                | "organization"
+                | "resource"
+                | "relationship"
+                | "inspiration";
+              title: string;
+              summary: string;
+              sourceType: string;
+              sourceId: string;
+              sourceVersion: number;
+              confirmed: boolean;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            edges: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** Format: uuid */
+              fromNodeId: string;
+              /** Format: uuid */
+              toNodeId: string;
+              /** @enum {string} */
+              relation:
+                | "causes"
+                | "enables"
+                | "blocks"
+                | "reveals"
+                | "conflicts_with"
+                | "depends_on";
+              rationale: string;
+              confidence: number;
+              confirmed: boolean;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            audienceStates: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              /** @enum {string} */
+              subjectType: "audience" | "character";
+              subjectId: string;
+              /** Format: uuid */
+              knowledgeNodeId: string;
+              storyOrder: number;
+              /** @enum {string} */
+              state: "unknown" | "suspects" | "misbelieves" | "knows";
+              evidence: string;
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            conflicts: string[];
+            /** Format: date-time */
+            createdAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "story-simulations.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          snapshotId: string;
+          hypothesis: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            snapshotId: string;
+            hypothesis: string;
+            /** @enum {string} */
+            status: "preview" | "committed" | "discarded";
+            deterministicFindings: string[];
+            modelInferences: string[];
+            affectedNodeIds: string[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
   "creative.listCaseStudies": {
     parameters: {
       query?: never;
@@ -34730,6 +37160,934 @@ export interface operations {
       };
     };
   };
+  "creative-fingerprint.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            enabled: boolean;
+            /** Format: date-time */
+            consentedAt?: string;
+            dimensions: {
+              /** @enum {string} */
+              key:
+                | "humor"
+                | "genre"
+                | "tone"
+                | "pace"
+                | "conflict"
+                | "reversal"
+                | "emotional_intensity"
+                | "visuality"
+                | "novelty"
+                | "production_complexity";
+              score: number;
+              confidence: number;
+              frozen: boolean;
+              evidenceIds: string[];
+            }[];
+            avoidances: string[];
+            goals: string[];
+            version: number;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-fingerprint.clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-fingerprint.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          version: number;
+          dimensions?: {
+            /** @enum {string} */
+            key:
+              | "humor"
+              | "genre"
+              | "tone"
+              | "pace"
+              | "conflict"
+              | "reversal"
+              | "emotional_intensity"
+              | "visuality"
+              | "novelty"
+              | "production_complexity";
+            score?: number;
+            frozen?: boolean;
+          }[];
+          avoidances?: string[];
+          goals?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            enabled: boolean;
+            /** Format: date-time */
+            consentedAt?: string;
+            dimensions: {
+              /** @enum {string} */
+              key:
+                | "humor"
+                | "genre"
+                | "tone"
+                | "pace"
+                | "conflict"
+                | "reversal"
+                | "emotional_intensity"
+                | "visuality"
+                | "novelty"
+                | "production_complexity";
+              score: number;
+              confidence: number;
+              frozen: boolean;
+              evidenceIds: string[];
+            }[];
+            avoidances: string[];
+            goals: string[];
+            version: number;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-fingerprint.updateSettings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            enabled: boolean;
+            /** Format: date-time */
+            consentedAt?: string;
+            dimensions: {
+              /** @enum {string} */
+              key:
+                | "humor"
+                | "genre"
+                | "tone"
+                | "pace"
+                | "conflict"
+                | "reversal"
+                | "emotional_intensity"
+                | "visuality"
+                | "novelty"
+                | "production_complexity";
+              score: number;
+              confidence: number;
+              frozen: boolean;
+              evidenceIds: string[];
+            }[];
+            avoidances: string[];
+            goals: string[];
+            version: number;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-experiments.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              originType: "inspiration" | "corpus" | "project";
+              originId?: string;
+              /** Format: uuid */
+              projectId?: string;
+              prompt: string;
+              strategyVersion: string;
+              /** @enum {string} */
+              status: "draft" | "ready" | "completed" | "rejected";
+              variants: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                lane: "conservative" | "balanced" | "wild";
+                title: string;
+                content: string;
+                scores: {
+                  [key: string]: number;
+                };
+                selected: boolean;
+              }[];
+              version: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-experiments.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          originType: "inspiration" | "corpus" | "project";
+          originId?: string;
+          /** Format: uuid */
+          projectId?: string;
+          prompt: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            originType: "inspiration" | "corpus" | "project";
+            originId?: string;
+            /** Format: uuid */
+            projectId?: string;
+            prompt: string;
+            strategyVersion: string;
+            /** @enum {string} */
+            status: "draft" | "ready" | "completed" | "rejected";
+            variants: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              lane: "conservative" | "balanced" | "wild";
+              title: string;
+              content: string;
+              scores: {
+                [key: string]: number;
+              };
+              selected: boolean;
+            }[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "creative-experiments.review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          version: number;
+          /** Format: uuid */
+          selectedVariantId?: string;
+          /** @default false */
+          rejected?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            originType: "inspiration" | "corpus" | "project";
+            originId?: string;
+            /** Format: uuid */
+            projectId?: string;
+            prompt: string;
+            strategyVersion: string;
+            /** @enum {string} */
+            status: "draft" | "ready" | "completed" | "rejected";
+            variants: {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              lane: "conservative" | "balanced" | "wild";
+              title: string;
+              content: string;
+              scores: {
+                [key: string]: number;
+              };
+              selected: boolean;
+            }[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "originality-risks.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              projectId: string;
+              targetType: string;
+              targetId: string;
+              /** @enum {string} */
+              severity: "info" | "review" | "high";
+              reason: string;
+              evidenceEdgeIds: string[];
+              /** @enum {boolean} */
+              legalConclusion: false;
+              /** Format: date-time */
+              createdAt: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
   "agent-engines.list": {
     parameters: {
       query?: never;
@@ -35811,6 +39169,150 @@ export interface operations {
     };
   };
   "providers.testConnection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "assistant-web-research-settings.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "assistant-web-research-settings.update": {
     parameters: {
       query?: never;
       header?: never;
@@ -37247,6 +40749,861 @@ export interface operations {
         content: {
           "application/problem+json": unknown;
         };
+      };
+    };
+  };
+  "inspiration-cards.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-cards.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-cards.remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-cards.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memory-settings.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memory-settings.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memories.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memory-jobs.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memories.remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memories.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memories.clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-memories.rebuild": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-project-previews.create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-project-previews.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  "inspiration-project-previews.commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

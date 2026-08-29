@@ -27,32 +27,38 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TokenService {
-    private final IdentityJwtProperties properties;
+public final class TokenService {
+    private final String issuer;
+    private final String audience;
+    private final String keyId;
+    private final long accessTtlSeconds;
     private final RSAKey signingKey;
     private final JwtEncoder encoder;
 
     public TokenService(IdentityJwtProperties properties) {
-        this.properties = properties;
+        this.issuer = properties.getIssuer();
+        this.audience = properties.getAudience();
+        this.keyId = properties.getKeyId();
+        this.accessTtlSeconds = properties.getAccessTtlSeconds();
         this.signingKey = signingKey(properties);
         this.encoder = new org.springframework.security.oauth2.jwt.NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(signingKey)));
     }
 
     public String accessToken(String userId, String email) {
         Instant now = Instant.now();
-        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(properties.getIssuer()).subject(userId).audience(List.of(properties.getAudience()))
-                .issuedAt(now).expiresAt(now.plusSeconds(properties.getAccessTtlSeconds())).id(UUID.randomUUID().toString()).claim("email", email).build();
-        return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).keyId(properties.getKeyId()).build(), claims)).getTokenValue();
+        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(issuer).subject(userId).audience(List.of(audience))
+                .issuedAt(now).expiresAt(now.plusSeconds(accessTtlSeconds)).id(UUID.randomUUID().toString()).claim("email", email).build();
+        return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).keyId(keyId).build(), claims)).getTokenValue();
     }
 
     /** Admin sessions use the same rotation-capable key but are unambiguously marked and checked against admin.sessions. */
     public AdminAccessToken adminAccessToken(String principalId, String email, List<String> roles) {
         Instant now = Instant.now();
         String tokenId = UUID.randomUUID().toString();
-        Instant expiresAt = now.plusSeconds(properties.getAccessTtlSeconds());
-        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(properties.getIssuer()).subject(principalId).audience(List.of(properties.getAudience()))
+        Instant expiresAt = now.plusSeconds(accessTtlSeconds);
+        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(issuer).subject(principalId).audience(List.of(audience))
                 .issuedAt(now).expiresAt(expiresAt).id(tokenId).claim("email", email).claim("actorType", "admin").claim("roles", roles).build();
-        String token = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).keyId(properties.getKeyId()).build(), claims)).getTokenValue();
+        String token = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).keyId(keyId).build(), claims)).getTokenValue();
         return new AdminAccessToken(token, tokenId, expiresAt);
     }
 

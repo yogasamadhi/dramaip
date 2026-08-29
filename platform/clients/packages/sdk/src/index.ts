@@ -677,6 +677,322 @@ export type ChatInput = {
 
 export type ChatStreamInput = ChatInput & { preflight_request_hash: string };
 
+export const CreativeModeSchema = z.enum([
+  "free",
+  "guided",
+  "character_interview",
+  "world_simulation",
+  "conflict_lab",
+]);
+export type CreativeMode = z.infer<typeof CreativeModeSchema>;
+
+export const InspirationCardKindSchema = z.enum([
+  "premise",
+  "character",
+  "world",
+  "conflict",
+  "scene",
+  "style",
+  "question",
+]);
+export type InspirationCardKind = z.infer<typeof InspirationCardKindSchema>;
+
+export const CreativeMemoryKindSchema = z.enum([
+  "preference",
+  "theme",
+  "constraint",
+  "avoid",
+  "goal",
+]);
+export type CreativeMemoryKind = z.infer<typeof CreativeMemoryKindSchema>;
+
+export const InspirationConversationSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  creativeMode: CreativeModeSchema,
+  promptPolicyVersion: z.string(),
+  parentConversationId: z.string().nullish(),
+  archivedAt: z.string().nullish(),
+  completeTurns: z.number().int().nonnegative(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type InspirationConversation = z.infer<
+  typeof InspirationConversationSchema
+>;
+
+export const InspirationMessageSchema = z.object({
+  id: z.string(),
+  runId: z.string().nullish(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  status: z.enum([
+    "pending",
+    "streaming",
+    "completed",
+    "failed",
+    "canceled",
+  ]),
+  promptTokens: z.number().nonnegative(),
+  completionTokens: z.number().nonnegative(),
+  createdAt: z.string(),
+});
+export type InspirationMessage = z.infer<typeof InspirationMessageSchema>;
+
+export const InspirationCardSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  sourceMessageId: z.string().nullish(),
+  kind: InspirationCardKindSchema,
+  title: z.string(),
+  content: z.string(),
+  adopted: z.boolean(),
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type InspirationCard = z.infer<typeof InspirationCardSchema>;
+
+export const CreativeMemorySchema = z.object({
+  id: z.string(),
+  kind: CreativeMemoryKindSchema,
+  content: z.string(),
+  confidence: z.number().min(0).max(1),
+  status: z.enum(["active", "disabled"]),
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  sourceConversationIds: z.array(z.string()),
+});
+export type CreativeMemory = z.infer<typeof CreativeMemorySchema>;
+
+export const CreativeMemorySettingsSchema = z.object({
+  enabled: z.boolean(),
+  consentedAt: z.string().nullish(),
+  updatedAt: z.string(),
+});
+export type CreativeMemorySettings = z.infer<
+  typeof CreativeMemorySettingsSchema
+>;
+
+export const InspirationMemoryJobSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  throughTurnCount: z.number().int().nonnegative(),
+  status: z.enum(["pending", "running", "completed"]),
+  reason: z.enum(["six_turns", "archive", "manual"]),
+  attempts: z.number().int().nonnegative(),
+  errorCode: z.string().nullish(),
+  model: z.string().nullish(),
+  promptTokens: z.number().int().nonnegative(),
+  completionTokens: z.number().int().nonnegative(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  finishedAt: z.string().nullish(),
+});
+export type InspirationMemoryJob = z.infer<
+  typeof InspirationMemoryJobSchema
+>;
+
+export const InspirationProjectPreviewSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  title: z.string(),
+  projectMode: z.string(),
+  brief: z.record(z.unknown()),
+  cardIds: z.array(z.string()),
+  corpusItemIds: z.array(z.string()),
+  status: z.enum(["pending", "confirmed"]),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  expiresAt: z.string(),
+});
+export type InspirationProjectPreview = z.infer<
+  typeof InspirationProjectPreviewSchema
+>;
+
+export const InspirationRunEventSchema = z.object({
+  sequence: z.number().int().nonnegative(),
+  runId: z.string(),
+  type: z.enum(["started", "delta", "completed", "failed", "canceled"]),
+  payload: z.record(z.unknown()),
+  createdAt: z.string(),
+});
+export type InspirationRunEvent = z.infer<typeof InspirationRunEventSchema>;
+
+const InspirationPageSchema = <T extends z.ZodTypeAny>(item: T) =>
+  z.object({ items: z.array(item), nextCursor: z.string().nullish() });
+
+export const CorpusItemKindSchema = z.enum([
+  "meme",
+  "comic_device",
+  "dialogue_pattern",
+  "character_hook",
+  "relationship_hook",
+  "conflict",
+  "reversal",
+  "scene",
+  "world_rule",
+  "style",
+  "social_observation",
+]);
+export type CorpusItemKind = z.infer<typeof CorpusItemKindSchema>;
+
+export const CorpusItemSchema = z.object({
+  id: z.string(),
+  sourceId: z.string().nullish(),
+  visibility: z.enum(["public", "private"]),
+  kind: CorpusItemKindSchema,
+  title: z.string(),
+  trigger: z.string().nullish(),
+  mechanism: z.string(),
+  emotionalEffect: z.string().nullish(),
+  contexts: z.array(z.string()),
+  riskTags: z.array(z.string()),
+  tags: z.array(z.string()),
+  freshness: z.enum(["emerging", "stable", "cooling", "expired", "evergreen"]),
+  rightsStatus: z.enum([
+    "unknown",
+    "review_required",
+    "allowed",
+    "restricted",
+    "removed",
+  ]),
+  locale: z.string(),
+  tombstonedAt: z.string().nullish(),
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type CorpusItem = z.infer<typeof CorpusItemSchema>;
+
+export const CreativeCollectionItemSchema = z.object({
+  id: z.string(),
+  corpusItemId: z.string().nullish(),
+  title: z.string(),
+  mechanism: z.string(),
+  notes: z.string().nullish(),
+  tags: z.array(z.string()),
+  adopted: z.boolean(),
+  useCount: z.number().int().nonnegative(),
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type CreativeCollectionItem = z.infer<
+  typeof CreativeCollectionItemSchema
+>;
+
+export const CreativeFingerprintDimensionSchema = z.object({
+  key: z.enum([
+    "humor",
+    "genre",
+    "tone",
+    "pace",
+    "conflict",
+    "reversal",
+    "emotional_intensity",
+    "visuality",
+    "novelty",
+    "production_complexity",
+  ]),
+  score: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(1),
+  frozen: z.boolean(),
+  evidenceIds: z.array(z.string()),
+  updatedAt: z.string(),
+});
+export type CreativeFingerprintDimension = z.infer<
+  typeof CreativeFingerprintDimensionSchema
+>;
+
+export const CreativeFingerprintSchema = z.object({
+  enabled: z.boolean(),
+  consentedAt: z.string().nullish(),
+  dimensions: z.array(CreativeFingerprintDimensionSchema),
+  avoidances: z.array(z.string()),
+  goals: z.array(z.string()),
+  version: z.number().int().positive(),
+  updatedAt: z.string(),
+});
+export type CreativeFingerprint = z.infer<typeof CreativeFingerprintSchema>;
+
+export const CreativeVariantSchema = z.object({
+  id: z.string(),
+  lane: z.enum(["conservative", "balanced", "wild"]),
+  title: z.string(),
+  content: z.string(),
+  scores: z.record(z.number()),
+  selected: z.boolean(),
+  createdAt: z.string(),
+});
+export type CreativeVariant = z.infer<typeof CreativeVariantSchema>;
+
+export const CreativeExperimentSchema = z.object({
+  id: z.string(),
+  originType: z.enum(["inspiration", "corpus"]),
+  originId: z.string().nullish(),
+  prompt: z.string(),
+  strategyVersion: z.string(),
+  model: z.string(),
+  status: z.enum(["running", "ready", "completed", "rejected", "failed"]),
+  variants: z.array(CreativeVariantSchema),
+  promptTokens: z.number().int().nonnegative(),
+  completionTokens: z.number().int().nonnegative(),
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type CreativeExperiment = z.infer<typeof CreativeExperimentSchema>;
+
+export const CorpusSourceSchema = z.object({
+  id: z.string(),
+  submittedBy: z.string().nullish(),
+  canonicalUrl: z.string(),
+  domain: z.string(),
+  title: z.string().nullish(),
+  excerpt: z.string().nullish(),
+  contentHash: z.string().nullish(),
+  status: z.enum([
+    "quarantined",
+    "fetched",
+    "allowed",
+    "blocked",
+    "takedown",
+    "failed",
+  ]),
+  rightsStatus: z.enum([
+    "unknown",
+    "review_required",
+    "allowed",
+    "restricted",
+    "removed",
+  ]),
+  locale: z.string(),
+  httpStatus: z.number().int().nullish(),
+  retrievedAt: z.string().nullish(),
+  lastErrorCode: z.string().nullish(),
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type CorpusSource = z.infer<typeof CorpusSourceSchema>;
+
+export const CorpusIngestionJobSchema = z.object({
+  id: z.string(),
+  sourceId: z.string(),
+  depth: z.number().int().nonnegative(),
+  status: z.enum(["pending", "running", "completed", "failed", "blocked"]),
+  attempts: z.number().int().nonnegative(),
+  nextAttemptAt: z.string(),
+  leaseUntil: z.string().nullish(),
+  errorCode: z.string().nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  finishedAt: z.string().nullish(),
+});
+export type CorpusIngestionJob = z.infer<typeof CorpusIngestionJobSchema>;
+
 export const WorkspaceSchema = z.object({
   id: z.string(),
   owner_user_id: z.string(),
@@ -1093,6 +1409,159 @@ export interface DramaIpApiClient {
   ): Promise<void>;
   cancelChat(input: { idempotency_key: string }): Promise<{ status: string }>;
   getChatStatus(input: { idempotency_key: string }): Promise<ChatResponse>;
+  inspiration: {
+    listConversations(input?: {
+      archived?: boolean;
+      cursor?: string;
+      limit?: number;
+    }): Promise<{ items: InspirationConversation[]; nextCursor?: string }>;
+    createConversation(input: {
+      creativeMode: CreativeMode;
+      title?: string;
+    }): Promise<InspirationConversation>;
+    importHistory(input: {
+      title?: string;
+      messages: { role: "user" | "assistant"; content: string }[];
+    }): Promise<InspirationConversation>;
+    getConversation(id: string): Promise<InspirationConversation>;
+    updateConversation(
+      id: string,
+      input: { title?: string; creativeMode?: CreativeMode; archived?: boolean },
+    ): Promise<InspirationConversation>;
+    forkConversation(id: string): Promise<InspirationConversation>;
+    deleteConversation(id: string): Promise<void>;
+    listMessages(
+      id: string,
+      input?: { cursor?: string; limit?: number },
+    ): Promise<{ items: InspirationMessage[]; nextCursor?: string }>;
+    sendMessage(
+      id: string,
+      input: { model: string; content: string; maxTokens?: number },
+      idempotencyKey: string,
+    ): Promise<{ messageId: string; runId: string; status: string }>;
+    replayEvents(
+      id: string,
+      afterSequence: number,
+    ): Promise<InspirationRunEvent[]>;
+    cancelRun(id: string, runId: string): Promise<{ status: string }>;
+    listCards(id: string): Promise<InspirationCard[]>;
+    createCard(
+      id: string,
+      input: {
+        sourceMessageId?: string;
+        kind: InspirationCardKind;
+        title: string;
+        content: string;
+      },
+    ): Promise<InspirationCard>;
+    updateCard(
+      id: string,
+      input: {
+        title?: string;
+        content?: string;
+        kind?: InspirationCardKind;
+        adopted?: boolean;
+        version: number;
+      },
+    ): Promise<InspirationCard>;
+    deleteCard(id: string): Promise<void>;
+    getMemorySettings(): Promise<CreativeMemorySettings>;
+    updateMemorySettings(enabled: boolean): Promise<CreativeMemorySettings>;
+    listMemories(): Promise<CreativeMemory[]>;
+    listMemoryJobs(conversationId: string): Promise<InspirationMemoryJob[]>;
+    updateMemory(
+      id: string,
+      input: {
+        content?: string;
+        kind?: CreativeMemoryKind;
+        status?: "active" | "disabled";
+        version: number;
+      },
+    ): Promise<CreativeMemory>;
+    deleteMemory(id: string): Promise<void>;
+    clearMemories(): Promise<void>;
+    rebuildMemories(conversationId: string): Promise<void>;
+    createProjectPreview(input: {
+      conversationId: string;
+      title: string;
+      projectMode: string;
+      brief: Record<string, unknown>;
+      cardIds: string[];
+      corpusItemIds?: string[];
+    }): Promise<InspirationProjectPreview>;
+    getProjectPreview(id: string): Promise<InspirationProjectPreview>;
+    confirmProjectPreview(
+      id: string,
+      idempotencyKey: string,
+    ): Promise<{
+      preview: InspirationProjectPreview;
+      projectPackage: Record<string, unknown>;
+      cloudDraft: Record<string, unknown>;
+    }>;
+    saveCloudProjectDraft(input: Record<string, unknown>): Promise<{
+      id: string;
+    }>;
+  };
+  creativeIntelligence: {
+    searchCorpus(input?: {
+      query?: string;
+      visibility?: "public" | "private" | "all";
+      cursor?: string;
+      limit?: number;
+    }): Promise<{ items: CorpusItem[]; nextCursor?: string }>;
+    createPrivateItem(input: {
+      kind: CorpusItemKind;
+      title: string;
+      trigger?: string;
+      mechanism: string;
+      emotionalEffect?: string;
+      contexts?: string[];
+      riskTags?: string[];
+      tags?: string[];
+      freshness?: "emerging" | "stable" | "cooling" | "expired" | "evergreen";
+      locale?: string;
+    }): Promise<CorpusItem>;
+    listCollections(): Promise<CreativeCollectionItem[]>;
+    collect(input: {
+      corpusItemId?: string;
+      title: string;
+      mechanism: string;
+      notes?: string;
+      tags?: string[];
+    }): Promise<CreativeCollectionItem>;
+    importUrl(url: string): Promise<CorpusSource>;
+    getFingerprint(): Promise<CreativeFingerprint>;
+    setFingerprintEnabled(enabled: boolean): Promise<CreativeFingerprint>;
+    updateFingerprint(input: {
+      version: number;
+      dimensions?: {
+        key: CreativeFingerprintDimension["key"];
+        score?: number;
+        frozen?: boolean;
+      }[];
+      avoidances?: string[];
+      goals?: string[];
+    }): Promise<CreativeFingerprint>;
+    clearFingerprint(): Promise<void>;
+    listExperiments(input?: {
+      cursor?: string;
+      limit?: number;
+    }): Promise<{ items: CreativeExperiment[]; nextCursor?: string }>;
+    createExperiment(
+      input: {
+        originType: "inspiration" | "corpus";
+        originId?: string;
+        prompt: string;
+        model: string;
+        maxTokens?: number;
+      },
+      idempotencyKey: string,
+    ): Promise<CreativeExperiment>;
+    reviewExperiment(
+      id: string,
+      input: { version: number; selectedVariantId?: string; rejected: boolean },
+    ): Promise<CreativeExperiment>;
+  };
 }
 
 export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
@@ -1536,6 +2005,285 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
         params: { idempotencyKey: input.idempotency_key },
       });
       return ChatResponseSchema.parse(res.data);
+    },
+    inspiration: {
+      async listConversations(input = {}) {
+        const res = await http.get("/api/v1/inspiration-conversations", {
+          params: input,
+        });
+        const page = InspirationPageSchema(InspirationConversationSchema).parse(
+          res.data,
+        );
+        return { items: page.items, nextCursor: page.nextCursor ?? undefined };
+      },
+      async createConversation(input) {
+        const res = await http.post(
+          "/api/v1/inspiration-conversations",
+          input,
+        );
+        return InspirationConversationSchema.parse(res.data);
+      },
+      async importHistory(input) {
+        const res = await http.post(
+          "/api/v1/inspiration-conversations/import",
+          input,
+        );
+        return InspirationConversationSchema.parse(res.data);
+      },
+      async getConversation(id) {
+        const res = await http.get(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}`,
+        );
+        return InspirationConversationSchema.parse(res.data);
+      },
+      async updateConversation(id, input) {
+        const res = await http.patch(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}`,
+          input,
+        );
+        return InspirationConversationSchema.parse(res.data);
+      },
+      async forkConversation(id) {
+        const res = await http.post(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/fork`,
+        );
+        return InspirationConversationSchema.parse(res.data);
+      },
+      async deleteConversation(id) {
+        await http.delete(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}`,
+        );
+      },
+      async listMessages(id, input = {}) {
+        const res = await http.get(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/messages`,
+          { params: input },
+        );
+        const page = InspirationPageSchema(InspirationMessageSchema).parse(
+          res.data,
+        );
+        return { items: page.items, nextCursor: page.nextCursor ?? undefined };
+      },
+      async sendMessage(id, input, idempotencyKey) {
+        const res = await http.post(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/messages`,
+          { ...input, maxTokens: input.maxTokens ?? 1_024 },
+          { headers: { "Idempotency-Key": idempotencyKey } },
+        );
+        return z
+          .object({
+            messageId: z.string(),
+            runId: z.string(),
+            status: z.string(),
+          })
+          .parse(res.data);
+      },
+      async replayEvents(id, afterSequence) {
+        const headers: Record<string, string> = {
+          [API_CONTRACT_HEADER]: API_CONTRACT_VERSION,
+          Accept: "text/event-stream",
+          "Last-Event-ID": String(afterSequence),
+        };
+        const token = await options.getAccessToken?.();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const csrfToken = await options.getCSRFToken?.();
+        if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+        const response = await fetch(
+          resolveApiRequestURL(
+            options.baseURL,
+            `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/events`,
+          ),
+          {
+            headers,
+            credentials: options.withCredentials === false ? "omit" : "include",
+          },
+        );
+        if (!response.ok || !response.body)
+          throw new Error("inspiration_event_stream_unavailable");
+        const events: InspirationRunEvent[] = [];
+        await readSSE(response.body, (event) => {
+          events.push(InspirationRunEventSchema.parse(event));
+        });
+        return events;
+      },
+      async cancelRun(id, runId) {
+        const res = await http.post(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/cancel`,
+        );
+        return z.object({ status: z.string() }).parse(res.data);
+      },
+      async listCards(id) {
+        const res = await http.get(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/cards`,
+        );
+        return z.array(InspirationCardSchema).parse(res.data);
+      },
+      async createCard(id, input) {
+        const res = await http.post(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(id)}/cards`,
+          input,
+        );
+        return InspirationCardSchema.parse(res.data);
+      },
+      async updateCard(id, input) {
+        const res = await http.patch(
+          `/api/v1/inspiration-conversations/cards/${encodeURIComponent(id)}`,
+          input,
+        );
+        return InspirationCardSchema.parse(res.data);
+      },
+      async deleteCard(id) {
+        await http.delete(
+          `/api/v1/inspiration-conversations/cards/${encodeURIComponent(id)}`,
+        );
+      },
+      async getMemorySettings() {
+        const res = await http.get("/api/v1/inspiration-memories/settings");
+        return CreativeMemorySettingsSchema.parse(res.data);
+      },
+      async updateMemorySettings(enabled) {
+        const res = await http.put("/api/v1/inspiration-memories/settings", {
+          enabled,
+        });
+        return CreativeMemorySettingsSchema.parse(res.data);
+      },
+      async listMemories() {
+        const res = await http.get("/api/v1/inspiration-memories");
+        return z.array(CreativeMemorySchema).parse(res.data);
+      },
+      async listMemoryJobs(conversationId) {
+        const res = await http.get(
+          `/api/v1/inspiration-conversations/${encodeURIComponent(conversationId)}/memory-jobs`,
+        );
+        return z.array(InspirationMemoryJobSchema).parse(res.data);
+      },
+      async updateMemory(id, input) {
+        const res = await http.patch(
+          `/api/v1/inspiration-memories/${encodeURIComponent(id)}`,
+          input,
+        );
+        return CreativeMemorySchema.parse(res.data);
+      },
+      async deleteMemory(id) {
+        await http.delete(`/api/v1/inspiration-memories/${encodeURIComponent(id)}`);
+      },
+      async clearMemories() {
+        await http.post("/api/v1/inspiration-memories/clear");
+      },
+      async rebuildMemories(conversationId) {
+        await http.post("/api/v1/inspiration-memories/rebuild", {
+          conversationId,
+        });
+      },
+      async createProjectPreview(input) {
+        const res = await http.post(
+          "/api/v1/inspiration-project-previews",
+          { ...input, corpusItemIds: input.corpusItemIds ?? [] },
+        );
+        return InspirationProjectPreviewSchema.parse(res.data);
+      },
+      async getProjectPreview(id) {
+        const res = await http.get(
+          `/api/v1/inspiration-project-previews/${encodeURIComponent(id)}`,
+        );
+        return InspirationProjectPreviewSchema.parse(res.data);
+      },
+      async confirmProjectPreview(id, idempotencyKey) {
+        const res = await http.post(
+          `/api/v1/inspiration-project-previews/${encodeURIComponent(id)}/confirm`,
+          undefined,
+          { headers: { "Idempotency-Key": idempotencyKey } },
+        );
+        return z
+          .object({
+            preview: InspirationProjectPreviewSchema,
+            projectPackage: z.record(z.unknown()),
+            cloudDraft: z.record(z.unknown()),
+          })
+          .parse(res.data);
+      },
+      async saveCloudProjectDraft(input) {
+        const res = await http.post("/api/v1/drafts", input);
+        return z.object({ id: z.string() }).passthrough().parse(res.data);
+      },
+    },
+    creativeIntelligence: {
+      async searchCorpus(input = {}) {
+        const res = await http.get("/api/v1/creative-corpus/search", {
+          params: input,
+        });
+        const page = InspirationPageSchema(CorpusItemSchema).parse(res.data);
+        return { items: page.items, nextCursor: page.nextCursor ?? undefined };
+      },
+      async createPrivateItem(input) {
+        const res = await http.post("/api/v1/creative-corpus/items", {
+          ...input,
+          contexts: input.contexts ?? [],
+          riskTags: input.riskTags ?? [],
+          tags: input.tags ?? [],
+          freshness: input.freshness ?? "emerging",
+          locale: input.locale ?? "zh-CN",
+        });
+        return CorpusItemSchema.parse(res.data);
+      },
+      async listCollections() {
+        const res = await http.get("/api/v1/creative-collections");
+        return z.array(CreativeCollectionItemSchema).parse(res.data);
+      },
+      async collect(input) {
+        const res = await http.post("/api/v1/creative-collections", {
+          ...input,
+          tags: input.tags ?? [],
+        });
+        return CreativeCollectionItemSchema.parse(res.data);
+      },
+      async importUrl(url) {
+        const res = await http.post("/api/v1/creative-collections/import-url", {
+          url,
+        });
+        return CorpusSourceSchema.parse(res.data);
+      },
+      async getFingerprint() {
+        const res = await http.get("/api/v1/creative-fingerprint");
+        return CreativeFingerprintSchema.parse(res.data);
+      },
+      async setFingerprintEnabled(enabled) {
+        const res = await http.put("/api/v1/creative-fingerprint/settings", {
+          enabled,
+        });
+        return CreativeFingerprintSchema.parse(res.data);
+      },
+      async updateFingerprint(input) {
+        const res = await http.patch("/api/v1/creative-fingerprint", input);
+        return CreativeFingerprintSchema.parse(res.data);
+      },
+      async clearFingerprint() {
+        await http.delete("/api/v1/creative-fingerprint");
+      },
+      async listExperiments(input = {}) {
+        const res = await http.get("/api/v1/inspiration-experiments", {
+          params: input,
+        });
+        const page = InspirationPageSchema(CreativeExperimentSchema).parse(
+          res.data,
+        );
+        return { items: page.items, nextCursor: page.nextCursor ?? undefined };
+      },
+      async createExperiment(input, idempotencyKey) {
+        const res = await http.post(
+          "/api/v1/inspiration-experiments",
+          { ...input, maxTokens: input.maxTokens ?? 1_024 },
+          { headers: { "Idempotency-Key": idempotencyKey } },
+        );
+        return CreativeExperimentSchema.parse(res.data);
+      },
+      async reviewExperiment(id, input) {
+        const res = await http.post(
+          `/api/v1/inspiration-experiments/${encodeURIComponent(id)}/review`,
+          input,
+        );
+        return CreativeExperimentSchema.parse(res.data);
+      },
     },
   };
 }

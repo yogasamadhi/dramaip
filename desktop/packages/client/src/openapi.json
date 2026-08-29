@@ -9410,7 +9410,8 @@
                 "submission-json",
                 "script",
                 "storyboard",
-                "delivery"
+                "delivery",
+                "automation"
               ]
             },
             "required": true,
@@ -34547,6 +34548,3283 @@
         }
       }
     },
+    "/api/v2/creative-corpus/items": {
+      "get": {
+        "operationId": "creative-corpus.list",
+        "tags": ["creative-intelligence"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "sourceId": { "type": "string", "format": "uuid" },
+                          "visibility": {
+                            "type": "string",
+                            "enum": ["public", "private"]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "meme",
+                              "comic_device",
+                              "dialogue_pattern",
+                              "character_hook",
+                              "relationship_hook",
+                              "conflict",
+                              "reversal",
+                              "scene",
+                              "world_rule",
+                              "style",
+                              "social_observation"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "trigger": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "default": ""
+                          },
+                          "mechanism": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4000
+                          },
+                          "emotionalEffect": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "default": ""
+                          },
+                          "contexts": {
+                            "type": "array",
+                            "items": { "type": "string", "maxLength": 120 },
+                            "maxItems": 32,
+                            "default": []
+                          },
+                          "riskTags": {
+                            "type": "array",
+                            "items": { "type": "string", "maxLength": 120 },
+                            "maxItems": 32,
+                            "default": []
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": { "type": "string", "maxLength": 120 },
+                            "maxItems": 64,
+                            "default": []
+                          },
+                          "freshness": {
+                            "type": "string",
+                            "enum": [
+                              "emerging",
+                              "stable",
+                              "cooling",
+                              "expired",
+                              "evergreen"
+                            ]
+                          },
+                          "rightsStatus": {
+                            "type": "string",
+                            "enum": [
+                              "unknown",
+                              "review_required",
+                              "allowed",
+                              "restricted",
+                              "removed"
+                            ]
+                          },
+                          "locale": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 35
+                          },
+                          "tombstonedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visibility",
+                          "kind",
+                          "title",
+                          "mechanism",
+                          "freshness",
+                          "rightsStatus",
+                          "locale",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "creative-corpus.create",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceId": { "type": "string", "format": "uuid" },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["public", "private"]
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "meme",
+                      "comic_device",
+                      "dialogue_pattern",
+                      "character_hook",
+                      "relationship_hook",
+                      "conflict",
+                      "reversal",
+                      "scene",
+                      "world_rule",
+                      "style",
+                      "social_observation"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "trigger": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "default": ""
+                  },
+                  "mechanism": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "emotionalEffect": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "default": ""
+                  },
+                  "contexts": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 32,
+                    "default": []
+                  },
+                  "riskTags": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 32,
+                    "default": []
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 64,
+                    "default": []
+                  },
+                  "freshness": {
+                    "type": "string",
+                    "enum": [
+                      "emerging",
+                      "stable",
+                      "cooling",
+                      "expired",
+                      "evergreen"
+                    ]
+                  },
+                  "rightsStatus": {
+                    "type": "string",
+                    "enum": [
+                      "unknown",
+                      "review_required",
+                      "allowed",
+                      "restricted",
+                      "removed"
+                    ]
+                  },
+                  "locale": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 35
+                  }
+                },
+                "required": ["visibility", "kind", "title", "mechanism"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "sourceId": { "type": "string", "format": "uuid" },
+                    "visibility": {
+                      "type": "string",
+                      "enum": ["public", "private"]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "meme",
+                        "comic_device",
+                        "dialogue_pattern",
+                        "character_hook",
+                        "relationship_hook",
+                        "conflict",
+                        "reversal",
+                        "scene",
+                        "world_rule",
+                        "style",
+                        "social_observation"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "trigger": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "default": ""
+                    },
+                    "mechanism": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "emotionalEffect": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "default": ""
+                    },
+                    "contexts": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 32,
+                      "default": []
+                    },
+                    "riskTags": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 32,
+                      "default": []
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 64,
+                      "default": []
+                    },
+                    "freshness": {
+                      "type": "string",
+                      "enum": [
+                        "emerging",
+                        "stable",
+                        "cooling",
+                        "expired",
+                        "evergreen"
+                      ]
+                    },
+                    "rightsStatus": {
+                      "type": "string",
+                      "enum": [
+                        "unknown",
+                        "review_required",
+                        "allowed",
+                        "restricted",
+                        "removed"
+                      ]
+                    },
+                    "locale": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 35
+                    },
+                    "tombstonedAt": { "type": "string", "format": "date-time" },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "visibility",
+                    "kind",
+                    "title",
+                    "mechanism",
+                    "freshness",
+                    "rightsStatus",
+                    "locale",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/creative-corpus/items/{id}": {
+      "patch": {
+        "operationId": "creative-corpus.update",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceId": { "type": "string", "format": "uuid" },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["public", "private"]
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "meme",
+                      "comic_device",
+                      "dialogue_pattern",
+                      "character_hook",
+                      "relationship_hook",
+                      "conflict",
+                      "reversal",
+                      "scene",
+                      "world_rule",
+                      "style",
+                      "social_observation"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "trigger": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "default": ""
+                  },
+                  "mechanism": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "emotionalEffect": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "default": ""
+                  },
+                  "contexts": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 32,
+                    "default": []
+                  },
+                  "riskTags": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 32,
+                    "default": []
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 64,
+                    "default": []
+                  },
+                  "freshness": {
+                    "type": "string",
+                    "enum": [
+                      "emerging",
+                      "stable",
+                      "cooling",
+                      "expired",
+                      "evergreen"
+                    ]
+                  },
+                  "rightsStatus": {
+                    "type": "string",
+                    "enum": [
+                      "unknown",
+                      "review_required",
+                      "allowed",
+                      "restricted",
+                      "removed"
+                    ]
+                  },
+                  "locale": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 35
+                  },
+                  "version": { "type": "integer", "minimum": 0 }
+                },
+                "required": ["version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "sourceId": { "type": "string", "format": "uuid" },
+                    "visibility": {
+                      "type": "string",
+                      "enum": ["public", "private"]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "meme",
+                        "comic_device",
+                        "dialogue_pattern",
+                        "character_hook",
+                        "relationship_hook",
+                        "conflict",
+                        "reversal",
+                        "scene",
+                        "world_rule",
+                        "style",
+                        "social_observation"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "trigger": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "default": ""
+                    },
+                    "mechanism": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "emotionalEffect": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "default": ""
+                    },
+                    "contexts": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 32,
+                      "default": []
+                    },
+                    "riskTags": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 32,
+                      "default": []
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 64,
+                      "default": []
+                    },
+                    "freshness": {
+                      "type": "string",
+                      "enum": [
+                        "emerging",
+                        "stable",
+                        "cooling",
+                        "expired",
+                        "evergreen"
+                      ]
+                    },
+                    "rightsStatus": {
+                      "type": "string",
+                      "enum": [
+                        "unknown",
+                        "review_required",
+                        "allowed",
+                        "restricted",
+                        "removed"
+                      ]
+                    },
+                    "locale": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 35
+                    },
+                    "tombstonedAt": { "type": "string", "format": "date-time" },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "visibility",
+                    "kind",
+                    "title",
+                    "mechanism",
+                    "freshness",
+                    "rightsStatus",
+                    "locale",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/creative-corpus/collections": {
+      "get": {
+        "operationId": "creative-collections.list",
+        "tags": ["creative-intelligence"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "corpusItemId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "mechanism": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4000
+                          },
+                          "notes": {
+                            "type": "string",
+                            "maxLength": 4000,
+                            "default": ""
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": { "type": "string", "maxLength": 120 },
+                            "maxItems": 64,
+                            "default": []
+                          },
+                          "adopted": { "type": "boolean" },
+                          "useCount": { "type": "integer", "minimum": 0 },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "mechanism",
+                          "adopted",
+                          "useCount",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "creative-collections.create",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "corpusItemId": { "type": "string", "format": "uuid" },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "mechanism": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 4000,
+                    "default": ""
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 120 },
+                    "maxItems": 64,
+                    "default": []
+                  }
+                },
+                "required": ["title", "mechanism"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "corpusItemId": { "type": "string", "format": "uuid" },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "mechanism": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "notes": {
+                      "type": "string",
+                      "maxLength": 4000,
+                      "default": ""
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 120 },
+                      "maxItems": 64,
+                      "default": []
+                    },
+                    "adopted": { "type": "boolean" },
+                    "useCount": { "type": "integer", "minimum": 0 },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "mechanism",
+                    "adopted",
+                    "useCount",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/creative-corpus/snapshots/import": {
+      "post": {
+        "operationId": "creative-corpus.importSnapshot",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": ["dramaip-creative-corpus-snapshot"]
+                  },
+                  "schemaVersion": { "type": "number", "enum": [1] },
+                  "version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "url": { "type": "string", "format": "uri" },
+                        "domain": { "type": "string", "maxLength": 253 },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "excerpt": { "type": "string", "maxLength": 500 },
+                        "contentHash": { "type": "string", "maxLength": 128 },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "quarantined",
+                            "allowed",
+                            "blocked",
+                            "takedown"
+                          ]
+                        },
+                        "rightsStatus": {
+                          "type": "string",
+                          "enum": [
+                            "unknown",
+                            "review_required",
+                            "allowed",
+                            "restricted",
+                            "removed"
+                          ]
+                        },
+                        "locale": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 35,
+                          "default": "zh-CN"
+                        },
+                        "retrievedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": { "type": "string", "format": "date-time" }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "status",
+                        "rightsStatus",
+                        "retrievedAt",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    }
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "sourceId": { "type": "string", "format": "uuid" },
+                        "visibility": {
+                          "type": "string",
+                          "enum": ["public", "private"]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "meme",
+                            "comic_device",
+                            "dialogue_pattern",
+                            "character_hook",
+                            "relationship_hook",
+                            "conflict",
+                            "reversal",
+                            "scene",
+                            "world_rule",
+                            "style",
+                            "social_observation"
+                          ]
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "trigger": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "default": ""
+                        },
+                        "mechanism": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        },
+                        "emotionalEffect": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "default": ""
+                        },
+                        "contexts": {
+                          "type": "array",
+                          "items": { "type": "string", "maxLength": 120 },
+                          "maxItems": 32,
+                          "default": []
+                        },
+                        "riskTags": {
+                          "type": "array",
+                          "items": { "type": "string", "maxLength": 120 },
+                          "maxItems": 32,
+                          "default": []
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": { "type": "string", "maxLength": 120 },
+                          "maxItems": 64,
+                          "default": []
+                        },
+                        "freshness": {
+                          "type": "string",
+                          "enum": [
+                            "emerging",
+                            "stable",
+                            "cooling",
+                            "expired",
+                            "evergreen"
+                          ]
+                        },
+                        "rightsStatus": {
+                          "type": "string",
+                          "enum": [
+                            "unknown",
+                            "review_required",
+                            "allowed",
+                            "restricted",
+                            "removed"
+                          ]
+                        },
+                        "locale": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 35
+                        },
+                        "tombstonedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": { "type": "string", "format": "date-time" }
+                      },
+                      "required": [
+                        "id",
+                        "visibility",
+                        "kind",
+                        "title",
+                        "mechanism",
+                        "freshness",
+                        "rightsStatus",
+                        "locale",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    }
+                  },
+                  "tombstones": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uuid" },
+                    "default": []
+                  },
+                  "signature": { "type": "string", "minLength": 1 }
+                },
+                "required": [
+                  "format",
+                  "schemaVersion",
+                  "version",
+                  "sources",
+                  "items",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "imported": { "type": "number" },
+                    "tombstoned": { "type": "number" }
+                  },
+                  "required": ["imported", "tombstoned"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/provenance": {
+      "get": {
+        "operationId": "provenance.list",
+        "tags": ["creative-intelligence"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "fromType": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "fromId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "relation": {
+                            "type": "string",
+                            "enum": [
+                              "collected_from",
+                              "inspired_by",
+                              "derived_from",
+                              "generated_from",
+                              "adopted_from",
+                              "quoted_from"
+                            ]
+                          },
+                          "toType": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "toId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "quoteExcerpt": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "fromType",
+                          "fromId",
+                          "relation",
+                          "toType",
+                          "toId",
+                          "version",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "provenance.create",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string", "format": "uuid" },
+                  "fromType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "fromId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "relation": {
+                    "type": "string",
+                    "enum": [
+                      "collected_from",
+                      "inspired_by",
+                      "derived_from",
+                      "generated_from",
+                      "adopted_from",
+                      "quoted_from"
+                    ]
+                  },
+                  "toType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "toId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "quoteExcerpt": { "type": "string", "maxLength": 500 }
+                },
+                "required": ["fromType", "fromId", "relation", "toType", "toId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "fromType": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "fromId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "collected_from",
+                        "inspired_by",
+                        "derived_from",
+                        "generated_from",
+                        "adopted_from",
+                        "quoted_from"
+                      ]
+                    },
+                    "toType": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "toId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "quoteExcerpt": { "type": "string", "maxLength": 500 },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "fromType",
+                    "fromId",
+                    "relation",
+                    "toType",
+                    "toId",
+                    "version",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/story-graph": {
+      "get": {
+        "operationId": "story-graph.get",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "character",
+                              "event",
+                              "secret",
+                              "rule",
+                              "location",
+                              "organization",
+                              "resource",
+                              "relationship",
+                              "inspiration"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "summary": { "type": "string", "maxLength": 4000 },
+                          "sourceType": { "type": "string", "maxLength": 80 },
+                          "sourceId": { "type": "string", "maxLength": 200 },
+                          "sourceVersion": { "type": "integer", "minimum": 0 },
+                          "confirmed": { "type": "boolean" },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "kind",
+                          "title",
+                          "summary",
+                          "sourceType",
+                          "sourceId",
+                          "sourceVersion",
+                          "confirmed",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "fromNodeId": { "type": "string", "format": "uuid" },
+                          "toNodeId": { "type": "string", "format": "uuid" },
+                          "relation": {
+                            "type": "string",
+                            "enum": [
+                              "causes",
+                              "enables",
+                              "blocks",
+                              "reveals",
+                              "conflicts_with",
+                              "depends_on"
+                            ]
+                          },
+                          "rationale": { "type": "string", "maxLength": 4000 },
+                          "confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "confirmed": { "type": "boolean" },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "fromNodeId",
+                          "toNodeId",
+                          "relation",
+                          "rationale",
+                          "confidence",
+                          "confirmed",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "audienceStates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "subjectType": {
+                            "type": "string",
+                            "enum": ["audience", "character"]
+                          },
+                          "subjectId": { "type": "string", "maxLength": 200 },
+                          "knowledgeNodeId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "storyOrder": { "type": "integer", "minimum": 0 },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "unknown",
+                              "suspects",
+                              "misbelieves",
+                              "knows"
+                            ]
+                          },
+                          "evidence": { "type": "string", "maxLength": 4000 },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "subjectType",
+                          "subjectId",
+                          "knowledgeNodeId",
+                          "storyOrder",
+                          "state",
+                          "evidence",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["nodes", "edges", "audienceStates"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/story-graph/nodes": {
+      "post": {
+        "operationId": "story-graph.createNode",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "character",
+                      "event",
+                      "secret",
+                      "rule",
+                      "location",
+                      "organization",
+                      "resource",
+                      "relationship",
+                      "inspiration"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "summary": { "type": "string", "maxLength": 4000 },
+                  "sourceType": { "type": "string", "maxLength": 80 },
+                  "sourceId": { "type": "string", "maxLength": 200 },
+                  "sourceVersion": { "type": "integer", "minimum": 0 },
+                  "confirmed": { "type": "boolean" }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "summary",
+                  "sourceType",
+                  "sourceId",
+                  "sourceVersion",
+                  "confirmed"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "character",
+                        "event",
+                        "secret",
+                        "rule",
+                        "location",
+                        "organization",
+                        "resource",
+                        "relationship",
+                        "inspiration"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "summary": { "type": "string", "maxLength": 4000 },
+                    "sourceType": { "type": "string", "maxLength": 80 },
+                    "sourceId": { "type": "string", "maxLength": 200 },
+                    "sourceVersion": { "type": "integer", "minimum": 0 },
+                    "confirmed": { "type": "boolean" },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "kind",
+                    "title",
+                    "summary",
+                    "sourceType",
+                    "sourceId",
+                    "sourceVersion",
+                    "confirmed",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/story-graph/edges": {
+      "post": {
+        "operationId": "story-graph.createEdge",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fromNodeId": { "type": "string", "format": "uuid" },
+                  "toNodeId": { "type": "string", "format": "uuid" },
+                  "relation": {
+                    "type": "string",
+                    "enum": [
+                      "causes",
+                      "enables",
+                      "blocks",
+                      "reveals",
+                      "conflicts_with",
+                      "depends_on"
+                    ]
+                  },
+                  "rationale": { "type": "string", "maxLength": 4000 },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "confirmed": { "type": "boolean" }
+                },
+                "required": [
+                  "fromNodeId",
+                  "toNodeId",
+                  "relation",
+                  "rationale",
+                  "confidence",
+                  "confirmed"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "fromNodeId": { "type": "string", "format": "uuid" },
+                    "toNodeId": { "type": "string", "format": "uuid" },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "causes",
+                        "enables",
+                        "blocks",
+                        "reveals",
+                        "conflicts_with",
+                        "depends_on"
+                      ]
+                    },
+                    "rationale": { "type": "string", "maxLength": 4000 },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "confirmed": { "type": "boolean" },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "fromNodeId",
+                    "toNodeId",
+                    "relation",
+                    "rationale",
+                    "confidence",
+                    "confirmed",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/audience-knowledge": {
+      "post": {
+        "operationId": "audience-knowledge.create",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectType": {
+                    "type": "string",
+                    "enum": ["audience", "character"]
+                  },
+                  "subjectId": { "type": "string", "maxLength": 200 },
+                  "knowledgeNodeId": { "type": "string", "format": "uuid" },
+                  "storyOrder": { "type": "integer", "minimum": 0 },
+                  "state": {
+                    "type": "string",
+                    "enum": ["unknown", "suspects", "misbelieves", "knows"]
+                  },
+                  "evidence": { "type": "string", "maxLength": 4000 }
+                },
+                "required": [
+                  "subjectType",
+                  "subjectId",
+                  "knowledgeNodeId",
+                  "storyOrder",
+                  "state",
+                  "evidence"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "subjectType": {
+                      "type": "string",
+                      "enum": ["audience", "character"]
+                    },
+                    "subjectId": { "type": "string", "maxLength": 200 },
+                    "knowledgeNodeId": { "type": "string", "format": "uuid" },
+                    "storyOrder": { "type": "integer", "minimum": 0 },
+                    "state": {
+                      "type": "string",
+                      "enum": ["unknown", "suspects", "misbelieves", "knows"]
+                    },
+                    "evidence": { "type": "string", "maxLength": 4000 },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "subjectType",
+                    "subjectId",
+                    "knowledgeNodeId",
+                    "storyOrder",
+                    "state",
+                    "evidence",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/ip-twin": {
+      "post": {
+        "operationId": "ip-twin.build",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "sourceFingerprint": { "type": "string" },
+                    "stale": { "type": "boolean" },
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "character",
+                              "event",
+                              "secret",
+                              "rule",
+                              "location",
+                              "organization",
+                              "resource",
+                              "relationship",
+                              "inspiration"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "summary": { "type": "string", "maxLength": 4000 },
+                          "sourceType": { "type": "string", "maxLength": 80 },
+                          "sourceId": { "type": "string", "maxLength": 200 },
+                          "sourceVersion": { "type": "integer", "minimum": 0 },
+                          "confirmed": { "type": "boolean" },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "kind",
+                          "title",
+                          "summary",
+                          "sourceType",
+                          "sourceId",
+                          "sourceVersion",
+                          "confirmed",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "fromNodeId": { "type": "string", "format": "uuid" },
+                          "toNodeId": { "type": "string", "format": "uuid" },
+                          "relation": {
+                            "type": "string",
+                            "enum": [
+                              "causes",
+                              "enables",
+                              "blocks",
+                              "reveals",
+                              "conflicts_with",
+                              "depends_on"
+                            ]
+                          },
+                          "rationale": { "type": "string", "maxLength": 4000 },
+                          "confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "confirmed": { "type": "boolean" },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "fromNodeId",
+                          "toNodeId",
+                          "relation",
+                          "rationale",
+                          "confidence",
+                          "confirmed",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "audienceStates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "subjectType": {
+                            "type": "string",
+                            "enum": ["audience", "character"]
+                          },
+                          "subjectId": { "type": "string", "maxLength": 200 },
+                          "knowledgeNodeId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "storyOrder": { "type": "integer", "minimum": 0 },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "unknown",
+                              "suspects",
+                              "misbelieves",
+                              "knows"
+                            ]
+                          },
+                          "evidence": { "type": "string", "maxLength": 4000 },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "subjectType",
+                          "subjectId",
+                          "knowledgeNodeId",
+                          "storyOrder",
+                          "state",
+                          "evidence",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "conflicts": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "createdAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "sourceFingerprint",
+                    "stale",
+                    "nodes",
+                    "edges",
+                    "audienceStates",
+                    "conflicts",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/story-simulations": {
+      "post": {
+        "operationId": "story-simulations.create",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "snapshotId": { "type": "string", "format": "uuid" },
+                  "hypothesis": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": ["snapshotId", "hypothesis"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "snapshotId": { "type": "string", "format": "uuid" },
+                    "hypothesis": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["preview", "committed", "discarded"]
+                    },
+                    "deterministicFindings": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "modelInferences": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "affectedNodeIds": {
+                      "type": "array",
+                      "items": { "type": "string", "format": "uuid" }
+                    },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "snapshotId",
+                    "hypothesis",
+                    "status",
+                    "deterministicFindings",
+                    "modelInferences",
+                    "affectedNodeIds",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/creative/case-studies": {
       "get": {
         "operationId": "creative.listCaseStudies",
@@ -40565,6 +43843,1489 @@
         }
       }
     },
+    "/api/v2/creative-fingerprint": {
+      "get": {
+        "operationId": "creative-fingerprint.get",
+        "tags": ["creative-intelligence"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "consentedAt": { "type": "string", "format": "date-time" },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "humor",
+                              "genre",
+                              "tone",
+                              "pace",
+                              "conflict",
+                              "reversal",
+                              "emotional_intensity",
+                              "visuality",
+                              "novelty",
+                              "production_complexity"
+                            ]
+                          },
+                          "score": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "frozen": { "type": "boolean" },
+                          "evidenceIds": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "maxItems": 100
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "score",
+                          "confidence",
+                          "frozen",
+                          "evidenceIds"
+                        ]
+                      }
+                    },
+                    "avoidances": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 500 },
+                      "maxItems": 100
+                    },
+                    "goals": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 500 },
+                      "maxItems": 100
+                    },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "enabled",
+                    "dimensions",
+                    "avoidances",
+                    "goals",
+                    "version",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "creative-fingerprint.update",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": { "type": "integer", "minimum": 0 },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "humor",
+                            "genre",
+                            "tone",
+                            "pace",
+                            "conflict",
+                            "reversal",
+                            "emotional_intensity",
+                            "visuality",
+                            "novelty",
+                            "production_complexity"
+                          ]
+                        },
+                        "score": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "frozen": { "type": "boolean" }
+                      },
+                      "required": ["key"]
+                    },
+                    "maxItems": 10
+                  },
+                  "avoidances": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 500 },
+                    "maxItems": 100
+                  },
+                  "goals": {
+                    "type": "array",
+                    "items": { "type": "string", "maxLength": 500 },
+                    "maxItems": 100
+                  }
+                },
+                "required": ["version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "consentedAt": { "type": "string", "format": "date-time" },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "humor",
+                              "genre",
+                              "tone",
+                              "pace",
+                              "conflict",
+                              "reversal",
+                              "emotional_intensity",
+                              "visuality",
+                              "novelty",
+                              "production_complexity"
+                            ]
+                          },
+                          "score": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "frozen": { "type": "boolean" },
+                          "evidenceIds": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "maxItems": 100
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "score",
+                          "confidence",
+                          "frozen",
+                          "evidenceIds"
+                        ]
+                      }
+                    },
+                    "avoidances": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 500 },
+                      "maxItems": 100
+                    },
+                    "goals": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 500 },
+                      "maxItems": 100
+                    },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "enabled",
+                    "dimensions",
+                    "avoidances",
+                    "goals",
+                    "version",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "creative-fingerprint.clear",
+        "tags": ["creative-intelligence"],
+        "responses": {
+          "204": { "description": "Success" },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/creative-fingerprint/settings": {
+      "put": {
+        "operationId": "creative-fingerprint.updateSettings",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "enabled": { "type": "boolean" } },
+                "required": ["enabled"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "consentedAt": { "type": "string", "format": "date-time" },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "humor",
+                              "genre",
+                              "tone",
+                              "pace",
+                              "conflict",
+                              "reversal",
+                              "emotional_intensity",
+                              "visuality",
+                              "novelty",
+                              "production_complexity"
+                            ]
+                          },
+                          "score": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "frozen": { "type": "boolean" },
+                          "evidenceIds": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "maxItems": 100
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "score",
+                          "confidence",
+                          "frozen",
+                          "evidenceIds"
+                        ]
+                      }
+                    },
+                    "avoidances": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 500 },
+                      "maxItems": 100
+                    },
+                    "goals": {
+                      "type": "array",
+                      "items": { "type": "string", "maxLength": 500 },
+                      "maxItems": 100
+                    },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "enabled",
+                    "dimensions",
+                    "avoidances",
+                    "goals",
+                    "version",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/creative-experiments": {
+      "get": {
+        "operationId": "creative-experiments.list",
+        "tags": ["creative-intelligence"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "originType": {
+                            "type": "string",
+                            "enum": ["inspiration", "corpus", "project"]
+                          },
+                          "originId": { "type": "string", "maxLength": 200 },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "prompt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 20000
+                          },
+                          "strategyVersion": { "type": "string" },
+                          "status": {
+                            "type": "string",
+                            "enum": ["draft", "ready", "completed", "rejected"]
+                          },
+                          "variants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string", "format": "uuid" },
+                                "lane": {
+                                  "type": "string",
+                                  "enum": ["conservative", "balanced", "wild"]
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
+                                },
+                                "content": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 20000
+                                },
+                                "scores": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  }
+                                },
+                                "selected": { "type": "boolean" }
+                              },
+                              "required": [
+                                "id",
+                                "lane",
+                                "title",
+                                "content",
+                                "scores",
+                                "selected"
+                              ]
+                            }
+                          },
+                          "version": { "type": "integer", "minimum": 0 },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "originType",
+                          "prompt",
+                          "strategyVersion",
+                          "status",
+                          "variants",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "creative-experiments.create",
+        "tags": ["creative-intelligence"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "originType": {
+                    "type": "string",
+                    "enum": ["inspiration", "corpus", "project"]
+                  },
+                  "originId": { "type": "string", "maxLength": 200 },
+                  "projectId": { "type": "string", "format": "uuid" },
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  }
+                },
+                "required": ["originType", "prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "originType": {
+                      "type": "string",
+                      "enum": ["inspiration", "corpus", "project"]
+                    },
+                    "originId": { "type": "string", "maxLength": 200 },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "prompt": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 20000
+                    },
+                    "strategyVersion": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": ["draft", "ready", "completed", "rejected"]
+                    },
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "lane": {
+                            "type": "string",
+                            "enum": ["conservative", "balanced", "wild"]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "content": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 20000
+                          },
+                          "scores": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            }
+                          },
+                          "selected": { "type": "boolean" }
+                        },
+                        "required": [
+                          "id",
+                          "lane",
+                          "title",
+                          "content",
+                          "scores",
+                          "selected"
+                        ]
+                      }
+                    },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "originType",
+                    "prompt",
+                    "strategyVersion",
+                    "status",
+                    "variants",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/creative-experiments/{id}/review": {
+      "post": {
+        "operationId": "creative-experiments.review",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": { "type": "integer", "minimum": 0 },
+                  "selectedVariantId": { "type": "string", "format": "uuid" },
+                  "rejected": { "type": "boolean", "default": false }
+                },
+                "required": ["version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "originType": {
+                      "type": "string",
+                      "enum": ["inspiration", "corpus", "project"]
+                    },
+                    "originId": { "type": "string", "maxLength": 200 },
+                    "projectId": { "type": "string", "format": "uuid" },
+                    "prompt": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 20000
+                    },
+                    "strategyVersion": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": ["draft", "ready", "completed", "rejected"]
+                    },
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "lane": {
+                            "type": "string",
+                            "enum": ["conservative", "balanced", "wild"]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "content": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 20000
+                          },
+                          "scores": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            }
+                          },
+                          "selected": { "type": "boolean" }
+                        },
+                        "required": [
+                          "id",
+                          "lane",
+                          "title",
+                          "content",
+                          "scores",
+                          "selected"
+                        ]
+                      }
+                    },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  },
+                  "required": [
+                    "id",
+                    "originType",
+                    "prompt",
+                    "strategyVersion",
+                    "status",
+                    "variants",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{id}/originality-risks": {
+      "get": {
+        "operationId": "originality-risks.list",
+        "tags": ["creative-intelligence"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "format": "uuid" },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "projectId": { "type": "string", "format": "uuid" },
+                          "targetType": { "type": "string" },
+                          "targetId": { "type": "string" },
+                          "severity": {
+                            "type": "string",
+                            "enum": ["info", "review", "high"]
+                          },
+                          "reason": { "type": "string" },
+                          "evidenceEdgeIds": {
+                            "type": "array",
+                            "items": { "type": "string", "format": "uuid" }
+                          },
+                          "legalConclusion": {
+                            "type": "boolean",
+                            "enum": [false]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "targetType",
+                          "targetId",
+                          "severity",
+                          "reason",
+                          "evidenceEdgeIds",
+                          "legalConclusion",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "title": { "type": "string" },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 400,
+                      "maximum": 599
+                    },
+                    "detail": { "type": "string" },
+                    "instance": { "type": "string" },
+                    "code": { "type": "string" },
+                    "traceId": { "type": "string", "format": "uuid" },
+                    "errors": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["type", "title", "status", "traceId"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/agent-engines": {
       "get": {
         "operationId": "agent-engines.list",
@@ -41053,6 +45814,70 @@
     "/api/v2/providers/{id}/test-connection": {
       "post": {
         "operationId": "providers.testConnection",
+        "tags": ["agents"],
+        "responses": {
+          "200": {
+            "description": "Agent operation response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Agent resource created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Agent operation completed" },
+          "400": {
+            "description": "Invalid request",
+            "content": { "application/problem+json": { "schema": {} } }
+          },
+          "404": {
+            "description": "Agent resource not found",
+            "content": { "application/problem+json": { "schema": {} } }
+          },
+          "409": {
+            "description": "Agent state conflict",
+            "content": { "application/problem+json": { "schema": {} } }
+          },
+          "503": {
+            "description": "Agent engine unavailable",
+            "content": { "application/problem+json": { "schema": {} } }
+          }
+        }
+      }
+    },
+    "/api/v2/assistant-web-research-settings": {
+      "get": {
+        "operationId": "assistant-web-research-settings.get",
+        "tags": ["agents"],
+        "responses": {
+          "200": {
+            "description": "Agent operation response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Agent resource created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Agent operation completed" },
+          "400": {
+            "description": "Invalid request",
+            "content": { "application/problem+json": { "schema": {} } }
+          },
+          "404": {
+            "description": "Agent resource not found",
+            "content": { "application/problem+json": { "schema": {} } }
+          },
+          "409": {
+            "description": "Agent state conflict",
+            "content": { "application/problem+json": { "schema": {} } }
+          },
+          "503": {
+            "description": "Agent engine unavailable",
+            "content": { "application/problem+json": { "schema": {} } }
+          }
+        }
+      },
+      "put": {
+        "operationId": "assistant-web-research-settings.update",
         "tags": ["agents"],
         "responses": {
           "200": {
@@ -41699,6 +46524,298 @@
             "description": "Agent engine unavailable",
             "content": { "application/problem+json": { "schema": {} } }
           }
+        }
+      }
+    },
+    "/api/v2/inspiration-cards": {
+      "get": {
+        "operationId": "inspiration-cards.list",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      },
+      "post": {
+        "operationId": "inspiration-cards.create",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-cards/{id}": {
+      "patch": {
+        "operationId": "inspiration-cards.update",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      },
+      "delete": {
+        "operationId": "inspiration-cards.remove",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-memory-settings": {
+      "get": {
+        "operationId": "inspiration-memory-settings.get",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      },
+      "put": {
+        "operationId": "inspiration-memory-settings.update",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-memories": {
+      "get": {
+        "operationId": "inspiration-memories.list",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-memory-jobs": {
+      "get": {
+        "operationId": "inspiration-memory-jobs.list",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-memories/{id}": {
+      "patch": {
+        "operationId": "inspiration-memories.update",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      },
+      "delete": {
+        "operationId": "inspiration-memories.remove",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-memories/clear": {
+      "post": {
+        "operationId": "inspiration-memories.clear",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-memories/rebuild": {
+      "post": {
+        "operationId": "inspiration-memories.rebuild",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-project-previews": {
+      "post": {
+        "operationId": "inspiration-project-previews.create",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-project-previews/{id}": {
+      "get": {
+        "operationId": "inspiration-project-previews.get",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/v2/inspiration-project-previews/{id}/commit": {
+      "post": {
+        "operationId": "inspiration-project-previews.commit",
+        "tags": ["inspiration"],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "204": { "description": "Removed" },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Not found" },
+          "409": { "description": "Conflict" }
         }
       }
     },

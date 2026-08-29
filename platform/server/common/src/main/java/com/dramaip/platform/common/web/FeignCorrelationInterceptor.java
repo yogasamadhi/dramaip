@@ -6,11 +6,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
-/** Propagates request correlation and the Seata XID header without sharing service DTOs or clients. */
+/** Propagates the public contract selection, correlation, auth and Seata XID between Java services. */
 @Component
 public class FeignCorrelationInterceptor implements RequestInterceptor {
     @Override
     public void apply(RequestTemplate template) {
+        template.header(ContractVersionFilter.HEADER, "2");
         template.header(RequestIdFilter.REQUEST_ID, RequestContext.requestId());
         template.header(RequestIdFilter.TRACE_ID, RequestContext.traceId());
         String xid = org.apache.seata.core.context.RootContext.getXID();

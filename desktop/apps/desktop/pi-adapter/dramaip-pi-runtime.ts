@@ -30,7 +30,7 @@ export type PiRuntimeEvent =
   | { type: "content.delta"; delta: string }
   | {
       type: "tool";
-      status: "started" | "completed";
+      status: "started" | "completed" | "failed";
       tool: string;
       itemId: string;
       arguments?: unknown;
@@ -253,11 +253,12 @@ function projectAgentEvent(
   if (event.type === "tool_execution_end") {
     onEvent({
       type: "tool",
-      status: "completed",
+      status: event.isError ? "failed" : "completed",
       tool: event.toolName,
       itemId: event.toolCallId,
-      result: event.result,
-      ...(event.isError ? { error: "DramaIP 工具调用失败" } : {}),
+      ...(event.isError
+        ? { error: "DramaIP 工具调用失败" }
+        : { result: event.result }),
     });
     return;
   }

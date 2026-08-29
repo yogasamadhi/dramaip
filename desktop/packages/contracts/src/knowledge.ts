@@ -124,6 +124,91 @@ export interface KnowledgeResearchService {
   ): { items: readonly ResearchTopic[]; nextCursor?: string };
 }
 
+export const WebResearchProviderSchema = z.enum([
+  "exa",
+  "parallel",
+  "duckduckgo",
+  "gdelt",
+  "wikimedia",
+]);
+export type WebResearchProvider = z.infer<typeof WebResearchProviderSchema>;
+
+export const WebResearchSearchInputSchema = z.object({
+  query: z.string().trim().min(1).max(500),
+  limit: z.number().int().min(1).max(10).default(8),
+  recencyDays: z.number().int().min(1).max(3_650).optional(),
+  domains: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(253)
+        .regex(
+          /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/iu,
+          "domain must be a public DNS name",
+        ),
+    )
+    .max(10)
+    .default([]),
+  sessionId: z.string().trim().min(1).max(200),
+});
+export type WebResearchSearchInput = z.input<
+  typeof WebResearchSearchInputSchema
+>;
+
+export const WebResearchSourceSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  url: z.string().url(),
+  excerpt: z.string().max(4_000).optional(),
+  publishedAt: z.string().max(80).optional(),
+  retrievedAt: z.string().datetime(),
+  provider: WebResearchProviderSchema,
+});
+export type WebResearchSource = z.infer<typeof WebResearchSourceSchema>;
+
+export const WebResearchSearchResponseSchema = z.object({
+  query: z.string(),
+  providers: z.array(WebResearchProviderSchema),
+  fallbackUsed: z.boolean(),
+  results: z.array(WebResearchSourceSchema).max(10),
+});
+export type WebResearchSearchResponse = z.infer<
+  typeof WebResearchSearchResponseSchema
+>;
+
+export const WebResearchReadInputSchema = z.object({
+  url: z.string().url(),
+  maxCharacters: z.number().int().min(1_000).max(50_000).default(20_000),
+});
+export type WebResearchReadInput = z.input<typeof WebResearchReadInputSchema>;
+
+export const WebResearchReadResponseSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  url: z.string().url(),
+  content: z.string().max(50_000),
+  contentType: z.string().max(200),
+  retrievedAt: z.string().datetime(),
+  truncated: z.boolean(),
+});
+export type WebResearchReadResponse = z.infer<
+  typeof WebResearchReadResponseSchema
+>;
+
+export const KNOWLEDGE_WEB_RESEARCH_SERVICE =
+  defineServiceContract<KnowledgeWebResearchService>({
+    id: "knowledge.web-research.v1",
+    owner: "knowledge",
+    major: 1,
+    capabilities: ["search", "read"],
+    degradable: true,
+  });
+
+export interface KnowledgeWebResearchService {
+  search(input: WebResearchSearchInput): Promise<WebResearchSearchResponse>;
+  read(input: WebResearchReadInput): Promise<WebResearchReadResponse>;
+}
+
 export const StoryBibleSettingsSchema = z.object({
   projectId: z.string().uuid(),
   autoSuggest: z.boolean(),

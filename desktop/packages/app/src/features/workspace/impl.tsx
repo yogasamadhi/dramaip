@@ -20,6 +20,7 @@ import {
   InlineNotice,
   Input,
   LoadingState,
+  Select,
   Textarea,
   confirmDialog,
 } from "@dramaip/ui-shared";
@@ -27,6 +28,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deriveProjectCockpit } from "../../project-cockpit";
+import {
+  PROJECT_GENRE_CHOICES,
+  PROJECT_GENRE_GROUPS,
+} from "../../project-genres";
 import {
   defaultProductionBrief,
   positiveInteger,
@@ -1330,17 +1335,18 @@ export function ProjectHome() {
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="mt-4 grid gap-1 text-sm">
-                <span>
+              <div className="mt-4 grid gap-1 text-sm">
+                <label htmlFor="new-project-title">
                   项目名称 <span className="text-rust">必填</span>
-                </span>
+                </label>
                 <Input
+                  id="new-project-title"
                   autoFocus={false}
                   placeholder={`例如：我的${projectModeLabel(projectMode)}项目`}
                   value={brief.title}
                   onChange={(event) => updateBrief("title", event.target.value)}
                 />
-              </label>
+              </div>
               {projectMode === "creator_channel" && (
                 <label className="mt-4 grid gap-1 text-sm">
                   <span>
@@ -1354,11 +1360,9 @@ export function ProjectHome() {
                   />
                 </label>
               )}
-              {projectMode !== "creator_channel" && (
+              {projectMode === "personal_theater" && (
                 <label className="mt-4 grid gap-1 text-sm">
-                  {projectMode === "personal_theater"
-                    ? "故事类型（可选）"
-                    : "题材方向（可选）"}
+                  故事类型（可选）
                   <Input
                     value={brief.shortDramaType}
                     onChange={(event) => {
@@ -1368,7 +1372,68 @@ export function ProjectHome() {
                   />
                 </label>
               )}
+              {(projectMode === "series_longform" ||
+                projectMode === "single_season") && (
+                <div className="mt-4 grid gap-1 text-sm">
+                  <label htmlFor="new-project-genre">题材方向（可选）</label>
+                  <Select
+                    id="new-project-genre"
+                    value={brief.shortDramaType || "__unspecified__"}
+                    options={[
+                      { value: "__unspecified__", label: "暂不选择" },
+                      ...PROJECT_GENRE_GROUPS.flatMap((group) =>
+                        group.genres.map((genre) => ({
+                          value: genre,
+                          label: genre,
+                          group: group.label,
+                        })),
+                      ),
+                      ...(brief.shortDramaType &&
+                      !PROJECT_GENRE_CHOICES.some(
+                        (genre) => genre === brief.shortDramaType,
+                      )
+                        ? [
+                            {
+                              value: brief.shortDramaType,
+                              label: brief.shortDramaType,
+                              group: "其他",
+                            },
+                          ]
+                        : []),
+                    ]}
+                    onValueChange={(value) => {
+                      const nextValue =
+                        value === "__unspecified__" ? "" : value;
+                      if (storyPresetId) clearStoryPreset(nextValue);
+                      else updateBrief("shortDramaType", nextValue);
+                    }}
+                  />
+                </div>
+              )}
             </div>
+            <p className="mt-2 text-xs leading-5 text-muted">
+              还没有想好项目名称？可以先去
+              <Link
+                className="mx-1 font-medium text-brand-strong underline-offset-2 hover:underline"
+                to="/inspiration"
+              >
+                灵感空间
+              </Link>
+              ，或打开
+              <BareButton
+                type="button"
+                aria-label="打开智能助手获取灵感"
+                className="mx-1 font-medium text-brand-strong underline-offset-2 hover:underline"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("dramaip:open-assistant-conversation"),
+                  )
+                }
+              >
+                智能助手
+              </BareButton>
+              获取灵感，再回来创建项目。
+            </p>
             {creationSource === "inspiration" &&
               (projectMode === "series_longform" ||
                 projectMode === "single_season") && (

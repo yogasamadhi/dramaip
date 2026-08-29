@@ -62,6 +62,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavLink href="/account" current={pathname.startsWith('/account')}>
               工作区
             </NavLink>
+            <NavLink href="/inspiration" current={pathname.startsWith('/inspiration')}>
+              灵感空间
+            </NavLink>
             {hasSession ? (
               <>
                 <span className="hidden max-w-40 truncate text-slate-500 sm:inline">

@@ -360,6 +360,18 @@
     "owner": "agents"
   },
   {
+    "method": "get",
+    "path": "/api/v2/assistant-web-research-settings",
+    "operationId": "assistant-web-research-settings.get",
+    "owner": "agents"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/assistant-web-research-settings",
+    "operationId": "assistant-web-research-settings.update",
+    "owner": "agents"
+  },
+  {
     "method": "post",
     "path": "/api/v2/audio-tracks",
     "operationId": "episode-media.createAudioTrack",
@@ -676,6 +688,84 @@
     "path": "/api/v2/content-versions/{id}/restore",
     "operationId": "content-versions.restore",
     "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creative-corpus/collections",
+    "operationId": "creative-collections.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative-corpus/collections",
+    "operationId": "creative-collections.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creative-corpus/items",
+    "operationId": "creative-corpus.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative-corpus/items",
+    "operationId": "creative-corpus.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creative-corpus/items/{id}",
+    "operationId": "creative-corpus.update",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative-corpus/snapshots/import",
+    "operationId": "creative-corpus.importSnapshot",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creative-experiments",
+    "operationId": "creative-experiments.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative-experiments",
+    "operationId": "creative-experiments.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/creative-experiments/{id}/review",
+    "operationId": "creative-experiments.review",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/creative-fingerprint",
+    "operationId": "creative-fingerprint.clear",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creative-fingerprint",
+    "operationId": "creative-fingerprint.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/creative-fingerprint",
+    "operationId": "creative-fingerprint.update",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/creative-fingerprint/settings",
+    "operationId": "creative-fingerprint.updateSettings",
+    "owner": "creative-quality"
   },
   {
     "method": "get",
@@ -1291,6 +1381,96 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/inspiration-cards",
+    "operationId": "inspiration-cards.list",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/inspiration-cards",
+    "operationId": "inspiration-cards.create",
+    "owner": "agents"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/inspiration-cards/{id}",
+    "operationId": "inspiration-cards.remove",
+    "owner": "agents"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/inspiration-cards/{id}",
+    "operationId": "inspiration-cards.update",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/inspiration-memories",
+    "operationId": "inspiration-memories.list",
+    "owner": "agents"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/inspiration-memories/{id}",
+    "operationId": "inspiration-memories.remove",
+    "owner": "agents"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/inspiration-memories/{id}",
+    "operationId": "inspiration-memories.update",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/inspiration-memories/clear",
+    "operationId": "inspiration-memories.clear",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/inspiration-memories/rebuild",
+    "operationId": "inspiration-memories.rebuild",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/inspiration-memory-jobs",
+    "operationId": "inspiration-memory-jobs.list",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/inspiration-memory-settings",
+    "operationId": "inspiration-memory-settings.get",
+    "owner": "agents"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/inspiration-memory-settings",
+    "operationId": "inspiration-memory-settings.update",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/inspiration-project-previews",
+    "operationId": "inspiration-project-previews.create",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/inspiration-project-previews/{id}",
+    "operationId": "inspiration-project-previews.get",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/inspiration-project-previews/{id}/commit",
+    "operationId": "inspiration-project-previews.commit",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/inspirations",
     "operationId": "inspirations.list",
     "owner": "automation"
@@ -1567,6 +1747,12 @@
   },
   {
     "method": "post",
+    "path": "/api/v2/projects/{id}/audience-knowledge",
+    "operationId": "audience-knowledge.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
     "path": "/api/v2/projects/{id}/chapters/continue",
     "operationId": "novel-workspace.continueChapter",
     "owner": "writing"
@@ -1632,10 +1818,22 @@
     "owner": "workspace"
   },
   {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/ip-twin",
+    "operationId": "ip-twin.build",
+    "owner": "knowledge"
+  },
+  {
     "method": "get",
     "path": "/api/v2/projects/{id}/novel-workspace",
     "operationId": "novel-workspace.get",
     "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/originality-risks",
+    "operationId": "originality-risks.list",
+    "owner": "creative-quality"
   },
   {
     "method": "get",
@@ -1695,6 +1893,30 @@
     "method": "get",
     "path": "/api/v2/projects/{id}/story-bible/stale",
     "operationId": "story-bible.stale",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/story-graph",
+    "operationId": "story-graph.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/story-graph/edges",
+    "operationId": "story-graph.createEdge",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/story-graph/nodes",
+    "operationId": "story-graph.createNode",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/story-simulations",
+    "operationId": "story-simulations.create",
     "owner": "knowledge"
   },
   {
@@ -1804,6 +2026,18 @@
     "path": "/api/v2/projects/trash",
     "operationId": "projects.listTrash",
     "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/provenance",
+    "operationId": "provenance.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/provenance",
+    "operationId": "provenance.create",
+    "owner": "knowledge"
   },
   {
     "method": "get",

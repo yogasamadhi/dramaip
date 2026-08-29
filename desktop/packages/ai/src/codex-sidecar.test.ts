@@ -9,6 +9,7 @@ test("Codex Sidecar 重启后先恢复持久线程再继续运行", async () => 
   const directory = await mkdtemp(join(tmpdir(), "dramaip-codex-sidecar-"));
   const runtimeEntry = join(directory, "fake-codex.cjs");
   const rpcLog = join(directory, "rpc.log");
+  const tokenLog = join(directory, "mcp-tokens.log");
   await writeFile(
     runtimeEntry,
     String.raw`#!${process.execPath}
@@ -18,6 +19,8 @@ const readline = require("node:readline");
 const home = process.env.CODEX_HOME;
 const persistedPath = path.join(home, "fake-threads.json");
 const logPath = path.join(path.dirname(home), "rpc.log");
+const tokenLogPath = path.join(path.dirname(home), "mcp-tokens.log");
+fs.appendFileSync(tokenLogPath, String(process.env.DRAMAIP_MCP_TOKEN || "missing") + "\n");
 let persisted = new Set();
 try { persisted = new Set(JSON.parse(fs.readFileSync(persistedPath, "utf8"))); } catch {}
 const loaded = new Set();
@@ -169,6 +172,11 @@ input.on("line", line => {
         engineSessionId: sessionId,
         runId: "run-after-restart",
         prompt: "hello",
+        capabilityGrant: {
+          endpoint: "http://127.0.0.1:1/internal/mcp",
+          token: "run-scoped-web-grant",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        },
       },
     });
     const run = await next(
@@ -184,6 +192,8 @@ input.on("line", line => {
     const turnIndex = methods.lastIndexOf("turn/start");
     expect(resumeIndex).toBeGreaterThan(-1);
     expect(turnIndex).toBeGreaterThan(resumeIndex);
+    const mcpTokens = (await readFile(tokenLog, "utf8")).trim().split("\n");
+    expect(mcpTokens.at(-1)).toBe("run-scoped-web-grant");
 
     send({ type: "stop" });
     await next((message) => message.type === "stopped");

@@ -13,6 +13,11 @@ import {
   type RuntimeMode,
 } from "@dramaip/contracts";
 import {
+  KNOWLEDGE_WEB_RESEARCH_SERVICE,
+  type KnowledgeWebResearchService,
+  type WebResearchSearchInput,
+} from "@dramaip/contracts/knowledge";
+import {
   parseProfileDefinition,
   resolveEffectiveGraph,
   type EffectiveRuntimeGraph,
@@ -274,29 +279,98 @@ export async function bootRuntime(
     accessToken,
     allowedOrigins: config.allowedOrigins ?? [],
     engineMcpTokens: config.engineMcpTokens,
-    capabilityGrantAuthorized: (authorization) => {
+    capabilityGrantResolve: (authorization) => {
       const token = authorization?.startsWith("Bearer ")
         ? authorization.slice("Bearer ".length)
         : "";
-      if (!token || token.length > 256) return false;
+      if (!token || token.length > 256) return undefined;
       try {
         const grant = database.sqlite
           .prepare(
-            `SELECT expires_at, consumed_at FROM agent_capability_grants
+            `SELECT id, run_id, expires_at, consumed_at, capabilities_json
+             FROM agent_capability_grants
              WHERE id = ? LIMIT 1`,
           )
           .get(token) as
-          { expires_at: string; consumed_at: string | null } | undefined;
-        return Boolean(
-          grant &&
-          grant.consumed_at === null &&
-          Date.parse(grant.expires_at) > Date.now(),
-        );
+          | {
+              id: string;
+              run_id: string;
+              expires_at: string;
+              consumed_at: string | null;
+              capabilities_json: string;
+            }
+          | undefined;
+        if (
+          !grant ||
+          grant.consumed_at !== null ||
+          Date.parse(grant.expires_at) <= Date.now()
+        )
+          return undefined;
+        const parsed = JSON.parse(grant.capabilities_json) as unknown;
+        if (
+          !Array.isArray(parsed) ||
+          !parsed.every(
+            (capability) =>
+              typeof capability === "string" && capability.length <= 100,
+          )
+        )
+          return undefined;
+        const activeRun = ["queued", "preparing", "running"].some((status) => {
+          const assistant = database.sqlite
+            .prepare(
+              "SELECT 1 AS active FROM agent_assistant_runs WHERE id = ? AND status = ? LIMIT 1",
+            )
+            .get(grant.run_id, status);
+          if (assistant) return true;
+          try {
+            return Boolean(
+              database.sqlite
+                .prepare(
+                  "SELECT 1 AS active FROM agent_runs WHERE id = ? AND status = ? LIMIT 1",
+                )
+                .get(grant.run_id, status),
+            );
+          } catch {
+            return false;
+          }
+        });
+        if (!grant.run_id || !activeRun) return undefined;
+        return {
+          grantId: grant.id,
+          runId: grant.run_id,
+          expiresAt: grant.expires_at,
+          capabilities: parsed,
+        };
       } catch {
         // The grants table is installed by the agents migration. Before that
         // migration has completed no scoped grant can be valid.
-        return false;
+        return undefined;
       }
+    },
+    engineMcpToolCall: async ({ runId, name, arguments: input }) => {
+      const service = kernel?.service<KnowledgeWebResearchService>(
+        KNOWLEDGE_WEB_RESEARCH_SERVICE,
+      );
+      if (!service)
+        throw new Error("CAPABILITY_UNAVAILABLE: Web Research 服务未加载");
+      if (name === "dramaip_web_search") {
+        let sessionId = runId;
+        try {
+          const row = database.sqlite
+            .prepare(
+              "SELECT session_id FROM agent_assistant_runs WHERE id = ? LIMIT 1",
+            )
+            .get(runId) as { session_id?: string } | undefined;
+          if (row?.session_id) sessionId = row.session_id;
+        } catch {
+          // Non-conversation runs use their run id for stable provider routing.
+        }
+        return service.search({
+          ...(input as WebResearchSearchInput),
+          sessionId,
+        });
+      }
+      return service.read(input as { url: string; maxCharacters?: number });
     },
     extensionCapabilityHandler: (authorization, call, traceId) =>
       extensionPlatform.broker.handle(authorization, call, traceId),

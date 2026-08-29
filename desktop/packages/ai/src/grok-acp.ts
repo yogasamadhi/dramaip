@@ -138,7 +138,19 @@ export function isGrokReadOnlyToolset(value: unknown): boolean {
   );
 }
 
-export function mapGrokSessionUpdate(value: unknown): GrokNormalizedEvent[] {
+function normalizedMcpToolName(value: unknown): string {
+  const name = String(value ?? "");
+  if (/dramaip_web_search|搜索公开网络|web.?search/iu.test(name))
+    return "dramaip_web_search";
+  if (/dramaip_read_web_page|读取公开网页|read.?web/iu.test(name))
+    return "dramaip_read_web_page";
+  return name || "DramaIP 只读工具";
+}
+
+export function mapGrokSessionUpdate(
+  value: unknown,
+  toolNames?: Map<string, string>,
+): GrokNormalizedEvent[] {
   const params = record(value);
   const update = record(params?.update);
   if (!update) return [];
@@ -155,11 +167,13 @@ export function mapGrokSessionUpdate(value: unknown): GrokNormalizedEvent[] {
   }
   if (updateType === "tool_call") {
     const itemId = String(update.toolCallId ?? update.id ?? "tool");
+    const tool = normalizedMcpToolName(update.title ?? update.kind);
+    toolNames?.set(itemId, tool);
     return [
       {
         type: "tool",
         status: "started",
-        tool: String(update.title ?? update.kind ?? "DramaIP 只读工具"),
+        tool,
         server: "dramaip",
         itemId,
         arguments: update.rawInput ?? update.input ?? {},
@@ -170,13 +184,18 @@ export function mapGrokSessionUpdate(value: unknown): GrokNormalizedEvent[] {
   if (updateType === "tool_call_update") {
     const status = String(update.status ?? "in_progress");
     if (!["completed", "failed"].includes(status)) return [];
+    const itemId = String(update.toolCallId ?? update.id ?? "tool");
+    const tool = normalizedMcpToolName(
+      update.title ?? update.kind ?? toolNames?.get(itemId),
+    );
+    toolNames?.delete(itemId);
     return [
       {
         type: "tool",
         status: "completed",
-        tool: String(update.title ?? update.kind ?? "DramaIP 只读工具"),
+        tool,
         server: "dramaip",
-        itemId: String(update.toolCallId ?? update.id ?? "tool"),
+        itemId,
         result: update.rawOutput ?? update.content ?? {},
         ...(status === "failed" ? { error: "DramaIP 只读工具调用失败" } : {}),
       },
@@ -196,6 +215,7 @@ export class GrokAcpClient {
   private closing = false;
   private toolsetError: Error | undefined;
   private toolsetValidated = false;
+  private readonly toolNames = new Map<string, string>();
 
   constructor(private readonly options: GrokAcpOptions) {}
 
@@ -325,7 +345,7 @@ export class GrokAcpClient {
     const listener = (params: unknown): void => {
       const message = record(params);
       if (message?.sessionId !== sessionId) return;
-      for (const event of mapGrokSessionUpdate(params)) {
+      for (const event of mapGrokSessionUpdate(params, this.toolNames)) {
         if (event.type === "content.delta") text += String(event.delta ?? "");
         onEvent(event);
       }
@@ -349,6 +369,33 @@ export class GrokAcpClient {
     } finally {
       this.updateListeners.delete(listener);
     }
+  }
+
+  async rebindSessionMcp(sessionId: string, token: string): Promise<string> {
+    if (!sessionId || !token) throw new Error("Grok MCP 会话授权不完整");
+    const result = record(
+      await this.request("session/load", {
+        sessionId,
+        cwd: this.options.cwd,
+        mcpServers: [
+          {
+            name: "dramaip",
+            type: "http",
+            url: this.options.mcp.url,
+            headers: [{ name: "Authorization", value: `Bearer ${token}` }],
+          },
+        ],
+        _meta: {
+          agentProfile: GROK_READ_ONLY_AGENT_PROFILE,
+          pluginDirs: [],
+        },
+      }),
+    );
+    const loadedId = result?.sessionId;
+    if (typeof loadedId !== "string" || !loadedId)
+      throw new Error("Grok MCP 会话重新授权失败");
+    this.currentSessionId = loadedId;
+    return loadedId;
   }
 
   async cancel(): Promise<void> {

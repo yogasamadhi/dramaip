@@ -1,5 +1,6 @@
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
+import type { AutomationResourceService } from "@dramaip/contracts/automation";
 import {
   defineRouteContribution,
   type PluginContext,
@@ -21,6 +22,7 @@ interface ResourceRow {
   version: number;
   created_at: string;
   updated_at: string;
+  source_ref: string | null;
 }
 
 interface TemplateRow {
@@ -607,4 +609,72 @@ export const automationResourceMigrations = [
         ON automation_resources(project_id, kind, updated_at DESC, id);
     `,
   },
+  {
+    id: "automation.0005.resource-source-ref",
+    pluginId: "automation",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["automation.0004.resources"],
+    sql: `
+      ALTER TABLE automation_resources ADD COLUMN source_ref TEXT;
+      CREATE UNIQUE INDEX automation_resources_source_ref
+        ON automation_resources(kind, project_id, source_ref)
+        WHERE source_ref IS NOT NULL;
+    `,
+  },
 ] as const;
+
+export function automationResourceService(
+  context: PluginContext,
+): AutomationResourceService {
+  const find = (projectId: string, sourceRef: string) =>
+    context.uow.execute((transaction) =>
+      transaction.get<{ id: string; project_id: string; source_ref: string }>(
+        `SELECT id, project_id, source_ref FROM automation_resources
+         WHERE kind = 'inspirations' AND project_id = ? AND source_ref = ?`,
+        projectId,
+        sourceRef,
+      ),
+    );
+  return {
+    getInspirationBySource(projectId, sourceRef) {
+      const row = find(projectId, sourceRef);
+      return row
+        ? { id: row.id, projectId: row.project_id, sourceRef: row.source_ref }
+        : undefined;
+    },
+    createInspiration(input) {
+      const existing = find(input.projectId, input.sourceRef);
+      if (existing)
+        return {
+          id: existing.id,
+          projectId: existing.project_id,
+          sourceRef: existing.source_ref,
+        };
+      return context.uow.execute((transaction) => {
+        const id = crypto.randomUUID();
+        const at = new Date().toISOString();
+        transaction.run(
+          `INSERT INTO automation_resources(
+            id, kind, project_id, parent_id, title, payload_json,
+            version, created_at, updated_at, source_ref
+          ) VALUES (?, 'inspirations', ?, NULL, ?, ?, 0, ?, ?, ?)`,
+          id,
+          input.projectId,
+          input.title,
+          JSON.stringify(input.payload),
+          at,
+          at,
+          input.sourceRef,
+        );
+        const value = toResource(
+          transaction.get<ResourceRow>(
+            "SELECT * FROM automation_resources WHERE id = ?",
+            id,
+          )!,
+        );
+        append(transaction, "inspirations-created", value);
+        return { id, projectId: input.projectId, sourceRef: input.sourceRef };
+      });
+    },
+  };
+}

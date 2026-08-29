@@ -31,6 +31,13 @@ public class AdminController {
         AdminService.Principal actor = admin.require(authentication, null);
         return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(admin.createConfirmation(actor, request.action(), request.targetId(), request.reason())));
     }
+    @PostMapping("/confirmations/{confirmationId}/consume")
+    public Result<AdminService.ConsumedConfirmation> consumeConfirmation(
+            Authentication authentication, @PathVariable String confirmationId,
+            @Valid @RequestBody ConsumeConfirmationRequest request) {
+        return Result.ok(admin.consumeConfirmation(admin.require(authentication, null), confirmationId,
+                request.action(), request.targetId()));
+    }
     @PostMapping("/principals/{principalId}/suspend")
     public Result<AdminService.Principal> suspend(Authentication authentication, @PathVariable String principalId, @Valid @RequestBody SuspendRequest request) {
         return Result.ok(admin.suspend(admin.require(authentication, "principal.write"), principalId, request.confirmationId()));
@@ -42,5 +49,6 @@ public class AdminController {
 
     public record LoginRequest(@NotBlank String email, @NotBlank String password) { }
     public record ConfirmationRequest(@NotBlank String action, @NotBlank String targetId, @NotBlank String reason) { }
+    public record ConsumeConfirmationRequest(@NotBlank String action, @NotBlank String targetId) { }
     public record SuspendRequest(@NotBlank String confirmationId) { }
 }

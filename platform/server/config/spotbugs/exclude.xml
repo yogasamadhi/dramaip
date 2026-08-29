@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- PostgreSQL role DDL cannot parameterize role identifiers. The role names
+         come from a closed constant list and the only external value is escaped
+         as a SQL string literal by MigrationRunner.quote(). -->
+    <Match>
+        <Class name="com.dramaip.platform.migration.MigrationRunner"/>
+        <Method name="bootstrapRoles"/>
+        <Bug pattern="SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE"/>
+    </Match>
+</FindBugsFilter>

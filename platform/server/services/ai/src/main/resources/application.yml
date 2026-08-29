@@ -23,6 +23,21 @@ dramaip:
     base-url: "${AI_PROVIDER_BASE_URL:}"
     api-key: "${AI_PROVIDER_API_KEY:}"
     models: "${AI_MODELS:}"
+  corpus:
+    crawler-enabled: ${CORPUS_CRAWLER_ENABLED:false}
+    public-search-enabled: ${CORPUS_PUBLIC_SEARCH_ENABLED:false}
+    personalization-enabled: ${CORPUS_PERSONALIZATION_ENABLED:false}
+    experiments-enabled: ${CORPUS_EXPERIMENTS_ENABLED:false}
+    max-bytes: ${CORPUS_MAX_BYTES:2097152}
+    max-redirects: ${CORPUS_MAX_REDIRECTS:5}
+    max-depth: ${CORPUS_MAX_DEPTH:2}
+    minimum-domain-delay-ms: ${CORPUS_MINIMUM_DOMAIN_DELAY_MS:1000}
+    user-agent: "${CORPUS_USER_AGENT:DramaIP-Creative-Corpus/1.0}"
+    encryption-key-base64: "${CORPUS_ENCRYPTION_KEY_BASE64:}"
+    encryption-key-version: "${CORPUS_ENCRYPTION_KEY_VERSION:v1}"
+    snapshot-private-key-pem: "${CORPUS_SNAPSHOT_PRIVATE_KEY_PEM:}"
+  internal:
+    token: "${DRAMAIP_INTERNAL_TOKEN:}"
 seata:
   application-id: ${spring.application.name}
   enable-auto-data-source-proxy: false

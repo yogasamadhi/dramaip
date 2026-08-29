@@ -92,6 +92,11 @@ const LazyAgentSidePanel = lazy(() =>
     default: module.AgentSidePanelFeature,
   })),
 );
+const LazyInspirationSpace = lazy(() =>
+  import("./features/agents").then((module) => ({
+    default: module.InspirationSpaceFeature,
+  })),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5_000, retry: 1 } },
@@ -242,6 +247,9 @@ function Studio(props: { uiContributions: readonly UiContributionMetadata[] }) {
         )}
         {routeEnabled("automation.route.tasks") && (
           <Route path="/tasks" element={<LazyTaskPage />} />
+        )}
+        {routeEnabled("agents.route.inspiration") && (
+          <Route path="/inspiration" element={<LazyInspirationSpace />} />
         )}
         {routeEnabled("system.route.settings") && (
           <Route path="/settings" element={<LazySettingsPage />} />

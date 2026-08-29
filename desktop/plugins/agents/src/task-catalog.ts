@@ -7,6 +7,37 @@ export interface AgentTaskDescriptor {
   allowedTools: readonly string[];
 }
 
+export function taskPrompt(taskType: string, userPrompt: string): string {
+  if (taskType === "writing_room_review")
+    return [
+      "你正在执行 DramaIP AI 编剧室的单模型多角色评议。不要展示隐藏思维过程。",
+      "请依次、彼此隔离地给出六个角色的可见结论：主编、人物编辑、冲突与喜剧编辑、世界逻辑编辑、受众编辑、视觉制作编辑。",
+      "最后由主编整合为：共同意见、分歧矩阵、必须修复、可选尝试、被否决建议。",
+      "每条建议必须有稳定编号，明确影响范围、理由、风险与预估制作复杂度；不得自动修改项目，只有用户勾选后才可进入 Preview/Commit。",
+      "受众判断是带假设和不确定性的顾问意见，不得声称真实市场预测。",
+      `用户要求：${userPrompt}`,
+    ].join("\n");
+  if (taskType === "simulate_audience_reaction")
+    return [
+      "请使用至少三种版本化受众画像形成顾问报告。",
+      "逐一列出画像、输入假设、可能反应、认知状态与不确定性；不得声称这是真实市场预测。",
+      `用户要求：${userPrompt}`,
+    ].join("\n");
+  if (taskType === "extract_foreshadowing")
+    return [
+      "请按伏笔生命周期输出：埋设、强化、误导、揭示、回收、废弃。",
+      "记录计划章节、实际证据、逾期状态，并检查提前泄露、无依据推理、过晚回收和认知冲突。",
+      `用户要求：${userPrompt}`,
+    ].join("\n");
+  if (taskType === "analyze_text_quality")
+    return [
+      "请区分结构相似与表达相似，列出需要复核的证据区段和来源链。",
+      "不得输出抄袭、侵权或法律安全结论；最终采用权属于用户。",
+      `用户要求：${userPrompt}`,
+    ].join("\n");
+  return userPrompt;
+}
+
 const labels = {
   chapter_diagnostic: "章节诊断",
   chapter_revision: "章节修订预览",

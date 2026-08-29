@@ -50,6 +50,7 @@ if (!parentPort || !runtimeVersions.electron || Boolean(runtimeVersions.bun))
   throw new Error("Codex 引擎必须作为 Electron utilityProcess 运行");
 
 let startCommand: StartCommand | undefined;
+let activeMcpToken: string | undefined;
 let appServer: ChildProcessWithoutNullStreams | undefined;
 let rpcSequence = 0;
 let runtimeApiKey: string | undefined;
@@ -105,6 +106,7 @@ async function start(command: StartCommand): Promise<void> {
       return;
     }
     startCommand = command;
+    activeMcpToken = command.mcp.token;
     await mkdir(command.codexHome, { recursive: true, mode: 0o700 });
     await mkdir(command.sessionRoot, { recursive: true, mode: 0o700 });
     await launchAppServer();
@@ -158,7 +160,7 @@ async function launchAppServer(): Promise<void> {
   ])
     if (process.env[key]) env[key] = process.env[key];
   env.CODEX_HOME = startCommand.codexHome;
-  env.DRAMAIP_MCP_TOKEN = startCommand.mcp.token;
+  env.DRAMAIP_MCP_TOKEN = activeMcpToken ?? startCommand.mcp.token;
   let providerBaseUrl = runtimeProvider?.baseUrl;
   let providerEnvKey = "DRAMAIP_CODEX_PROVIDER_API_KEY";
   if (runtimeProvider?.protocol === "chat_completions") {
@@ -727,6 +729,13 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
       ? String((payload.model as Record<string, unknown>).modelId ?? "").trim()
       : "";
   if (!threadId || !runId || !prompt) throw new Error("Codex 运行参数不完整");
+  if (activeRuns.size > 0)
+    throw new Error("Codex 当前正在执行另一项任务，请稍后重试");
+  const grant = capabilityGrantFrom(payload);
+  if (grant && activeMcpToken !== grant.token) {
+    activeMcpToken = grant.token;
+    await restartAppServer();
+  }
   await ensureThreadLoaded(threadId, model);
   if (activeRuns.has(threadId))
     throw new Error("Codex Thread 已有运行中的任务");
@@ -760,6 +769,23 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
     activeRuns.delete(threadId);
     throw error;
   }
+}
+
+function capabilityGrantFrom(
+  payload: Record<string, unknown>,
+): { token: string; expiresAt: string } | undefined {
+  const value = payload.capabilityGrant;
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.token !== "string" ||
+    !record.token ||
+    typeof record.expiresAt !== "string" ||
+    Date.parse(record.expiresAt) <= Date.now()
+  )
+    return undefined;
+  return { token: record.token, expiresAt: record.expiresAt };
 }
 
 async function persistRunLocation(

@@ -61,6 +61,14 @@
       "owner": "agents"
     },
     {
+      "type": "agents.inspiration-card-created.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.inspiration-memory-completed.v1",
+      "owner": "agents"
+    },
+    {
       "type": "agents.project-engine-default-updated.v1",
       "owner": "agents"
     },
@@ -110,6 +118,10 @@
     },
     {
       "type": "agents.session-forked.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.web-research-consent-updated.v1",
       "owner": "agents"
     },
     {

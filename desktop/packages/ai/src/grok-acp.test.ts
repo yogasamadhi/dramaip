@@ -22,52 +22,62 @@ afterEach(async () => {
 
 describe("Grok ACP protocol adapter", () => {
   test("maps streamed text, tool calls, completion and usage", () => {
+    const toolNames = new Map<string, string>();
     expect(
-      mapGrokSessionUpdate({
-        sessionId: "s1",
-        update: {
-          sessionUpdate: "agent_message_chunk",
-          content: { type: "text", text: "hello" },
+      mapGrokSessionUpdate(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: "hello" },
+          },
+          _meta: { usage: { inputTokens: 12, outputTokens: 4 } },
         },
-        _meta: { usage: { inputTokens: 12, outputTokens: 4 } },
-      }),
+        toolNames,
+      ),
     ).toEqual([
       { type: "content.delta", delta: "hello" },
       { type: "usage", inputTokens: 12, outputTokens: 4, cachedTokens: 0 },
     ]);
     expect(
-      mapGrokSessionUpdate({
-        update: {
-          sessionUpdate: "tool_call",
-          toolCallId: "call-1",
-          title: "DramaIP MCP",
-          rawInput: { projectId: "p1" },
+      mapGrokSessionUpdate(
+        {
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "call-1",
+            title: "dramaip_web_search",
+            rawInput: { projectId: "p1" },
+          },
         },
-      }),
+        toolNames,
+      ),
     ).toEqual([
       {
         type: "tool",
         status: "started",
-        tool: "DramaIP MCP",
+        tool: "dramaip_web_search",
         server: "dramaip",
         itemId: "call-1",
         arguments: { projectId: "p1" },
       },
     ]);
     expect(
-      mapGrokSessionUpdate({
-        update: {
-          sessionUpdate: "tool_call_update",
-          toolCallId: "call-1",
-          status: "completed",
-          rawOutput: { rows: 1 },
+      mapGrokSessionUpdate(
+        {
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "call-1",
+            status: "completed",
+            rawOutput: { rows: 1 },
+          },
         },
-      }),
+        toolNames,
+      ),
     ).toEqual([
       {
         type: "tool",
         status: "completed",
-        tool: "DramaIP 只读工具",
+        tool: "dramaip_web_search",
         server: "dramaip",
         itemId: "call-1",
         result: { rows: 1 },
@@ -106,12 +116,14 @@ describe("Grok ACP protocol adapter", () => {
     const directory = await mkdtemp(join(tmpdir(), "dramaip-grok-acp-"));
     temporaryDirectories.push(directory);
     const marker = join(directory, "reverse-rpc.txt");
+    const grantMarker = join(directory, "run-grant.txt");
     const server = join(directory, "fake-grok.mjs");
     await writeFile(
       server,
       `import { createInterface } from "node:readline";
 import { appendFileSync } from "node:fs";
 const marker = ${JSON.stringify(marker)};
+const grantMarker = ${JSON.stringify(grantMarker)};
 const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
 for await (const line of createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
@@ -123,6 +135,10 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (message.method === "session/new") {
     send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s1", update: { sessionUpdate: "available_commands_update", availableCommands: [], _meta: { tools: ["search_tool", "use_tool"] } } } });
     send({ jsonrpc: "2.0", id: message.id, result: { sessionId: "s1" } });
+  }
+  if (message.method === "session/load") {
+    appendFileSync(grantMarker, JSON.stringify(message.params));
+    send({ jsonrpc: "2.0", id: message.id, result: { sessionId: message.params.sessionId } });
   }
   if (message.method === "session/prompt") {
     send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s1", update: { sessionUpdate: "available_commands_update", availableCommands: [], _meta: { tools: [] } } } });
@@ -155,6 +171,10 @@ for await (const line of createInterface({ input: process.stdin })) {
       client as unknown as { options: { binaryPath: string } }
     ).options.binaryPath = wrapper;
     await client.start();
+    expect(await client.rebindSessionMcp("s1", "run-grant-token")).toBe("s1");
+    const grantRequest = await readFile(grantMarker, "utf8");
+    expect(grantRequest).toContain("Bearer run-grant-token");
+    expect(grantRequest).not.toContain("Bearer mcp-token");
     const events: Record<string, unknown>[] = [];
     await client.run("hello", (event) => events.push(event));
     expect(events).toEqual([

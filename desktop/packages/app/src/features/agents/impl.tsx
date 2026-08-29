@@ -36,6 +36,8 @@ import {
   AssistantMessageContent,
   AssistantStageSummary,
   AssistantToolActivity,
+  AssistantWebAccessControl,
+  AssistantWebSourceCards,
   useAssistantAutoScroll,
 } from "../assistant-message-content";
 import {
@@ -77,6 +79,12 @@ export function AgentSidePanel() {
     useState<AgentTaskType>("chapter_diagnostic");
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [webAccessMode, setWebAccessMode] = useState<"auto" | "off">("auto");
+  const { data: webResearchSettings, refetch: refetchWebResearchSettings } =
+    useQuery({
+      queryKey: ["assistant-web-research-settings"],
+      queryFn: client.assistantConversations.getWebResearchSettings,
+    });
   const detailRequestRef = useRef<string | undefined>(undefined);
   const initializedNewConversationEngineRef = useRef(false);
   const assistantScroll = useAssistantAutoScroll(detail, conversationId);
@@ -107,6 +115,7 @@ export function AgentSidePanel() {
     setDetail(undefined);
     setEngineKind(nextEngineKind ?? defaultEngine?.kind ?? engineKind);
     setModelId("");
+    setWebAccessMode("auto");
     setNotice(undefined);
     window.localStorage.removeItem("dramaip-global-assistant-conversation");
   };
@@ -156,9 +165,46 @@ export function AgentSidePanel() {
     setDetail(value);
     setEngineKind(value.conversation.engineKind);
     setModelId(value.conversation.model?.modelId ?? "");
+    setWebAccessMode(value.conversation.webAccessMode);
     if (value.conversation.projectId)
       setProjectId(value.conversation.projectId);
     return value;
+  };
+
+  const requestWebResearchConsent = async (): Promise<boolean> => {
+    if (webResearchSettings?.consented) return true;
+    const consented = await confirmDialog(
+      "联网搜索会把本轮生成的搜索词，以及你要求读取的公开网址发送给第三方网络服务；不会自动发送项目文件、剧本全文或附件。是否允许？",
+    );
+    const updated =
+      await client.assistantConversations.updateWebResearchSettings({
+        consented,
+      });
+    await refetchWebResearchSettings();
+    return updated.consented;
+  };
+
+  const changeWebAccessMode = async (next: "auto" | "off") => {
+    if (activeRun) return;
+    try {
+      const allowed =
+        next === "auto" ? await requestWebResearchConsent() : false;
+      const effective = next === "auto" && allowed ? "auto" : "off";
+      setWebAccessMode(effective);
+      if (conversationId) {
+        await client.assistantConversations.update(conversationId, {
+          webAccessMode: effective,
+        });
+        await Promise.all([
+          loadDetail(conversationId),
+          loadConversations(conversationId),
+        ]);
+      }
+      if (next === "auto" && !allowed)
+        setNotice("已保持关闭；本对话不会访问公开网络。");
+    } catch (cause) {
+      setNotice(message(cause));
+    }
   };
 
   useEffect(() => {
@@ -264,6 +310,16 @@ export function AgentSidePanel() {
         setDetail((current) => {
           if (!current) return current;
           const existing = current.items.find((item) => item.id === itemId);
+          const itemType = [
+            "message",
+            "structured_output",
+            "tool_call",
+            "tool_result",
+            "stage",
+            "error",
+          ].includes(String(payload.type))
+            ? (payload.type as AgentItem["type"])
+            : (existing?.type ?? "message");
           const item: AgentItem = {
             id: itemId,
             runId,
@@ -271,9 +327,14 @@ export function AgentSidePanel() {
               typeof payload.sequence === "number"
                 ? payload.sequence
                 : (existing?.sequence ?? current.items.length + 1),
-            type: "message",
+            type: itemType,
             status,
             ...(content ? { content } : {}),
+            ...(payload.payload !== undefined
+              ? { payload: payload.payload }
+              : existing?.payload !== undefined
+                ? { payload: existing.payload }
+                : {}),
             createdAt: existing?.createdAt ?? occurredAt,
             updatedAt: occurredAt,
           };
@@ -340,19 +401,37 @@ export function AgentSidePanel() {
     return unsubscribe;
   }, [client, conversationId, conversationRunIds, detail?.conversation.id]);
 
-  const ensureConversation = async (): Promise<AgentSession> => {
+  const ensureConversation = async (
+    requestedWebAccess = webAccessMode,
+  ): Promise<AgentSession> => {
     const requestedModel = modelId.trim() || undefined;
     const selected = conversations.find((item) => item.id === conversationId);
     if (
       selected?.engineKind === engineKind &&
       selected.projectId === (projectId || undefined) &&
       (selected.model?.modelId ?? undefined) === requestedModel
-    )
+    ) {
+      if (selected.webAccessMode !== requestedWebAccess) {
+        const updated = await client.assistantConversations.update(
+          selected.id,
+          {
+            webAccessMode: requestedWebAccess,
+          },
+        );
+        setDetail((current) =>
+          current?.conversation.id === updated.id
+            ? { ...current, conversation: updated }
+            : current,
+        );
+        return updated;
+      }
       return selected;
+    }
     const created = await client.assistantConversations.create({
       surface: "global",
       ...(projectId ? { projectId } : {}),
       engineKind,
+      webAccessMode: requestedWebAccess,
       ...(requestedModel ? { model: { modelId: requestedModel } } : {}),
     });
     await loadConversations(created.id);
@@ -386,7 +465,15 @@ export function AgentSidePanel() {
     setBusy(true);
     setNotice(undefined);
     try {
-      const conversation = await ensureConversation();
+      let effectiveWebAccess = webAccessMode;
+      if (
+        effectiveWebAccess === "auto" &&
+        !(await requestWebResearchConsent())
+      ) {
+        effectiveWebAccess = "off";
+        setWebAccessMode("off");
+      }
+      const conversation = await ensureConversation(effectiveWebAccess);
       const started = await client.assistantConversations.sendMessage(
         conversation.id,
         { message: userMessage, ...(taskType ? { taskType } : {}) },
@@ -728,10 +815,17 @@ export function AgentSidePanel() {
           }}
           placeholder="直接提问或交代任务…"
         />
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-[11px] text-muted">
-            {projectId ? "将使用项目只读上下文" : "通用聊天 · 无工具权限"}
-          </span>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <AssistantWebAccessControl
+              mode={webAccessMode}
+              disabled={Boolean(activeRun)}
+              onChange={(next) => void changeWebAccessMode(next)}
+            />
+            <span className="truncate text-[11px] text-muted">
+              {projectId ? "使用项目只读上下文" : "通用聊天"}
+            </span>
+          </div>
           <div className="flex gap-2">
             {!activeRun && interruptedRun && (
               <Button
@@ -770,26 +864,52 @@ export function AgentSidePanel() {
 
 export function GlobalAssistantTimeline(props: {
   detail?: AssistantConversationDetail;
+  surface?: "global" | "inspiration";
 }) {
+  const client = useStudio();
   if (!props.detail?.turns.length)
     return (
       <div className="rounded-xl border border-dashed border-line p-4 text-sm leading-6 text-muted">
-        直接告诉我你想了解什么，或者希望我完成什么。未绑定项目时，我只进行通用聊天，不会调用项目工具。
+        {props.surface === "inspiration"
+          ? "从一个画面、角色、疑问或情绪开始。这里不会催促你创建项目。"
+          : "直接告诉我你想了解什么，或者希望我完成什么。未绑定项目时，我只进行通用聊天，不会调用项目工具。"}
       </div>
     );
   return (
-    <div className="space-y-4" aria-label="全局助手消息时间线">
+    <div
+      className="space-y-4"
+      aria-label={
+        props.surface === "inspiration"
+          ? "灵感空间消息时间线"
+          : "全局助手消息时间线"
+      }
+    >
       {props.detail.turns.map((turn) => {
         const run = props.detail?.runs.find((item) => item.id === turn.runId);
         const items = run
           ? (props.detail?.items.filter((item) => item.runId === run.id) ?? [])
           : [];
+        const verifiedWebUrls = new Set(
+          items.flatMap((item) => {
+            if (
+              item.type !== "tool_result" ||
+              item.content !== "dramaip_read_web_page"
+            )
+              return [];
+            const result = recordPayload(recordPayload(item.payload).result);
+            return typeof result.url === "string" ? [result.url] : [];
+          }),
+        );
         return (
           <article key={turn.id} className="space-y-2">
             <div className="ml-8 rounded-xl rounded-tr-sm bg-studio-dark px-3 py-2 text-sm leading-6 text-white">
               <p className="whitespace-pre-wrap">{turn.userMessage}</p>
               <p className="mt-1 text-[10px] text-white/60">
-                {turn.projectId ? "项目上下文" : "通用对话"}
+                {props.surface === "inspiration"
+                  ? "灵感对话"
+                  : turn.projectId
+                    ? "项目上下文"
+                    : "通用对话"}
                 {turn.chapterId ? ` · 章节 ${turn.chapterId.slice(0, 8)}` : ""}
                 {turn.routingInputTokens !== undefined
                   ? ` · 意图识别 ${turn.routingInputTokens + (turn.routingOutputTokens ?? 0)} Token`
@@ -813,15 +933,16 @@ export function GlobalAssistantTimeline(props: {
                 run && ["queued", "running"].includes(run.status),
               )}
             />
-            {items.map((item) => {
-              if (item.type === "stage") return null;
-              if (item.type === "tool_call")
-                return <AssistantToolActivity key={item.id} item={item} />;
-              if (
-                !["message", "structured_output", "error"].includes(item.type)
+            {items
+              .filter((item) => item.type === "tool_call")
+              .map((item) => (
+                <AssistantToolActivity key={item.id} item={item} />
+              ))}
+            {items
+              .filter((item) =>
+                ["message", "structured_output", "error"].includes(item.type),
               )
-                return null;
-              return (
+              .map((item) => (
                 <div
                   key={item.id}
                   className="mr-8 rounded-xl rounded-tl-sm border border-line bg-canvas px-3 py-2 text-sm leading-6"
@@ -831,8 +952,17 @@ export function GlobalAssistantTimeline(props: {
                     <span className="inline-block h-3 w-1 animate-pulse bg-brand" />
                   )}
                 </div>
-              );
-            })}
+              ))}
+            {items
+              .filter((item) => item.type === "tool_result")
+              .map((item) => (
+                <AssistantWebSourceCards
+                  key={item.id}
+                  payload={item.payload}
+                  verifiedUrls={verifiedWebUrls}
+                  onOpen={(url) => void client.host.openExternal(url)}
+                />
+              ))}
             {run &&
               ["queued", "running"].includes(run.status) &&
               !items.length && (

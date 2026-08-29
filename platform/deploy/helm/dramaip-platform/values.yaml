@@ -13,6 +13,17 @@ java:
   postgresDsn: jdbc:postgresql://postgres:5432/dramaip
   jwtEnabled: "true"
   jwkSetUri: http://identity:8080/.well-known/jwks.json
+  corpus:
+    crawlerEnabled: "false"
+    publicSearchEnabled: "false"
+    personalizationEnabled: "false"
+    experimentsEnabled: "false"
+    maxBytes: "2097152"
+    maxRedirects: "5"
+    maxDepth: "2"
+    minimumDomainDelayMs: "1000"
+    userAgent: "DramaIP-Creative-Corpus/1.0 (+https://dramaip.example/corpus-policy)"
+    encryptionKeyVersion: "v1"
   images:
     migration: { repository: ghcr.io/dramaip/dramaip-java-migration, tag: "0.1.0" }
     gateway: { repository: ghcr.io/dramaip/dramaip-java-gateway, tag: "0.1.0" }
@@ -205,6 +216,9 @@ secret:
   postgresAiSvcPassword: change-me
   postgresBillingSvcPassword: change-me
   internalToken: change-me-internal
+  # Required before enabling corpus crawling or publishing signed snapshots.
+  corpusEncryptionKeyBase64: ""
+  corpusSnapshotPrivateKeyPem: ""
   reviewS3AccessKey: change-me
   reviewS3SecretKey: change-me
   redisPassword: change-me

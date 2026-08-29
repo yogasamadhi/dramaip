@@ -2,7 +2,6 @@
 services:
   postgres:
     profiles: [java]
-    container_name: drama-postgres
     image: postgres:18-alpine
     pull_policy: missing
     environment:
@@ -10,9 +9,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dramaip}
       POSTGRES_DB: ${POSTGRES_DB:-dramaip}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
-      - ./docker-data/postgres:/var/lib/postgresql
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -21,15 +20,14 @@ services:
 
   redis:
     profiles: [java]
-    container_name: drama-redis
     image: redis:8-alpine
     pull_policy: missing
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-      - ./docker-data/redis:/data
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,17 +36,16 @@ services:
 
   rabbitmq:
     profiles: [java]
-    container_name: drama-rabbitmq
     image: rabbitmq:4.3-management-alpine
     pull_policy: missing
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dramaip}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dramaip}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"
     volumes:
-      - ./docker-data/rabbitmq:/var/lib/rabbitmq
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/rabbitmq:/var/lib/rabbitmq
     healthcheck:
       # rabbitmqctl status 在 management 镜像里可用且较轻。
       test: ["CMD", "rabbitmqctl", "status"]
@@ -58,7 +55,6 @@ services:
 
   minio:
     profiles: [java]
-    container_name: drama-minio
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     pull_policy: missing
     command: ["server", "/data", "--console-address", ":9001"]
@@ -66,10 +62,10 @@ services:
       MINIO_ROOT_USER: ${REVIEW_S3_ACCESS_KEY:-dramaip-review}
       MINIO_ROOT_PASSWORD: ${REVIEW_S3_SECRET_KEY:-dramaip-review-development-secret}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     volumes:
-      - ./docker-data/minio:/data
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/minio:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -107,7 +103,6 @@ services:
   # ────── 指标 (Metrics)：拉模型抓取 + TSDB 存储（告警/排障第一站）──────
   prometheus:
     profiles: [observability]
-    container_name: drama-prometheus
     image: prom/prometheus:v3.11.3
     pull_policy: missing
     ports:
@@ -115,7 +110,7 @@ services:
     volumes:
       - ${DRAMAIP_PROMETHEUS_CONFIG:-./prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - ./docker-data/prometheus:/prometheus
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/prometheus:/prometheus
       - ${DRAMAIP_PROMETHEUS_TARGETS_DIR:-../../server/target/local-dev/prometheus-targets}:/etc/prometheus/host-targets:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -130,7 +125,6 @@ services:
   # otel-collector/config.yaml 可下发到 Prometheus 或其他观测后端。
   otel-collector:
     profiles: [observability]
-    container_name: drama-otel-collector
     image: otel/opentelemetry-collector-contrib:0.155.0
     pull_policy: missing
     command: ["--config", "/etc/otelcol-contrib/config.yaml"]
@@ -146,7 +140,6 @@ services:
     profiles: [observability]
     # v2 基于 OTel Collector；v1(all-in-one) 已于 2025-12-31 EOL。
     # badger 落盘到 docker-data/jaeger（见 jaeger/config.yaml）。
-    container_name: drama-jaeger
     image: jaegertracing/jaeger:2.17.0
     pull_policy: missing
     command: ["--config", "/jaeger/config.yaml"]
@@ -154,14 +147,13 @@ services:
       - "127.0.0.1:16686:16686"   # Jaeger UI（local development only）
     volumes:
       - ./jaeger/config.yaml:/jaeger/config.yaml:ro
-      - ./docker-data/jaeger:/badger
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/jaeger:/badger
 
   # ────── 日志 (Logging)：采集 → 存储/检索 → UI（深挖到「哪一行」）──────
   # Filebeat tail Docker json-file，并经 Docker socket 注入容器元数据；registry 卷持久化
   # 读取偏移，避免重启后重复采集。此配置仅用于本机开发，Elasticsearch 安全功能关闭。
   filebeat:
     profiles: [observability]
-    container_name: drama-filebeat
     image: elastic/filebeat:9.4.2
     pull_policy: missing
     user: root
@@ -177,7 +169,7 @@ services:
       - ./filebeat/dramaip-java-index-template.json:/usr/share/filebeat/dramaip-java-index-template.json:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./docker-data/filebeat:/usr/share/filebeat/data
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/filebeat:/usr/share/filebeat/data
       - ${DRAMAIP_HOST_LOG_DIR:-../../server/target/local-dev}:/var/log/dramaip:ro
     depends_on:
       elasticsearch:
@@ -188,7 +180,6 @@ services:
   # 角色的受管/受控 Elastic 集群（见 docs/LOCAL_DEVELOPMENT.md）。
   elasticsearch:
     profiles: [observability]
-    container_name: drama-elasticsearch
     image: elasticsearch:9.4.2
     pull_policy: missing
     environment:
@@ -217,7 +208,7 @@ services:
     ports:
       - "127.0.0.1:9200:9200"   # REST API（Kibana / Filebeat 连）
     volumes:
-      - ./docker-data/elasticsearch:/usr/share/elasticsearch/data
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/elasticsearch:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null"]
       interval: 5s
@@ -226,7 +217,6 @@ services:
 
   kibana:
     profiles: [observability]
-    container_name: drama-kibana
     image: kibana:9.4.2
     pull_policy: missing
     environment:
@@ -241,7 +231,6 @@ services:
   # ────── 可视化前端：统一大盘，provisioning 同时接 Prometheus(指标,默认) + Elasticsearch(日志) ──────
   grafana:
     profiles: [observability]
-    container_name: drama-grafana
     image: grafana/grafana:12.3.8
     pull_policy: missing
     environment:
@@ -252,7 +241,7 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - ./docker-data/grafana:/var/lib/grafana
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/grafana:/var/lib/grafana
     depends_on:
       prometheus:
         condition: service_started
@@ -262,6 +251,38 @@ services:
   # ─────────────────── Java 服务端 ───────────────────
   # 镜像未指定 platform，Docker Desktop 会为 Windows/amd64、macOS/arm64
   # 选择宿主机对应的多架构基础镜像；Java 服务本身从本地源码构建。
+  # 仅阻塞式 E2E 启用。它不会进入普通 java profile，也不应配置到生产。
+  mock-ai:
+    profiles: [e2e]
+    image: node:24.18.0-alpine
+    pull_policy: missing
+    command: ["node", "/app/mock-ai-provider.mjs"]
+    volumes:
+      - ../../scripts/mock-ai-provider.mjs:/app/mock-ai-provider.mjs:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8099/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  # E2E 专用公开地址模拟源。使用独立的公网形态测试网段验证真实 SSRF
+  # 规则；不替换 DNS 解析器，也不放宽生产采集器。
+  mock-corpus:
+    profiles: [e2e]
+    image: node:24.18.0-alpine
+    pull_policy: missing
+    command: ["node", "/app/mock-corpus-source.mjs"]
+    volumes:
+      - ../../scripts/mock-corpus-source.mjs:/app/mock-corpus-source.mjs:ro
+    networks:
+      corpus-e2e:
+        ipv4_address: 93.184.216.34
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8091/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
   # 从与运行中 Nacos 相同的镜像导出官方建表脚本。这样不需要在仓库中
   # 复制一份会随 Nacos 版本漂移的 SQL；MySQL 仅在空数据目录初始化时执行它。
   nacos-mysql-schema:
@@ -280,7 +301,6 @@ services:
   # Nacos 的持久化存储。mysql:8 由本机已有镜像满足，不会强制拉取。
   nacos-mysql:
     profiles: [java]
-    container_name: drama-nacos-mysql
     image: mysql:8
     pull_policy: missing
     environment:
@@ -290,7 +310,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${NACOS_MYSQL_ROOT_PASSWORD:-nacos-root}
     command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     volumes:
-      - ./docker-data/nacos-mysql:/var/lib/mysql
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/nacos-mysql:/var/lib/mysql
       - nacos-mysql-schema:/docker-entrypoint-initdb.d:ro
     depends_on:
       nacos-mysql-schema:
@@ -330,7 +350,10 @@ services:
     mem_limit: ${NACOS_MEM_LIMIT:-512m}
     # 8848 is the HTTP API, 8849 is the Nacos 3 console (container 8080), and
     # 9848 is the Nacos gRPC client channel needed by Java services on the host.
-    ports: ["8848:8848", "8849:8080", "9848:9848"]
+    ports:
+      - "127.0.0.1:${NACOS_HOST_PORT:-8848}:8848"
+      - "127.0.0.1:${NACOS_CONSOLE_HOST_PORT:-8849}:8080"
+      - "127.0.0.1:${NACOS_GRPC_HOST_PORT:-9848}:9848"
     depends_on:
       nacos-mysql:
         condition: service_healthy
@@ -350,7 +373,7 @@ services:
     # Seata's default heap easily exceeds 1GB without a cgroup limit. 768m is
     # ample for single-node dev and keeps Docker Desktop memory predictable.
     mem_limit: ${SEATA_MEM_LIMIT:-768m}
-    ports: ["8091:8091"]
+    ports: ["127.0.0.1:${SEATA_HOST_PORT:-8091}:8091"]
 
   java-migration:
     profiles: [java]
@@ -405,7 +428,7 @@ services:
       OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST: ""
       OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED: "true"
       OTEL_JAVAAGENT_OPTS: ${OTEL_JAVAAGENT_OPTS:-}
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:${GATEWAY_HOST_PORT:-8080}:8080"]
     depends_on: { nacos: { condition: service_healthy }, java-migration: { condition: service_completed_successfully } }
 
   identity:
@@ -496,7 +519,31 @@ services:
     environment:
       <<: *java-service-env
       OTEL_SERVICE_NAME: ai
+      AI_PROVIDER_BASE_URL: ${AI_PROVIDER_BASE_URL:-}
+      AI_PROVIDER_API_KEY: ${AI_PROVIDER_API_KEY:-}
+      AI_MODELS: ${AI_MODELS:-}
+      CORPUS_CRAWLER_ENABLED: ${CORPUS_CRAWLER_ENABLED:-false}
+      CORPUS_PUBLIC_SEARCH_ENABLED: ${CORPUS_PUBLIC_SEARCH_ENABLED:-false}
+      CORPUS_PERSONALIZATION_ENABLED: ${CORPUS_PERSONALIZATION_ENABLED:-false}
+      CORPUS_EXPERIMENTS_ENABLED: ${CORPUS_EXPERIMENTS_ENABLED:-false}
+      CORPUS_MAX_BYTES: ${CORPUS_MAX_BYTES:-2097152}
+      CORPUS_MAX_REDIRECTS: ${CORPUS_MAX_REDIRECTS:-5}
+      CORPUS_MAX_DEPTH: ${CORPUS_MAX_DEPTH:-2}
+      CORPUS_MINIMUM_DOMAIN_DELAY_MS: ${CORPUS_MINIMUM_DOMAIN_DELAY_MS:-1000}
+      CORPUS_USER_AGENT: ${CORPUS_USER_AGENT:-DramaIP-Creative-Corpus/1.0 (+https://dramaip.example/corpus-policy)}
+      CORPUS_ENCRYPTION_KEY_BASE64: ${CORPUS_ENCRYPTION_KEY_BASE64:-}
+      CORPUS_ENCRYPTION_KEY_VERSION: ${CORPUS_ENCRYPTION_KEY_VERSION:-v1}
+      CORPUS_SNAPSHOT_PRIVATE_KEY_PEM: ${CORPUS_SNAPSHOT_PRIVATE_KEY_PEM:-}
+      # The E2E crawler network deliberately uses a public-looking subnet.
+      # Register the service through the ordinary Compose network so Gateway
+      # never tries to route business traffic through the crawler fixture.
+      SPRING_CLOUD_NACOS_DISCOVERY_NETWORK_INTERFACE: eth0
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
+    networks:
+      default:
+        interface_name: eth0
+      corpus-e2e:
+        interface_name: eth1
 
   java-billing:
     profiles: [java]
@@ -508,3 +555,10 @@ services:
 
 volumes:
   nacos-mysql-schema:
+
+networks:
+  default: {}
+  corpus-e2e:
+    ipam:
+      config:
+        - subnet: 93.184.216.0/24

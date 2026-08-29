@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./automation": "./src/automation.ts",
     "./creative-quality": "./src/creative-quality.ts",
+    "./creative-intelligence": "./src/creative-intelligence.ts",
     "./delivery": "./src/delivery.ts",
     "./foundation": "./src/foundation.ts",
     "./insights": "./src/insights.ts",

@@ -192,6 +192,7 @@ export function Field(props: {
 export type SelectOption = {
   value: string;
   label: ReactNode;
+  group?: string;
   disabled?: boolean;
 };
 export type SelectProps = Omit<
@@ -217,6 +218,13 @@ export function Select({
   onValueChange,
   ...props
 }: SelectProps) {
+  const optionGroups = new Map<string | undefined, SelectOption[]>();
+  for (const option of options) {
+    const group = optionGroups.get(option.group) ?? [];
+    group.push(option);
+    optionGroups.set(option.group, group);
+  }
+
   return (
     <SelectPrimitive.Root
       value={value}
@@ -245,24 +253,35 @@ export function Select({
           sideOffset={6}
           className="ui-popover z-[80] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-line bg-surface-raised p-1 shadow-float"
         >
-          <SelectPrimitive.Viewport>
-            {options.map((option) => (
-              <SelectPrimitive.Item
-                key={option.value}
-                value={option.value}
-                disabled={option.disabled}
-                className="relative flex min-h-9 cursor-default select-none items-center rounded-md py-2 pl-8 pr-3 text-sm text-ink outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-brand-soft data-[highlighted]:text-brand-strong"
-              >
-                <span className="absolute left-2.5 grid size-4 place-items-center">
-                  <SelectPrimitive.ItemIndicator>
-                    <Check aria-hidden="true" className="size-4" />
-                  </SelectPrimitive.ItemIndicator>
-                </span>
-                <SelectPrimitive.ItemText>
-                  {option.label}
-                </SelectPrimitive.ItemText>
-              </SelectPrimitive.Item>
-            ))}
+          <SelectPrimitive.Viewport className="max-h-80">
+            {Array.from(optionGroups.entries()).map(
+              ([groupLabel, groupOptions]) => (
+                <SelectPrimitive.Group key={groupLabel ?? "__ungrouped__"}>
+                  {groupLabel && (
+                    <SelectPrimitive.Label className="px-3 pb-1 pt-2 text-xs font-semibold text-muted">
+                      {groupLabel}
+                    </SelectPrimitive.Label>
+                  )}
+                  {groupOptions.map((option) => (
+                    <SelectPrimitive.Item
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.disabled}
+                      className="relative flex min-h-9 cursor-default select-none items-center rounded-md py-2 pl-8 pr-3 text-sm text-ink outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-brand-soft data-[highlighted]:text-brand-strong"
+                    >
+                      <span className="absolute left-2.5 grid size-4 place-items-center">
+                        <SelectPrimitive.ItemIndicator>
+                          <Check aria-hidden="true" className="size-4" />
+                        </SelectPrimitive.ItemIndicator>
+                      </span>
+                      <SelectPrimitive.ItemText>
+                        {option.label}
+                      </SelectPrimitive.ItemText>
+                    </SelectPrimitive.Item>
+                  ))}
+                </SelectPrimitive.Group>
+              ),
+            )}
           </SelectPrimitive.Viewport>
         </SelectPrimitive.Content>
       </SelectPrimitive.Portal>

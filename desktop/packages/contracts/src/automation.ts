@@ -98,6 +98,27 @@ export interface AutomationTaskService {
   }): Task;
 }
 
+export const AUTOMATION_RESOURCE_SERVICE =
+  defineServiceContract<AutomationResourceService>({
+    id: "automation.resources.v1",
+    owner: "automation",
+    major: 1,
+    capabilities: ["create", "getBySource"],
+    degradable: true,
+  });
+export interface AutomationResourceService {
+  createInspiration(input: {
+    projectId: string;
+    title: string;
+    payload: Record<string, unknown>;
+    sourceRef: string;
+  }): { id: string; projectId: string; sourceRef: string };
+  getInspirationBySource(
+    projectId: string,
+    sourceRef: string,
+  ): { id: string; projectId: string; sourceRef: string } | undefined;
+}
+
 export const ChangeTargetKindSchema = z.enum([
   "project",
   "chapter",

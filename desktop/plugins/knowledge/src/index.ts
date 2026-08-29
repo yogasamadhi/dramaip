@@ -2,6 +2,7 @@ import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   KNOWLEDGE_RESEARCH_SERVICE,
+  KNOWLEDGE_WEB_RESEARCH_SERVICE,
   StoryBibleChangeSetApplyInputSchema,
   StoryBibleChangeSetInputSchema,
   StoryBibleChangeSetSchema,
@@ -33,6 +34,13 @@ import {
   researchRoutes,
   researchService,
 } from "./research.js";
+import {
+  CREATIVE_KNOWLEDGE_SERVICE,
+  creativeIntelligenceMigrations,
+  creativeIntelligenceRoutes,
+  creativeIntelligenceService,
+} from "./creative-intelligence.js";
+import { WebResearchAdapter } from "./web-research.js";
 
 interface ChangeSetRow {
   id: string;
@@ -1193,17 +1201,23 @@ const knowledgeMigrations = [
     `,
   },
   ...researchMigrations,
+  ...creativeIntelligenceMigrations,
 ] as const;
 
 export function createKnowledgePlugin(host?: DesktopHostClient) {
   const search = new DuckDuckGoSearchAdapter(host);
+  const webResearch = new WebResearchAdapter(host);
   return defineFirstPartyPlugin({
     descriptor: {
       id: "knowledge",
       version: "3.0.0-alpha.3",
       apiVersion: "2",
       requires: ["foundation", "workspace", "writing"],
-      provides: ["knowledge.story-bible"],
+      provides: [
+        "knowledge.story-bible",
+        "knowledge.creative-intelligence",
+        "knowledge.web-research",
+      ],
       stability: "internal",
     },
     ui: [
@@ -1233,9 +1247,20 @@ export function createKnowledgePlugin(host?: DesktopHostClient) {
           researchService(context),
         ),
       );
+      context.effect(`service:${KNOWLEDGE_WEB_RESEARCH_SERVICE}`, () =>
+        context.services.provide(KNOWLEDGE_WEB_RESEARCH_SERVICE, webResearch),
+      );
+      const creativeIntelligence = creativeIntelligenceService(context);
+      context.effect(`service:${CREATIVE_KNOWLEDGE_SERVICE}`, () =>
+        context.services.provide(
+          CREATIVE_KNOWLEDGE_SERVICE,
+          creativeIntelligence,
+        ),
+      );
       for (const route of [
         ...routes(context),
         ...researchRoutes(context, workspace, search),
+        ...creativeIntelligenceRoutes(context, creativeIntelligence),
       ])
         context.effect(`route:${route.id}`, () => context.http.register(route));
     },

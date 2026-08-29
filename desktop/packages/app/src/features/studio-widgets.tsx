@@ -1315,14 +1315,23 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     ],
   },
   foreshadowings: {
-    description: "跟踪伏笔的埋设、回收计划和状态。",
+    description:
+      "跟踪伏笔的埋设、强化、误导、揭示、回收和废弃，以及观众认知与逾期风险。",
     titleLabel: "伏笔标题",
     fields: [
       shortText("埋设章节", "埋设章节"),
       shortText("回收章节", "回收章节"),
-      shortText("状态", "状态", "计划、已埋设、已回收或放弃"),
+      shortText("状态", "状态", "埋设、强化、误导、揭示、回收或废弃"),
+      shortText("计划章节", "计划章节"),
+      shortText("逾期状态", "逾期状态", "正常、临近或逾期"),
+      shortText(
+        "观众认知",
+        "观众认知",
+        "unknown、suspects、misbelieves 或 knows",
+      ),
       longText("伏笔说明", "伏笔说明"),
       longText("回收计划", "回收计划"),
+      longText("实际证据", "实际证据"),
     ],
   },
   "chapter-memories": {

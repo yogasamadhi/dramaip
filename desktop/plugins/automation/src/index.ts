@@ -3,6 +3,7 @@ import {
   RevisionInputSchema,
   RevisionPreviewSchema,
   AUTOMATION_TASK_SERVICE,
+  AUTOMATION_RESOURCE_SERVICE,
   TaskInputSchema,
   TaskRetryInputSchema,
   TaskSchema,
@@ -32,6 +33,7 @@ import { AUTOMATION_PREVIEW_SERVICE } from "@dramaip/contracts/automation";
 import {
   automationResourceMigrations,
   automationResourceRoutes,
+  automationResourceService,
 } from "./resources.js";
 
 interface TaskRow {
@@ -756,7 +758,11 @@ export const automationPlugin = defineFirstPartyPlugin({
     version: "3.0.0-alpha.3",
     apiVersion: "2",
     requires: ["foundation", "workspace"],
-    provides: ["automation.tasks", "automation.previews"],
+    provides: [
+      "automation.tasks",
+      "automation.previews",
+      "automation.resources",
+    ],
     stability: "internal",
   },
   ui: [
@@ -831,6 +837,10 @@ export const automationPlugin = defineFirstPartyPlugin({
         AUTOMATION_PREVIEW_SERVICE,
         previewRuntime.service,
       ),
+    );
+    const resourceService = automationResourceService(context);
+    context.effect(`service:${AUTOMATION_RESOURCE_SERVICE}`, () =>
+      context.services.provide(AUTOMATION_RESOURCE_SERVICE, resourceService),
     );
     const routes = [
       ...taskRoutes(context),

@@ -19,17 +19,22 @@ public class WebSessionCookies {
     public static final String CSRF_COOKIE = "dramaip_web_csrf";
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final WebSessionProperties properties;
+    private final boolean secure;
+    private final String cookieDomain;
+    private final Duration refreshTtl;
 
-    public WebSessionCookies(WebSessionProperties properties) { this.properties = properties; }
+    public WebSessionCookies(WebSessionProperties properties) {
+        this.secure = properties.isSecure();
+        this.cookieDomain = properties.getCookieDomain();
+        this.refreshTtl = properties.getRefreshTtl();
+    }
 
     public WebSession open(HttpServletResponse response, AuthService.Session session) {
         long accessTtl = Math.max(1, session.expiresIn());
-        Duration refreshTtl = properties.getRefreshTtl().isNegative() || properties.getRefreshTtl().isZero()
-                ? Duration.ofDays(30) : properties.getRefreshTtl();
+        Duration effectiveRefreshTtl = refreshTtl.isNegative() || refreshTtl.isZero() ? Duration.ofDays(30) : refreshTtl;
         add(response, cookie(ACCESS_COOKIE, session.accessToken(), "/api/v1", Duration.ofSeconds(accessTtl), true));
-        add(response, cookie(REFRESH_COOKIE, session.refreshToken(), "/api/v1/auth", refreshTtl, true));
-        add(response, cookie(CSRF_COOKIE, csrfToken(), "/", refreshTtl, false));
+        add(response, cookie(REFRESH_COOKIE, session.refreshToken(), "/api/v1/auth", effectiveRefreshTtl, true));
+        add(response, cookie(CSRF_COOKIE, csrfToken(), "/", effectiveRefreshTtl, false));
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
         return new WebSession(new User(session.userId(), session.email(), session.name()));
     }
@@ -45,8 +50,8 @@ public class WebSessionCookies {
 
     private ResponseCookie cookie(String name, String value, String path, Duration ttl, boolean httpOnly) {
         var builder = ResponseCookie.from(name, value == null ? "" : value)
-                .path(path).maxAge(ttl).httpOnly(httpOnly).secure(properties.isSecure()).sameSite("Lax");
-        if (!properties.getCookieDomain().isBlank()) builder.domain(properties.getCookieDomain());
+                .path(path).maxAge(ttl).httpOnly(httpOnly).secure(secure).sameSite("Lax");
+        if (!cookieDomain.isBlank()) builder.domain(cookieDomain);
         return builder.build();
     }
 

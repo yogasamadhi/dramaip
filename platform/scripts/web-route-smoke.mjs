@@ -20,8 +20,21 @@ const checks = [
   },
   {
     file: 'clients/apps/web/app/chat/page.tsx',
-    patterns: ['<RequireAuth>', 'apiClient.getChatModels', 'apiClient.preflightChat', 'apiClient.streamChat', 'apiClient.cancelChat', 'apiClient.getChatStatus', 'historyKey(userID)', 'motion-reduce:animate-none'],
-    forbidden: ['setAdvancedOpen', '服务商', '幂等键（请求编号）'],
+    patterns: ["import { redirect } from 'next/navigation'", "redirect('/inspiration')"],
+  },
+  {
+    file: 'clients/apps/web/app/inspiration/page.tsx',
+    patterns: [
+      '<RequireAuth>',
+      'apiClient.inspiration.listConversations',
+      'apiClient.inspiration.sendMessage',
+      'apiClient.inspiration.replayEvents',
+      'apiClient.inspiration.cancelRun',
+      'apiClient.inspiration.importHistory',
+      'window.localStorage.removeItem(key)',
+      'apiClient.inspiration.createProjectPreview',
+      'apiClient.inspiration.confirmProjectPreview',
+    ],
   },
   {
     file: 'clients/apps/web/app/login/page.tsx',
@@ -38,8 +51,13 @@ const checks = [
   },
   {
     file: 'clients/apps/web/components/AccountDashboard.tsx',
-    patterns: ['apiClient.updateProfile', 'apiClient.getAccountBootstrap', "queryKey: ['account-bootstrap'", 'SectionUnavailable', 'useReactTable', 'echarts.init', '/account/orders/'],
-    forbidden: ['apiClient.getUsageTrend', 'apiClient.getNotifications'],
+    patterns: ['apiClient.updateProfile', 'apiClient.getAccountBootstrap', "queryKey: ['account-bootstrap'", 'SectionUnavailable', 'useReactTable', "lazy(() => import('./UsageTrendChart'))", '<Suspense', '/account/orders/'],
+    forbidden: ['apiClient.getUsageTrend', 'apiClient.getNotifications', "from 'echarts'", "from 'echarts/core'"],
+  },
+  {
+    file: 'clients/apps/web/components/UsageTrendChart.tsx',
+    patterns: ["from 'echarts/charts'", "from 'echarts/components'", "from 'echarts/core'", "from 'echarts/renderers'", 'registerECharts([', 'const chart = init('],
+    forbidden: ["from 'echarts'"],
   },
   {
     file: 'clients/apps/web/app/account/orders/[orderId]/page.tsx',

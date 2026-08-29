@@ -17,16 +17,16 @@ Desktop (`desktop/`):
 - `bun run test` (typecheck + unit), `bun run test:e2e` (build + Playwright; needs a GUI — CI Linux wraps the Bun-owned Electron Playwright launcher in `xvfb-run`)
 - Single test: `bun scripts/run-electron-playwright.ts test tests/electron/<file>.spec.ts --reporter=list`; runtime unit suites run via `bun run test:runtime` under Bun, while Electron E2E is the embedded-Node acceptance gate. Do not use `bunx` for JS CLIs because it may select a system Node.
 - SQLite uses `bun:sqlite` in Headless/Server and `node:sqlite` in Electron utility processes; do not reintroduce `better-sqlite3` or a system-Node ABI rebuild step.
-- Full quality gate (CI order): `lint` (oxlint `--deny-warnings`), `format:check` (prettier), `typecheck`, `test`, `check:architecture`, `check:generated`, `check:migration:complete`, `check:engine-locks`, `check:provider-catalog`, `build`; tag jobs then add `test:e2e`, `package`, `release:metadata`.
+- Full quality gate (CI order): `lint` (oxlint `--deny-warnings`), `format:check` (prettier), `typecheck`, `test`, `check:architecture`, `check:generated`, `check:migration:complete`, `check:engine-locks`, `check:provider-catalog`, `check:extension-packages`, `check:renderer-chunks`, `check:timeline-exports`, `build`; tag jobs then add `test:e2e`, `package`, `release:metadata`.
 
 Platform (`platform/`):
 
-- `make test` (mvn verify + clients typecheck/test + `contracts:check` + `web-route-smoke`), `make platform-up` / `platform-e2e` / `platform-down` (Docker Compose, `--profile java`)
+- `make test` (mvn verify + clients typecheck/test + `contracts:check` + `web-route-smoke`), `make platform-up` / `platform-e2e` / `platform-down` (Docker Compose, `--profile java`). CI reuses packaged JARs via `make platform-ci-e2e`, assigns random host ports, and cleans with `make platform-ci-down`.
 - Java only: `mvn -B -ntp verify` in `server/`
 - Clients: `bun run lint`, `typecheck`, `contracts:check`, `test` in `clients/` (CI also runs `build:web` + `build:admin`; `test` includes a mobile security test). The clients workspace also compiles/tests the root `run-platform-dev.ts` / `run-platform-clients.ts` launchers via its `typecheck:launchers` / `test:launchers` scripts.
 - Host-JDK debug mode: `bun run run-platform-dev.ts` (runs services 8081–8087 on host, infra in Docker); clients: `bun run run-platform-clients.ts`
 
-Root Python launcher tests: `python3 -m unittest discover -s tests` (unittest-based; pytest is NOT installed — do not use it). Caveats: `test_run_platform_dev.py` asserts the installed Bun is exactly 1.4.0 (fails on any other version) and `test_run_platform_cicd.py` imports the deleted root `run-platform-cicd.py` (errors today) — see "Platform release" below.
+Root Python launcher and release-script tests: `python3 -m unittest discover -s tests` (unittest-based; pytest is NOT installed — do not use it). `test_run_platform_dev.py` asserts the installed Bun is exactly 1.4.0 and fails on every other version.
 
 ## Architecture gotchas
 
@@ -52,7 +52,7 @@ Platform:
 
 - Gateway (`localhost:8080`) is the only entry; business APIs are `/api/v1/**`, require header `X-DramaIP-Contract-Version: 2`, wrap responses in `Result<T>`. `server/` is a Maven reactor (`common`, `architecture`, `gateway`, `migration` + `services/{identity,notification,reporting,creation,quota,ai,billing}`) whose modules map 1:1 to the `images.tsv` java rows.
 - One authoritative writer implementation per business table; Flyway migrations are forward-only (per `docs/后端技术架构.md`; global sequence, no `baselineOnMigrate` in production).
-- Release tooling lives in `platform/deploy/release/*.sh`: `preflight.sh` (must run from a clean `main` branch) and `helm-release.sh <staging|production> <apply|rollback>`. The former `python3 run-platform-cicd.py` launcher and `docs/CICD_平台发布操作.md` were deleted in the big refactor — do not reference them. Image inventory `deploy/release/images.tsv` currently holds 9 Java + 1 web rows; `tests/test_run_platform_cicd.py` asserts 9 Java (and imports the deleted `run-platform-cicd.py`, so it errors today), while the `.gitlab-ci.yml` awk counts (8 Java / 9 total) are stale and fail against the manifest — keep manifest, CI awk and the python test in sync when touching it.
+- Release tooling lives in `platform/deploy/release/*.sh`: `preflight.sh` must run from a clean `main` branch, then an approved operator invokes `helm-release.sh <staging|production> <apply|rollback>`. `check-manifest.sh` is the one authoritative validation for the 9 Java + 1 Web image inventory and is reused by CI/build/scan/push/Helm. Refresh pinned Trivy databases explicitly with `update-trivy-db.sh` before scanning. GitLab runs the full Compose journey as a blocking MR/main job on a private Docker-capable Runner.
 
 ## Workflow
 
@@ -60,10 +60,9 @@ Platform:
 - Conventional commits with scopes, e.g. `feat(desktop):`, `fix(timeline):`, `docs(desktop):`, `test(e2e):`.
 - Git remote is Gitee (`gitee.com`), but CI is GitLab (`.gitlab-ci.yml`, harbor.home.arpa) — don't assume GitHub URLs or workflows.
 
-## Stale references and dead dirs
+## Archived and non-workspace sources
 
-- Root README links `./desktop2/` (missing — the archived app lives at `desktop/legacy/desktop2`), `docs/技术架构.md`, `docs/差异演进.md` and `docs/CICD_平台发布操作.md` (all missing; the real platform doc is `docs/后端技术架构.md` and the release flow is `platform/deploy/release/*.sh`); `docs/README.md` is a docs index (not empty); `platform/README.md` links the missing `../docs/技术架构.md`. Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
-- `desktop/legacy/` is archived and never enters a build or runtime dependency. `desktop/legacy/desktop2` may be read only as an architecture-pattern reference; do not restore or import its code. Root `run-desktop-legacy.ts` launches the archived `desktop/legacy/desktop` app — never use it. `desktop/packages/schema/` (`@dramaip/product-contracts-internal`) is a non-workspace leftover — it is not in `desktop/package.json`'s workspaces and never builds.
+- `desktop/legacy/` is archived and never enters a build or runtime dependency. Its historical applications may be read only as architecture-pattern references; do not restore or import their code. There is no supported root launcher for archived apps. `desktop/packages/schema/` (`@dramaip/product-contracts-internal`) is a non-workspace leftover — it is not in `desktop/package.json`'s workspaces and never builds.
 - `desktop/vendor/{pi,codex-rust,grok-build,deepseek-harness,opencode}` are git submodules (submodule URLs point at GitHub while the remote is Gitee) — fresh clones need `git submodule update --init`; vendor content is read-only reference/integrity material, only Pi is packaged into the runtime.
 
 Architecture details: `docs/后端技术架构.md` (platform red lines), `docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md` (desktop target architecture), `desktop/docs/engineering/ARCHITECTURE.md` (desktop implementation notes).
