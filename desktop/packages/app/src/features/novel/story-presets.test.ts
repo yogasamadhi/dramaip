@@ -100,19 +100,36 @@ test("四套首章和资源载荷符合现有章节及写作资料结构", () =>
   }
 });
 
-test("预设初始化等待全部并发写入结束后再报告失败", async () => {
-  const finishedDomains: string[] = [];
+test("预设初始化中途失败后重试只补缺失资料", async () => {
+  const chapters: Array<Record<string, unknown>> = [];
+  const resources: Record<string, Array<Record<string, unknown>>> = {
+    characters: [],
+    outlines: [],
+    "story-arcs": [],
+  };
+  let failOutlineOnce = true;
   const client = {
     chapters: {
-      create: async () => {
-        throw new Error("chapter failed");
+      list: async () => chapters,
+      create: async (input: Record<string, unknown>) => {
+        const chapter = { ...input, id: `chapter-${chapters.length + 1}` };
+        chapters.push(chapter);
+        return chapter;
       },
     },
     resources: {
-      create: async (domain: string) => {
-        await Promise.resolve();
-        finishedDomains.push(domain);
-        return {};
+      list: async (domain: string) => resources[domain] ?? [],
+      create: async (domain: string, input: Record<string, unknown>) => {
+        if (domain === "outlines" && failOutlineOnce) {
+          failOutlineOnce = false;
+          throw new Error("outline failed");
+        }
+        const resource = {
+          ...input,
+          id: `${domain}-${(resources[domain]?.length ?? 0) + 1}`,
+        };
+        resources[domain]!.push(resource);
+        return resource;
       },
     },
   } as unknown as StudioClient;
@@ -124,8 +141,17 @@ test("预设初始化等待全部并发写入结束后再报告失败", async ()
       novelStoryPreset("group-pet")!,
       "",
     ),
-  ).rejects.toThrow("chapter failed");
-  expect(finishedDomains).toHaveLength(8);
+  ).rejects.toThrow("outline failed");
+  await initializeStoryPresetMaterials(
+    client,
+    "project-1",
+    novelStoryPreset("group-pet")!,
+    "",
+  );
+  expect(chapters).toHaveLength(1);
+  expect(resources.characters).toHaveLength(4);
+  expect(resources.outlines).toHaveLength(1);
+  expect(resources["story-arcs"]).toHaveLength(3);
 });
 
 test("单季原创初始化母稿、四个人物槽位、季纲和首集", async () => {
@@ -133,12 +159,14 @@ test("单季原创初始化母稿、四个人物槽位、季纲和首集", async
   const selected: Array<{ projectId: string; adaptationId: string }> = [];
   const client = {
     chapters: {
+      list: async () => [],
       create: async (input: Record<string, unknown>) => ({
         ...input,
         id: "chapter-1",
       }),
     },
     resources: {
+      list: async () => [],
       create: async (domain: string, input: Record<string, unknown>) => {
         created.push({ domain, input });
         return { id: `${domain}-${created.length}`, ...input };

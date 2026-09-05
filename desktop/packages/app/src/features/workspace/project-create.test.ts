@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
-import { defaultProductionBrief } from "../../project-intake";
-import { projectModeConfigFromDraft } from "./impl";
+import {
+  defaultProductionBrief,
+  projectModeConfigFromDraft,
+} from "../../project-intake";
 
 test("四种创建模式从草稿生成可持久化配置", () => {
   const draft = defaultProductionBrief("inspiration");

@@ -29,7 +29,7 @@ test("示例项目在统一资产中心展示筛选、状态和版本比较入�
   await expect(page.getByRole("link", { name: "雨夜归来" })).toBeVisible();
   await page.getByRole("link", { name: "制作" }).click();
   await page.getByRole("button", { name: "资产中心" }).click();
-  await expect(page.getByLabel("资产中心")).toBeVisible();
+  await expect(page.getByRole("region", { name: "资产中心" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "统一资产中心" }),
   ).toBeVisible();

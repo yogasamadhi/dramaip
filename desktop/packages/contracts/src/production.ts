@@ -1,6 +1,114 @@
 import { z } from "zod";
 import { defineServiceContract } from "./service-contract.js";
 
+const ScreenplaySourceLocationSchema = z.object({
+  line: z.number().int().positive(),
+  column: z.number().int().positive().default(1),
+});
+
+const ScreenplayBlockBaseSchema = z.object({
+  id: z.string().uuid(),
+  sourceLocation: ScreenplaySourceLocationSchema.optional(),
+});
+
+export const ScreenplayBlockSchema = z.discriminatedUnion("type", [
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("scene_heading"),
+    text: z.string(),
+    sceneNumber: z.string().optional(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("action"),
+    text: z.string(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("character"),
+    text: z.string(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("dialogue"),
+    text: z.string(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("parenthetical"),
+    text: z.string(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("transition"),
+    text: z.string(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("note"),
+    text: z.string(),
+  }),
+  ScreenplayBlockBaseSchema.extend({
+    type: z.literal("page_break"),
+  }),
+]);
+
+export const ScreenplayDocumentSchema = z.object({
+  id: z.string().uuid(),
+  scriptId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  title: z.string().min(1).max(240),
+  sourceFormat: z.enum(["native", "fountain", "fdx", "pdf"]),
+  blocks: z.array(ScreenplayBlockSchema),
+  version: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const ScreenplayLossReportSchema = z.object({
+  unsupported: z.array(z.string()),
+  warnings: z.array(z.string()),
+  preserved: z.array(z.string()),
+});
+
+export const ScreenplayImportPreviewInputSchema = z.object({
+  projectId: z.string().uuid(),
+  parentId: z.string().uuid().optional(),
+  title: z.string().trim().min(1).max(240),
+  grantId: z.string().uuid(),
+});
+
+export const ScreenplayImportPreviewSchema = z.object({
+  previewId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  parentId: z.string().uuid().optional(),
+  title: z.string(),
+  sourceName: z.string(),
+  sourceFormat: z.enum(["fountain", "fdx", "pdf"]),
+  blocks: z.array(ScreenplayBlockSchema),
+  lossReport: ScreenplayLossReportSchema,
+  etag: z.string(),
+  status: z.enum(["pending", "committed", "discarded"]),
+  createdAt: z.string().datetime(),
+});
+
+export const ScreenplayImportCommitSchema = z.object({
+  previewId: z.string().uuid(),
+});
+
+export const ScreenplayPatchSchema = z.object({
+  title: z.string().trim().min(1).max(240).optional(),
+  blocks: z.array(ScreenplayBlockSchema),
+  version: z.number().int().nonnegative(),
+});
+
+export const ScreenplayExportDocumentSchema = z.object({
+  fileName: z.string(),
+  mimeType: z.string(),
+  content: z.string(),
+  lossReport: ScreenplayLossReportSchema,
+});
+
+export type ScreenplayBlock = z.infer<typeof ScreenplayBlockSchema>;
+export type ScreenplayDocument = z.infer<typeof ScreenplayDocumentSchema>;
+export type ScreenplayLossReport = z.infer<typeof ScreenplayLossReportSchema>;
+export type ScreenplayImportPreview = z.infer<
+  typeof ScreenplayImportPreviewSchema
+>;
+
 export const SeasonStatusSchema = z.enum([
   "draft",
   "ready",

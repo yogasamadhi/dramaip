@@ -1,6 +1,6 @@
 # Pi third-party notices
 
-DramaIP Studio includes an unmodified source snapshot of Pi 0.84.2 and a
+尽意 DramaIP includes an unmodified source snapshot of Pi 0.84.2 and a
 DramaIP-specific runtime adapter. Pi is licensed under the MIT License.
 
 The packaged runtime is bundled from the pinned source snapshot in

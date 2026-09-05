@@ -524,7 +524,7 @@ export default function InspirationPage() {
             <h2 className="font-semibold">个人创意指纹</h2>
             <p className="mt-1 text-xs leading-5 text-stone-500">与长期记忆分开授权；只使用你明确采用、拒绝、评分或保存的结果，不扫描完整对话和文件，也不用于平台训练。</p>
             <label className="mt-4 flex items-center justify-between rounded-2xl bg-stone-50 p-3 text-sm"><span>{fingerprint?.enabled ? '学习已开启' : '尚未授权'}</span><input type="checkbox" checked={fingerprint?.enabled ?? false} onChange={async (event) => {
-              if (event.target.checked && !window.confirm('单独授权 DramaIP 根据你明确采用、拒绝、评分和保存的结果学习个人创意指纹？')) return
+              if (event.target.checked && !window.confirm('单独授权尽意 DramaIP 根据你明确采用、拒绝、评分和保存的结果学习个人创意指纹？')) return
               setFingerprint(await apiClient.creativeIntelligence.setFingerprintEnabled(event.target.checked))
             }} /></label>
             <div className="mt-4 space-y-2">{fingerprint?.dimensions.map((dimension) => <div key={dimension.key} className={`rounded-xl border border-stone-200 p-3 text-xs ${dimension.frozen ? 'opacity-60' : ''}`}><div className="flex justify-between"><strong>{dimension.key}</strong><span>{Math.round(dimension.score * 100)}% · 置信 {Math.round(dimension.confidence * 100)}%</span></div><div className="mt-2 h-1.5 rounded-full bg-stone-100"><div className="h-full rounded-full bg-rust" style={{ width: `${dimension.score * 100}%` }} /></div><button type="button" className="mt-2 text-stone-500" onClick={async () => setFingerprint(await apiClient.creativeIntelligence.updateFingerprint({ version: fingerprint.version, dimensions: [{ key: dimension.key, frozen: !dimension.frozen }] }))}>{dimension.frozen ? '解除冻结' : '冻结维度'}</button></div>)}</div>

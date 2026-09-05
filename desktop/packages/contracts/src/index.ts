@@ -1,5 +1,10 @@
 import { z } from "zod";
+import { CapabilityDescriptorSchema } from "./capability.js";
 import { defineServiceContract } from "./service-contract.js";
+
+export * from "./capability.js";
+export * from "./local-model-runtime.js";
+export * from "./agent-context.js";
 
 export {
   defineServiceContract,
@@ -90,12 +95,7 @@ export const RuntimeModeSchema = z.enum(["desktop", "server", "headless"]);
 export type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
 
 /** Product engine identifiers. Archived engine research never crosses a boundary. */
-export const AgentEngineKindSchema = z.enum([
-  "pi",
-  "codex",
-  "grok",
-  "langgraph",
-]);
+export const AgentEngineKindSchema = z.enum(["pi", "codex", "langgraph"]);
 export type AgentEngineKind = z.infer<typeof AgentEngineKindSchema>;
 
 export const AgentEngineHealthSchema = z
@@ -154,6 +154,7 @@ export const RuntimeInfoSchema = z.object({
     }),
   ),
   capabilities: z.record(z.string(), z.boolean()),
+  capabilityDescriptors: z.record(z.string(), CapabilityDescriptorSchema),
   engineStatus: z.record(z.string(), AgentEngineHealthSchema),
   uiContributions: z.array(UiContributionSchema),
 });
@@ -223,7 +224,9 @@ export interface ConfiguredProvider {
   title: string;
   serviceType: string;
   model: string;
-  credentialRef: string;
+  authentication: "apiKey" | "none";
+  credentialRef?: string;
+  localRuntimeKind?: "ollama" | "lm_studio";
   baseUrl?: string;
   protocol?: string;
   concurrencyLimit?: number;

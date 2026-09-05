@@ -43,8 +43,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-stone-50/90 backdrop-blur-xl">
         <nav className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-6 px-5 py-3 lg:px-8">
           <Link href="/" className="flex items-center gap-3 text-lg font-semibold tracking-tight text-stone-950">
-            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-ink text-sm text-white">D</span>
-            <span>DramaIP <span className="font-normal text-stone-400">Studio</span></span>
+            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-ink text-sm text-white">意</span>
+            <span>尽意 <span className="font-normal text-stone-400">DramaIP</span></span>
           </Link>
           <div className="hidden items-center gap-5 text-sm lg:flex">
             <NavLink href="/cases/demo" current={pathname === '/cases/demo'}>

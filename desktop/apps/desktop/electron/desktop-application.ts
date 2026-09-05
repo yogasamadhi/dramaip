@@ -4,6 +4,7 @@ import {
   dialog,
   nativeImage,
   Notification,
+  safeStorage,
   shell,
   utilityProcess,
 } from "electron";
@@ -15,6 +16,7 @@ import { join, resolve } from "node:path";
 import type { JsonValue } from "@dramaip/contracts";
 import {
   createDesktopHost,
+  discoverLocalModelRuntime,
   type AgentProviderActivationInput,
   type CodexAuthenticationLoginInput,
   type CodexAuthenticationLoginResult,
@@ -29,8 +31,15 @@ import { bootstrapCodexAuthentication } from "./codex-auth-bootstrap";
 import {
   LocalCredentialVault,
   type CredentialUse,
+  type VaultKeyProtector,
 } from "./local-credential-vault";
 import { CredentialCaptureManager } from "./credential-capture";
+import {
+  loadVerifiedFfmpeg,
+  loadVerifiedFfprobe,
+} from "./host/ffprobe-sidecar";
+import { archiveRemoteVideo } from "./host/media-archive";
+import { RenderSupervisor } from "./host/render-supervisor";
 import { safeHttpRequest } from "./host/safe-http-transport";
 import { extractSafeWebPage } from "./host/web-page-content";
 import { EngineEventChannel } from "./engines/engine-event-channel";
@@ -129,27 +138,50 @@ registerRendererScheme();
 let coreRuntime: ManagedProcess | undefined;
 let codexEngine: ManagedProcess | undefined;
 let piEngine: ManagedProcess | undefined;
-let grokEngine: ManagedProcess | undefined;
 let langgraphEngine: ManagedProcess | undefined;
 let initialization: Promise<Ready> | undefined;
 let hostServer: { close(): void; port: number } | undefined;
 let runtimeReady: Ready | undefined;
+const safeStorageKeyProtector: VaultKeyProtector = {
+  async status() {
+    const available = safeStorage.isEncryptionAvailable();
+    const backend =
+      process.platform === "darwin"
+        ? "keychain"
+        : process.platform === "win32"
+          ? "dpapi"
+          : safeStorage.getSelectedStorageBackend();
+    return {
+      available,
+      secure: available && backend !== "basic_text" && backend !== "unknown",
+      backend,
+    };
+  },
+  async protect(value) {
+    const status = await this.status();
+    if (!status.secure) throw new Error("操作系统安全存储不可用");
+    return safeStorage.encryptString(value.toString("base64"));
+  },
+  async unprotect(value) {
+    const status = await this.status();
+    if (!status.secure) throw new Error("操作系统安全存储不可用");
+    return Buffer.from(safeStorage.decryptString(value), "base64");
+  },
+};
 const credentialVault = new LocalCredentialVault(
   join(app.getPath("userData"), "credentials"),
+  { keyProtector: safeStorageKeyProtector },
 );
 let credentialCaptureManager: CredentialCaptureManager | undefined;
 const fileCapabilities = new Map<string, FileCapability>();
 const artifactCapabilities = new Map<string, string>();
 const managedPortraitMedia = new Map<string, string>();
+const managedArchivedMedia = new Map<string, string>();
 const hostGeneration = 1;
 const componentStates = new Map(
-  [
-    "core-runtime",
-    "codex-engine",
-    "pi-engine",
-    "grok-engine",
-    "langgraph-engine",
-  ].map((name) => [name, new ManagedComponentState(name)]),
+  ["core-runtime", "codex-engine", "pi-engine", "langgraph-engine"].map(
+    (name) => [name, new ManagedComponentState(name)],
+  ),
 );
 const restartBudgets = new Map(
   [...componentStates].map(([name]) => [name, new RestartBudget()]),
@@ -300,22 +332,6 @@ function piRuntimeModule(): string {
     : join(desktopRuntimeRoot(), "build", "pi", "runtime.mjs");
 }
 
-function grokBinaryPath(): string {
-  if (process.platform !== "darwin" || process.arch !== "arm64")
-    throw new Error("Grok Build Runtime 当前仅支持 macOS arm64");
-  const prepared = app.isPackaged
-    ? join(process.resourcesPath, "grok", "aarch64-apple-darwin", "grok")
-    : join(
-        desktopRuntimeRoot(),
-        "build",
-        "grok",
-        "aarch64-apple-darwin",
-        "grok",
-      );
-  if (!existsSync(prepared)) throw new Error("Grok Build Runtime 未准备");
-  return prepared;
-}
-
 async function removeCredential(credentialRef: string): Promise<void> {
   await credentialVault.remove(credentialRef);
 }
@@ -408,9 +424,7 @@ function spawnSidecar(
             stopManagedComponent(
               component,
               child,
-              ["pi-engine", "grok-engine", "langgraph-engine"].includes(name)
-                ? 15_000
-                : 6_000,
+              ["pi-engine", "langgraph-engine"].includes(name) ? 15_000 : 6_000,
             ),
         };
         component.ready({
@@ -463,7 +477,7 @@ function spawnSidecar(
       if (name === "core-runtime" && message.type === "runtime:error")
         return fail(new Error(message.error.message));
       if (
-        ["pi-engine", "grok-engine", "langgraph-engine"].includes(name) &&
+        ["pi-engine", "langgraph-engine"].includes(name) &&
         message.type === "configured"
       ) {
         const pending = engineConfigurationRequests.get(message.requestId);
@@ -477,12 +491,7 @@ function spawnSidecar(
         return;
       }
       if (
-        [
-          "codex-engine",
-          "pi-engine",
-          "grok-engine",
-          "langgraph-engine",
-        ].includes(name) &&
+        ["codex-engine", "pi-engine", "langgraph-engine"].includes(name) &&
         message.type === "response"
       ) {
         const pendingHostRequest = engineHostRequests.get(message.requestId);
@@ -497,12 +506,7 @@ function spawnSidecar(
         return;
       }
       if (
-        [
-          "codex-engine",
-          "pi-engine",
-          "grok-engine",
-          "langgraph-engine",
-        ].includes(name) &&
+        ["codex-engine", "pi-engine", "langgraph-engine"].includes(name) &&
         message.type === "event"
       ) {
         const stream = engineHostStreams.get(message.runId);
@@ -547,7 +551,7 @@ function failPendingEngineWork(message: string): void {
 }
 
 async function configureRuntimeEngine(
-  engineKind: "pi" | "grok" | "langgraph",
+  engineKind: "pi" | "langgraph",
   engine: ManagedProcess | undefined,
   displayName: string,
   provider: {
@@ -594,22 +598,37 @@ async function activateAgentProvider(
     anthropic: "https://api.anthropic.com",
     google: "https://generativelanguage.googleapis.com",
   } as const;
-  const secret = await resolveCredential(configuration.credentialRef, {
-    purpose: "provider-authentication",
-    origin: configuration.baseUrl ?? defaultOrigins[configuration.providerKind],
-  });
-  if (!secret)
-    return { available: false, message: "智能助手模型的安全凭据不可用" };
+  let baseUrl = configuration.baseUrl;
+  let secret: string;
+  if (configuration.authentication === "none") {
+    const kind = configuration.localRuntimeKind!;
+    const runtime = await discoverLocalModelRuntime(kind);
+    if (runtime.state === "unavailable")
+      return { available: false, message: "本地模型运行时当前不可用" };
+    baseUrl =
+      kind === "ollama"
+        ? "http://127.0.0.1:11434/v1"
+        : "http://127.0.0.1:1234/v1";
+    secret = "local-runtime-no-auth";
+  } else {
+    secret =
+      (await resolveCredential(configuration.credentialRef!, {
+        purpose: "provider-authentication",
+        origin:
+          configuration.baseUrl ?? defaultOrigins[configuration.providerKind],
+      })) ?? "";
+    if (!secret)
+      return { available: false, message: "智能助手模型的安全凭据不可用" };
+  }
   const provider = {
     providerKind: configuration.providerKind,
     providerAdapter: configuration.providerAdapter,
     model: configuration.model,
-    ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
     secret,
   };
-  const [pi, grok, langgraph] = await Promise.all([
+  const [pi, langgraph] = await Promise.all([
     configureRuntimeEngine("pi", piEngine, "Pi", provider),
-    configureRuntimeEngine("grok", grokEngine, "Grok Build", provider),
     configureRuntimeEngine(
       "langgraph",
       langgraphEngine,
@@ -618,12 +637,11 @@ async function activateAgentProvider(
     ),
   ]);
   if (piEngine) piEngine.configured = pi.available;
-  if (grokEngine) grokEngine.configured = grok.available;
   if (langgraphEngine) langgraphEngine.configured = langgraph.available;
   if (langgraphEngine) langgraphEngine.authenticated = langgraph.available;
   return pi.available
     ? { available: true }
-    : { available: false, message: pi.message ?? grok.message };
+    : { available: false, message: pi.message ?? langgraph.message };
 }
 
 async function executeProviderHttpRequest(
@@ -656,6 +674,7 @@ async function executeProviderHttpRequest(
     maximumBytes: input.maximumBytes ?? 16 * 1024 * 1024,
     timeoutMs: input.timeoutMs ?? 90_000,
     authorization: `Bearer ${secret}`,
+    ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
   });
   if (input.accept === "binary")
     return {
@@ -965,9 +984,6 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
     if (previous.name === "pi-engine") {
       piEngine = next;
     }
-    if (previous.name === "grok-engine") {
-      grokEngine = next;
-    }
     if (previous.name === "langgraph-engine") {
       langgraphEngine = next;
     }
@@ -978,7 +994,7 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
 }
 
 async function restartRuntimeTree(previous: ManagedProcess): Promise<void> {
-  const engines = [codexEngine, piEngine, grokEngine, langgraphEngine].filter(
+  const engines = [codexEngine, piEngine, langgraphEngine].filter(
     (engine): engine is ManagedProcess => Boolean(engine),
   );
   failPendingEngineWork("Core Runtime restarted");
@@ -991,14 +1007,12 @@ async function restartRuntimeTree(previous: ManagedProcess): Promise<void> {
   );
   codexEngine = undefined;
   piEngine = undefined;
-  grokEngine = undefined;
   langgraphEngine = undefined;
 
   const accessToken = randomBytes(32).toString("base64url");
   const mcpTokens = {
     "codex-engine": randomUUID(),
     "pi-engine": randomUUID(),
-    "grok-engine": randomUUID(),
     "langgraph-engine": randomUUID(),
   } as const;
   previous.command.accessToken = accessToken;
@@ -1030,7 +1044,6 @@ async function restartRuntimeTree(previous: ManagedProcess): Promise<void> {
   for (const engine of restarted) {
     if (engine?.name === "codex-engine") codexEngine = engine;
     if (engine?.name === "pi-engine") piEngine = engine;
-    if (engine?.name === "grok-engine") grokEngine = engine;
     if (engine?.name === "langgraph-engine") langgraphEngine = engine;
   }
   runtimeReady = {
@@ -1077,7 +1090,6 @@ function managedEngine(engine: import("@dramaip/contracts").AgentEngineKind) {
   return {
     codex: codexEngine,
     pi: piEngine,
-    grok: grokEngine,
     langgraph: langgraphEngine,
   }[engine];
 }
@@ -1583,12 +1595,26 @@ function hostText(
   return normalized;
 }
 
-function createHost(accessToken: string) {
+function createHost(
+  accessToken: string,
+  verifiedFfprobe: Awaited<ReturnType<typeof loadVerifiedFfprobe>>,
+  renderSupervisor?: RenderSupervisor,
+) {
   return createDesktopHost({
     accessToken,
     capabilities: [
       { id: "files", available: true },
       { id: "media-library", available: true },
+      {
+        id: "media-archive",
+        available: Boolean(verifiedFfprobe),
+        ...(verifiedFfprobe ? { version: verifiedFfprobe.version } : {}),
+      },
+      {
+        id: "renderer.ffmpeg-x264",
+        available: Boolean(renderSupervisor),
+        ...(verifiedFfprobe ? { version: verifiedFfprobe.version } : {}),
+      },
       { id: "credentials", available: true },
       { id: "window", available: true },
       { id: "shell", available: true },
@@ -1735,10 +1761,70 @@ function createHost(accessToken: string) {
           size: cleaned.byteLength,
         };
       },
+      ...(verifiedFfprobe
+        ? {
+            async archiveRemoteMedia(input) {
+              let authorization = "";
+              if (input.credentialRef) {
+                const origin = new URL(input.url).origin;
+                const secret = await resolveCredential(input.credentialRef, {
+                  purpose: "provider-authentication",
+                  origin,
+                });
+                if (!secret) throw new Error("服务商安全凭据不可用");
+                authorization = `Bearer ${secret}`;
+              }
+              const root = join(app.getPath("userData"), "media-library");
+              const archived = await archiveRemoteVideo(
+                {
+                  url: input.url,
+                  authorization,
+                  maximumBytes: input.maximumBytes ?? 512 * 1024 * 1024,
+                  timeoutMs: 10 * 60_000,
+                  ...(input.expectedSha256
+                    ? { expectedSha256: input.expectedSha256 }
+                    : {}),
+                },
+                { root, probe: verifiedFfprobe.probe },
+              );
+              managedArchivedMedia.set(
+                archived.mediaRef,
+                join(root, `${archived.mediaRef}${archived.extension}`),
+              );
+              return archived;
+            },
+          }
+        : {}),
+      ...(renderSupervisor
+        ? {
+            async startTimelineRender(input) {
+              return renderSupervisor.start(input);
+            },
+            async getTimelineRender(jobId) {
+              const value = renderSupervisor.get(jobId);
+              if (value?.output)
+                managedArchivedMedia.set(
+                  value.output.mediaRef,
+                  join(
+                    app.getPath("userData"),
+                    "media-library",
+                    `${value.output.mediaRef}${value.output.extension}`,
+                  ),
+                );
+              return value;
+            },
+            async cancelTimelineRender(jobId) {
+              return renderSupervisor.cancel(jobId);
+            },
+          }
+        : {}),
       async removeManagedMedia(mediaRef) {
-        const target = managedPortraitMedia.get(mediaRef);
+        const target =
+          managedPortraitMedia.get(mediaRef) ??
+          managedArchivedMedia.get(mediaRef);
         if (!target) return;
         managedPortraitMedia.delete(mediaRef);
+        managedArchivedMedia.delete(mediaRef);
         try {
           await unlink(target);
         } catch (cause) {
@@ -1751,7 +1837,7 @@ function createHost(accessToken: string) {
           .slice(0, 180);
         const result = await dialog.showSaveDialog({
           title: "导出项目文件",
-          defaultPath: suggestedName || "DramaIP导出文件.txt",
+          defaultPath: suggestedName || "尽意-DramaIP-导出文件.txt",
         });
         if (result.canceled || !result.filePath) return { saved: false };
         await writeFile(result.filePath, input.content, "utf8");
@@ -1773,6 +1859,13 @@ function createHost(accessToken: string) {
       },
       removeCredential,
       credentialStorageStatus: () => credentialVault.status(),
+      createCredentialVaultUnlockSession: () => {
+        if (!credentialCaptureManager)
+          throw new Error("Credential capture is unavailable");
+        return credentialCaptureManager.createVaultUnlock(
+          BrowserWindow.getFocusedWindow() ?? undefined,
+        );
+      },
       createCredentialCaptureSession: (input) => {
         if (!credentialCaptureManager)
           throw new Error("Credential capture is unavailable");
@@ -1925,11 +2018,38 @@ async function initialize(): Promise<Ready> {
   const mcpTokens = {
     codex: randomUUID(),
     pi: randomUUID(),
-    grok: randomUUID(),
     langgraph: randomUUID(),
   } as const;
   const hostToken = randomUUID();
-  const host = createHost(hostToken);
+  const verifiedFfprobe = await loadVerifiedFfprobe({
+    root: join(app.getPath("userData"), "renderer-sidecars", "active"),
+    publicKeyPem: process.env.DRAMAIP_RENDERER_MANIFEST_PUBLIC_KEY_PEM,
+  }).catch((cause) => {
+    console.warn(
+      `Renderer sidecar verification failed: ${cause instanceof Error ? cause.message : "unknown error"}`,
+    );
+    return undefined;
+  });
+  const verifiedFfmpeg = await loadVerifiedFfmpeg({
+    root: join(app.getPath("userData"), "renderer-sidecars", "active"),
+    publicKeyPem: process.env.DRAMAIP_RENDERER_MANIFEST_PUBLIC_KEY_PEM,
+  }).catch((cause) => {
+    console.warn(
+      `FFmpeg sidecar verification failed: ${cause instanceof Error ? cause.message : "unknown error"}`,
+    );
+    return undefined;
+  });
+  const mediaRoot = join(app.getPath("userData"), "media-library");
+  const renderSupervisor =
+    verifiedFfprobe && verifiedFfmpeg
+      ? new RenderSupervisor({
+          ffmpegPath: verifiedFfmpeg.executablePath,
+          rendererVersion: verifiedFfmpeg.version,
+          mediaRoot,
+          probe: verifiedFfprobe.probe,
+        })
+      : undefined;
+  const host = createHost(hostToken, verifiedFfprobe, renderSupervisor);
   hostServer = await host.start({ hostname, port: 0 });
   const runtimeToken = randomBytes(32).toString("base64url");
   coreRuntime = (await spawnSidecar(
@@ -1975,9 +2095,9 @@ async function initialize(): Promise<Ready> {
   const mcpUrl = `${ready.baseUrl}/engine/v1/mcp`;
   await bootstrapCodexAuth();
   // Engine transports are independent supervisors. Starting them concurrently
-  // avoids making every Desktop attach pay four sequential vendor handshakes.
+  // avoids making every Desktop attach pay three sequential vendor handshakes.
   // Availability remains explicit per engine; no adapter is used as fallback.
-  const [codex, pi, grok, langgraph] = await Promise.all([
+  const [codex, pi, langgraph] = await Promise.all([
     spawnSidecar(
       "codex-engine",
       {
@@ -2000,22 +2120,6 @@ async function initialize(): Promise<Ready> {
       },
       false,
     ),
-    process.platform === "darwin" && process.arch === "arm64"
-      ? spawnSidecar(
-          "grok-engine",
-          {
-            type: "start",
-            binaryPath: grokBinaryPath(),
-            sessionRoot: join(
-              app.getPath("userData"),
-              "agent-sessions",
-              "grok",
-            ),
-            mcp: { url: mcpUrl, token: mcpTokens.grok },
-          },
-          false,
-        )
-      : Promise.resolve(undefined),
     spawnSidecar(
       "langgraph-engine",
       {
@@ -2032,7 +2136,6 @@ async function initialize(): Promise<Ready> {
   ]);
   codexEngine = codex;
   piEngine = pi;
-  grokEngine = grok;
   langgraphEngine = langgraph;
   return ready;
 }
@@ -2081,7 +2184,7 @@ app
     } catch (error) {
       console.error("DramaIP Runtime startup failed", error);
       dialog.showErrorBox(
-        "DramaIP Server 启动失败",
+        "尽意本地服务启动失败",
         error instanceof Error ? error.message : String(error),
       );
       app.quit();
@@ -2092,7 +2195,7 @@ app
   })
   .catch((error) => {
     dialog.showErrorBox(
-      "DramaIP 启动失败",
+      "尽意 DramaIP 启动失败",
       error instanceof Error ? error.message : String(error),
     );
     app.quit();
@@ -2113,7 +2216,6 @@ app.on("before-quit", (event) => {
         { stop: () => extensionSupervisor.stopAll() },
         codexEngine,
         piEngine,
-        grokEngine,
         langgraphEngine,
       ],
       runtime: coreRuntime,

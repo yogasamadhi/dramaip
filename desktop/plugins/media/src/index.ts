@@ -91,6 +91,10 @@ import {
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  videoProviderAdapter,
+  type MediaVideoProviderKind,
+} from "./video-provider-adapters.js";
 
 interface MediaRow {
   id: string;
@@ -182,10 +186,16 @@ interface VideoJobRow {
   episode_id: string | null;
   shot_id: string | null;
   provider_id: string;
+  provider_kind: MediaVideoProviderKind | null;
+  model_revision: string | null;
+  idempotency_key: string | null;
+  request_sha256: string | null;
   remote_job_id: string;
   prompt: string;
   request_json: string;
   status: VideoGenerationJob["status"];
+  remote_status: VideoGenerationJob["remoteStatus"];
+  archive_status: VideoGenerationJob["archiveStatus"];
   results_json: string;
   error: string | null;
   created_at: string;
@@ -409,6 +419,94 @@ function createRecord(
     );
     appendEvent(transaction, `${kind}-created`, value);
     return value;
+  });
+}
+
+function registerArchivedArtifact(
+  context: PluginContext,
+  input: Parameters<MediaRecordService["registerArchivedArtifact"]>[0],
+): MediaRecord {
+  return context.uow.execute((transaction) => {
+    const existing = transaction.get<MediaRow>(
+      `SELECT records.* FROM media_records records
+       JOIN media_artifacts artifacts ON artifacts.media_record_id = records.id
+       WHERE artifacts.media_ref = ?`,
+      input.descriptor.mediaRef,
+    );
+    if (existing) return toRecord(existing);
+    const mediaRecordId = crypto.randomUUID();
+    const artifactId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const payload = {
+      ...input.descriptor,
+      artifactId,
+      lineage: input.lineage,
+    };
+    transaction.run(
+      `INSERT INTO media_records(
+        id, kind, project_id, parent_id, title, payload_json, version,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      mediaRecordId,
+      input.descriptor.kind === "video" ? "video" : "assets",
+      input.projectId,
+      input.parentId ?? null,
+      input.title.trim(),
+      JSON.stringify(payload),
+      now,
+      now,
+    );
+    transaction.run(
+      `INSERT INTO media_artifacts(
+        artifact_id, media_record_id, project_id, media_ref, kind,
+        mime_type, extension, size_bytes, sha256, width, height,
+        duration_frames, frame_rate_numerator, frame_rate_denominator,
+        drop_frame, status, created_at, removed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      artifactId,
+      mediaRecordId,
+      input.projectId,
+      input.descriptor.mediaRef,
+      input.descriptor.kind,
+      input.descriptor.mimeType,
+      input.descriptor.extension,
+      input.descriptor.sizeBytes,
+      input.descriptor.sha256,
+      input.descriptor.width ?? null,
+      input.descriptor.height ?? null,
+      input.descriptor.durationFrames ?? null,
+      input.descriptor.frameRate?.numerator ?? null,
+      input.descriptor.frameRate?.denominator ?? null,
+      input.descriptor.frameRate
+        ? input.descriptor.frameRate.dropFrame
+          ? 1
+          : 0
+        : null,
+      input.descriptor.status,
+      now,
+    );
+    const record = toRecord(
+      transaction.get<MediaRow>(
+        "SELECT * FROM media_records WHERE id = ?",
+        mediaRecordId,
+      )!,
+    );
+    appendEvent(transaction, `${record.kind}-created`, record);
+    transaction.append({
+      type: "media.artifact-archived.v1",
+      pluginId: "media",
+      aggregateType: "media-artifact",
+      aggregateId: artifactId,
+      aggregateVersion: 0,
+      payload: {
+        artifactId,
+        mediaRecordId,
+        mediaRef: input.descriptor.mediaRef,
+        sha256: input.descriptor.sha256,
+        lineage: input.lineage,
+      },
+    });
+    return record;
   });
 }
 
@@ -1522,6 +1620,16 @@ function stableFingerprint(value: unknown): string {
   return `media-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
+async function sha256Text(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function shotDuration(payload: Record<string, unknown>): number {
   const value = payload["时长秒数"] ?? payload["时长"] ?? 3;
   if (typeof value === "number" && Number.isFinite(value) && value > 0)
@@ -2062,6 +2170,12 @@ function providerFor(
     ?.get(id);
 }
 
+function providerCredential(provider: ConfiguredProvider): string {
+  if (!provider.credentialRef)
+    throw new Error("媒体生成不支持无密钥的本地文本模型服务商。");
+  return provider.credentialRef;
+}
+
 function upstream(response: ProviderHttpResponse): unknown {
   if (response.status < 200 || response.status >= 300) {
     const message =
@@ -2216,7 +2330,7 @@ async function runImageGeneration(input: {
   });
   try {
     const response = await input.host.providerRequest({
-      credentialRef: provider.credentialRef,
+      credentialRef: providerCredential(provider),
       url: providerEndpoint(provider.baseUrl, "/images/generations"),
       method: "POST",
       body: {
@@ -2319,7 +2433,7 @@ async function runTtsGeneration(input: {
   try {
     const format = input.value.responseFormat ?? "mp3";
     const response = await input.host.providerRequest({
-      credentialRef: provider.credentialRef,
+      credentialRef: providerCredential(provider),
       url: providerEndpoint(provider.baseUrl, "/audio/speech"),
       method: "POST",
       body: {
@@ -2406,7 +2520,12 @@ function videoPreflight(
     .map((item) => item.id);
   const blockers: string[] = [];
   const warnings: string[] = [];
+  const adapter = provider ? videoProviderAdapter(provider) : undefined;
   if (!provider.baseUrl) blockers.push("服务商尚未配置调用地址。");
+  if (!adapter)
+    blockers.push(
+      "视频服务商必须明确使用 Seedance 或 MiniMax H3 Cloud 协议；不再支持通用 /videos 猜测合同。",
+    );
   if (!adoptedStill) blockers.push("请先采用一张静帧候选。");
   if (!lockedAssetIds.length) warnings.push("当前分镜没有已锁定的视觉资产。");
   const costStatus =
@@ -2431,6 +2550,18 @@ function videoPreflight(
     lockedAssetIds,
     blockers,
     warnings,
+    ...(adapter
+      ? {
+          providerKind: adapter.kind,
+          providerCapabilities: {
+            cancellation: adapter.capabilities.cancellation,
+            nativeAudio: adapter.capabilities.nativeAudio,
+            durationSeconds: adapter.capabilities.durationSeconds,
+            resolutions: [...adapter.capabilities.resolutions],
+            aspectRatios: [...adapter.capabilities.aspectRatios],
+          },
+        }
+      : {}),
     costStatus,
     ...(provider.estimatedUnitCost === undefined
       ? {}
@@ -2451,9 +2582,13 @@ function toVideoJob(
     ...(row.episode_id ? { episodeId: row.episode_id } : {}),
     ...(row.shot_id ? { shotId: row.shot_id } : {}),
     providerId: row.provider_id,
+    ...(row.provider_kind ? { providerKind: row.provider_kind } : {}),
+    ...(row.model_revision ? { modelRevision: row.model_revision } : {}),
     remoteJobId: row.remote_job_id,
     prompt: row.prompt,
     status: row.status,
+    remoteStatus: row.remote_status,
+    archiveStatus: row.archive_status,
     results: ids
       .map((id) => records.get(id))
       .filter((item): item is MediaRecord => Boolean(item)),
@@ -2463,17 +2598,6 @@ function toVideoJob(
   };
 }
 
-function remoteVideoStatus(value: unknown): VideoGenerationJob["status"] {
-  const status = String(value ?? "queued").toLowerCase();
-  if (["completed", "complete", "succeeded", "success"].includes(status))
-    return "succeeded";
-  if (["failed", "error"].includes(status)) return "failed";
-  if (["canceled", "cancelled"].includes(status)) return "canceled";
-  if (["running", "processing", "in_progress"].includes(status))
-    return "running";
-  return "queued";
-}
-
 async function createVideoGeneration(input: {
   context: PluginContext;
   host: DesktopHostClient;
@@ -2481,6 +2605,7 @@ async function createVideoGeneration(input: {
   records: MediaRecordService;
   tasks: AutomationTaskService;
   value: VideoGenerationInput;
+  idempotencyKey: string;
 }): Promise<VideoGenerationJob> {
   const shotId = input.value.shotId;
   if (!shotId) throw new Error("视频生成需要指定分镜。");
@@ -2495,6 +2620,14 @@ async function createVideoGeneration(input: {
   if (preflight.snapshotHash !== input.value.readinessHash)
     throw new Error("视频预检快照已变化，请重新预检。");
   const provider = providerFor(input.context, input.value.providerId)!;
+  const adapter = videoProviderAdapter(provider);
+  if (!adapter)
+    throw new Error(
+      "视频服务商未声明 Seedance 或 MiniMax H3 Cloud 协议，已拒绝猜测端点。",
+    );
+  const requestDraft = adapter.create(provider, input.value);
+  const requestJson = JSON.stringify(input.value);
+  const requestSha256 = await sha256Text(requestJson);
   const task = input.tasks.start({
     kind: "video-generation",
     title: "视频生成",
@@ -2503,43 +2636,44 @@ async function createVideoGeneration(input: {
   });
   try {
     const response = await input.host.providerRequest({
-      credentialRef: provider.credentialRef,
-      url: providerEndpoint(provider.baseUrl!, "/videos"),
-      method: "POST",
-      body: {
-        model: provider.model,
-        prompt: input.value.prompt,
-        ...(input.value.negativePrompt
-          ? { negative_prompt: input.value.negativePrompt }
-          : {}),
-        ...(input.value.seconds ? { seconds: input.value.seconds } : {}),
-        ...(input.value.size ? { size: input.value.size } : {}),
-      },
+      credentialRef: providerCredential(provider),
+      url: providerEndpoint(provider.baseUrl!, requestDraft.suffix),
+      method: requestDraft.method,
+      ...(requestDraft.body ? { body: requestDraft.body } : {}),
+      idempotencyKey: input.idempotencyKey,
       accept: "json",
     });
-    const remote = jsonObject(upstream(response));
-    const remoteJobId = String(remote.id ?? "").trim();
-    if (!remoteJobId) throw new Error("视频服务商未返回任务标识。");
-    const status = remoteVideoStatus(remote.status);
+    const remote = adapter.parseCreate(upstream(response));
+    const overallStatus =
+      remote.status === "succeeded" ? "running" : remote.status;
+    const archiveStatus =
+      remote.status === "succeeded" ? "pending" : "not_started";
     const row = input.context.uow.execute((transaction) => {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       transaction.run(
         `INSERT INTO media_video_jobs(
           id, task_id, project_id, episode_id, shot_id, provider_id,
-          remote_job_id, prompt, request_json, status, results_json,
-          error, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', NULL, ?, ?)`,
+          provider_kind, model_revision, idempotency_key, request_sha256,
+          remote_job_id, prompt, request_json, status, remote_status,
+          archive_status, results_json, error, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', NULL, ?, ?)`,
         id,
         task.id,
         input.value.projectId,
         input.value.episodeId ?? null,
         shotId,
         provider.id,
-        remoteJobId,
+        adapter.kind,
+        remote.modelRevision ?? provider.model,
+        input.idempotencyKey,
+        requestSha256,
+        remote.remoteJobId,
         input.value.prompt,
-        JSON.stringify(input.value),
-        status,
+        requestJson,
+        overallStatus,
+        remote.status,
+        archiveStatus,
         now,
         now,
       );
@@ -2553,13 +2687,21 @@ async function createVideoGeneration(input: {
         aggregateType: "video-generation",
         aggregateId: id,
         aggregateVersion: 0,
-        payload: { providerId: provider.id, remoteJobId, status },
+        payload: {
+          providerId: provider.id,
+          providerKind: adapter.kind,
+          remoteJobId: remote.remoteJobId,
+          remoteStatus: remote.status,
+          archiveStatus,
+          modelRevision: remote.modelRevision ?? provider.model,
+          requestSha256,
+        },
       });
       return created;
     });
     input.tasks.update(task.id, {
-      status: status === "failed" ? "failed" : "running",
-      progress: status === "running" ? 0.3 : 0.1,
+      status: remote.status === "failed" ? "failed" : "running",
+      progress: remote.status === "running" ? 0.3 : 0.1,
       result: { videoJobId: row.id },
     });
     recordGeneration(input.context, {
@@ -2598,48 +2740,170 @@ async function refreshVideoJob(input: {
     return toVideoJob(current, input.records);
   const provider = providerFor(input.context, current.provider_id);
   if (!provider?.baseUrl) throw new Error("视频服务商配置已删除。");
+  const adapter = videoProviderAdapter(provider);
+  if (
+    !adapter ||
+    (current.provider_kind && current.provider_kind !== adapter.kind)
+  )
+    throw new Error("视频任务的服务商协议与已保存任务不一致。");
+  const poll = adapter.poll(current.remote_job_id);
   const response = await input.host.providerRequest({
-    credentialRef: provider.credentialRef,
-    url: providerEndpoint(
-      provider.baseUrl,
-      `/videos/${encodeURIComponent(current.remote_job_id)}`,
-    ),
-    method: "GET",
+    credentialRef: providerCredential(provider),
+    url: providerEndpoint(provider.baseUrl, poll.suffix),
+    method: poll.method,
+    ...(poll.body ? { body: poll.body } : {}),
     accept: "json",
   });
-  const remote = jsonObject(upstream(response));
-  const status = remoteVideoStatus(remote.status);
-  const resultIds = JSON.parse(current.results_json) as string[];
-  if (status === "succeeded" && !resultIds.length) {
-    const remoteUrl =
-      typeof remote.url === "string"
-        ? remote.url
-        : typeof jsonObject(remote.output).url === "string"
-          ? String(jsonObject(remote.output).url)
-          : undefined;
-    const result = input.records.create("video", {
-      projectId: current.project_id,
-      ...(current.shot_id ? { parentId: current.shot_id } : {}),
-      title: "视频生成候选",
-      payload: {
-        采用状态: "未采用",
-        服务商: provider.title,
-        远端任务标识: current.remote_job_id,
-        ...(remoteUrl ? { 远端资源: remoteUrl } : {}),
-      },
-    });
-    resultIds.push(result.id);
+  const remote = adapter.parsePoll(upstream(response));
+  let archived:
+    Awaited<ReturnType<DesktopHostClient["archiveRemoteMedia"]>> | undefined;
+  let archiveError: string | undefined;
+  if (remote.status === "succeeded" && remote.outputUrl) {
+    try {
+      const providerOrigin = new URL(provider.baseUrl).origin;
+      const outputOrigin = new URL(remote.outputUrl).origin;
+      archived = await input.host.archiveRemoteMedia({
+        url: remote.outputUrl,
+        kind: "video",
+        maximumBytes: 2 * 1024 * 1024 * 1024,
+        // A provider credential may only follow a same-origin output. Signed
+        // CDN URLs are archived without Authorization to avoid credential
+        // disclosure across origin boundaries.
+        ...(providerOrigin === outputOrigin
+          ? { credentialRef: providerCredential(provider) }
+          : {}),
+      });
+    } catch (cause) {
+      archiveError =
+        cause instanceof Error && cause.message.includes("503")
+          ? "远端视频已生成，但本机尚未安装通过校验的媒体归档/探测 sidecar；未保存易失 URL。"
+          : "远端视频已生成，但本地归档校验失败；未保存易失 URL。";
+    }
   }
-  const updated = input.context.uow.execute((transaction) => {
+  const result = input.context.uow.execute((transaction) => {
     const now = new Date().toISOString();
-    transaction.run(
-      `UPDATE media_video_jobs SET status = ?, results_json = ?, error = ?,
-       updated_at = ? WHERE id = ?`,
-      status,
-      JSON.stringify(resultIds),
-      status === "failed" ? String(remote.error ?? "视频生成失败") : null,
-      now,
+    const latest = transaction.get<VideoJobRow>(
+      "SELECT * FROM media_video_jobs WHERE id = ?",
       current.id,
+    )!;
+    if (["succeeded", "failed", "canceled"].includes(latest.status))
+      return { row: latest, adopted: false };
+    const resultIds = JSON.parse(latest.results_json) as string[];
+    let archiveStatus = latest.archive_status;
+    let overallStatus = remote.status;
+    let normalizedError =
+      remote.status === "failed"
+        ? (remote.errorMessage ?? "视频生成失败")
+        : undefined;
+    if (remote.status === "succeeded" && archived) {
+      const mediaRecordId = crypto.randomUUID();
+      const artifactId = crypto.randomUUID();
+      const modelRevision =
+        remote.modelRevision ?? latest.model_revision ?? provider.model;
+      const payload = {
+        mediaRef: archived.mediaRef,
+        artifactId,
+        mimeType: archived.mimeType,
+        extension: archived.extension,
+        sizeBytes: archived.sizeBytes,
+        sha256: archived.sha256,
+        width: archived.width,
+        height: archived.height,
+        durationFrames: archived.durationFrames,
+        frameRate: archived.frameRate,
+        status: archived.status,
+        lineage: {
+          videoJobId: latest.id,
+          providerId: latest.provider_id,
+          providerKind: adapter.kind,
+          modelRevision,
+          remoteJobId: latest.remote_job_id,
+          requestSha256: latest.request_sha256,
+        },
+      };
+      transaction.run(
+        `INSERT INTO media_records(
+          id, kind, project_id, parent_id, title, payload_json, version,
+          created_at, updated_at
+        ) VALUES (?, 'video', ?, ?, ?, ?, 0, ?, ?)`,
+        mediaRecordId,
+        latest.project_id,
+        latest.shot_id,
+        `生成视频 ${latest.remote_job_id.slice(0, 12)}`,
+        JSON.stringify(payload),
+        now,
+        now,
+      );
+      transaction.run(
+        `INSERT INTO media_artifacts(
+          artifact_id, media_record_id, project_id, media_ref, kind,
+          mime_type, extension, size_bytes, sha256, width, height,
+          duration_frames, frame_rate_numerator, frame_rate_denominator,
+          drop_frame, status, created_at, removed_at
+        ) VALUES (?, ?, ?, ?, 'video', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          'archived', ?, NULL)`,
+        artifactId,
+        mediaRecordId,
+        latest.project_id,
+        archived.mediaRef,
+        archived.mimeType,
+        archived.extension,
+        archived.sizeBytes,
+        archived.sha256,
+        archived.width,
+        archived.height,
+        archived.durationFrames,
+        archived.frameRate.numerator,
+        archived.frameRate.denominator,
+        archived.frameRate.dropFrame ? 1 : 0,
+        now,
+      );
+      resultIds.push(mediaRecordId);
+      const record = toRecord(
+        transaction.get<MediaRow>(
+          "SELECT * FROM media_records WHERE id = ?",
+          mediaRecordId,
+        )!,
+      );
+      appendEvent(transaction, "video-created", record);
+      transaction.append({
+        type: "media.artifact-archived.v1",
+        pluginId: "media",
+        aggregateType: "media-artifact",
+        aggregateId: artifactId,
+        aggregateVersion: 0,
+        payload: {
+          artifactId,
+          mediaRecordId,
+          mediaRef: archived.mediaRef,
+          sha256: archived.sha256,
+          videoJobId: latest.id,
+        },
+      });
+      archiveStatus = "archived";
+      overallStatus = "succeeded";
+    } else if (remote.status === "succeeded") {
+      archiveStatus = remote.outputUrl
+        ? archiveError?.includes("尚未安装")
+          ? "unavailable"
+          : "failed"
+        : "failed";
+      overallStatus = "failed";
+      normalizedError =
+        archiveError ?? "视频服务商报告成功，但未返回可归档的输出。";
+    }
+    transaction.run(
+      `UPDATE media_video_jobs SET status = ?, remote_status = ?,
+       archive_status = ?, model_revision = COALESCE(?, model_revision),
+       results_json = ?, error = ?, updated_at = ? WHERE id = ?`,
+      overallStatus,
+      remote.status,
+      archiveStatus,
+      remote.modelRevision ?? null,
+      JSON.stringify(resultIds),
+      normalizedError ?? null,
+      now,
+      latest.id,
     );
     const row = transaction.get<VideoJobRow>(
       "SELECT * FROM media_video_jobs WHERE id = ?",
@@ -2651,20 +2915,39 @@ async function refreshVideoJob(input: {
       aggregateType: "video-generation",
       aggregateId: row.id,
       aggregateVersion: 1,
-      payload: { status, resultIds },
+      payload: {
+        remoteStatus: remote.status,
+        archiveStatus,
+        resultIds,
+        ...(remote.errorCode ? { errorCode: remote.errorCode } : {}),
+      },
     });
-    return row;
+    return { row, adopted: Boolean(archived) };
   });
+  if (archived && !result.adopted)
+    await input.host
+      .removeManagedMedia(archived.mediaRef)
+      .catch(() => undefined);
+  const updated = result.row;
+  const resultIds = JSON.parse(updated.results_json) as string[];
   input.tasks.update(current.task_id, {
     status:
-      status === "succeeded"
-        ? "succeeded"
-        : status === "failed"
-          ? "failed"
-          : status === "canceled"
-            ? "canceled"
+      updated.status === "failed"
+        ? "failed"
+        : updated.status === "canceled"
+          ? "canceled"
+          : updated.status === "succeeded"
+            ? "succeeded"
             : "running",
-    progress: status === "succeeded" ? 1 : status === "running" ? 0.6 : 0.2,
+    progress:
+      updated.status === "succeeded"
+        ? 1
+        : remote.status === "succeeded"
+          ? 0.8
+          : remote.status === "running"
+            ? 0.6
+            : 0.2,
+    ...(updated.error ? { error: updated.error } : {}),
     result: { videoJobId: current.id, resultIds },
   });
   return toVideoJob(updated, input.records);
@@ -2995,6 +3278,7 @@ function generationRoutes(
             records,
             tasks,
             value: input.data,
+            idempotencyKey: claimed.key!,
           });
           completeRequest(context, "video-generation", claimed.key!, value);
           return requestContext.json(value, 201);
@@ -3141,20 +3425,51 @@ function generationRoutes(
             "PROVIDER_UNAVAILABLE",
             "视频服务商配置已删除。",
           );
+        const adapter = videoProviderAdapter(provider);
+        if (
+          !adapter ||
+          (current.provider_kind && current.provider_kind !== adapter.kind)
+        )
+          return problem(
+            requestContext,
+            409,
+            "PROVIDER_CONTRACT_DRIFT",
+            "视频任务的服务商协议与已保存任务不一致。",
+          );
+        if (
+          adapter.capabilities.cancellation === "unsupported" ||
+          (adapter.capabilities.cancellation === "queued_only" &&
+            current.remote_status !== "queued")
+        )
+          return problem(
+            requestContext,
+            422,
+            "UNSUPPORTED_OPERATION",
+            adapter.capabilities.cancellation === "queued_only"
+              ? "该服务商只允许取消仍在排队的任务，当前远端任务不能取消。"
+              : "该 Seedance 模型未声明原生取消能力；本地不会伪装取消付费任务。",
+          );
+        const cancel = adapter.cancel(current.remote_job_id);
+        if (!cancel)
+          return problem(
+            requestContext,
+            422,
+            "UNSUPPORTED_OPERATION",
+            "服务商未提供可验证的原生取消操作。",
+          );
         try {
           const response = await host!.providerRequest({
-            credentialRef: provider.credentialRef,
-            url: providerEndpoint(
-              provider.baseUrl,
-              `/videos/${encodeURIComponent(current.remote_job_id)}/cancel`,
-            ),
-            method: "POST",
+            credentialRef: providerCredential(provider),
+            url: providerEndpoint(provider.baseUrl, cancel.suffix),
+            method: cancel.method,
+            ...(cancel.body ? { body: cancel.body } : {}),
             accept: "json",
           });
           upstream(response);
           const row = context.uow.execute((transaction) => {
             transaction.run(
-              "UPDATE media_video_jobs SET status = 'canceled', updated_at = ? WHERE id = ?",
+              `UPDATE media_video_jobs SET status = 'canceled',
+               remote_status = 'canceled', updated_at = ? WHERE id = ?`,
               new Date().toISOString(),
               current.id,
             );
@@ -3220,6 +3535,13 @@ function generationRoutes(
             "NOT_FOUND",
             "未找到可重试的视频任务。",
           );
+        if (current.remote_status === "succeeded")
+          return problem(
+            requestContext,
+            409,
+            "ARCHIVE_RETRY_REQUIRED",
+            "远端付费任务已经成功；必须重试归档，不能重新提交生成造成重复扣费。",
+          );
         const original = VideoGenerationInputSchema.parse(
           JSON.parse(current.request_json),
         );
@@ -3241,6 +3563,7 @@ function generationRoutes(
             records,
             tasks,
             value,
+            idempotencyKey: claimed.key!,
           });
           completeRequest(
             context,
@@ -3433,6 +3756,57 @@ const mediaMigrations = [
         ON media_likeness_photos(subject_id, status, created_at, id);
     `,
   },
+  {
+    id: "media.0005.artifact-archive-and-provider-jobs",
+    pluginId: "media",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["media.0004.personal-theater-likeness"],
+    sql: `
+      CREATE TABLE media_artifacts (
+        artifact_id TEXT PRIMARY KEY,
+        media_record_id TEXT REFERENCES media_records(id) ON DELETE SET NULL,
+        project_id TEXT NOT NULL,
+        media_ref TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK(kind IN ('image','audio','video','subtitle','project-package')),
+        mime_type TEXT NOT NULL,
+        extension TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL CHECK(size_bytes > 0),
+        sha256 TEXT NOT NULL CHECK(length(sha256) = 64),
+        width INTEGER,
+        height INTEGER,
+        duration_frames INTEGER,
+        frame_rate_numerator INTEGER,
+        frame_rate_denominator INTEGER,
+        drop_frame INTEGER,
+        status TEXT NOT NULL CHECK(status IN ('archived','quarantined','removed')),
+        created_at TEXT NOT NULL,
+        removed_at TEXT
+      );
+      CREATE INDEX media_artifacts_project_status
+        ON media_artifacts(project_id, status, created_at DESC, artifact_id);
+      ALTER TABLE media_video_jobs ADD COLUMN provider_kind TEXT
+        CHECK(provider_kind IN ('seedance','minimax_h3_cloud'));
+      ALTER TABLE media_video_jobs ADD COLUMN model_revision TEXT;
+      ALTER TABLE media_video_jobs ADD COLUMN idempotency_key TEXT;
+      ALTER TABLE media_video_jobs ADD COLUMN request_sha256 TEXT
+        CHECK(request_sha256 IS NULL OR length(request_sha256) = 64);
+      ALTER TABLE media_video_jobs ADD COLUMN remote_status TEXT NOT NULL
+        DEFAULT 'queued'
+        CHECK(remote_status IN ('queued','running','succeeded','failed','canceled'));
+      ALTER TABLE media_video_jobs ADD COLUMN archive_status TEXT NOT NULL
+        DEFAULT 'not_started'
+        CHECK(archive_status IN ('not_started','pending','archived','failed','unavailable'));
+      UPDATE media_video_jobs
+        SET remote_status = status,
+            archive_status = CASE
+              WHEN status = 'succeeded' THEN 'unavailable'
+              ELSE 'not_started'
+            END;
+      CREATE UNIQUE INDEX media_video_jobs_provider_idempotency
+        ON media_video_jobs(provider_id, idempotency_key)
+        WHERE idempotency_key IS NOT NULL;
+    `,
+  },
 ] as const;
 
 export function createMediaPlugin(host?: DesktopHostClient) {
@@ -3481,6 +3855,8 @@ export function createMediaPlugin(host?: DesktopHostClient) {
       if (!tasks) throw new Error("media requires automation task service");
       const service: MediaRecordService = {
         create: (kind, input) => createRecord(context, kind, input),
+        registerArchivedArtifact: (input) =>
+          registerArchivedArtifact(context, input),
         list: (kind, filter) => listRecords(context, kind, filter),
         get: (id) =>
           context.uow.execute((transaction) => {
@@ -3658,6 +4034,7 @@ export function createMediaPlugin(host?: DesktopHostClient) {
                             projectId: preview.projectId,
                             providerId: preview.providerId,
                           }),
+                          idempotencyKey: `provider-action:${preview.id}`,
                         })
                       : Promise.reject(
                           new Error("远程渲染厂商执行器尚未配置。"),

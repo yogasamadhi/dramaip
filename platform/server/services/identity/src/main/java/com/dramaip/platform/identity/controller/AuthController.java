@@ -10,6 +10,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
@@ -67,6 +69,33 @@ public class AuthController {
         return Result.ok(null);
     }
 
+    @PostMapping("/api/v1/auth/email-verification/request")
+    public Result<EmailActionResponse> requestEmailVerification(Authentication authentication) {
+        auth.requestEmailVerification(CurrentUser.id(authentication));
+        return Result.ok(new EmailActionResponse(true));
+    }
+
+    @PostMapping("/api/v1/auth/email-verification/confirm")
+    public Result<EmailActionResponse> confirmEmailVerification(
+            @Valid @RequestBody EmailVerificationConfirmRequest request) {
+        auth.confirmEmailVerification(request.code());
+        return Result.ok(new EmailActionResponse(true));
+    }
+
+    @PostMapping("/api/v1/auth/password-reset/request")
+    public Result<EmailActionResponse> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request) {
+        auth.requestPasswordReset(request.email());
+        return Result.ok(new EmailActionResponse(true));
+    }
+
+    @PostMapping("/api/v1/auth/password-reset/confirm")
+    public Result<EmailActionResponse> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request) {
+        auth.confirmPasswordReset(request.email(), request.code(), request.password());
+        return Result.ok(new EmailActionResponse(true));
+    }
+
     /** Browser session lookup has a deliberately smaller response than the mobile token API. */
     @GetMapping("/api/v1/auth/session")
     public Result<WebSessionCookies.WebSession> session(Authentication authentication) {
@@ -94,4 +123,9 @@ public class AuthController {
     public record LogoutResponse(boolean ok) { }
     public record DesktopAuthorizationRequest(@NotBlank String codeChallenge, @NotBlank String redirectUri, @NotBlank String deviceId) { }
     public record DesktopTokenRequest(@NotBlank String authorizationCode, @NotBlank String codeVerifier, @NotBlank String redirectUri, @NotBlank String deviceId) { }
+    public record EmailVerificationConfirmRequest(@NotBlank String code) { }
+    public record PasswordResetRequest(@NotBlank @Email String email) { }
+    public record PasswordResetConfirmRequest(@NotBlank @Email String email,
+            @NotBlank String code, @NotBlank @Size(min = 8, max = 200) String password) { }
+    public record EmailActionResponse(boolean accepted) { }
 }

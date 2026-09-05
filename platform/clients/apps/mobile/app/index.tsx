@@ -48,15 +48,18 @@ export default function HomeScreen() {
 
         <Animated.Text
           entering={FadeInDown.delay(180).springify()}
-          className="text-center text-5xl font-bold tracking-tight text-white"
+          className="text-center text-4xl font-bold tracking-tight text-white"
         >
-          DramaIP
+          尽意 DramaIP
         </Animated.Text>
         <Animated.Text
           entering={FadeInDown.delay(260).springify()}
           className="mt-3 text-center text-base text-sand"
         >
-          短剧 IP 创作平台 · 移动端
+          尽作者之意，成万象之作
+        </Animated.Text>
+        <Animated.Text entering={FadeInDown.delay(320).springify()} className="mt-2 text-center text-sm text-sand/60">
+          AI IP 创作工作台 · 移动端
         </Animated.Text>
 
         <Animated.View entering={FadeIn.delay(420)} className="mt-9 flex-row flex-wrap justify-center gap-2 px-2">

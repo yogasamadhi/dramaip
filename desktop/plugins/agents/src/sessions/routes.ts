@@ -1,4 +1,7 @@
-import { type AgentEngineKind } from "@dramaip/contracts";
+import {
+  type AgentContextService,
+  type AgentEngineKind,
+} from "@dramaip/contracts";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import { createHostAgentRuntime } from "@dramaip/desktop-host";
 import { type PluginContext } from "@dramaip/plugin-api/internal";
@@ -12,11 +15,13 @@ import {
 } from "../internal/shared.js";
 import {
   activeAgentProviderId,
+  configuredProvider,
   engineDefinitions,
   globalAgentSettings,
   hostEngineHealth,
   isAgentEngineKind,
   isRecord,
+  findProvider,
   modelSelection,
   text,
 } from "../providers/routes.js";
@@ -449,6 +454,7 @@ export function engineResponseText(
 export function assistantConversationRoutes(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
+  agentContext: AgentContextService,
 ): readonly AgentRouteDraft[] {
   const find = (id: string): AssistantSessionRow | undefined =>
     pluginContext.uow.execute((transaction) =>
@@ -982,6 +988,56 @@ export function assistantConversationRoutes(
                 ? "已将消息交由当前项目的智能会话处理。"
                 : "未绑定项目，按通用聊天处理。",
             };
+            const model = modelSelection(jsonValue(session.model_json));
+            const providerId = activeAgentProviderId(pluginContext);
+            const providerEntity = providerId
+              ? findProvider(pluginContext, providerId)
+              : undefined;
+            const provider = providerEntity
+              ? configuredProvider(providerEntity)
+              : undefined;
+            const basePrompt =
+              session.surface === "inspiration"
+                ? inspirationPrompt(pluginContext, session, message)
+                : session.project_id
+                  ? `${taskPrompt(taskType, message)}\n\n${webResearchPrompt(pluginContext, session)}`
+                  : [
+                      "你是 DramaIP 的中文创作智能助手。",
+                      "当前未绑定项目，只能进行通用问答；不得声称读取了项目或文件。",
+                      webResearchPrompt(pluginContext, session),
+                      "请使用简体中文直接回答，不要展示隐藏思维过程。",
+                      `用户消息：${message}`,
+                    ].join("\n");
+            const contextPreview = agentContext.createPreview({
+              ...(session.project_id ? { projectId: session.project_id } : {}),
+              ...(session.chapter_id ? { chapterId: session.chapter_id } : {}),
+              runIntent: taskType,
+              basePrompt,
+              ...(isRecord(body) && body.selection !== undefined
+                ? { selection: JSON.parse(JSON.stringify(body.selection)) }
+                : {}),
+              tokenBudget: 64_000,
+              destination: {
+                kind: provider?.authentication === "none" ? "local" : "cloud",
+                provider:
+                  session.engine_kind === "codex"
+                    ? "codex"
+                    : (providerId ?? "unconfigured"),
+                ...(model?.modelId ? { model: model.modelId } : {}),
+              },
+              temporaryOverrides: [],
+            });
+            const contextSnapshot = agentContext.freeze(
+              contextPreview.id,
+              contextPreview.version,
+            );
+            if (!contextSnapshot)
+              return problem(
+                context,
+                409,
+                "CONTEXT_PREVIEW_STALE",
+                "AI 上下文预览已过期，请重新发送。",
+              );
             const started = pluginContext.uow.execute((transaction) => {
               const now = new Date().toISOString();
               const turnId = crypto.randomUUID();
@@ -1011,8 +1067,9 @@ export function assistantConversationRoutes(
               transaction.run(
                 `INSERT INTO agent_assistant_runs(
                   id, session_id, task_id, task_type, engine_kind, status, model_json,
-                  turn_id, chapter_id, error, started_at, completed_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'preparing', ?, ?, ?, NULL, ?, NULL, ?, ?)`,
+                  turn_id, chapter_id, context_snapshot_id, error, started_at,
+                  completed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'preparing', ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
                 runId,
                 session.id,
                 crypto.randomUUID(),
@@ -1021,6 +1078,7 @@ export function assistantConversationRoutes(
                 session.model_json,
                 turnId,
                 session.chapter_id,
+                contextSnapshot.id,
                 now,
                 now,
                 now,
@@ -1060,7 +1118,13 @@ export function assistantConversationRoutes(
                 aggregateType: "assistant-turn",
                 aggregateId: turnId,
                 aggregateVersion: 1,
-                payload: { sessionId: session.id, turnId, runId },
+                payload: {
+                  sessionId: session.id,
+                  turnId,
+                  runId,
+                  contextSnapshotId: contextSnapshot.id,
+                  contextManifestSha256: contextSnapshot.manifestSha256,
+                },
               });
               return {
                 conversation: assistantSession(
@@ -1269,18 +1333,7 @@ export function assistantConversationRoutes(
                 };
                 const engineRun = await runtime.prompt(engineSession, {
                   runId: started.runId,
-                  prompt:
-                    session.surface === "inspiration"
-                      ? inspirationPrompt(pluginContext, session, message)
-                      : session.project_id
-                        ? `${taskPrompt(taskType, message)}\n\n${webResearchPrompt(pluginContext, session)}`
-                        : [
-                            "你是 DramaIP 的中文创作智能助手。",
-                            "当前未绑定项目，只能进行通用问答；不得声称读取了项目或文件。",
-                            webResearchPrompt(pluginContext, session),
-                            "请使用简体中文直接回答，不要展示隐藏思维过程。",
-                            `用户消息：${message}`,
-                          ].join("\n"),
+                  prompt: contextSnapshot.finalPrompt,
                   responseMode:
                     session.surface === "inspiration"
                       ? "text"

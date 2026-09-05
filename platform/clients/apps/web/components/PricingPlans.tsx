@@ -3,12 +3,11 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PaymentProvider, Plan } from '@dramaip/sdk'
 import { formatApiError, parseApiError } from '../lib/api-error'
 import { apiClient } from '../lib/api-client'
 import { paymentProviderLabel } from '../lib/display'
-import { checkoutProviders, isSimulatedPaymentEnabled } from '../lib/runtime'
 import { loginPath } from '../lib/routes'
 import { Button } from './ui/Button'
 
@@ -20,15 +19,22 @@ export function PricingPlans() {
   const [mounted, setMounted] = useState(false)
   const session = useQuery({ queryKey: ['session'], queryFn: () => apiClient.getSession(), enabled: mounted, retry: false })
   const hasSession = session.isSuccess
-  const simulatedPayment = isSimulatedPaymentEnabled()
-  const providers = useMemo(() => checkoutProviders(), [])
-  const [provider, setProvider] = useState<PaymentProvider>(() => providers[0] ?? 'wechat_pay')
+  const paymentProviders = useQuery({ queryKey: ['payment-providers'], queryFn: () => apiClient.getPaymentProviders() })
+  const providers = (paymentProviders.data ?? [])
+    .filter((item) => item.state === 'verified')
+    .map((item) => item.provider)
+  const simulatedPayment = providers.includes('simulated')
+  const [provider, setProvider] = useState<PaymentProvider>('wechatPay')
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => apiClient.getPlans() })
   const subscription = useQuery({ queryKey: ['subscription'], queryFn: () => apiClient.getSubscription(), retry: false, enabled: hasSession })
 
   const checkout = useMutation({
-    mutationFn: (planID: string) => apiClient.createCheckout({ plan_id: planID, channel: provider }),
-    onSuccess: (result) => router.push(`/account/orders/${encodeURIComponent(result.checkout_id)}`),
+    mutationFn: (planCode: string) => apiClient.createOrder({
+      planCode,
+      provider,
+      idempotencyKey: lifecycleKey('web-order-create'),
+    }),
+    onSuccess: (result) => router.push(`/account/orders/${encodeURIComponent(result.id)}`),
     onError: (error) => {
       if (parseApiError(error).status === 401) router.push(loginPath('/pricing'))
     },
@@ -65,7 +71,7 @@ export function PricingPlans() {
             plan={plan}
             current={subscription.data?.plan_code === plan.id && subscription.data.status === 'active'}
             pending={checkout.isPending || changePlan.isPending}
-            disabled={plan.purchase_mode !== 'sales_contact' && providers.length === 0 && plan.id !== 'free'}
+            disabled={plan.purchase_mode !== 'sales_contact' && (paymentProviders.isLoading || providers.length === 0) && plan.id !== 'free'}
             onChoose={() => {
               if (!hasSession) return router.push(loginPath('/pricing'))
               if (subscription.data?.id && subscription.data.status === 'active') return changePlan.mutate(plan.id)
@@ -89,8 +95,12 @@ export function PricingPlans() {
               {providers.map((item) => <option key={item} value={item}>{paymentProviderLabel(item)}</option>)}
             </select>
           </label>
-        ) : <p className="text-sm text-amber-800">当前环境没有启用自助支付渠道。</p>}
+        ) : <p className="text-sm text-amber-800">{paymentProviders.isLoading ? '正在查询服务端支付能力…' : '当前环境没有通过验证的自助支付渠道。'}</p>}
       </section>
+
+      {paymentProviders.data?.some((item) => item.state === 'unavailable') ? (
+        <p className="mt-3 text-xs text-stone-500">未完成商户配置与发行验收的渠道不会出现在结账选项中。</p>
+      ) : null}
 
       {(checkout.error || changePlan.error) ? (
         <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700" role="alert">

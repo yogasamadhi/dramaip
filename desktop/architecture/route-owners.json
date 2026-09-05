@@ -66,6 +66,30 @@
     "owner": "production"
   },
   {
+    "method": "post",
+    "path": "/api/v2/agent-context-previews",
+    "operationId": "agent-context.createPreview",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-context-previews/{id}",
+    "operationId": "agent-context.getPreview",
+    "owner": "agents"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/agent-context-previews/{id}",
+    "operationId": "agent-context.updatePreview",
+    "owner": "agents"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/agent-context-previews/{id}/snapshots",
+    "operationId": "agent-context.freezePreview",
+    "owner": "agents"
+  },
+  {
     "method": "get",
     "path": "/api/v2/agent-engines",
     "operationId": "agent-engines.list",
@@ -117,6 +141,12 @@
     "method": "get",
     "path": "/api/v2/agent-runs/{id}",
     "operationId": "agent-sessions.getRun",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-runs/{id}/context-snapshot",
+    "operationId": "agent-context.getRunSnapshot",
     "owner": "agents"
   },
   {
@@ -1027,12 +1057,6 @@
   },
   {
     "method": "get",
-    "path": "/api/v2/episodes/{episodeId}/editor-timeline/export/{format}",
-    "operationId": "review-editor.editorExport",
-    "owner": "review"
-  },
-  {
-    "method": "get",
     "path": "/api/v2/episodes/{episodeId}/editor-timeline/preflight",
     "operationId": "review-editor.editorPreflight",
     "owner": "review"
@@ -1519,6 +1543,36 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/local-model-runtimes",
+    "operationId": "localModelRuntimes.list",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/local-model-runtimes/{kind}/activate",
+    "operationId": "localModelRuntimes.activate",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/local-model-runtimes/{kind}/deactivate",
+    "operationId": "localModelRuntimes.deactivate",
+    "owner": "system"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/local-model-runtimes/{kind}/health-checks",
+    "operationId": "localModelRuntimes.healthCheck",
+    "owner": "system"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/local-model-runtimes/{kind}/models",
+    "operationId": "localModelRuntimes.models",
+    "owner": "system"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/localization",
     "operationId": "localization.records.list",
     "owner": "delivery"
@@ -1726,6 +1780,18 @@
     "path": "/api/v2/projects/{id}",
     "operationId": "projects.update",
     "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/agent-context-policies",
+    "operationId": "agent-context.getPolicies",
+    "owner": "agents"
+  },
+  {
+    "method": "put",
+    "path": "/api/v2/projects/{id}/agent-context-policies",
+    "operationId": "agent-context.updatePolicies",
+    "owner": "agents"
   },
   {
     "method": "get",
@@ -2394,6 +2460,24 @@
     "owner": "production"
   },
   {
+    "method": "post",
+    "path": "/api/v2/screenplay-import-previews",
+    "operationId": "screenplayImport.createPreview",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/screenplay-import-previews/{id}",
+    "operationId": "screenplayImport.getPreview",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/screenplay-import-previews/{id}/commit",
+    "operationId": "screenplayImport.commit",
+    "owner": "production"
+  },
+  {
     "method": "get",
     "path": "/api/v2/scripts",
     "operationId": "scripts.list",
@@ -2445,6 +2529,24 @@
     "method": "post",
     "path": "/api/v2/scripts/{id}/scenes/reorder",
     "operationId": "production-structure.reorderScenes",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scripts/{id}/screenplay",
+    "operationId": "screenplays.get",
+    "owner": "production"
+  },
+  {
+    "method": "patch",
+    "path": "/api/v2/scripts/{id}/screenplay",
+    "operationId": "screenplays.update",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/scripts/{id}/screenplay/export/{format}",
+    "operationId": "screenplays.export",
     "owner": "production"
   },
   {
@@ -2887,6 +2989,12 @@
   },
   {
     "method": "post",
+    "path": "/api/v2/system/host/credentials/unlock-sessions",
+    "operationId": "system.credentials.createUnlockSession",
+    "owner": "system"
+  },
+  {
+    "method": "post",
     "path": "/api/v2/system/host/files/pick",
     "operationId": "system.hostFiles.pick",
     "owner": "system"
@@ -2994,6 +3102,30 @@
     "owner": "timeline"
   },
   {
+    "method": "get",
+    "path": "/api/v2/timeline-renders/{id}",
+    "operationId": "timeline.getRender",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timeline-renders/{id}/cancel",
+    "operationId": "timeline.cancelRender",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timeline-renders/{id}/events",
+    "operationId": "timeline.renderEvents",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timeline-renders/{id}/retry",
+    "operationId": "timeline.retryRender",
+    "owner": "timeline"
+  },
+  {
     "method": "post",
     "path": "/api/v2/timelines/{id}/commands",
     "operationId": "timeline.command",
@@ -3009,6 +3141,18 @@
     "method": "post",
     "path": "/api/v2/timelines/{id}/redo",
     "operationId": "timeline.redo",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timelines/{id}/render-preflight",
+    "operationId": "timeline.renderPreflight",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/renders",
+    "operationId": "timeline.createRender",
     "owner": "timeline"
   },
   {

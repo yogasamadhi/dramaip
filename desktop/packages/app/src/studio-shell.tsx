@@ -18,6 +18,7 @@ import {
   useRuntimeConnection,
 } from "./runtime-connection";
 import { UiShowcase } from "./ui-showcase";
+import { StudioSessionProvider } from "./studio-session";
 
 const DeclarativeExtensionUi = lazy(
   () => import("./features/extensions/DeclarativeExtensionUi"),
@@ -136,7 +137,7 @@ function AppBootstrap() {
   if (!client || !runtime)
     return (
       <LoadingState
-        label={`正在连接 DramaIP 本地服务（${state}）…`}
+        label={`正在连接尽意本地服务（${state}）…`}
         className="min-h-screen bg-canvas"
       />
     );
@@ -147,16 +148,18 @@ function AppBootstrap() {
       <ConfirmProvider>
         <QueryClientProvider client={queryClient}>
           <HashRouter>
-            <Suspense
-              fallback={
-                <LoadingState
-                  label="正在加载工作区…"
-                  className="min-h-screen bg-canvas"
-                />
-              }
-            >
-              <Studio uiContributions={runtime.uiContributions} />
-            </Suspense>
+            <StudioSessionProvider>
+              <Suspense
+                fallback={
+                  <LoadingState
+                    label="正在加载工作区…"
+                    className="min-h-screen bg-canvas"
+                  />
+                }
+              >
+                <Studio uiContributions={runtime.uiContributions} />
+              </Suspense>
+            </StudioSessionProvider>
           </HashRouter>
         </QueryClientProvider>
       </ConfirmProvider>

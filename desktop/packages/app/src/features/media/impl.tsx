@@ -28,20 +28,24 @@ import {
 import {
   StageNavigation,
   WorkspaceIntro,
+  type WorkspaceStageItem,
   domainLabel,
   message,
+  productStatusLabel,
   useStudio,
 } from "../../studio-shared";
+import { useStudioSession } from "../../studio-session";
 import { PluginResourceWorkspace, recordPayload } from "../studio-widgets";
 export function ProductionWorkspace() {
   const client = useStudio();
   const location = useLocation();
   const navigate = useNavigate();
+  const session = useStudioSession();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(session.activeProjectId ?? "");
   const [adaptationId, setAdaptationId] = useState("");
   const [episodeId, setEpisodeId] = useState("");
   const [scriptId, setScriptId] = useState("");
@@ -87,8 +91,13 @@ export function ProductionWorkspace() {
     enabled: Boolean(projectId && sceneId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (
+      session.activeProjectId &&
+      projects.some((project) => project.id === session.activeProjectId) &&
+      projectId !== session.activeProjectId
+    )
+      setProjectId(session.activeProjectId);
+  }, [projectId, projects, session.activeProjectId]);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("projectId");
     if (requested && projects.some((project) => project.id === requested))
@@ -185,7 +194,7 @@ export function ProductionWorkspace() {
     stage === "timeline" ||
     stage === "renders"
       ? episodeId
-      : stage === "video" || stage === "shot-stills"
+      : stage === "video" || stage === "shot-stills" || stage === "image"
         ? shotId
         : undefined;
   const parentRequired =
@@ -194,13 +203,88 @@ export function ProductionWorkspace() {
     stage === "timeline" ||
     stage === "renders" ||
     stage === "video" ||
-    stage === "shot-stills";
+    stage === "shot-stills" ||
+    stage === "image";
+  const requestedStage = new URLSearchParams(location.search).get("stage");
+  const mediaStageIds = [
+    "assets",
+    "asset-center",
+    "storyboard",
+    "rights",
+    "visual-assets",
+    "shot-stills",
+    "image",
+    "audio",
+    "video",
+    "animatics",
+    "timeline",
+    "renders",
+  ] as const;
+  const recommendedStage =
+    requestedStage &&
+    mediaStageIds.includes(requestedStage as (typeof mediaStageIds)[number])
+      ? requestedStage
+      : "assets";
+  const stageItems: WorkspaceStageItem[] = mediaStageIds.map((id) => {
+    const needsShot = ["shot-stills", "image", "video"].includes(id);
+    const needsEpisode = ["audio", "animatics", "timeline", "renders"].includes(
+      id,
+    );
+    const available = Boolean(
+      projectId && (!needsShot || shotId) && (!needsEpisode || episodeId),
+    );
+    return {
+      id,
+      label: domainLabel(id),
+      availability: available ? "available" : "blocked",
+      recommended: recommendedStage === id,
+      reason: !projectId
+        ? "请先创建或选择一个项目。"
+        : needsShot
+          ? "当前能力归属具体分镜，请先在改编工作区创建并选择分镜。"
+          : needsEpisode
+            ? "当前能力归属具体分集，请先在改编工作区创建并选择分集。"
+            : undefined,
+      recoveryLabel: !projectId ? "返回项目工作台" : "去改编工作区补齐",
+      recoveryTarget: !projectId
+        ? "/"
+        : `/adapt?${new URLSearchParams({
+            projectId,
+            stage: needsShot ? "shots" : "episodes",
+          })}`,
+    };
+  });
   const resetChain = () => {
     setAdaptationId("");
     setEpisodeId("");
     setScriptId("");
     setSceneId("");
     setShotId("");
+  };
+  const syncRoute = (next: {
+    projectId?: string;
+    stage?: typeof stage;
+    adaptationId?: string;
+    episodeId?: string;
+    scriptId?: string;
+    sceneId?: string;
+    shotId?: string;
+  }) => {
+    const search = new URLSearchParams();
+    const values = {
+      projectId,
+      stage,
+      adaptationId,
+      episodeId,
+      scriptId,
+      sceneId,
+      shotId,
+      ...next,
+    };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    navigate(`/produce?${search}`);
   };
   const selectStoryboardShot = (
     nextShotId: string,
@@ -239,8 +323,18 @@ export function ProductionWorkspace() {
               className="rounded-lg border border-line px-3 py-2"
               value={projectId}
               onChange={(event) => {
-                setProjectId(event.target.value);
+                const nextProjectId = event.target.value;
+                setProjectId(nextProjectId);
+                if (nextProjectId) session.selectProject(nextProjectId);
                 resetChain();
+                syncRoute({
+                  projectId: nextProjectId,
+                  adaptationId: "",
+                  episodeId: "",
+                  scriptId: "",
+                  sceneId: "",
+                  shotId: "",
+                });
               }}
             >
               <option value="">选择项目</option>
@@ -258,11 +352,19 @@ export function ProductionWorkspace() {
               disabled={!projectId}
               value={adaptationId}
               onChange={(event) => {
-                setAdaptationId(event.target.value);
+                const nextId = event.target.value;
+                setAdaptationId(nextId);
                 setEpisodeId("");
                 setScriptId("");
                 setSceneId("");
                 setShotId("");
+                syncRoute({
+                  adaptationId: nextId,
+                  episodeId: "",
+                  scriptId: "",
+                  sceneId: "",
+                  shotId: "",
+                });
               }}
             >
               <option value="">选择改编项目</option>
@@ -280,10 +382,17 @@ export function ProductionWorkspace() {
               disabled={!adaptationId}
               value={episodeId}
               onChange={(event) => {
-                setEpisodeId(event.target.value);
+                const nextId = event.target.value;
+                setEpisodeId(nextId);
                 setScriptId("");
                 setSceneId("");
                 setShotId("");
+                syncRoute({
+                  episodeId: nextId,
+                  scriptId: "",
+                  sceneId: "",
+                  shotId: "",
+                });
               }}
             >
               <option value="">选择分集</option>
@@ -301,9 +410,11 @@ export function ProductionWorkspace() {
               disabled={!episodeId}
               value={scriptId}
               onChange={(event) => {
-                setScriptId(event.target.value);
+                const nextId = event.target.value;
+                setScriptId(nextId);
                 setSceneId("");
                 setShotId("");
+                syncRoute({ scriptId: nextId, sceneId: "", shotId: "" });
               }}
             >
               <option value="">选择剧本</option>
@@ -321,8 +432,10 @@ export function ProductionWorkspace() {
               disabled={!scriptId}
               value={sceneId}
               onChange={(event) => {
-                setSceneId(event.target.value);
+                const nextId = event.target.value;
+                setSceneId(nextId);
                 setShotId("");
+                syncRoute({ sceneId: nextId, shotId: "" });
               }}
             >
               <option value="">选择场景</option>
@@ -339,7 +452,11 @@ export function ProductionWorkspace() {
               className="rounded-lg border border-line px-3 py-2"
               disabled={!sceneId}
               value={shotId}
-              onChange={(event) => setShotId(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setShotId(nextId);
+                syncRoute({ shotId: nextId });
+              }}
             >
               <option value="">选择分镜</option>
               {shots.map((item) => (
@@ -353,22 +470,13 @@ export function ProductionWorkspace() {
         {projectId && <ProductionGraphPanel projectId={projectId} />}
         <StageNavigation
           label="制作阶段"
-          items={[
-            "assets",
-            "asset-center",
-            "storyboard",
-            "rights",
-            "visual-assets",
-            "shot-stills",
-            "image",
-            "audio",
-            "video",
-            "animatics",
-            "timeline",
-            "renders",
-          ]}
+          items={stageItems}
           active={stage}
-          onChange={(value) => setStage(value as typeof stage)}
+          onChange={(value) => {
+            const nextStage = value as typeof stage;
+            setStage(nextStage);
+            syncRoute({ stage: nextStage });
+          }}
         />
         {!projectId ? (
           <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
@@ -2496,6 +2604,16 @@ export function TimelineEditorPanel(props: {
     queryKey: ["timeline", props.episodeId],
     queryFn: () => client.timeline.get(props.episodeId),
   });
+  const framesPerSecond = timeline
+    ? timeline.profile.frameRate.numerator /
+      timeline.profile.frameRate.denominator
+    : 25;
+  const timelineDurationSeconds = timeline
+    ? timeline.durationFrames / framesPerSecond
+    : 0;
+  const frameToSeconds = (frame: number) => frame / framesPerSecond;
+  const secondsToFrame = (seconds: number) =>
+    Math.max(0, Math.round(seconds * framesPerSecond));
   const { data: history } = useQuery({
     queryKey: ["timeline", "history", timeline?.id],
     queryFn: () => client.timeline.history(timeline!.id),
@@ -2534,8 +2652,9 @@ export function TimelineEditorPanel(props: {
       (item) =>
         item.clip.assetId &&
         item.clip.mediaStatus === "linked" &&
-        playhead >= item.clip.startSeconds &&
-        playhead < item.clip.startSeconds + item.clip.durationSeconds,
+        playhead >= frameToSeconds(item.clip.startFrame) &&
+        playhead <
+          frameToSeconds(item.clip.startFrame + item.clip.durationFrames),
     );
   const activeVideo = activeMedia?.find((item) => item.track.kind === "video");
   const hasSolo = Boolean(timeline?.tracks.some((track) => track.solo));
@@ -2571,29 +2690,29 @@ export function TimelineEditorPanel(props: {
     const startedAt = Date.now() - playheadRef.current * 1_000;
     const timer = window.setInterval(() => {
       const next = Math.min(
-        timeline.durationSeconds,
+        timelineDurationSeconds,
         (Date.now() - startedAt) / 1_000,
       );
       setPlayhead(next);
-      if (next >= timeline.durationSeconds) setPlaying(false);
+      if (next >= timelineDurationSeconds) setPlaying(false);
     }, 40);
     return () => window.clearInterval(timer);
-  }, [playing, timeline?.durationSeconds]);
+  }, [playing, timelineDurationSeconds]);
   useEffect(() => {
     const media = mediaRef.current;
     if (!media || !activeVideo) return;
     const offset = Math.max(
       0,
       playhead -
-        activeVideo.clip.startSeconds +
-        activeVideo.clip.sourceOffsetSeconds,
+        frameToSeconds(activeVideo.clip.startFrame) +
+        frameToSeconds(activeVideo.clip.sourceOffsetFrame),
     );
     if (Math.abs(media.currentTime - offset) > 0.15) media.currentTime = offset;
     if (playing && activeVideoAudible) void media.play().catch(() => undefined);
     else media.pause();
   }, [
     activeVideo?.clip.id,
-    activeVideo?.clip.sourceOffsetSeconds,
+    activeVideo?.clip.sourceOffsetFrame,
     activeVideoAudible,
     playhead,
     playing,
@@ -2609,7 +2728,9 @@ export function TimelineEditorPanel(props: {
       if (!media || !preview) return;
       const offset = Math.max(
         0,
-        playhead - item.clip.startSeconds + item.clip.sourceOffsetSeconds,
+        playhead -
+          frameToSeconds(item.clip.startFrame) +
+          frameToSeconds(item.clip.sourceOffsetFrame),
       );
       if (Math.abs(media.currentTime - offset) > 0.15)
         media.currentTime = offset;
@@ -2640,9 +2761,9 @@ export function TimelineEditorPanel(props: {
   }, [selectedClipId, timeline]);
   useEffect(() => {
     if (!selected) return;
-    setMoveStart(String(selected.clip.startSeconds));
-    setTrimStart(String(selected.clip.startSeconds));
-    setTrimDuration(String(selected.clip.durationSeconds));
+    setMoveStart(String(frameToSeconds(selected.clip.startFrame)));
+    setTrimStart(String(frameToSeconds(selected.clip.startFrame)));
+    setTrimDuration(String(frameToSeconds(selected.clip.durationFrames)));
     setRelinkAssetId(selected.clip.assetId ?? "");
     setClipVolume(String(selected.clip.volume ?? 1));
   }, [selectedClipId]);
@@ -2701,7 +2822,7 @@ export function TimelineEditorPanel(props: {
     const found = timeline?.tracks
       .flatMap((track) => track.clips)
       .find((clip) => clip.id === id);
-    if (found) setPlayhead(found.startSeconds);
+    if (found) setPlayhead(frameToSeconds(found.startFrame));
   };
   const reviewAudioAssembly = async () => {
     try {
@@ -2761,7 +2882,7 @@ export function TimelineEditorPanel(props: {
     }
     if (event.key === "ArrowRight" && timeline) {
       event.preventDefault();
-      setPlayhead((current) => Math.min(timeline.durationSeconds, current + 1));
+      setPlayhead((current) => Math.min(timelineDurationSeconds, current + 1));
     }
   };
   const exportDelivery = async (format: TimelineDeliveryExportFormat) => {
@@ -2796,7 +2917,7 @@ export function TimelineEditorPanel(props: {
         正在建立当前分集的时间线…
       </p>
     );
-  const pixels = Math.max(680, timeline.durationSeconds * zoom + 120);
+  const pixels = Math.max(680, timelineDurationSeconds * zoom + 120);
   return (
     <section
       className="space-y-4 rounded-xl border border-line bg-surface p-4"
@@ -2809,12 +2930,13 @@ export function TimelineEditorPanel(props: {
           <p className="text-sm text-muted">版本化剪辑工作区</p>
           <h2 className="mt-1 text-lg font-semibold">多轨时间线</h2>
           <p className="mt-1 text-sm text-muted">
-            25 fps、秒级
+            1080×1920、25 fps、48 kHz 双声道、整数帧
             timebase；编辑逐条自动保存并可撤销。媒体始终以引用方式使用，不会复制或改写源文件。
           </p>
         </div>
         <p className="text-xs text-muted">
-          v{timeline.version} · 总长 {timeline.durationSeconds.toFixed(2)} 秒
+          v{timeline.version} · 总长 {timelineDurationSeconds.toFixed(2)} 秒 ·{" "}
+          {timeline.durationFrames} 帧
         </p>
       </div>
       <section
@@ -3041,9 +3163,9 @@ export function TimelineEditorPanel(props: {
             aria-label="播放头定位"
             type="range"
             min="0"
-            max={timeline.durationSeconds}
+            max={timelineDurationSeconds}
             step="0.04"
-            value={Math.min(playhead, timeline.durationSeconds)}
+            value={Math.min(playhead, timelineDurationSeconds)}
             onChange={(event) => setPlayhead(Number(event.target.value))}
           />
           <label className="mt-2 flex items-center gap-2 text-xs text-muted">
@@ -3116,7 +3238,7 @@ export function TimelineEditorPanel(props: {
         <div className="min-w-max" style={{ width: pixels }}>
           <div className="relative mb-2 h-5 border-b border-line text-[10px] text-muted">
             {Array.from(
-              { length: Math.ceil(timeline.durationSeconds) + 1 },
+              { length: Math.ceil(timelineDurationSeconds) + 1 },
               (_, second) => (
                 <span
                   key={second}
@@ -3182,8 +3304,11 @@ export function TimelineEditorPanel(props: {
                       aria-label={`选择片段：${clip.name}`}
                       className={`absolute top-2 h-10 overflow-hidden rounded-md border px-2 text-left text-xs ${selectedClipId === clip.id ? "border-brand bg-brand-soft text-brand" : clip.mediaStatus === "linked" ? "border-line bg-surface" : "border-amber-300 bg-amber-50 text-amber-900"}`}
                       style={{
-                        left: clip.startSeconds * zoom,
-                        width: Math.max(42, clip.durationSeconds * zoom - 2),
+                        left: frameToSeconds(clip.startFrame) * zoom,
+                        width: Math.max(
+                          42,
+                          frameToSeconds(clip.durationFrames) * zoom - 2,
+                        ),
                       }}
                       onClick={() => selectClip(clip.id)}
                     >
@@ -3232,7 +3357,7 @@ export function TimelineEditorPanel(props: {
                 void apply({
                   type: "move",
                   clipId: selected.clip.id,
-                  startSeconds: Number(moveStart),
+                  startFrame: secondsToFrame(Number(moveStart)),
                 })
               }
             >
@@ -3267,8 +3392,11 @@ export function TimelineEditorPanel(props: {
                 void apply({
                   type: "trim",
                   clipId: selected.clip.id,
-                  startSeconds: Number(trimStart),
-                  durationSeconds: Number(trimDuration),
+                  startFrame: secondsToFrame(Number(trimStart)),
+                  durationFrames: Math.max(
+                    1,
+                    secondsToFrame(Number(trimDuration)),
+                  ),
                 })
               }
             >
@@ -3281,9 +3409,9 @@ export function TimelineEditorPanel(props: {
                 void apply({
                   type: "split",
                   clipId: selected.clip.id,
-                  atSeconds:
-                    selected.clip.startSeconds +
-                    selected.clip.durationSeconds / 2,
+                  atFrame:
+                    selected.clip.startFrame +
+                    Math.floor(selected.clip.durationFrames / 2),
                 })
               }
             >
@@ -3524,7 +3652,8 @@ export function ProductionGraphPanel(props: { projectId: string }) {
             onClick={() => impactPreview.mutate(node.id)}
             title="查看此条目变更后需要复核的下游内容"
           >
-            {domainLabel(node.kind)} · {node.title} · {node.status}
+            {domainLabel(node.kind)} · {node.title} ·{" "}
+            {productStatusLabel(node.status)}
           </BareButton>
         ))}
         {graph.nodes.length <= 1 && (

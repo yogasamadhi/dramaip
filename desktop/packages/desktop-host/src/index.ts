@@ -5,6 +5,9 @@ import type {
   AgentEngineDescriptor,
   AgentEngineKind,
   JsonValue,
+  LocalModelDescriptor,
+  LocalModelRuntime,
+  LocalModelRuntimeKind,
 } from "@dramaip/contracts";
 import {
   AgentRuntimeError,
@@ -23,8 +26,10 @@ export interface AgentProviderActivationInput {
   providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
   model: string;
   baseUrl?: string;
-  credentialRef: string;
-  environmentName:
+  authentication: "apiKey" | "none";
+  localRuntimeKind?: LocalModelRuntimeKind;
+  credentialRef?: string;
+  environmentName?:
     "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "GOOGLE_GENERATIVE_AI_API_KEY";
 }
 
@@ -36,8 +41,9 @@ export interface AgentProviderActivationResult {
 export interface ProviderHttpRequest {
   credentialRef: string;
   url: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "DELETE";
   body?: Record<string, unknown>;
+  idempotencyKey?: string;
   accept?: "json" | "binary";
   maximumBytes?: number;
   timeoutMs?: number;
@@ -52,9 +58,226 @@ export interface ProviderHttpResponse {
   base64?: string;
 }
 
+export interface HostArchiveRemoteMediaInput {
+  credentialRef?: string;
+  url: string;
+  kind: "video";
+  maximumBytes?: number;
+  expectedSha256?: string;
+}
+
+export interface HostArchivedMedia {
+  mediaRef: string;
+  kind: "video";
+  mimeType: "video/mp4";
+  extension: ".mp4";
+  sizeBytes: number;
+  sha256: string;
+  width: number;
+  height: number;
+  durationFrames: number;
+  frameRate: {
+    numerator: number;
+    denominator: number;
+    dropFrame: boolean;
+  };
+  status: "archived";
+}
+
+export interface HostTimelineRenderInput {
+  jobId: string;
+  timelineId: string;
+  durationFrames: number;
+  profile: {
+    width: number;
+    height: number;
+    frameRate: {
+      numerator: number;
+      denominator: number;
+      dropFrame: boolean;
+    };
+    audioSampleRate: number;
+    channels: number;
+  };
+  clips: readonly {
+    mediaRef: string;
+    startFrame: number;
+    durationFrames: number;
+    sourceOffsetFrame: number;
+  }[];
+}
+
+export interface HostTimelineRenderJob {
+  jobId: string;
+  status:
+    "queued" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
+  progress: number;
+  rendererVersion: string;
+  sidecarArtifactVersion: string;
+  output?: HostArchivedMedia;
+  failureCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CredentialStorageStatus {
+  available: boolean;
+  storage: "os_safe_storage" | "master_password" | "unavailable";
+  backend: string;
+  locked: boolean;
+  migrationState: "none" | "migrating" | "complete" | "failed";
+  message?: string;
+}
+
+type HostFetch = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+const LOCAL_MODEL_ENDPOINTS: Record<
+  LocalModelRuntimeKind,
+  { root: string; endpointRef: string }
+> = {
+  ollama: {
+    root: "http://127.0.0.1:11434",
+    endpointRef: "local-model-runtime:ollama",
+  },
+  lm_studio: {
+    root: "http://127.0.0.1:1234",
+    endpointRef: "local-model-runtime:lm-studio",
+  },
+};
+
+async function localJson(
+  request: HostFetch,
+  url: string,
+): Promise<{ response: Response; value: unknown }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2_000);
+  try {
+    const response = await request(url, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (response.status >= 300 && response.status < 400)
+      throw new Error("local runtime redirects are forbidden");
+    if (!response.ok)
+      throw new Error(`local runtime returned ${response.status}`);
+    const content = await response.text();
+    if (Buffer.byteLength(content, "utf8") > 2 * 1024 * 1024)
+      throw new Error("local runtime response exceeds 2 MiB");
+    return { response, value: JSON.parse(content) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function ollamaModels(value: unknown): LocalModelDescriptor[] {
+  if (!value || typeof value !== "object") return [];
+  const models = (value as { models?: unknown }).models;
+  if (!Array.isArray(models)) return [];
+  return models.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const item = candidate as Record<string, unknown>;
+    const id = typeof item.name === "string" ? item.name : item.model;
+    if (typeof id !== "string" || !id.trim()) return [];
+    return [
+      {
+        id,
+        displayName: id,
+        ...(typeof item.size === "number" && item.size >= 0
+          ? { sizeBytes: Math.floor(item.size) }
+          : {}),
+        ...(typeof item.digest === "string" ? { digest: item.digest } : {}),
+      },
+    ];
+  });
+}
+
+function lmStudioModels(value: unknown): LocalModelDescriptor[] {
+  if (!value || typeof value !== "object") return [];
+  const source = value as { data?: unknown; models?: unknown };
+  const models = Array.isArray(source.data)
+    ? source.data
+    : Array.isArray(source.models)
+      ? source.models
+      : [];
+  return models.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const item = candidate as Record<string, unknown>;
+    const id = item.id ?? item.key ?? item.model;
+    if (typeof id !== "string" || !id.trim()) return [];
+    const displayName =
+      typeof item.display_name === "string"
+        ? item.display_name
+        : typeof item.name === "string"
+          ? item.name
+          : id;
+    return [{ id, displayName }];
+  });
+}
+
+export async function discoverLocalModelRuntime(
+  kind: LocalModelRuntimeKind,
+  active = false,
+  request: HostFetch = fetch,
+): Promise<LocalModelRuntime> {
+  const endpoint = LOCAL_MODEL_ENDPOINTS[kind];
+  const checkedAt = new Date().toISOString();
+  try {
+    if (kind === "ollama") {
+      const tags = await localJson(request, `${endpoint.root}/api/tags`);
+      let version: string | undefined;
+      try {
+        const versionResponse = await localJson(
+          request,
+          `${endpoint.root}/api/version`,
+        );
+        const raw = versionResponse.value as { version?: unknown };
+        if (typeof raw.version === "string") version = raw.version;
+      } catch {
+        // Model discovery is authoritative; version reporting is optional.
+      }
+      return {
+        kind,
+        endpointRef: endpoint.endpointRef,
+        state: active ? "active" : "inactive",
+        ...(version ? { version } : {}),
+        models: ollamaModels(tags.value),
+        lastHealthAt: checkedAt,
+      };
+    }
+    let response: { response: Response; value: unknown };
+    try {
+      response = await localJson(request, `${endpoint.root}/api/v0/models`);
+    } catch {
+      response = await localJson(request, `${endpoint.root}/v1/models`);
+    }
+    return {
+      kind,
+      endpointRef: endpoint.endpointRef,
+      state: active ? "active" : "inactive",
+      models: lmStudioModels(response.value),
+      lastHealthAt: checkedAt,
+    };
+  } catch {
+    return {
+      kind,
+      endpointRef: endpoint.endpointRef,
+      state: "unavailable",
+      models: [],
+      lastHealthAt: checkedAt,
+      limitation: "固定 loopback 端点当前不可达或返回了不安全响应。",
+    };
+  }
+}
+
 export interface HostGrantedDocument {
   name: string;
-  format: "txt" | "markdown" | "docx" | "epub" | "script-json";
+  format:
+    "txt" | "markdown" | "docx" | "epub" | "script-json" | "fountain" | "fdx";
   content: string;
   size: number;
 }
@@ -232,7 +455,10 @@ export class DesktopHostClient {
       : ((await response.json()) as T);
   }
 
-  health(): Promise<{ healthy: boolean }> {
+  health(): Promise<{
+    healthy: boolean;
+    capabilities: readonly HostCapabilityDescriptor[];
+  }> {
     return this.request("/host/v1/health");
   }
 
@@ -284,6 +510,37 @@ export class DesktopHostClient {
       method: "POST",
       body: JSON.stringify({ grantId }),
     });
+  }
+
+  archiveRemoteMedia(
+    input: HostArchiveRemoteMediaInput,
+  ): Promise<HostArchivedMedia> {
+    return this.request("/host/v1/media-library/archive-remote", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  startTimelineRender(
+    input: HostTimelineRenderInput,
+  ): Promise<HostTimelineRenderJob> {
+    return this.request("/host/v1/timeline-renders", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  getTimelineRender(jobId: string): Promise<HostTimelineRenderJob> {
+    return this.request(
+      `/host/v1/timeline-renders/${encodeURIComponent(jobId)}`,
+    );
+  }
+
+  cancelTimelineRender(jobId: string): Promise<HostTimelineRenderJob> {
+    return this.request(
+      `/host/v1/timeline-renders/${encodeURIComponent(jobId)}/cancel`,
+      { method: "POST" },
+    );
   }
 
   removeManagedMedia(mediaRef: string): Promise<void> {
@@ -360,12 +617,43 @@ export class DesktopHostClient {
     );
   }
 
-  credentialStorageStatus(): Promise<{
-    available: boolean;
-    storage: "local_encrypted_file";
-    message?: string;
-  }> {
+  credentialStorageStatus(): Promise<CredentialStorageStatus> {
     return this.request("/host/v1/credentials/status");
+  }
+
+  localModelRuntimes(): Promise<readonly LocalModelRuntime[]> {
+    return this.request("/host/v1/local-model-runtimes");
+  }
+
+  localModelRuntime(kind: LocalModelRuntimeKind): Promise<LocalModelRuntime> {
+    return this.request(
+      `/host/v1/local-model-runtimes/${encodeURIComponent(kind)}`,
+    );
+  }
+
+  activateLocalModelRuntime(
+    kind: LocalModelRuntimeKind,
+  ): Promise<LocalModelRuntime> {
+    return this.request(
+      `/host/v1/local-model-runtimes/${encodeURIComponent(kind)}/activate`,
+      { method: "POST", body: "{}" },
+    );
+  }
+
+  deactivateLocalModelRuntime(
+    kind: LocalModelRuntimeKind,
+  ): Promise<LocalModelRuntime> {
+    return this.request(
+      `/host/v1/local-model-runtimes/${encodeURIComponent(kind)}/deactivate`,
+      { method: "POST", body: "{}" },
+    );
+  }
+
+  createCredentialVaultUnlockSession(): Promise<CredentialCaptureResult> {
+    return this.request("/host/v1/credentials/unlock-sessions", {
+      method: "POST",
+      body: "{}",
+    });
   }
 
   createCredentialCaptureSession(
@@ -575,6 +863,8 @@ export interface HostCapabilityDescriptor {
   id:
     | "files"
     | "media-library"
+    | "media-archive"
+    | "renderer.ffmpeg-x264"
     | "credentials"
     | "window"
     | "shell"
@@ -588,6 +878,7 @@ export interface HostCapabilityDescriptor {
     | "extensions"
     | "updater";
   available: boolean;
+  version?: string;
 }
 
 export interface HostFileGrant {
@@ -623,6 +914,16 @@ export interface DesktopHostActions {
     maximumBytes: number,
   ): Promise<HostGrantedDocument>;
   importPortraitMedia?(grantId: string): Promise<HostManagedMedia>;
+  archiveRemoteMedia?(
+    input: HostArchiveRemoteMediaInput,
+  ): Promise<HostArchivedMedia>;
+  startTimelineRender?(
+    input: HostTimelineRenderInput,
+  ): Promise<HostTimelineRenderJob>;
+  getTimelineRender?(jobId: string): Promise<HostTimelineRenderJob | undefined>;
+  cancelTimelineRender?(
+    jobId: string,
+  ): Promise<HostTimelineRenderJob | undefined>;
   removeManagedMedia?(mediaRef: string): Promise<void>;
   publicSearch?(input: {
     source: "duckduckgo" | "gdelt" | "wikimedia";
@@ -641,11 +942,8 @@ export interface DesktopHostActions {
   revealGrant(grantId: string): Promise<void>;
   revealArtifact(artifactRef: string): Promise<void>;
   removeCredential(credentialRef: string): Promise<void>;
-  credentialStorageStatus(): Promise<{
-    available: boolean;
-    storage: "local_encrypted_file";
-    message?: string;
-  }>;
+  credentialStorageStatus(): Promise<CredentialStorageStatus>;
+  createCredentialVaultUnlockSession?(): Promise<CredentialCaptureResult>;
   createCredentialCaptureSession?(
     input: CredentialCaptureRequest,
   ): Promise<CredentialCaptureResult>;
@@ -715,9 +1013,15 @@ function isAuthorised(value: string | undefined, expected: string): boolean {
 }
 
 function engineKind(value: string): AgentEngineKind | undefined {
-  return ["pi", "codex", "grok", "langgraph"].includes(value)
+  return ["pi", "codex", "langgraph"].includes(value)
     ? (value as AgentEngineKind)
     : undefined;
+}
+
+function localModelRuntimeKind(
+  value: string,
+): LocalModelRuntimeKind | undefined {
+  return value === "ollama" || value === "lm_studio" ? value : undefined;
 }
 
 function readObject(value: unknown): Record<string, unknown> {
@@ -733,16 +1037,29 @@ function isAgentProviderActivationInput(
     typeof value.providerId !== "string" ||
     typeof value.runtimeProviderId !== "string" ||
     typeof value.model !== "string" ||
-    typeof value.credentialRef !== "string" ||
+    !["apiKey", "none"].includes(String(value.authentication)) ||
     !["openai", "anthropic", "google"].includes(String(value.providerKind)) ||
     !["openai", "openai-compatible", "anthropic", "google"].includes(
       String(value.providerAdapter),
-    ) ||
-    ![
-      "OPENAI_API_KEY",
-      "ANTHROPIC_API_KEY",
-      "GOOGLE_GENERATIVE_AI_API_KEY",
-    ].includes(String(value.environmentName))
+    )
+  )
+    return false;
+  if (value.authentication === "apiKey") {
+    if (
+      typeof value.credentialRef !== "string" ||
+      ![
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+      ].includes(String(value.environmentName))
+    )
+      return false;
+  } else if (
+    !["ollama", "lm_studio"].includes(String(value.localRuntimeKind)) ||
+    value.providerKind !== "openai" ||
+    value.providerAdapter !== "openai-compatible" ||
+    value.baseUrl !== undefined ||
+    value.credentialRef !== undefined
   )
     return false;
   if (typeof value.baseUrl !== "undefined") {
@@ -801,7 +1118,7 @@ function providerHttpRequest(
   if (
     typeof value.credentialRef !== "string" ||
     typeof value.url !== "string" ||
-    !["GET", "POST"].includes(String(value.method))
+    !["GET", "POST", "DELETE"].includes(String(value.method))
   )
     return undefined;
   const url = new URL(value.url);
@@ -822,6 +1139,11 @@ function providerHttpRequest(
     ? value.mediaRefs
     : undefined;
   if (
+    (value.idempotencyKey !== undefined &&
+      (typeof value.idempotencyKey !== "string" ||
+        value.idempotencyKey.length < 8 ||
+        value.idempotencyKey.length > 200 ||
+        /[\r\n]/u.test(value.idempotencyKey))) ||
     !Number.isInteger(maximumBytes) ||
     maximumBytes < 1 ||
     maximumBytes > 64 * 1024 * 1024 ||
@@ -845,8 +1167,11 @@ function providerHttpRequest(
   return {
     credentialRef: value.credentialRef,
     url: url.toString(),
-    method: value.method as "GET" | "POST",
+    method: value.method as "GET" | "POST" | "DELETE",
     ...(value.body ? { body: value.body as Record<string, unknown> } : {}),
+    ...(typeof value.idempotencyKey === "string"
+      ? { idempotencyKey: value.idempotencyKey }
+      : {}),
     accept: value.accept === "binary" ? "binary" : "json",
     maximumBytes,
     timeoutMs,
@@ -905,6 +1230,7 @@ export function createDesktopHost(
   options: DesktopHostOptions,
 ): DesktopHostServer {
   const app = new Hono();
+  const activeLocalModelRuntimes = new Set<LocalModelRuntimeKind>();
   app.use("/host/v1/*", async (context, next) => {
     if (!isAuthorised(context.req.header("Authorization"), options.accessToken))
       return context.json({ code: "HOST_UNAUTHORIZED" }, 401);
@@ -922,6 +1248,41 @@ export function createDesktopHost(
   );
   app.get("/host/v1/health", (context) =>
     context.json({ healthy: true, capabilities: options.capabilities }),
+  );
+  app.get("/host/v1/local-model-runtimes", async (context) =>
+    context.json(
+      await Promise.all(
+        (["ollama", "lm_studio"] as const).map((kind) =>
+          discoverLocalModelRuntime(kind, activeLocalModelRuntimes.has(kind)),
+        ),
+      ),
+    ),
+  );
+  app.get("/host/v1/local-model-runtimes/:kind", async (context) => {
+    const kind = localModelRuntimeKind(context.req.param("kind"));
+    if (!kind) return context.json({ code: "HOST_RUNTIME_UNKNOWN" }, 404);
+    return context.json(
+      await discoverLocalModelRuntime(kind, activeLocalModelRuntimes.has(kind)),
+    );
+  });
+  app.post("/host/v1/local-model-runtimes/:kind/activate", async (context) => {
+    const kind = localModelRuntimeKind(context.req.param("kind"));
+    if (!kind) return context.json({ code: "HOST_RUNTIME_UNKNOWN" }, 404);
+    const discovered = await discoverLocalModelRuntime(kind, false);
+    if (discovered.state === "unavailable")
+      return context.json(discovered, 503);
+    activeLocalModelRuntimes.add(kind);
+    return context.json({ ...discovered, state: "active" as const });
+  });
+  app.post(
+    "/host/v1/local-model-runtimes/:kind/deactivate",
+    async (context) => {
+      const kind = localModelRuntimeKind(context.req.param("kind"));
+      if (!kind) return context.json({ code: "HOST_RUNTIME_UNKNOWN" }, 404);
+      activeLocalModelRuntimes.delete(kind);
+      const discovered = await discoverLocalModelRuntime(kind, false);
+      return context.json(discovered);
+    },
   );
   app.post("/host/v1/files/pick", async (context) => {
     const body = readObject(await context.req.json());
@@ -985,6 +1346,125 @@ export function createDesktopHost(
     return context.json(
       await options.actions.importPortraitMedia(body.grantId),
     );
+  });
+  app.post("/host/v1/media-library/archive-remote", async (context) => {
+    if (!options.actions.archiveRemoteMedia)
+      return unavailable(context, "media-library.archive-remote");
+    const body = readObject(await context.req.json());
+    const maximumBytes =
+      typeof body.maximumBytes === "undefined"
+        ? 512 * 1024 * 1024
+        : Number(body.maximumBytes);
+    if (
+      (typeof body.credentialRef !== "undefined" &&
+        (typeof body.credentialRef !== "string" || !body.credentialRef)) ||
+      typeof body.url !== "string" ||
+      !body.url ||
+      body.kind !== "video" ||
+      !Number.isInteger(maximumBytes) ||
+      maximumBytes < 1 ||
+      maximumBytes > 2 * 1024 * 1024 * 1024 ||
+      (typeof body.expectedSha256 !== "undefined" &&
+        (typeof body.expectedSha256 !== "string" ||
+          !/^[a-f0-9]{64}$/u.test(body.expectedSha256)))
+    )
+      return context.json({ code: "INVALID_MEDIA_ARCHIVE_REQUEST" }, 400);
+    return context.json(
+      await options.actions.archiveRemoteMedia({
+        url: body.url,
+        kind: "video",
+        maximumBytes,
+        ...(typeof body.credentialRef === "string"
+          ? { credentialRef: body.credentialRef }
+          : {}),
+        ...(typeof body.expectedSha256 === "string"
+          ? { expectedSha256: body.expectedSha256 }
+          : {}),
+      }),
+    );
+  });
+  app.post("/host/v1/timeline-renders", async (context) => {
+    if (!options.actions.startTimelineRender)
+      return unavailable(context, "timeline-render.start");
+    const body = readObject(await context.req.json());
+    const profile = readObject(body.profile);
+    const frameRate = readObject(profile.frameRate);
+    const clips = Array.isArray(body.clips) ? body.clips : [];
+    if (
+      typeof body.jobId !== "string" ||
+      typeof body.timelineId !== "string" ||
+      !Number.isInteger(body.durationFrames) ||
+      Number(body.durationFrames) < 1 ||
+      !Number.isInteger(profile.width) ||
+      !Number.isInteger(profile.height) ||
+      !Number.isInteger(profile.audioSampleRate) ||
+      !Number.isInteger(profile.channels) ||
+      !Number.isInteger(frameRate.numerator) ||
+      !Number.isInteger(frameRate.denominator) ||
+      typeof frameRate.dropFrame !== "boolean" ||
+      clips.length < 1 ||
+      clips.length > 10_000
+    )
+      return context.json({ code: "INVALID_TIMELINE_RENDER" }, 400);
+    const normalizedClips = clips.map((value) => readObject(value));
+    if (
+      normalizedClips.some(
+        (clip) =>
+          typeof clip.mediaRef !== "string" ||
+          !Number.isInteger(clip.startFrame) ||
+          Number(clip.startFrame) < 0 ||
+          !Number.isInteger(clip.durationFrames) ||
+          Number(clip.durationFrames) < 1 ||
+          !Number.isInteger(clip.sourceOffsetFrame) ||
+          Number(clip.sourceOffsetFrame) < 0,
+      )
+    )
+      return context.json({ code: "INVALID_TIMELINE_RENDER_CLIP" }, 400);
+    return context.json(
+      await options.actions.startTimelineRender({
+        jobId: body.jobId,
+        timelineId: body.timelineId,
+        durationFrames: Number(body.durationFrames),
+        profile: {
+          width: Number(profile.width),
+          height: Number(profile.height),
+          frameRate: {
+            numerator: Number(frameRate.numerator),
+            denominator: Number(frameRate.denominator),
+            dropFrame: frameRate.dropFrame,
+          },
+          audioSampleRate: Number(profile.audioSampleRate),
+          channels: Number(profile.channels),
+        },
+        clips: normalizedClips.map((clip) => ({
+          mediaRef: clip.mediaRef as string,
+          startFrame: Number(clip.startFrame),
+          durationFrames: Number(clip.durationFrames),
+          sourceOffsetFrame: Number(clip.sourceOffsetFrame),
+        })),
+      }),
+      202,
+    );
+  });
+  app.get("/host/v1/timeline-renders/:jobId", async (context) => {
+    if (!options.actions.getTimelineRender)
+      return unavailable(context, "timeline-render.get");
+    const value = await options.actions.getTimelineRender(
+      context.req.param("jobId"),
+    );
+    return value
+      ? context.json(value)
+      : context.json({ code: "TIMELINE_RENDER_NOT_FOUND" }, 404);
+  });
+  app.post("/host/v1/timeline-renders/:jobId/cancel", async (context) => {
+    if (!options.actions.cancelTimelineRender)
+      return unavailable(context, "timeline-render.cancel");
+    const value = await options.actions.cancelTimelineRender(
+      context.req.param("jobId"),
+    );
+    return value
+      ? context.json(value)
+      : context.json({ code: "TIMELINE_RENDER_NOT_FOUND" }, 404);
   });
   app.delete("/host/v1/media-library/:mediaRef", async (context) => {
     if (!options.actions.removeManagedMedia)
@@ -1123,6 +1603,14 @@ export function createDesktopHost(
   app.get("/host/v1/credentials/status", async (context) =>
     context.json(await options.actions.credentialStorageStatus()),
   );
+  app.post("/host/v1/credentials/unlock-sessions", async (context) => {
+    if (!options.actions.createCredentialVaultUnlockSession)
+      return unavailable(context, "credentials.unlock");
+    return context.json(
+      await options.actions.createCredentialVaultUnlockSession(),
+      201,
+    );
+  });
   app.post("/host/v1/credentials/capture-sessions", async (context) => {
     if (!options.actions.createCredentialCaptureSession)
       return unavailable(context, "credentials.capture");
@@ -1462,22 +1950,6 @@ export const AGENT_RUNTIME_DESCRIPTORS = {
     role: "external-benchmark",
     name: "Codex",
     version: "0.147.0",
-    capabilities: {
-      prompt: true,
-      streaming: true,
-      steer: false,
-      abort: true,
-      resume: true,
-      fork: true,
-      compaction: false,
-      readOnlyTools: true,
-    },
-  },
-  grok: {
-    kind: "grok",
-    role: "external-benchmark",
-    name: "Grok Build",
-    version: "1.0.5",
     capabilities: {
       prompt: true,
       streaming: true,

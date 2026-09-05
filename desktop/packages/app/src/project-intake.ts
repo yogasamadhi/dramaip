@@ -1,5 +1,6 @@
 import type {
   ProjectInput,
+  ProjectMode,
   ProjectModeConfig,
 } from "@dramaip/contracts/product";
 
@@ -126,6 +127,102 @@ export function projectInputFromBrief(
 export function positiveInteger(value: string): number | undefined {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export function projectModeBrief(
+  mode: ProjectMode,
+  source: ProjectCreationSource,
+  current?: ProductionBriefDraft,
+): ProductionBriefDraft {
+  const base = defaultProductionBrief(source);
+  const modeDefaults: Record<ProjectMode, Partial<ProductionBriefDraft>> = {
+    series_longform: {
+      shortDramaType: "逆袭爽文",
+      targetChapterCount: "300",
+      targetSeasonCount: "5",
+      targetEpisodesPerSeason: "80",
+      episodeDuration: "60—90 秒",
+    },
+    single_season: {
+      shortDramaType: "逆袭爽剧",
+      targetEpisodeCount: "80",
+      episodeDuration: "60—90 秒",
+    },
+    personal_theater: {
+      shortDramaType: "个人故事",
+      targetAudience: "本人及亲友",
+      targetEpisodeCount: "1",
+      episodeDuration: "5 分钟",
+    },
+    creator_channel: {
+      shortDramaType: "主题内容",
+      targetAudience: "目标账号受众",
+      targetEpisodeCount: "",
+      episodeDuration: "60—180 秒",
+      visualStyleDirection: "统一账号视觉与表达风格",
+    },
+  };
+  return {
+    ...base,
+    ...modeDefaults[mode],
+    title: current?.title ?? "",
+    idea: current?.idea ?? "",
+  };
+}
+
+export function projectModeConfigFromDraft(
+  mode: ProjectMode,
+  source: ProjectCreationSource,
+  brief: ProductionBriefDraft,
+  creatorTopic: string,
+): ProjectModeConfig | undefined {
+  if (mode === "series_longform") {
+    const targetChapterCount = positiveInteger(brief.targetChapterCount);
+    const targetSeasonCount = positiveInteger(brief.targetSeasonCount);
+    const targetEpisodesPerSeason = positiveInteger(
+      brief.targetEpisodesPerSeason,
+    );
+    return targetChapterCount && targetSeasonCount && targetEpisodesPerSeason
+      ? {
+          mode,
+          targetChapterCount,
+          targetSeasonCount,
+          targetEpisodesPerSeason,
+        }
+      : undefined;
+  }
+  if (mode === "single_season") {
+    const targetEpisodeCount = positiveInteger(brief.targetEpisodeCount);
+    return targetEpisodeCount
+      ? {
+          mode,
+          entryPath:
+            source === "script"
+              ? "script"
+              : source === "source-import"
+                ? "source-import"
+                : "novel",
+          targetEpisodeCount,
+        }
+      : undefined;
+  }
+  if (mode === "personal_theater") {
+    const episodeCount = positiveInteger(brief.targetEpisodeCount);
+    const durationMatch = brief.episodeDuration.match(
+      /^\s*(\d+)(?:\s*分钟)?\s*$/u,
+    );
+    const episodeDurationMinutes = positiveInteger(durationMatch?.[1] ?? "");
+    return episodeCount && episodeDurationMinutes
+      ? {
+          mode,
+          storyMethod: source === "script" ? "freeform" : "template",
+          episodeCount,
+          episodeDurationMinutes,
+        }
+      : undefined;
+  }
+  const topic = creatorTopic.trim();
+  return topic ? { mode, topic, riskDomain: "general" } : undefined;
 }
 
 function requiredValue(value: string): string {

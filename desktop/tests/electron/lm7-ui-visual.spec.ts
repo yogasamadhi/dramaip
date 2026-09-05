@@ -83,6 +83,16 @@ test("12 个标准界面具备稳定的明暗视觉基线", async () => {
     await useTheme(theme);
     for (const [name, path] of routes) {
       await openRoute(path);
+      const horizontalLayout = await page.evaluate(() => ({
+        overflow:
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+        scrollX: window.scrollX,
+      }));
+      expect(horizontalLayout, `${theme}-${name}`).toEqual({
+        overflow: 0,
+        scrollX: 0,
+      });
       await expect(page).toHaveScreenshot(`${theme}-${name}.png`, {
         animations: "disabled",
         caret: "hide",

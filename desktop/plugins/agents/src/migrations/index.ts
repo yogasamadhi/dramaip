@@ -389,4 +389,187 @@ export const agentMigrations = [
         VALUES (1, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
     `,
   },
+  {
+    id: "agents.0011.remove-grok-build",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0010.web-research-consent"],
+    sql: `
+      UPDATE agent_global_settings
+        SET default_engine_kind = 'pi', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE default_engine_kind = 'grok';
+      UPDATE agent_project_settings
+        SET default_engine_kind = 'pi', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE default_engine_kind = 'grok';
+
+      UPDATE agent_assistant_turns
+        SET status = 'failed', error = 'Grok Build engine was removed.',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id IN (
+          SELECT id FROM agent_assistant_runs
+          WHERE engine_kind = 'grok'
+            AND status IN ('created', 'queued', 'preparing', 'running', 'waiting_approval', 'committing', 'recoverable')
+        );
+      UPDATE agent_assistant_runs
+        SET status = 'interrupted', recovery_error = 'Grok Build engine was removed.',
+            completed_at = COALESCE(completed_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE engine_kind = 'grok'
+          AND status IN ('created', 'queued', 'preparing', 'running', 'waiting_approval', 'committing', 'recoverable');
+      UPDATE agent_assistant_sessions
+        SET status = 'interrupted',
+            archived_at = COALESCE(archived_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE engine_kind = 'grok';
+
+      ALTER TABLE agent_evaluation_candidates
+        RENAME TO agent_evaluation_candidates_four_engine;
+      CREATE TEMP TABLE agent_evaluation_candidate_remap AS
+      SELECT evaluation_id,
+             candidate AS old_candidate,
+             char(96 + ROW_NUMBER() OVER (
+               PARTITION BY evaluation_id ORDER BY candidate
+             )) AS candidate
+      FROM agent_evaluation_candidates_four_engine
+      WHERE engine_kind <> 'grok';
+      CREATE TABLE agent_evaluation_candidates (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        candidate TEXT NOT NULL CHECK(candidate IN ('a', 'b', 'c')),
+        engine_kind TEXT NOT NULL CHECK(engine_kind IN ('pi', 'codex', 'langgraph')),
+        run_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        output_json TEXT,
+        metrics_json TEXT NOT NULL,
+        UNIQUE(evaluation_id, candidate),
+        UNIQUE(evaluation_id, engine_kind)
+      );
+      INSERT INTO agent_evaluation_candidates(
+        id, evaluation_id, candidate, engine_kind, run_id, status,
+        output_json, metrics_json
+      )
+      SELECT source.id, source.evaluation_id, remap.candidate,
+             source.engine_kind, source.run_id, source.status,
+             source.output_json, source.metrics_json
+      FROM agent_evaluation_candidates_four_engine source
+      JOIN agent_evaluation_candidate_remap remap
+        ON remap.evaluation_id = source.evaluation_id
+       AND remap.old_candidate = source.candidate;
+
+      ALTER TABLE agent_evaluation_reviews
+        RENAME TO agent_evaluation_reviews_four_engine;
+      CREATE TABLE agent_evaluation_reviews (
+        evaluation_id TEXT PRIMARY KEY,
+        preferred_candidate TEXT NOT NULL CHECK(preferred_candidate IN ('a', 'b', 'c', 'tie')),
+        accepted INTEGER NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO agent_evaluation_reviews(
+        evaluation_id, preferred_candidate, accepted, notes, created_at
+      )
+      SELECT review.evaluation_id,
+             CASE
+               WHEN review.preferred_candidate = 'tie' THEN 'tie'
+               ELSE remap.candidate
+             END,
+             review.accepted, review.notes, review.created_at
+      FROM agent_evaluation_reviews_four_engine review
+      LEFT JOIN agent_evaluation_candidate_remap remap
+        ON remap.evaluation_id = review.evaluation_id
+       AND remap.old_candidate = review.preferred_candidate
+      WHERE review.preferred_candidate = 'tie' OR remap.candidate IS NOT NULL;
+
+      UPDATE agent_evaluations
+        SET status = 'ready_for_review', revealed_at = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id IN (
+          SELECT review.evaluation_id
+          FROM agent_evaluation_reviews_four_engine review
+          LEFT JOIN agent_evaluation_candidate_remap remap
+            ON remap.evaluation_id = review.evaluation_id
+           AND remap.old_candidate = review.preferred_candidate
+          WHERE review.preferred_candidate <> 'tie' AND remap.candidate IS NULL
+        );
+      UPDATE agent_evaluations
+        SET status = 'failed', revealed_at = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE status IN ('queued', 'running')
+           OR NOT EXISTS (
+             SELECT 1 FROM agent_evaluation_candidates candidate
+             WHERE candidate.evaluation_id = agent_evaluations.id
+           );
+
+      DROP TABLE agent_evaluation_reviews_four_engine;
+      DROP TABLE agent_evaluation_candidates_four_engine;
+      DROP TABLE agent_evaluation_candidate_remap;
+    `,
+  },
+  {
+    id: "agents.0012.context-policies-and-snapshots",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0011.remove-grok-build"],
+    sql: `
+      CREATE TABLE agent_context_policy_sets (
+        project_id TEXT PRIMARY KEY,
+        version INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE agent_context_policies (
+        project_id TEXT,
+        field_path TEXT NOT NULL,
+        mode TEXT NOT NULL CHECK(mode IN ('auto', 'always', 'never')),
+        version INTEGER NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(project_id, field_path)
+      );
+      CREATE TABLE agent_context_previews (
+        id TEXT PRIMARY KEY,
+        project_id TEXT,
+        input_json TEXT NOT NULL,
+        entries_json TEXT NOT NULL,
+        token_budget INTEGER NOT NULL CHECK(token_budget > 0),
+        estimated_tokens INTEGER NOT NULL CHECK(estimated_tokens >= 0),
+        destination_json TEXT NOT NULL,
+        final_prompt TEXT NOT NULL,
+        manifest_sha256 TEXT NOT NULL CHECK(length(manifest_sha256) = 64),
+        version INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'frozen', 'expired')),
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX agent_context_previews_project
+        ON agent_context_previews(project_id, created_at DESC, id);
+      CREATE TABLE agent_context_snapshots (
+        id TEXT PRIMARY KEY,
+        preview_id TEXT NOT NULL UNIQUE
+          REFERENCES agent_context_previews(id) ON DELETE RESTRICT,
+        project_id TEXT,
+        entries_json TEXT NOT NULL,
+        token_budget INTEGER NOT NULL CHECK(token_budget > 0),
+        estimated_tokens INTEGER NOT NULL CHECK(estimated_tokens >= 0),
+        destination_json TEXT NOT NULL,
+        final_prompt TEXT NOT NULL,
+        manifest_sha256 TEXT NOT NULL CHECK(length(manifest_sha256) = 64),
+        final_prompt_sha256 TEXT NOT NULL CHECK(length(final_prompt_sha256) = 64),
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX agent_context_snapshots_project
+        ON agent_context_snapshots(project_id, created_at DESC, id);
+      ALTER TABLE agent_assistant_runs ADD COLUMN context_snapshot_id TEXT
+        REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT;
+      CREATE INDEX agent_assistant_runs_context_snapshot
+        ON agent_assistant_runs(context_snapshot_id);
+      ALTER TABLE agent_evaluations ADD COLUMN context_snapshot_id TEXT
+        REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT;
+      CREATE INDEX agent_evaluations_context_snapshot
+        ON agent_evaluations(context_snapshot_id);
+      ALTER TABLE agent_inspiration_memory_jobs ADD COLUMN context_snapshot_id TEXT
+        REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT;
+      CREATE INDEX agent_inspiration_memory_jobs_context_snapshot
+        ON agent_inspiration_memory_jobs(context_snapshot_id);
+    `,
+  },
 ] as const satisfies readonly PluginMigration[];

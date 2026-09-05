@@ -122,8 +122,8 @@ function Login({
   return (
     <main className="login-shell">
       <section className="login-card">
-        <p className="eyebrow">DRAMAIP / OPERATIONS</p>
-        <h1>管理台</h1>
+        <p className="eyebrow">尽意 DramaIP / OPERATIONS</p>
+        <h1>尽意 DramaIP 管理台</h1>
         <p>使用独立管理员身份登录；不会接受 C 端 Cookie 或访问令牌。</p>
         <form onSubmit={submit}>
           <label>
@@ -549,7 +549,7 @@ function App() {
     <main className="app-shell">
       <header>
         <div>
-          <p className="eyebrow">DRAMAIP / ADMIN</p>
+          <p className="eyebrow">尽意 DramaIP / ADMIN</p>
           <h1>运营与报表</h1>
         </div>
         <div className="identity">

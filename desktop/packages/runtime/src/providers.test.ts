@@ -21,6 +21,25 @@ interface InstalledProviderRoutes {
 
 const installed: InstalledProviderRoutes[] = [];
 
+function isolatedServices() {
+  const values = new Map<string, unknown>();
+  return {
+    provide(contract: { id: string }, service: unknown) {
+      values.set(contract.id, service);
+      return () => values.delete(contract.id);
+    },
+    optional(contract: { id: string }) {
+      return values.get(contract.id);
+    },
+    require(contract: { id: string }) {
+      const service = values.get(contract.id);
+      if (!service) throw new Error(`missing test service: ${contract.id}`);
+      return service;
+    },
+    entries: () => [],
+  };
+}
+
 function installProviderRoutes(
   host?: DesktopHostClient,
 ): InstalledProviderRoutes {
@@ -40,6 +59,7 @@ function installProviderRoutes(
       },
     },
     uow: database.uow,
+    services: isolatedServices(),
     events: {
       publishLive(input: { type: string; payload: unknown }) {
         liveEvents.push(input);
@@ -83,7 +103,7 @@ afterEach(() => {
 });
 
 describe("agents provider configurations", () => {
-  it("rejects a four-engine experiment before any write or model call when one engine is not ready", async () => {
+  it("rejects a three-engine experiment before any write or model call when one engine is not ready", async () => {
     let engineOperations = 0;
     const host = {
       engineHealth: async (engine: string) => ({
@@ -105,9 +125,9 @@ describe("agents provider configurations", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: "project-four-engine",
+          projectId: "project-three-engine",
           taskType: "outline",
-          prompt: "比较四个引擎的结果",
+          prompt: "比较三个引擎的结果",
         }),
       },
     );
@@ -125,21 +145,17 @@ describe("agents provider configurations", () => {
     ).toBe(0);
   });
 
-  it("upgrades historical three-engine evaluations and accepts candidate d with LangGraph.js", () => {
+  it("removes Grok Build from historical evaluations and compacts retained candidates", () => {
     const database = openDatabase(":memory:");
     const plugin = createAgentsPlugin();
     const migrations = plugin.migrations ?? [];
-    const beforeLangGraph = migrations.filter(
-      (migration) =>
-        ![
-          "agents.0008.langgraph-four-engine",
-          "agents.0009.inspiration-space",
-          "agents.0010.web-research-consent",
-        ].includes(migration.id),
+    const removalIndex = migrations.findIndex(
+      (migration) => migration.id === "agents.0011.remove-grok-build",
     );
+    const beforeGrokRemoval = migrations.slice(0, removalIndex);
     applyMigrations(database.sqlite, [
       ...(foundationPlugin.migrations ?? []),
-      ...beforeLangGraph,
+      ...beforeGrokRemoval,
     ]);
     const now = new Date().toISOString();
     database.uow.execute((transaction) => {
@@ -148,10 +164,10 @@ describe("agents provider configurations", () => {
           id, project_id, task_type, prompt, context_snapshot_json, status,
           revealed_at, created_at, updated_at
         ) VALUES (?, ?, ?, ?, '{}', 'completed', ?, ?, ?)`,
-        "historical-evaluation",
-        "project-history",
+        "four-engine-evaluation",
+        "project-four-engine-history",
         "outline",
-        "历史三引擎实验",
+        "历史四引擎实验",
         now,
         now,
         now,
@@ -160,16 +176,21 @@ describe("agents provider configurations", () => {
         `INSERT INTO agent_evaluation_candidates(
           id, evaluation_id, candidate, engine_kind, run_id, status,
           output_json, metrics_json
-        ) VALUES (?, ?, 'a', 'pi', ?, 'succeeded', '{}', '{}')`,
-        "historical-candidate-a",
-        "historical-evaluation",
-        "historical-run-a",
+        ) VALUES
+          ('candidate-pi', ?, 'a', 'pi', 'run-pi', 'succeeded', '{}', '{}'),
+          ('candidate-grok', ?, 'b', 'grok', 'run-grok', 'succeeded', '{}', '{}'),
+          ('candidate-codex', ?, 'c', 'codex', 'run-codex', 'succeeded', '{}', '{}'),
+          ('candidate-langgraph', ?, 'd', 'langgraph', 'run-langgraph', 'succeeded', '{}', '{}')`,
+        "four-engine-evaluation",
+        "four-engine-evaluation",
+        "four-engine-evaluation",
+        "four-engine-evaluation",
       );
       transaction.run(
         `INSERT INTO agent_evaluation_reviews(
           evaluation_id, preferred_candidate, accepted, notes, created_at
-        ) VALUES (?, 'a', 1, NULL, ?)`,
-        "historical-evaluation",
+        ) VALUES (?, 'd', 1, NULL, ?)`,
+        "four-engine-evaluation",
         now,
       );
     });
@@ -182,56 +203,29 @@ describe("agents provider configurations", () => {
       expect(
         database.sqlite
           .prepare(
-            "SELECT candidate, engine_kind FROM agent_evaluation_candidates WHERE id = ?",
+            "SELECT candidate, engine_kind FROM agent_evaluation_candidates ORDER BY candidate",
           )
-          .get("historical-candidate-a"),
-      ).toEqual({ candidate: "a", engine_kind: "pi" });
+          .all(),
+      ).toEqual([
+        { candidate: "a", engine_kind: "pi" },
+        { candidate: "b", engine_kind: "codex" },
+        { candidate: "c", engine_kind: "langgraph" },
+      ]);
       expect(
         database.sqlite
           .prepare(
             "SELECT preferred_candidate FROM agent_evaluation_reviews WHERE evaluation_id = ?",
           )
-          .get("historical-evaluation"),
-      ).toEqual({ preferred_candidate: "a" });
-
-      database.uow.execute((transaction) => {
-        transaction.run(
-          `INSERT INTO agent_evaluation_candidates(
-            id, evaluation_id, candidate, engine_kind, run_id, status,
-            output_json, metrics_json
-          ) VALUES (?, ?, 'd', 'langgraph', ?, 'succeeded', '{}', '{}')`,
-          "langgraph-candidate-d",
-          "historical-evaluation",
-          "langgraph-run-d",
-        );
-        transaction.run(
-          `UPDATE agent_evaluation_reviews
-           SET preferred_candidate = 'd' WHERE evaluation_id = ?`,
-          "historical-evaluation",
-        );
-      });
-      expect(
-        database.sqlite
-          .prepare(
-            "SELECT candidate, engine_kind FROM agent_evaluation_candidates WHERE id = ?",
-          )
-          .get("langgraph-candidate-d"),
-      ).toEqual({ candidate: "d", engine_kind: "langgraph" });
-      expect(
-        database.sqlite
-          .prepare(
-            "SELECT preferred_candidate FROM agent_evaluation_reviews WHERE evaluation_id = ?",
-          )
-          .get("historical-evaluation"),
-      ).toEqual({ preferred_candidate: "d" });
+          .get("four-engine-evaluation"),
+      ).toEqual({ preferred_candidate: "c" });
     } finally {
       database.close();
     }
   });
 
-  it("keeps all four candidate engines, models and providers anonymous until review and reveal", async () => {
+  it("keeps all three candidate engines, models and providers anonymous until review and reveal", async () => {
     const fixture = installProviderRoutes();
-    const evaluationId = "anonymous-four-engine";
+    const evaluationId = "anonymous-three-engine";
     const now = new Date().toISOString();
     fixture.uow.execute((transaction) => {
       transaction.run(
@@ -250,12 +244,7 @@ describe("agents provider configurations", () => {
         now,
         now,
       );
-      for (const [index, engine] of [
-        "pi",
-        "codex",
-        "grok",
-        "langgraph",
-      ].entries())
+      for (const [index, engine] of ["pi", "codex", "langgraph"].entries())
         transaction.run(
           `INSERT INTO agent_evaluation_candidates(
             id, evaluation_id, candidate, engine_kind, run_id, status,
@@ -263,7 +252,7 @@ describe("agents provider configurations", () => {
           ) VALUES (?, ?, ?, ?, ?, 'succeeded', ?, ?)`,
           `anonymous-candidate-${index}`,
           evaluationId,
-          ["a", "b", "c", "d"][index],
+          ["a", "b", "c"][index],
           engine,
           `anonymous-run-${index}`,
           JSON.stringify({ text: `候选 ${index + 1}` }),
@@ -286,7 +275,7 @@ describe("agents provider configurations", () => {
       unknown
     >;
     expect(anonymous).not.toHaveProperty("model");
-    expect(anonymous.candidates).toHaveLength(4);
+    expect(anonymous.candidates).toHaveLength(3);
     for (const candidate of anonymous.candidates as Array<
       Record<string, unknown>
     >) {
@@ -302,7 +291,7 @@ describe("agents provider configurations", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferredCandidate: "d", accepted: true }),
+        body: JSON.stringify({ preferredCandidate: "c", accepted: true }),
       },
     );
     expect(review.status).toBe(200);
@@ -322,7 +311,7 @@ describe("agents provider configurations", () => {
       (revealed.candidates as Array<Record<string, unknown>>).map(
         (candidate) => candidate.engineKind,
       ),
-    ).toEqual(["pi", "codex", "grok", "langgraph"]);
+    ).toEqual(["pi", "codex", "langgraph"]);
   });
 
   it("exposes the typed Agent session contract without a generic engine-operation API", async () => {
@@ -438,6 +427,7 @@ describe("agents provider configurations", () => {
         bundles: [],
         plugins: [],
         capabilities: {},
+        capabilityDescriptors: {},
         engineStatus: {},
         uiContributions: [],
       }),
@@ -563,6 +553,7 @@ describe("agents provider configurations", () => {
         bundles: [],
         plugins: [],
         capabilities: {},
+        capabilityDescriptors: {},
         engineStatus: {},
         uiContributions: [],
       }),
@@ -718,6 +709,7 @@ describe("agents provider configurations", () => {
       await plugin.activate({
         http: { register: () => () => undefined },
         uow: database.uow,
+        services: isolatedServices(),
         effect: ((_label, acquire) =>
           void acquire()) as PluginContext["effect"],
       } as unknown as PluginContext);
@@ -832,10 +824,7 @@ describe("agents provider configurations", () => {
       expect.arrayContaining([
         expect.objectContaining({ kind: "pi", status: "unavailable" }),
         expect.objectContaining({ kind: "codex", status: "unavailable" }),
-        expect.objectContaining({ kind: "pi", status: "unavailable" }),
-        expect.objectContaining({ kind: "pi", status: "unavailable" }),
-        expect.objectContaining({ kind: "grok", status: "unavailable" }),
-        expect.objectContaining({ kind: "pi", status: "unavailable" }),
+        expect.objectContaining({ kind: "langgraph", status: "unavailable" }),
       ]),
     );
     const created = await fixture.app.request(
@@ -884,10 +873,7 @@ describe("agents provider configurations", () => {
     await expect(configuredEngines.json()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "pi", status: "available" }),
-        expect.objectContaining({ kind: "pi", status: "available" }),
-        expect.objectContaining({ kind: "pi", status: "available" }),
-        expect.objectContaining({ kind: "grok", status: "available" }),
-        expect.objectContaining({ kind: "pi", status: "available" }),
+        expect.objectContaining({ kind: "langgraph", status: "available" }),
       ]),
     );
 
@@ -907,6 +893,60 @@ describe("agents provider configurations", () => {
       defaultModel: { modelId: "deepseek-v4-flash" },
     });
     expect(fixture.eventCount()).toBe(3);
+  });
+
+  it("activates a fixed local runtime without persisting credentials or URLs", async () => {
+    let receivedConfiguration: Record<string, unknown> | undefined;
+    const host = {
+      activateAgentProvider: async (configuration: Record<string, unknown>) => {
+        receivedConfiguration = configuration;
+        return { available: true };
+      },
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        configured: true,
+      }),
+    } as unknown as DesktopHostClient;
+    const fixture = installProviderRoutes(host);
+    const created = await fixture.app.request(
+      "http://runtime.test/api/v2/providers",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "本地 Ollama",
+          payload: {
+            服务类型: "智能模型",
+            模型名称: "qwen3:8b",
+            调用协议: "OpenAI 兼容文本",
+            认证方式: "none",
+            本地运行时: "ollama",
+          },
+        }),
+      },
+    );
+    expect(created.status).toBe(200);
+    const provider = (await created.json()) as {
+      id: string;
+      payload: Record<string, unknown>;
+    };
+    expect(provider.payload).not.toHaveProperty("凭据引用");
+    expect(provider.payload).not.toHaveProperty("服务地址");
+
+    const activated = await fixture.app.request(
+      `http://runtime.test/api/v2/providers/${provider.id}/activate-for-agent`,
+      { method: "POST" },
+    );
+    expect(activated.status, await activated.clone().text()).toBe(200);
+    expect(receivedConfiguration).toMatchObject({
+      authentication: "none",
+      localRuntimeKind: "ollama",
+      model: "qwen3:8b",
+      providerAdapter: "openai-compatible",
+    });
+    expect(receivedConfiguration).not.toHaveProperty("credentialRef");
+    expect(receivedConfiguration).not.toHaveProperty("baseUrl");
   });
 
   it("acknowledges an assistant turn and persists engine deltas before completion", async () => {
@@ -996,10 +1036,22 @@ describe("agents provider configurations", () => {
       },
     );
     expect(sent.status).toBe(200);
-    await expect(sent.json()).resolves.toMatchObject({
+    const sentBody = (await sent.json()) as {
+      run: { id: string; engineKind: string; status: string };
+    };
+    expect(sentBody).toMatchObject({
       conversation: { id: conversation.id, status: "running" },
       turn: { userMessage: "hello", status: "running" },
       run: { engineKind: "pi", status: "preparing" },
+    });
+    const contextSnapshot = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/context-snapshot`,
+    );
+    expect(contextSnapshot.status).toBe(200);
+    await expect(contextSnapshot.json()).resolves.toMatchObject({
+      destination: { kind: "cloud", provider: provider.id },
+      manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      finalPromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
     });
     expect(engineCalls).toEqual([
       expect.objectContaining({ operation: "create" }),
@@ -1437,6 +1489,7 @@ describe("agents provider configurations", () => {
     await restoredPlugin.activate({
       http: { register: () => () => undefined },
       uow: fixture.uow,
+      services: isolatedServices(),
       effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
     } as unknown as PluginContext);
     expect(restoredLogins).toEqual([

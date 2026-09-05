@@ -11,21 +11,25 @@ import {
 import {
   StageNavigation,
   WorkspaceIntro,
+  type WorkspaceStageItem,
   domainLabel,
   message,
   useStudio,
 } from "../../studio-shared";
+import { useStudioSession } from "../../studio-session";
 import { PluginResourceWorkspace, recordPayload } from "../studio-widgets";
 import { StoryBibleSidecar } from "../workspace/impl";
 export function AdaptationWorkspace() {
   const client = useStudio();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
+  const session = useStudioSession();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(session.activeProjectId ?? "");
   const [adaptationId, setAdaptationId] = useState("");
   const [episodeId, setEpisodeId] = useState("");
   const [scriptId, setScriptId] = useState("");
@@ -61,8 +65,13 @@ export function AdaptationWorkspace() {
     enabled: Boolean(projectId && sceneId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (
+      session.activeProjectId &&
+      projects.some((project) => project.id === session.activeProjectId) &&
+      projectId !== session.activeProjectId
+    )
+      setProjectId(session.activeProjectId);
+  }, [projectId, projects, session.activeProjectId]);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("projectId");
     if (requested && projects.some((project) => project.id === requested))
@@ -127,6 +136,95 @@ export function AdaptationWorkspace() {
             : undefined;
   const parentRequired = stage !== "adaptations";
   const selectedScript = scripts.find((item) => item.id === scriptId);
+  const requestedStage = new URLSearchParams(location.search).get("stage");
+  const structurallyRecommended = !adaptations.length
+    ? "adaptations"
+    : !episodes.length
+      ? "episodes"
+      : !scripts.length
+        ? "scripts"
+        : !scenes.length
+          ? "scenes"
+          : "shots";
+  const recommendedStage =
+    requestedStage &&
+    ["adaptations", "episodes", "scripts", "scenes", "shots"].includes(
+      requestedStage,
+    )
+      ? requestedStage
+      : structurallyRecommended;
+  const stageItems: WorkspaceStageItem[] = [
+    {
+      id: "adaptations",
+      label: "改编项目",
+      availability: projectId ? "available" : "blocked",
+      recommended: recommendedStage === "adaptations",
+      reason: "请先创建或选择一个项目。",
+      recoveryLabel: "返回项目工作台",
+      recoveryTarget: "/",
+    },
+    {
+      id: "episodes",
+      label: "分集",
+      availability: adaptationId ? "available" : "blocked",
+      recommended: recommendedStage === "episodes",
+      reason: "请先在改编项目阶段创建或选择改编方案。",
+      recoveryLabel: "去选择改编方案",
+      recoveryTarget: `/adapt?${new URLSearchParams({ projectId, stage: "adaptations" })}`,
+    },
+    {
+      id: "scripts",
+      label: "剧本",
+      availability: episodeId ? "available" : "blocked",
+      recommended: recommendedStage === "scripts",
+      reason: "请先创建或选择一个分集。",
+      recoveryLabel: "去选择分集",
+      recoveryTarget: `/adapt?${new URLSearchParams({ projectId, stage: "episodes" })}`,
+    },
+    {
+      id: "scenes",
+      label: "场景",
+      availability: scriptId ? "available" : "blocked",
+      recommended: recommendedStage === "scenes",
+      reason: "请先创建或选择一个剧本。",
+      recoveryLabel: "去选择剧本",
+      recoveryTarget: `/adapt?${new URLSearchParams({ projectId, stage: "scripts" })}`,
+    },
+    {
+      id: "shots",
+      label: "分镜",
+      availability: sceneId ? "available" : "blocked",
+      recommended: recommendedStage === "shots",
+      reason: "请先创建或选择一个场景。",
+      recoveryLabel: "去选择场景",
+      recoveryTarget: `/adapt?${new URLSearchParams({ projectId, stage: "scenes" })}`,
+    },
+  ];
+  const syncRoute = (next: {
+    projectId?: string;
+    stage?: typeof stage;
+    adaptationId?: string;
+    episodeId?: string;
+    scriptId?: string;
+    sceneId?: string;
+    shotId?: string;
+  }) => {
+    const search = new URLSearchParams();
+    const values = {
+      projectId,
+      stage,
+      adaptationId,
+      episodeId,
+      scriptId,
+      sceneId,
+      shotId,
+      ...next,
+    };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    navigate(`/adapt?${search}`);
+  };
   return (
     <section className="space-y-5">
       <WorkspaceIntro
@@ -142,12 +240,22 @@ export function AdaptationWorkspace() {
             className="rounded-lg border border-line px-3 py-2"
             value={projectId}
             onChange={(event) => {
-              setProjectId(event.target.value);
+              const nextProjectId = event.target.value;
+              setProjectId(nextProjectId);
+              if (nextProjectId) session.selectProject(nextProjectId);
               setAdaptationId("");
               setEpisodeId("");
               setScriptId("");
               setSceneId("");
               setShotId("");
+              syncRoute({
+                projectId: nextProjectId,
+                adaptationId: "",
+                episodeId: "",
+                scriptId: "",
+                sceneId: "",
+                shotId: "",
+              });
             }}
           >
             <option value="">选择项目</option>
@@ -171,6 +279,13 @@ export function AdaptationWorkspace() {
               setScriptId("");
               setSceneId("");
               setShotId("");
+              syncRoute({
+                adaptationId: nextId,
+                episodeId: "",
+                scriptId: "",
+                sceneId: "",
+                shotId: "",
+              });
               setNotice(undefined);
               if (!nextId || !projectId) return;
               void client.productionStructure
@@ -201,10 +316,17 @@ export function AdaptationWorkspace() {
             disabled={!adaptationId}
             value={episodeId}
             onChange={(event) => {
-              setEpisodeId(event.target.value);
+              const nextId = event.target.value;
+              setEpisodeId(nextId);
               setScriptId("");
               setSceneId("");
               setShotId("");
+              syncRoute({
+                episodeId: nextId,
+                scriptId: "",
+                sceneId: "",
+                shotId: "",
+              });
             }}
           >
             <option value="">选择分集</option>
@@ -222,9 +344,11 @@ export function AdaptationWorkspace() {
             disabled={!episodeId}
             value={scriptId}
             onChange={(event) => {
-              setScriptId(event.target.value);
+              const nextId = event.target.value;
+              setScriptId(nextId);
               setSceneId("");
               setShotId("");
+              syncRoute({ scriptId: nextId, sceneId: "", shotId: "" });
             }}
           >
             <option value="">选择剧本</option>
@@ -242,8 +366,10 @@ export function AdaptationWorkspace() {
             disabled={!scriptId}
             value={sceneId}
             onChange={(event) => {
-              setSceneId(event.target.value);
+              const nextId = event.target.value;
+              setSceneId(nextId);
               setShotId("");
+              syncRoute({ sceneId: nextId, shotId: "" });
             }}
           >
             <option value="">选择场景</option>
@@ -261,7 +387,11 @@ export function AdaptationWorkspace() {
               className="rounded-lg border border-line px-3 py-2"
               disabled={!sceneId}
               value={shotId}
-              onChange={(event) => setShotId(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setShotId(nextId);
+                syncRoute({ shotId: nextId });
+              }}
             >
               <option value="">选择分镜</option>
               {shots.map((item) => (
@@ -275,9 +405,13 @@ export function AdaptationWorkspace() {
       </section>
       <StageNavigation
         label="改编阶段"
-        items={["adaptations", "episodes", "scripts", "scenes", "shots"]}
+        items={stageItems}
         active={stage}
-        onChange={(value) => setStage(value as typeof stage)}
+        onChange={(value) => {
+          const nextStage = value as typeof stage;
+          setStage(nextStage);
+          syncRoute({ stage: nextStage });
+        }}
       />
       {notice && <p className="text-sm text-brand">{notice}</p>}
       {!projectId ? (

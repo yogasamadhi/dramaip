@@ -2,9 +2,11 @@
   "name": "@dramaip/contracts",
   "version": "3.0.0-alpha.3",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agent-context": "./src/agent-context.ts",
     "./automation": "./src/automation.ts",
     "./creative-quality": "./src/creative-quality.ts",
     "./creative-intelligence": "./src/creative-intelligence.ts",

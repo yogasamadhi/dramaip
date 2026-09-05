@@ -21,8 +21,8 @@ export default function DownloadPage() {
       <p className="eyebrow">Desktop release</p>
       <div className="mt-4 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-5xl font-semibold tracking-tight text-ink">下载 DramaIP Studio</h1>
-          <p className="mt-5 max-w-2xl leading-7 text-stone-600">无需登录、密钥或网络，先用内置样片跑通导演工作台、离线审片和标准交付。</p>
+          <h1 className="text-5xl font-semibold tracking-tight text-ink">下载尽意 DramaIP</h1>
+          <p className="mt-5 max-w-2xl leading-7 text-stone-600">本地优先的 AI IP 创作工作台。无需登录、密钥或网络，先用内置样片跑通导演工作台、离线审片和标准交付。</p>
         </div>
         <span className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${isReleaseReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
           {isReleaseReady ? `v${releaseVersion}` : `v${releaseVersion} · RC 门禁中`}

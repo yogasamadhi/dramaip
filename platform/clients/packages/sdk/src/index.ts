@@ -113,23 +113,23 @@ export const PlansResponseSchema = z.object({
 
 export type PlansResponse = z.infer<typeof PlansResponseSchema>;
 
-export const CheckoutResponseSchema = z.object({
-  checkout_id: z.string(),
-  plan_id: z.string(),
-  channel: z.string(),
-  status: z.string(),
-  checkout_url: z.string(),
-  expires_at: z.string().default(""),
-});
-
-export type CheckoutResponse = z.infer<typeof CheckoutResponseSchema>;
-
 export const PaymentProviderSchema = z.enum([
   "simulated",
-  "wechat_pay",
+  "wechatPay",
   "alipay",
 ]);
 export type PaymentProvider = z.infer<typeof PaymentProviderSchema>;
+
+export const PaymentProviderAvailabilitySchema = z.object({
+  provider: PaymentProviderSchema,
+  state: z.enum(["unavailable", "experimental", "verified"]),
+  version: z.string().min(1),
+  limitations: z.array(z.string()),
+  paymentActionTypes: z.array(z.enum(["qrCode"])),
+});
+export type PaymentProviderAvailability = z.infer<
+  typeof PaymentProviderAvailabilitySchema
+>;
 
 export const SubscriptionSchema = z.object({
   id: z.string().default(""),
@@ -167,34 +167,32 @@ export const RefundSchema = z.object({
 
 export type Refund = z.infer<typeof RefundSchema>;
 
-export const PaymentConfirmationResponseSchema = z.object({
-  order_id: z.string(),
+export const PaymentSchema = z.object({
+  id: z.string(),
+  orderId: z.string(),
+  provider: PaymentProviderSchema,
   status: z.string(),
-  subscription: SubscriptionSchema,
-  token_balance: TokenBalanceSchema,
+  amountMinor: z.number().int().nonnegative(),
+  currency: z.string(),
+  createdAt: z.string(),
 });
 
-export type PaymentConfirmationResponse = z.infer<
-  typeof PaymentConfirmationResponseSchema
->;
-export type SandboxPaymentResponse = PaymentConfirmationResponse;
+export type Payment = z.infer<typeof PaymentSchema>;
+export type SandboxPaymentResponse = Payment;
 
 export const OrderSchema = z.object({
-  id: z.string().default(""),
-  user_id: z.string().default(""),
-  plan_id: z.string().default(""),
-  plan_code: z.string().default(""),
-  provider: z.string().default(""),
-  amount: z.string().default("0"),
-  currency: z.string().default(""),
-  status: z.string().default(""),
-  payment_url: z.string().default(""),
-  created_at: z.string().default(""),
-  expires_at: z.string().default(""),
-  paid_at: z.string().optional(),
-  subscription_id: z.string().optional(),
-  purchase_mode: z.enum(["self_serve", "sales_contact"]).optional(),
-  entitlements_snapshot: PlanEntitlementsSchema.optional(),
+  id: z.string(),
+  planId: z.string(),
+  planCode: z.string(),
+  status: z.string(),
+  provider: PaymentProviderSchema,
+  amountMinor: z.number().int().nonnegative(),
+  currency: z.string(),
+  createdAt: z.string(),
+  paidAt: z.string().nullish(),
+  paymentUrl: z.string().nullish(),
+  paymentExpiresAt: z.string().nullish(),
+  subscriptionId: z.string().nullish(),
 });
 
 export type Order = z.infer<typeof OrderSchema>;
@@ -337,20 +335,6 @@ const JavaTokenBalanceSchema = z.object({
   periodStart: z.string(),
   periodEnd: z.string(),
 });
-const JavaOrderSchema = z.object({
-  id: z.string(),
-  planId: z.string(),
-  planCode: z.string(),
-  status: z.string(),
-  provider: z.string(),
-  amountMinor: z.number(),
-  currency: z.string(),
-  createdAt: z.string(),
-  paidAt: z.string().nullish(),
-  paymentUrl: z.string().nullish(),
-  paymentExpiresAt: z.string().nullish(),
-  subscriptionId: z.string().nullish(),
-});
 const JavaTokenUsageSchema = z.object({
   id: z.string(),
   requestId: z.string(),
@@ -440,26 +424,12 @@ function tokenBalanceFromJava(value: unknown): TokenBalance {
 }
 
 function orderFromJava(value: unknown): Order {
-  const item = JavaOrderSchema.parse(value);
-  return OrderSchema.parse({
-    id: item.id,
-    plan_id: item.planId,
-    plan_code: item.planCode,
-    provider: item.provider,
-    amount: (item.amountMinor / 100).toFixed(2),
-    currency: item.currency,
-    status: item.status,
-    payment_url: item.paymentUrl ?? "",
-    created_at: item.createdAt,
-    expires_at: item.paymentExpiresAt ?? "",
-    paid_at: item.paidAt ?? undefined,
-    subscription_id: item.subscriptionId || undefined,
-  });
+  return OrderSchema.parse(value);
 }
 
 function ordersFromJava(value: unknown): OrdersResponse {
   return OrdersResponseSchema.parse({
-    orders: z.array(JavaOrderSchema).parse(value).map(orderFromJava),
+    orders: z.array(OrderSchema).parse(value),
   });
 }
 
@@ -995,41 +965,43 @@ export type CorpusIngestionJob = z.infer<typeof CorpusIngestionJobSchema>;
 
 export const WorkspaceSchema = z.object({
   id: z.string(),
-  owner_user_id: z.string(),
+  ownerUserId: z.string(),
   name: z.string(),
-  plan_code: z.string(),
-  included_seats: z.number().int().nonnegative(),
-  active_member_count: z.number().int().nonnegative(),
-  pending_invitation_count: z.number().int().nonnegative(),
-  current_user_role: z.enum(["owner", "admin", "member"]),
-  review_storage_bytes: z.number().nonnegative(),
-  review_retention_days: z.number().int().nonnegative(),
+  planCode: z.string(),
+  includedSeats: z.number().int().nonnegative(),
+  activeMemberCount: z.number().int().nonnegative(),
+  pendingInvitationCount: z.number().int().nonnegative(),
+  currentUserRole: z.enum(["owner", "admin", "member"]),
+  reviewStorageBytes: z.number().nonnegative(),
+  reviewRetentionDays: z.number().int().nonnegative(),
+  status: z.enum(["active", "suspended", "closed"]),
+  createdAt: z.string(),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
 export const WorkspaceMemberSchema = z.object({
   id: z.string(),
-  workspace_id: z.string(),
-  user_id: z.string(),
+  workspaceId: z.string(),
+  userId: z.string(),
   role: z.enum(["owner", "admin", "member"]),
   status: z.string(),
-  display_name: z.string(),
+  displayName: z.string(),
   email: z.string(),
-  created_at: z.string(),
+  createdAt: z.string(),
 });
 export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
 
 export const WorkspaceInvitationSchema = z.object({
   id: z.string(),
-  workspace_id: z.string(),
+  workspaceId: z.string(),
   email: z.string(),
   role: z.enum(["admin", "member"]),
-  invited_by: z.string(),
-  expires_at: z.string(),
-  accepted_by: z.string().default(""),
-  accepted_at: z.string().default(""),
-  revoked_at: z.string().default(""),
-  created_at: z.string(),
+  invitedBy: z.string(),
+  expiresAt: z.string(),
+  acceptedBy: z.string().nullish(),
+  acceptedAt: z.string().nullish(),
+  revokedAt: z.string().nullish(),
+  createdAt: z.string(),
   token: z.string().default(""),
 });
 export type WorkspaceInvitation = z.infer<typeof WorkspaceInvitationSchema>;
@@ -1272,6 +1244,7 @@ export interface DramaIpApiClient {
   getSession(): Promise<LoginResponse>;
   getHealth(): Promise<Health>;
   getPlans(): Promise<PlansResponse>;
+  getPaymentProviders(): Promise<PaymentProviderAvailability[]>;
   getProfile(): Promise<Profile>;
   updateProfile(input: {
     display_name: string;
@@ -1293,16 +1266,13 @@ export interface DramaIpApiClient {
     input?: Partial<AccountBootstrapQuery>,
   ): Promise<AccountBootstrap>;
   getAccountReport(): Promise<AccountReport>;
-  createCheckout(input: {
-    plan_id: string;
-    channel: PaymentProvider;
-  }): Promise<CheckoutResponse>;
-  confirmSimulatedPayment(input: {
-    checkout_id: string;
-  }): Promise<PaymentConfirmationResponse>;
-  confirmSandboxPayment(input: {
-    checkout_id: string;
-  }): Promise<SandboxPaymentResponse>;
+  createOrder(input: {
+    planCode: string;
+    provider: PaymentProvider;
+    idempotencyKey: string;
+  }): Promise<Order>;
+  confirmSimulatedPayment(input: { orderId: string }): Promise<Payment>;
+  confirmSandboxPayment(input: { orderId: string }): Promise<SandboxPaymentResponse>;
   cancelSubscription(input?: { immediate?: boolean }): Promise<Subscription>;
   resumeSubscription(input?: {
     subscription_id?: string;
@@ -1318,7 +1288,7 @@ export interface DramaIpApiClient {
     reason?: string;
     idempotency_key?: string;
   }): Promise<Refund>;
-  getWorkspaces(): Promise<{ workspaces: Workspace[] }>;
+  getWorkspaces(): Promise<Workspace[]>;
   getWorkspaceMembers(
     workspaceID: string,
   ): Promise<{ members: WorkspaceMember[] }>;
@@ -1326,23 +1296,23 @@ export interface DramaIpApiClient {
     workspaceID: string,
   ): Promise<{ invitations: WorkspaceInvitation[] }>;
   inviteWorkspaceMember(input: {
-    workspace_id: string;
+    workspaceId: string;
     email: string;
     role: "admin" | "member";
-    expires_in_hours?: number;
+    expiresInHours?: number;
   }): Promise<WorkspaceInvitation>;
   updateWorkspaceMember(input: {
-    workspace_id: string;
-    member_user_id: string;
+    workspaceId: string;
+    memberId: string;
     role: "admin" | "member";
   }): Promise<WorkspaceMember>;
   removeWorkspaceMember(input: {
-    workspace_id: string;
-    member_user_id: string;
+    workspaceId: string;
+    memberId: string;
   }): Promise<WorkspaceMember>;
   revokeWorkspaceInvitation(input: {
-    workspace_id: string;
-    invitation_id: string;
+    workspaceId: string;
+    invitationId: string;
   }): Promise<WorkspaceInvitation>;
   acceptWorkspaceInvitation(token: string): Promise<WorkspaceMember>;
   createReviewPackage(input: {
@@ -1634,6 +1604,10 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       const res = await http.get("/api/v1/plans");
       return plansFromJava(res.data);
     },
+    async getPaymentProviders() {
+      const res = await http.get("/api/v1/payment-providers");
+      return z.array(PaymentProviderAvailabilitySchema).parse(res.data);
+    },
     async getProfile() {
       const res = await http.get("/api/v1/users/me/profile");
       return profileFromJava(res.data);
@@ -1759,13 +1733,19 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       const res = await http.get("/api/v1/reports/me");
       return AccountReportSchema.parse(res.data);
     },
-    async createCheckout(input) {
-      const res = await http.post("/api/v1/orders", input);
-      return CheckoutResponseSchema.parse(res.data);
+    async createOrder(input) {
+      const { idempotencyKey, ...body } = input;
+      const res = await http.post("/api/v1/orders", body, {
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+      return orderFromJava(res.data);
     },
     async confirmSimulatedPayment(input) {
-      const res = await http.post("/api/v1/payments/simulated/confirm", input);
-      return PaymentConfirmationResponseSchema.parse(res.data);
+      const res = await http.post(
+        `/api/v1/orders/${encodeURIComponent(input.orderId)}/simulated-confirm`,
+        {},
+      );
+      return PaymentSchema.parse(res.data);
     },
     async confirmSandboxPayment(input) {
       return this.confirmSimulatedPayment(input);
@@ -1794,60 +1774,53 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     },
     async getWorkspaces() {
       const res = await http.get("/api/v1/workspaces");
-      return z.object({ workspaces: z.array(WorkspaceSchema) }).parse(res.data);
+      return z.array(WorkspaceSchema).parse(res.data);
     },
     async getWorkspaceMembers(workspaceID) {
-      const res = await http.get("/api/v1/workspaces/members", {
-        params: { workspace_id: workspaceID },
-      });
-      return z
-        .object({ members: z.array(WorkspaceMemberSchema) })
-        .parse(res.data);
+      const res = await http.get(
+        `/api/v1/workspaces/${encodeURIComponent(workspaceID)}/members`,
+      );
+      return { members: z.array(WorkspaceMemberSchema).parse(res.data) };
     },
     async getWorkspaceInvitations(workspaceID) {
-      const res = await http.get("/api/v1/workspaces/invitations", {
-        params: { workspace_id: workspaceID },
-      });
-      return z
-        .object({ invitations: z.array(WorkspaceInvitationSchema) })
-        .parse(res.data);
+      const res = await http.get(
+        `/api/v1/workspaces/${encodeURIComponent(workspaceID)}/invitations`,
+      );
+      return { invitations: z.array(WorkspaceInvitationSchema).parse(res.data) };
     },
     async inviteWorkspaceMember(input) {
-      const { workspace_id, ...body } = input;
-      const res = await http.post("/api/v1/workspaces/invitations", body, {
-        params: { workspace_id },
-      });
+      const { workspaceId, ...body } = input;
+      const res = await http.post(
+        `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/invitations`,
+        body,
+      );
       return WorkspaceInvitationSchema.parse(res.data);
     },
     async updateWorkspaceMember(input) {
-      const { workspace_id, ...body } = input;
-      const res = await http.patch("/api/v1/workspaces/members", body, {
-        params: { workspace_id },
-      });
+      const { workspaceId, memberId, ...body } = input;
+      const res = await http.patch(
+        `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberId)}`,
+        body,
+      );
       return WorkspaceMemberSchema.parse(res.data);
     },
     async removeWorkspaceMember(input) {
-      const res = await http.delete("/api/v1/workspaces/members", {
-        params: {
-          workspace_id: input.workspace_id,
-          member_user_id: input.member_user_id,
-        },
-      });
+      const res = await http.delete(
+        `/api/v1/workspaces/${encodeURIComponent(input.workspaceId)}/members/${encodeURIComponent(input.memberId)}`,
+      );
       return WorkspaceMemberSchema.parse(res.data);
     },
     async revokeWorkspaceInvitation(input) {
-      const res = await http.delete("/api/v1/workspaces/invitations", {
-        params: {
-          workspace_id: input.workspace_id,
-          invitation_id: input.invitation_id,
-        },
-      });
+      const res = await http.delete(
+        `/api/v1/workspaces/${encodeURIComponent(input.workspaceId)}/invitations/${encodeURIComponent(input.invitationId)}`,
+      );
       return WorkspaceInvitationSchema.parse(res.data);
     },
     async acceptWorkspaceInvitation(token) {
-      const res = await http.post("/api/v1/workspace-invitations/accept", {
-        token,
-      });
+      const res = await http.post(
+        `/api/v1/workspace-invitations/${encodeURIComponent(token)}/accept`,
+        {},
+      );
       return WorkspaceMemberSchema.parse(res.data);
     },
     async createReviewPackage(input) {

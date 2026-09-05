@@ -360,8 +360,8 @@ for (const name of ["index.ts", "plugin.ts"]) {
 for (const path of activeAgentEngineFiles) {
   await assertAbsent(
     path,
-    /["'](?:opencode|dsh)["']/u,
-    "Only Pi, Codex, Grok Build and LangGraph.js may be active Agent Engines",
+    /["'](?:opencode|dsh|grok)["']/u,
+    "Only Pi, Codex and LangGraph.js may be active Agent Engines",
   );
 }
 await assertAbsent(

@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 type PortMessage = Record<string, unknown> & { type: string };
 
-test("Codex Sidecar 重启后先恢复持久线程再继续运行", async () => {
+test("Codex Sidecar 切换运行授权时保留首轮尚未持久化的线程", async () => {
   const directory = await mkdtemp(join(tmpdir(), "dramaip-codex-sidecar-"));
   const runtimeEntry = join(directory, "fake-codex.cjs");
   const rpcLog = join(directory, "rpc.log");
@@ -38,9 +38,7 @@ input.on("line", line => {
   }
   if (request.method === "thread/start") {
     const id = "thread-persisted";
-    persisted.add(id);
     loaded.add(id);
-    fs.writeFileSync(persistedPath, JSON.stringify([...persisted]));
     return result(request.id, { thread: { id } });
   }
   if (request.method === "thread/resume") {
@@ -53,6 +51,8 @@ input.on("line", line => {
     const threadId = request.params.threadId;
     if (!loaded.has(threadId)) return error(request.id, "thread not found: " + threadId);
     const turnId = "turn-after-restart";
+    persisted.add(threadId);
+    fs.writeFileSync(persistedPath, JSON.stringify([...persisted]));
     result(request.id, { turn: { id: turnId } });
     setImmediate(() => {
       notify("turn/started", { threadId, turn: { id: turnId } });
@@ -61,6 +61,7 @@ input.on("line", line => {
     });
     return;
   }
+  if (request.method === "config/mcpServer/reload") return result(request.id, {});
   if (request.method === "thread/delete") return result(request.id, {});
   if (request.method === "account/logout") return result(request.id, {});
   error(request.id, "unsupported: " + request.method);
@@ -72,6 +73,7 @@ input.on("line", line => {
   const messages: PortMessage[] = [];
   let listener: ((event: { data: unknown }) => void) | undefined;
   const fakePort = {
+    testHarness: true as const,
     postMessage(message: unknown) {
       messages.push(message as PortMessage);
     },
@@ -120,21 +122,6 @@ input.on("line", line => {
 
     send({
       type: "request",
-      requestId: "create",
-      operation: "createSession",
-      payload: {},
-    });
-    const created = await next(
-      (message) =>
-        message.type === "response" && message.requestId === "create",
-    );
-    const sessionId = String(
-      (created.result as Record<string, unknown> | undefined)?.id ?? "",
-    );
-    expect(sessionId).toBe("thread-persisted");
-
-    send({
-      type: "request",
       requestId: "restart",
       operation: "login",
       payload: {
@@ -166,6 +153,21 @@ input.on("line", line => {
 
     send({
       type: "request",
+      requestId: "create",
+      operation: "createSession",
+      payload: {},
+    });
+    const created = await next(
+      (message) =>
+        message.type === "response" && message.requestId === "create",
+    );
+    const sessionId = String(
+      (created.result as Record<string, unknown> | undefined)?.id ?? "",
+    );
+    expect(sessionId).toBe("thread-persisted");
+
+    send({
+      type: "request",
       requestId: "run",
       operation: "run",
       payload: {
@@ -188,12 +190,19 @@ input.on("line", line => {
     );
 
     const methods = (await readFile(rpcLog, "utf8")).trim().split("\n");
-    const resumeIndex = methods.lastIndexOf("thread/resume");
+    const reloadIndex = methods.lastIndexOf("config/mcpServer/reload");
     const turnIndex = methods.lastIndexOf("turn/start");
-    expect(resumeIndex).toBeGreaterThan(-1);
-    expect(turnIndex).toBeGreaterThan(resumeIndex);
+    expect(reloadIndex).toBeGreaterThan(-1);
+    expect(turnIndex).toBeGreaterThan(reloadIndex);
+    expect(methods.slice(reloadIndex, turnIndex)).not.toContain("initialize");
+    expect(methods.slice(reloadIndex, turnIndex)).not.toContain(
+      "thread/resume",
+    );
     const mcpTokens = (await readFile(tokenLog, "utf8")).trim().split("\n");
-    expect(mcpTokens.at(-1)).toBe("run-scoped-web-grant");
+    expect(mcpTokens).toHaveLength(2);
+    expect(mcpTokens.every((token) => token !== "run-scoped-web-grant")).toBe(
+      true,
+    );
 
     send({ type: "stop" });
     await next((message) => message.type === "stopped");

@@ -318,11 +318,11 @@ export function AccountDashboard() {
 }
 
 const orderColumns: ColumnDef<Order>[] = [
-  { header: '套餐', cell: ({ row }) => <Link href={`/account/orders/${row.original.id}`} className="font-medium text-brand-700">{planCodeLabel(row.original.plan_code)}</Link> },
+  { header: '套餐', cell: ({ row }) => <Link href={`/account/orders/${row.original.id}`} className="font-medium text-brand-700">{planCodeLabel(row.original.planCode)}</Link> },
   { header: '状态', cell: ({ row }) => statusLabel(row.original.status) },
   { header: '渠道', cell: ({ row }) => paymentProviderLabel(row.original.provider) },
-  { header: '金额', cell: ({ row }) => formatAmount(row.original.amount, row.original.currency) },
-  { header: '时间', cell: ({ row }) => formatDate(row.original.created_at) },
+  { header: '金额', cell: ({ row }) => formatAmount((row.original.amountMinor / 100).toFixed(2), row.original.currency) },
+  { header: '时间', cell: ({ row }) => formatDate(row.original.createdAt) },
 ]
 
 const usageColumns: ColumnDef<TokenUsage>[] = [

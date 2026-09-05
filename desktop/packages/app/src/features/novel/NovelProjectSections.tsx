@@ -8,6 +8,7 @@ import type {
   ChangePreview,
   Chapter,
   DomainEntity,
+  Project,
   Task,
 } from "@dramaip/contracts/product";
 import { ChangePreviewSchema, TaskSchema } from "@dramaip/contracts/automation";
@@ -19,6 +20,8 @@ import {
   Textarea,
   confirmDialog,
 } from "@dramaip/ui-shared";
+import { AiSettingsLink, useStudioSession } from "../../studio-session";
+import { CreativeIntentSummary } from "../../creative-intent";
 
 interface FieldDefinition {
   key: string;
@@ -907,7 +910,7 @@ function NovelInsightRunner(props: {
         <p className="mt-2 rounded-lg border border-line bg-surface-raised px-3 py-2 text-xs leading-5 text-muted">
           默认执行：当前所选模型 1 次结构化调用，模拟 6 个隔离角色并由主编整合；
           实际 Token
-          与费用在运行记录中展示。四引擎盲测不会自动开启，需在实验入口单独确认。
+          与费用在运行记录中展示。三引擎盲测不会自动开启，需在实验入口单独确认。
         </p>
       )}
       <label className="mt-3 grid max-w-md gap-1 text-xs text-muted">
@@ -971,15 +974,25 @@ export function NovelArtifactGenerator(props: {
   defaultInstruction?: string;
   onCommitted(): void | Promise<void>;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const studioSession = useStudioSession();
+  const actionId = `novel-artifact:${props.taskType}`;
+  const returnedFromSettings =
+    studioSession.pendingIntent?.actionId === actionId;
+  const [expanded, setExpanded] = useState(returnedFromSettings);
   const [instruction, setInstruction] = useState(
-    () => props.defaultInstruction ?? "",
+    () =>
+      (studioSession.pendingIntent?.actionId === actionId
+        ? studioSession.pendingIntent.input
+        : undefined) ??
+      props.defaultInstruction ??
+      "",
   );
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
   const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [task, setTask] = useState<Task>();
   const [runId, setRunId] = useState<string>();
   const [preview, setPreview] = useState<ChangePreview>();
+  const [intentProject, setIntentProject] = useState<Project>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
   const taskRef = useRef<string | undefined>(undefined);
@@ -987,9 +1000,11 @@ export function NovelArtifactGenerator(props: {
     void Promise.all([
       props.client.agentEngines.list(),
       props.client.agentEngines.getProjectSettings(props.projectId),
-    ]).then(([items, settings]) => {
+      props.client.projects.get(props.projectId),
+    ]).then(([items, settings, project]) => {
       setEngines(items);
       setEngineKind(settings.defaultEngineKind);
+      setIntentProject(project);
     });
   }, [props.client, props.projectId]);
   useEffect(
@@ -1042,6 +1057,7 @@ export function NovelArtifactGenerator(props: {
       setNotice(selectedEngine?.statusMessage ?? "所选智能引擎当前不能运行");
       return;
     }
+    if (returnedFromSettings) studioSession.clearPendingIntent();
     setBusy(true);
     setPreview(undefined);
     setNotice(undefined);
@@ -1153,19 +1169,29 @@ export function NovelArtifactGenerator(props: {
               </select>
             </label>
             <BareButton
-              className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
+              className={`rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50 ${returnedFromSettings ? "ring-2 ring-brand ring-offset-2" : ""}`}
               disabled={busy || !canRun}
               onClick={() => void run()}
             >
-              {busy ? "正在生成…" : "立即生成"}
+              {busy
+                ? "正在生成…"
+                : returnedFromSettings
+                  ? "配置已完成，确认继续"
+                  : "立即生成"}
             </BareButton>
           </div>
           {!canRun && (
             <p className="text-sm text-amber-800">
               {selectedEngine?.statusMessage ?? "请先完成模型服务商配置。"}{" "}
-              <Link className="underline" to="/settings">
+              <AiSettingsLink
+                actionId={actionId}
+                projectId={props.projectId}
+                input={instruction}
+                returnTo={`/projects/${encodeURIComponent(props.projectId)}?section=settings`}
+                className="underline"
+              >
                 前往设置
-              </Link>
+              </AiSettingsLink>
             </p>
           )}
           {task && (
@@ -1208,6 +1234,15 @@ export function NovelArtifactGenerator(props: {
                 共 {preview.targets.length}{" "}
                 项，采用后一次性写入；内容变化时会阻止覆盖。
               </p>
+              {intentProject && (
+                <div className="mt-3">
+                  <CreativeIntentSummary
+                    project={intentProject}
+                    preview={preview}
+                    compact
+                  />
+                </div>
+              )}
               <div className="mt-3 max-h-80 space-y-2 overflow-auto">
                 {preview.targets.map((target, index) => {
                   const value = targetPreview(

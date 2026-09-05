@@ -1,6 +1,6 @@
 import type { PaymentProvider } from '@dramaip/sdk'
 
-const supportedLiveProviders: PaymentProvider[] = ['wechat_pay', 'alipay']
+const supportedLiveProviders: PaymentProvider[] = ['wechatPay', 'alipay']
 
 export const paymentMode = process.env.NEXT_PUBLIC_PAYMENT_MODE ?? 'simulated'
 

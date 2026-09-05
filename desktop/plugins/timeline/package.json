@@ -2,6 +2,7 @@
   "name": "@dramaip/timeline",
   "version": "3.0.0-alpha.3",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -11,6 +12,7 @@
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",
+    "@dramaip/desktop-host": "workspace:*",
     "@dramaip/plugin-api": "workspace:*",
     "@hono/zod-openapi": "1.6.0",
     "zod": "4.4.3"

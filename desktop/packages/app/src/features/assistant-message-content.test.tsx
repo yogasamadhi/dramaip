@@ -8,6 +8,7 @@ import {
   AssistantWebSourceCards,
   assistantWebSources,
   assistantToolLabel,
+  isAssistantTimelineAutoScrollEvent,
   isAssistantTimelineAtLatest,
 } from "./assistant-message-content";
 
@@ -176,10 +177,17 @@ describe("助手消息排版", () => {
     expect(
       isAssistantTimelineAtLatest({
         scrollHeight: 1_000,
-        scrollTop: 597,
+        scrollTop: 576,
         clientHeight: 400,
       }),
     ).toBe(true);
+    expect(
+      isAssistantTimelineAtLatest({
+        scrollHeight: 1_000,
+        scrollTop: 560,
+        clientHeight: 400,
+      }),
+    ).toBe(false);
     expect(
       isAssistantTimelineAtLatest({
         scrollHeight: 1_000,
@@ -187,5 +195,19 @@ describe("助手消息排版", () => {
         clientHeight: 400,
       }),
     ).toBe(false);
+  });
+
+  test("不会把延迟到达的自动滚动事件误判为用户上滑", () => {
+    expect(
+      isAssistantTimelineAtLatest({
+        scrollHeight: 1_400,
+        scrollTop: 600,
+        clientHeight: 400,
+      }),
+    ).toBe(false);
+    expect(isAssistantTimelineAutoScrollEvent(600, 600)).toBe(true);
+    expect(isAssistantTimelineAutoScrollEvent(599.5, 600)).toBe(true);
+    expect(isAssistantTimelineAutoScrollEvent(560, 600)).toBe(false);
+    expect(isAssistantTimelineAutoScrollEvent(600, undefined)).toBe(false);
   });
 });

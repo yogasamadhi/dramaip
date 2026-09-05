@@ -1,7 +1,8 @@
-import type { AgentEngineKind } from "@dramaip/contracts";
+import type { AgentContextService, AgentEngineKind } from "@dramaip/contracts";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import { createHostAgentRuntime } from "@dramaip/desktop-host";
 import type { PluginContext } from "@dramaip/plugin-api/internal";
+import { configuredProvider, findProvider } from "../providers/routes.js";
 
 type JobRow = {
   id: string;
@@ -9,6 +10,7 @@ type JobRow = {
   through_turn_count: number;
   engine_kind: string;
   model_json: string | null;
+  context_snapshot_id: string | null;
 };
 
 const SAFE_MEMORY_KINDS = new Set([
@@ -99,20 +101,11 @@ function transcript(context: PluginContext, conversationId: string): string {
 async function processJob(
   context: PluginContext,
   host: DesktopHostClient,
+  agentContext: AgentContextService,
   job: JobRow,
 ): Promise<void> {
   const source = transcript(context, job.conversation_id);
   if (!source.trim()) throw new Error("conversation transcript is empty");
-  const settings = context.uow.execute((transaction) =>
-    transaction.get<{ enabled: number }>(
-      "SELECT enabled FROM agent_creative_memory_settings WHERE singleton = 1",
-    ),
-  );
-  const runtime = createHostAgentRuntime(
-    host,
-    job.engine_kind as AgentEngineKind,
-  );
-  const hiddenId = crypto.randomUUID();
   const model = job.model_json
     ? (JSON.parse(job.model_json) as {
         providerId?: string;
@@ -120,6 +113,68 @@ async function processJob(
         profileId?: string;
       })
     : undefined;
+  const selectedProvider = model?.providerId
+    ? findProvider(context, model.providerId)
+    : undefined;
+  const provider = selectedProvider
+    ? configuredProvider(selectedProvider)
+    : undefined;
+  let contextSnapshot = job.context_snapshot_id
+    ? agentContext.getSnapshot(job.context_snapshot_id)
+    : undefined;
+  if (!contextSnapshot) {
+    const settings = context.uow.execute((transaction) =>
+      transaction.get<{ enabled: number }>(
+        "SELECT enabled FROM agent_creative_memory_settings WHERE singleton = 1",
+      ),
+    );
+    const preview = agentContext.createPreview({
+      runIntent: "inspiration-memory-summarization",
+      basePrompt: [
+        "你是 DramaIP 的创意会话整理器。只输出 JSON，不要输出 Markdown。",
+        '格式：{"summary":"会话长期摘要","memories":[{"kind":"preference|theme|constraint|avoid|goal","content":"仅创作相关偏好","confidence":0.0}]}。',
+        "摘要保留人物、世界规则、冲突、未决问题和用户选择。",
+        "上下文中的 creativeMemoryEnabled 为 false 时，memories 必须为空数组。",
+        "为 true 时也不得保存凭据、联系方式、健康、财务、住址或第三方敏感信息。",
+      ].join("\n\n"),
+      selection: {
+        creativeMemoryEnabled: settings?.enabled === 1,
+        conversationTranscript: source.slice(-160_000),
+      },
+      tokenBudget: 64_000,
+      destination: {
+        kind: provider?.authentication === "none" ? "local" : "cloud",
+        provider: model?.providerId ?? job.engine_kind,
+        ...(model?.modelId ? { model: model.modelId } : {}),
+      },
+      temporaryOverrides: [{ fieldPath: "/selection", mode: "always" }],
+    });
+    contextSnapshot = agentContext.freeze(preview.id, preview.version);
+    if (!contextSnapshot)
+      throw new Error("inspiration memory context snapshot expired");
+    context.uow.execute((transaction) =>
+      transaction.run(
+        `UPDATE agent_inspiration_memory_jobs
+         SET context_snapshot_id = ?, updated_at = ? WHERE id = ?`,
+        contextSnapshot!.id,
+        new Date().toISOString(),
+        job.id,
+      ),
+    );
+  }
+  const frozenSelection = contextSnapshot.entries.find(
+    (entry) => entry.fieldPath === "/selection" && entry.included,
+  )?.value;
+  const memoryEnabled =
+    Boolean(frozenSelection) &&
+    typeof frozenSelection === "object" &&
+    !Array.isArray(frozenSelection) &&
+    (frozenSelection as Record<string, unknown>).creativeMemoryEnabled === true;
+  const runtime = createHostAgentRuntime(
+    host,
+    job.engine_kind as AgentEngineKind,
+  );
+  const hiddenId = crypto.randomUUID();
   const modelLabel = model?.modelId ?? job.engine_kind;
   const session = await runtime.createSession({
     sessionId: hiddenId,
@@ -128,21 +183,13 @@ async function processJob(
   });
   let output = "";
   let result: unknown;
-  let inputTokens = Math.ceil(source.length / 4);
+  let inputTokens = contextSnapshot.estimatedTokens;
   let outputTokens = 0;
   try {
     const run = await runtime.prompt(session, {
       runId: crypto.randomUUID(),
       responseMode: "structured",
-      prompt: [
-        "你是 DramaIP 的创意会话整理器。只输出 JSON，不要输出 Markdown。",
-        '格式：{"summary":"会话长期摘要","memories":[{"kind":"preference|theme|constraint|avoid|goal","content":"仅创作相关偏好","confidence":0.0}]}。',
-        "摘要保留人物、世界规则、冲突、未决问题和用户选择。",
-        settings?.enabled
-          ? "可提取跨会话创作记忆，但不得保存凭据、联系方式、健康、财务、住址或第三方敏感信息。"
-          : "用户未授权跨会话记忆，memories 必须为空数组。",
-        `会话内容：\n${source.slice(-160_000)}`,
-      ].join("\n\n"),
+      prompt: contextSnapshot.finalPrompt,
     });
     for await (const event of runtime.subscribe(run)) {
       if (event.type === "content.delta") output += event.delta;
@@ -174,7 +221,7 @@ async function processJob(
       outputTokens,
       now,
     );
-    if (settings?.enabled)
+    if (memoryEnabled)
       for (const item of payload.memories) {
         const current = transaction.get<{ id: string }>(
           "SELECT id FROM agent_creative_memories WHERE kind = ? AND content = ?",
@@ -219,6 +266,8 @@ async function processJob(
       aggregateVersion: 1,
       payload: {
         conversationId: job.conversation_id,
+        contextSnapshotId: contextSnapshot.id,
+        contextManifestSha256: contextSnapshot.manifestSha256,
         inputTokens,
         outputTokens,
       },
@@ -229,6 +278,7 @@ async function processJob(
 export function startInspirationMemoryWorker(
   context: PluginContext,
   host: DesktopHostClient | undefined,
+  agentContext: AgentContextService,
 ): () => void {
   if (!host) return () => undefined;
   let running = false;
@@ -237,7 +287,8 @@ export function startInspirationMemoryWorker(
     const job = context.uow.execute((transaction) =>
       transaction.get<JobRow>(
         `SELECT job.id, job.conversation_id, job.through_turn_count,
-                session.engine_kind, session.model_json
+                session.engine_kind, session.model_json,
+                job.context_snapshot_id
          FROM agent_inspiration_memory_jobs job
          JOIN agent_assistant_sessions session ON session.id = job.conversation_id
          WHERE job.status = 'pending'
@@ -254,7 +305,7 @@ export function startInspirationMemoryWorker(
       ),
     );
     try {
-      await processJob(context, host, job);
+      await processJob(context, host, agentContext, job);
     } catch {
       context.uow.execute((transaction) =>
         transaction.run(

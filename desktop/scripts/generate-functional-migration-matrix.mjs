@@ -73,12 +73,21 @@ for (const owner of new Set(
 ))
   ownerSources.set(owner, await sourceTree(join(root, `plugins/${owner}/src`)));
 
+const replacementOperationIds = new Map([
+  ["desktop-support.diagnostics", "system.diagnostics"],
+  // Review's historical route returned JSON behind editor interchange file
+  // extensions. Timeline is the sole owner of real delivery/interchange
+  // exports, so this is an intentional contract replacement, not a missing
+  // compatibility route.
+  ["review-editor.editorExport", "timeline.exportDelivery"],
+]);
+
 const operations = baseline.operations.map((legacy) => {
   const retired = legacy.owner === "retired-generic-router";
-  const replacement =
-    legacy.operationId === "desktop-support.diagnostics"
-      ? actualById.get("system.diagnostics")
-      : undefined;
+  const replacementId = replacementOperationIds.get(legacy.operationId);
+  const replacement = replacementId
+    ? actualById.get(replacementId)
+    : undefined;
   const actual = replacement ?? actualById.get(legacy.operationId);
   const routeMatches = Boolean(
     actual &&
@@ -165,7 +174,7 @@ const newV2Operations = actualOperations
   .filter(
     (operation) =>
       !baselineIds.has(operation.operationId) &&
-      operation.operationId !== "system.diagnostics",
+      !new Set(replacementOperationIds.values()).has(operation.operationId),
   )
   .sort((left, right) => left.operationId.localeCompare(right.operationId));
 

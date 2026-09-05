@@ -25,14 +25,15 @@ describe("desktop launcher engine runtimes", () => {
 
     expect(labels).toContain("Codex 0.147.0");
     expect(labels).toContain("Pi 0.84.2");
+    expect(labels.some((label) => label.includes("Grok Build"))).toBe(false);
     expect(labels.some((label) => label.includes("DeepSeek"))).toBe(false);
     expect(buildScripts).not.toContain("build:dsh");
   });
 });
 
 describe("desktop launcher vendor sources", () => {
-  test("initializes only sources needed by the current platform", () => {
-    const commonPaths = vendorSubmoduleSpecs("win32", "x64").map(
+  test("initializes only active engine sources", () => {
+    const commonPaths = vendorSubmoduleSpecs().map(
       (submodule) => submodule.path,
     );
 
@@ -41,11 +42,6 @@ describe("desktop launcher vendor sources", () => {
     expect(commonPaths).not.toContain("desktop/vendor/deepseek-harness");
     expect(commonPaths).not.toContain("desktop/vendor/opencode");
     expect(commonPaths).not.toContain("desktop/vendor/grok-build");
-
-    const macPaths = vendorSubmoduleSpecs("darwin", "arm64").map(
-      (submodule) => submodule.path,
-    );
-    expect(macPaths).toContain("desktop/vendor/grok-build");
   });
 
   test("keeps read-only reference sources outside the Bun workspace", () => {

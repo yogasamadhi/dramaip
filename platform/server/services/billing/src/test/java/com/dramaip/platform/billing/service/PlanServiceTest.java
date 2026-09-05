@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import com.dramaip.platform.billing.client.QuotaProvisionClient;
 import com.dramaip.platform.billing.client.QuotaRefundClient;
 import com.dramaip.platform.billing.controller.BillingController;
-import com.dramaip.platform.common.observability.DramaipMetrics;
 import com.dramaip.platform.common.web.BusinessException;
 import java.util.Collections;
 import java.util.List;
@@ -15,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.mock.env.MockEnvironment;
 
 class PlanServiceTest {
     @Test
@@ -24,7 +24,7 @@ class PlanServiceTest {
         assertEquals(List.of(), service.listPlans());
         assertEquals("BILLING_PLAN_NOT_FOUND", assertThrows(
                 BusinessException.class,
-                () -> service.createOrder("user", new PlanService.CreateOrder("missing", "simulated"))
+                () -> service.createOrder("user", new PlanService.CreateOrder("missing", "simulated", "test-order"))
         ).code());
         assertEquals("BILLING_ORDER_NOT_FOUND", assertThrows(
                 BusinessException.class,
@@ -46,14 +46,23 @@ class PlanServiceTest {
 
         assertEquals(List.of(), service.orders("user"));
         assertEquals(List.of(), service.reconciliation("user", 0));
-        assertEquals(List.of(), new BillingController(service, mock(DramaipMetrics.class)).listPlans().data());
+        PaymentProviderRegistry providers = providers("test");
+        assertEquals(List.of(), new BillingController(service, providers).listPlans().data());
+        assertEquals(List.of("wechatPay", "alipay", "simulated"), new BillingController(service, providers)
+                .paymentProviders().data().stream().map(PaymentProviderRegistry.PaymentProviderAvailability::provider).toList());
         PlanService.AdminReconciliation projection = service.adminReconciliation(null, 1000);
         assertEquals(null, projection.latestRun());
         assertEquals(List.of(), projection.items());
     }
 
     private PlanService service(JdbcTemplate jdbc) {
-        return new PlanService(jdbc, mock(QuotaProvisionClient.class), mock(QuotaRefundClient.class), "internal-token");
+        return new PlanService(jdbc, mock(QuotaProvisionClient.class), mock(QuotaRefundClient.class), "internal-token", providers("test"));
+    }
+
+    private PaymentProviderRegistry providers(String profile) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles(profile);
+        return new PaymentProviderRegistry(environment);
     }
 
     private static final class EmptyJdbcTemplate extends JdbcTemplate {

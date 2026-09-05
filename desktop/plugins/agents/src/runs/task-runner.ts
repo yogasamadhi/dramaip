@@ -1,4 +1,7 @@
-import { type AgentTaskRunnerService } from "@dramaip/contracts";
+import {
+  type AgentContextService,
+  type AgentTaskRunnerService,
+} from "@dramaip/contracts";
 import {
   AUTOMATION_PREVIEW_SERVICE,
   type AutomationPreviewService,
@@ -8,7 +11,9 @@ import { createHostAgentRuntime } from "@dramaip/desktop-host";
 import { type PluginContext } from "@dramaip/plugin-api/internal";
 import {
   activeAgentProviderId,
+  configuredProvider,
   engineDefinitions,
+  findProvider,
   hostEngineHealth,
   modelSelection,
 } from "../providers/routes.js";
@@ -17,6 +22,7 @@ import { AGENT_TASK_CATALOG, taskPrompt } from "../task-catalog.js";
 export function createAgentTaskRunner(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
+  agentContext: AgentContextService,
 ): AgentTaskRunnerService {
   return {
     start: async (input) => {
@@ -51,6 +57,37 @@ export function createAgentTaskRunner(
       const turnId = crypto.randomUUID();
       const capabilityGrantId = crypto.randomUUID();
       const runtime = createHostAgentRuntime(host, input.engineKind);
+      const basePrompt = taskPrompt(input.taskType, input.prompt);
+      const providerEntity = activeProvider
+        ? findProvider(pluginContext, activeProvider)
+        : undefined;
+      const provider = providerEntity
+        ? configuredProvider(providerEntity)
+        : undefined;
+      const loopback =
+        provider?.authentication === "none" &&
+        Boolean(provider.localRuntimeKind);
+      const contextPreview = agentContext.createPreview({
+        projectId: input.projectId,
+        ...(input.chapterId ? { chapterId: input.chapterId } : {}),
+        runIntent: input.taskType,
+        basePrompt,
+        ...(input.selection === undefined
+          ? {}
+          : { selection: JSON.parse(JSON.stringify(input.selection)) }),
+        tokenBudget: 64_000,
+        destination: {
+          kind: loopback ? "local" : "cloud",
+          provider: input.engineKind === "codex" ? "codex" : activeProvider!,
+          ...(model?.modelId ? { model: model.modelId } : {}),
+        },
+        temporaryOverrides: [],
+      });
+      const contextSnapshot = agentContext.freeze(
+        contextPreview.id,
+        contextPreview.version,
+      );
+      if (!contextSnapshot) throw new Error("AI 上下文预览在模型调用前失效。");
       const engineSession = await runtime.createSession({
         sessionId,
         title: input.taskType,
@@ -104,8 +141,9 @@ export function createAgentTaskRunner(
         transaction.run(
           `INSERT INTO agent_assistant_runs(
             id, session_id, task_id, task_type, engine_kind, status, model_json,
-            turn_id, chapter_id, error, started_at, completed_at, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, 'preparing', ?, ?, ?, NULL, ?, NULL, ?, ?)`,
+            turn_id, chapter_id, context_snapshot_id, error, started_at,
+            completed_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'preparing', ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
           runId,
           sessionId,
           taskId,
@@ -114,6 +152,7 @@ export function createAgentTaskRunner(
           model ? JSON.stringify(model) : null,
           turnId,
           input.chapterId ?? null,
+          contextSnapshot.id,
           now,
           now,
           now,
@@ -134,7 +173,14 @@ export function createAgentTaskRunner(
           aggregateType: "agent-run",
           aggregateId: runId,
           aggregateVersion: 1,
-          payload: { sessionId, runId, taskId, taskType: input.taskType },
+          payload: {
+            sessionId,
+            runId,
+            taskId,
+            taskType: input.taskType,
+            contextSnapshotId: contextSnapshot.id,
+            contextManifestSha256: contextSnapshot.manifestSha256,
+          },
         });
       });
       let engineRun: Awaited<ReturnType<typeof runtime.prompt>>;
@@ -144,7 +190,7 @@ export function createAgentTaskRunner(
           { sessionId, engineSessionId: engineSession.engineSessionId },
           {
             runId,
-            prompt: taskPrompt(input.taskType, input.prompt),
+            prompt: contextSnapshot.finalPrompt,
             responseMode: "structured",
             capabilityGrant: {
               endpoint: "",

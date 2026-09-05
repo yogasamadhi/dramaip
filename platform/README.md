@@ -1,6 +1,8 @@
-# DramaIP Platform
+# 尽意 DramaIP Platform
 
-DramaIP 的闭源云端平台工作区，包含 Web、Mobile、Admin、部署资产和后端服务。
+> **尽作者之意，成万象之作**
+
+尽意 DramaIP 的闭源云端平台工作区，包含 Web、Mobile、Admin、部署资产和后端服务。完整产品定位是“本地优先的 AI IP 创作工作台”；Platform 提供账号、灵感空间、可选云服务与运营能力，Desktop 仍是本地优先的主要创作环境。
 
 后端使用 JDK 21 的 Java / Spring Cloud Alibaba 运行时。
 

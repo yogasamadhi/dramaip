@@ -17,7 +17,7 @@ import {
 } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   contextAssistantPage,
   contextAssistantPreflight,
@@ -32,6 +32,7 @@ import {
   taskResultText,
   useStudio,
 } from "../../studio-shared";
+import { AiSettingsLink, useStudioSession } from "../../studio-session";
 import {
   AssistantMessageContent,
   AssistantStageSummary,
@@ -51,6 +52,7 @@ import {
 } from "../studio-widgets";
 export function AgentSidePanel() {
   const client = useStudio();
+  const session = useStudioSession();
   const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["assistant-chat-projects"],
@@ -64,7 +66,8 @@ export function AgentSidePanel() {
     queryKey: ["assistant-chat-tasks"],
     queryFn: client.agentEngines.listTasks,
   });
-  const contextProjectId = contextAssistantProjectId(location);
+  const contextProjectId =
+    contextAssistantProjectId(location) ?? session.activeProjectId;
   const [projectId, setProjectId] = useState(contextProjectId ?? "");
   const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [modelId, setModelId] = useState("");
@@ -74,7 +77,12 @@ export function AgentSidePanel() {
   >([]);
   const [conversationId, setConversationId] = useState<string>();
   const [detail, setDetail] = useState<AssistantConversationDetail>();
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(
+    () =>
+      (session.pendingIntent?.actionId === "global-assistant:send"
+        ? session.pendingIntent.input
+        : undefined) ?? "",
+  );
   const [selectedTask, setSelectedTask] =
     useState<AgentTaskType>("chapter_diagnostic");
   const [notice, setNotice] = useState<string>();
@@ -462,6 +470,9 @@ export function AgentSidePanel() {
       );
       return;
     }
+    if (session.pendingIntent?.actionId === "global-assistant:send")
+      session.clearPendingIntent();
+    assistantScroll.followLatest();
     setBusy(true);
     setNotice(undefined);
     try {
@@ -572,8 +583,8 @@ export function AgentSidePanel() {
   };
 
   return (
-    <section className="flex h-[min(76vh,760px)] min-h-[520px] flex-col overflow-hidden rounded-xl border border-line bg-surface-raised shadow-card">
-      <header className="border-b border-line p-3">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-surface-raised shadow-card">
+      <header className="shrink-0 border-b border-line p-3">
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="font-semibold">AI 办事助手</p>
@@ -581,12 +592,34 @@ export function AgentSidePanel() {
               聊天、读取上下文、执行任务，过程实时可见
             </p>
           </div>
-          <BareButton
-            className="rounded-lg border border-line px-2 py-1.5 text-xs"
-            onClick={() => beginNewConversation()}
-          >
-            新对话
-          </BareButton>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {detail && (
+              <DropdownMenu>
+                <DropdownMenu.Trigger asChild>
+                  <BareButton className="rounded-lg border border-line px-2 py-1.5 text-xs">
+                    管理
+                  </BareButton>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end">
+                  <DropdownMenu.Item onSelect={() => void rename()}>
+                    重命名
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => void archive()}>
+                    归档对话
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => void remove()}>
+                    永久删除
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu>
+            )}
+            <BareButton
+              className="rounded-lg border border-line px-2 py-1.5 text-xs"
+              onClick={() => beginNewConversation()}
+            >
+              新对话
+            </BareButton>
+          </div>
         </div>
         <select
           aria-label="全局助手对话历史"
@@ -610,7 +643,7 @@ export function AgentSidePanel() {
             <summary className="cursor-pointer">
               已归档对话（{archivedConversations.length}）
             </summary>
-            <div className="mt-2 space-y-1">
+            <div className="studio-scrollbar mt-2 max-h-28 space-y-1 overflow-y-auto">
               {archivedConversations.map((conversation) => (
                 <div
                   key={conversation.id}
@@ -664,7 +697,11 @@ export function AgentSidePanel() {
             className="min-w-0 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
             value={projectId}
             disabled={Boolean(detail?.conversation.projectId)}
-            onChange={(event) => setProjectId(event.target.value)}
+            onChange={(event) => {
+              const nextProjectId = event.target.value;
+              setProjectId(nextProjectId);
+              if (nextProjectId) session.selectProject(nextProjectId);
+            }}
           >
             <option value="">无项目 · 通用聊天</option>
             {projects.map((project) => (
@@ -681,26 +718,6 @@ export function AgentSidePanel() {
               绑定
             </BareButton>
           )}
-          {detail && (
-            <DropdownMenu>
-              <DropdownMenu.Trigger asChild>
-                <BareButton className="rounded-lg border border-line px-2 py-1.5 text-xs">
-                  管理
-                </BareButton>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content align="end">
-                <DropdownMenu.Item onSelect={() => void rename()}>
-                  重命名
-                </DropdownMenu.Item>
-                <DropdownMenu.Item onSelect={() => void archive()}>
-                  归档对话
-                </DropdownMenu.Item>
-                <DropdownMenu.Item onSelect={() => void remove()}>
-                  永久删除
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu>
-          )}
         </div>
         <p
           className={`mt-2 text-[11px] leading-4 ${selectedEngineCanRun ? "text-muted" : "text-amber-700"}`}
@@ -712,10 +729,21 @@ export function AgentSidePanel() {
             ? ` ${selectedEngine.statusMessage}`
             : ""}
         </p>
+        {!selectedEngineCanRun && (
+          <AiSettingsLink
+            actionId="global-assistant:send"
+            projectId={projectId || undefined}
+            input={draft}
+            className="mt-1 inline-block text-xs font-medium text-brand underline"
+          >
+            前往设置并保留当前输入
+          </AiSettingsLink>
+        )}
       </header>
       <div
         ref={assistantScroll.scrollRef}
-        className="studio-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+        className="studio-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3"
+        aria-label="助手消息列表"
         onScroll={assistantScroll.onScroll}
       >
         <GlobalAssistantTimeline detail={detail} />
@@ -764,7 +792,7 @@ export function AgentSidePanel() {
           </p>
         )}
       </div>
-      <footer className="border-t border-line p-3">
+      <footer className="shrink-0 border-t border-line p-3">
         <details className="mb-2 text-xs text-muted">
           <summary className="cursor-pointer">模型与更多任务</summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -798,7 +826,7 @@ export function AgentSidePanel() {
         </details>
         <textarea
           aria-label="给 AI 办事助手发消息"
-          className="min-h-20 w-full resize-none rounded-xl border border-line bg-canvas p-3 text-sm leading-6 outline-none"
+          className="min-h-16 w-full resize-none rounded-xl border border-line bg-canvas p-3 text-sm leading-6 outline-none"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -842,6 +870,11 @@ export function AgentSidePanel() {
             <Button
               size="sm"
               variant="primary"
+              className={
+                session.pendingIntent?.actionId === "global-assistant:send"
+                  ? "ring-2 ring-brand ring-offset-2"
+                  : undefined
+              }
               disabled={
                 busy ||
                 (!draft.trim() && !activeRun) ||
@@ -853,7 +886,11 @@ export function AgentSidePanel() {
                   : void send()
               }
             >
-              {activeRun ? "停止" : "发送"}
+              {activeRun
+                ? "停止"
+                : session.pendingIntent?.actionId === "global-assistant:send"
+                  ? "配置已完成，确认继续"
+                  : "发送"}
             </Button>
           </div>
         </div>
@@ -990,11 +1027,14 @@ export function AgentTaskConfigPanel() {
   const client = useStudio();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const session = useStudioSession();
   const { data: projects = [] } = useQuery({
     queryKey: ["agent-projects", location.pathname],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(
+    () => contextAssistantProjectId(location) ?? session.activeProjectId ?? "",
+  );
   const [chapterId, setChapterId] = useState("");
   const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [taskType, setTaskType] = useState<AgentTaskType>("chapter_diagnostic");
@@ -1005,7 +1045,9 @@ export function AgentTaskConfigPanel() {
   const [assistantMode, setAssistantMode] = useState<"simple" | "advanced">(
     "simple",
   );
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(
+    () => session.pendingIntent?.input ?? "",
+  );
   const [notice, setNotice] = useState<string>();
   const [activeRunId, setActiveRunId] = useState<string>();
   const [experimentId, setExperimentId] = useState<string>();
@@ -1033,14 +1075,14 @@ export function AgentTaskConfigPanel() {
     queryFn: () => client.resources.list("shots", projectId),
     enabled: Boolean(projectId),
   });
-  const requestedProjectId = contextAssistantProjectId(location);
+  const requestedProjectId =
+    contextAssistantProjectId(location) ?? session.activeProjectId;
   const requestedShotId = new URLSearchParams(location.search).get("shotId");
   useEffect(() => {
     if (requestedProjectId && projectId !== requestedProjectId) {
       setProjectId(requestedProjectId);
       return;
     }
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects, requestedProjectId]);
   useEffect(() => setChapterId(""), [projectId]);
   useEffect(() => {
@@ -1202,17 +1244,17 @@ export function AgentTaskConfigPanel() {
         selectedTask?.writePolicy === "readonly" ? 1_200 : 2_400;
       const confirmed = await confirmDialog(
         [
-          "四引擎盲测会分别调用 Pi、Codex、Grok Build 和 LangGraph.js，共产生四次模型费用。Grok Build 仅支持 macOS arm64。",
+          "三引擎盲测会分别调用 Pi、Codex 和 LangGraph.js，共产生三次模型费用。",
           experimentMode === "same_model"
-            ? `比较方式：四个引擎统一使用模型 ${modelId.trim()}。`
+            ? `比较方式：三个引擎统一使用模型 ${modelId.trim()}。`
             : "比较方式：各引擎使用各自当前推荐配置。",
-          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；四次合计约 ${(estimatedInputPerEngine * 4).toLocaleString("zh-CN")} Token。`,
-          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；四次合计约 ${(estimatedOutputPerEngine * 4).toLocaleString("zh-CN")} Token。`,
+          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；三次合计约 ${(estimatedInputPerEngine * 3).toLocaleString("zh-CN")} Token。`,
+          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；三次合计约 ${(estimatedOutputPerEngine * 3).toLocaleString("zh-CN")} Token。`,
           "预估费用：各引擎的模型与认证计价可能不同，未配置统一单价时无法可靠折算金额；应用会在运行后记录实际 Token 与厂商返回的费用。",
           "确认开始吗？",
         ].join("\n\n"),
       );
-      if (!confirmed) throw new Error("已取消四引擎盲测");
+      if (!confirmed) throw new Error("已取消三引擎盲测");
       return client.agentExperiments.create(
         {
           projectId,
@@ -1230,7 +1272,7 @@ export function AgentTaskConfigPanel() {
     },
     onSuccess: (experiment) => {
       setExperimentId(experiment.id);
-      setNotice("四引擎盲测已开始，结果将匿名展示");
+      setNotice("三引擎盲测已开始，结果将匿名展示");
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -1244,7 +1286,7 @@ export function AgentTaskConfigPanel() {
         : false,
   });
   const reviewExperiment = useMutation({
-    mutationFn: (preferredCandidate: "a" | "b" | "c" | "d" | "tie") =>
+    mutationFn: (preferredCandidate: "a" | "b" | "c" | "tie") =>
       client.agentExperiments.review(experimentId!, { preferredCandidate }),
     onSuccess: (result) => {
       queryClient.setQueryData(["agent-experiment", result.id], result);
@@ -1272,7 +1314,7 @@ export function AgentTaskConfigPanel() {
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-muted">
-        智能助手经由 DramaIP
+        尽意智能助手经由
         本地服务代理，只使用受控的只读工具；所有内容改动和付费厂商调用都必须由你确认。
       </p>
       <div
@@ -1304,7 +1346,11 @@ export function AgentTaskConfigPanel() {
       <select
         className="mt-4 w-full rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm"
         value={projectId}
-        onChange={(event) => setProjectId(event.target.value)}
+        onChange={(event) => {
+          const nextProjectId = event.target.value;
+          setProjectId(nextProjectId);
+          if (nextProjectId) session.selectProject(nextProjectId);
+        }}
       >
         <option value="">选择诊断项目</option>
         {projects.map((project) => (
@@ -1345,6 +1391,8 @@ export function AgentTaskConfigPanel() {
           </div>
           {contextActions.map((action) => {
             const preflight = preflightFor(action);
+            const isReturnedAction =
+              session.pendingIntent?.actionId === action.actionId;
             const costLabel =
               preflight.cost === "unknown"
                 ? "费用：待厂商调用预览确认"
@@ -1380,19 +1428,30 @@ export function AgentTaskConfigPanel() {
                     {preflight.fixes.map((fix) => (
                       <p key={fix}>{fix}</p>
                     ))}
-                    <Link className="text-brand hover:underline" to="/settings">
+                    <AiSettingsLink
+                      actionId={action.actionId}
+                      projectId={projectId || undefined}
+                      chapterId={chapterId || undefined}
+                      input={prompt}
+                      className="text-brand hover:underline"
+                    >
                       前往设置修复
-                    </Link>
+                    </AiSettingsLink>
                   </div>
                 )}
                 <BareButton
-                  className="mt-3 w-full rounded-lg border border-brand bg-surface-raised px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
+                  className={`mt-3 w-full rounded-lg border border-brand bg-surface-raised px-3 py-2 text-sm font-medium text-brand disabled:opacity-50 ${isReturnedAction ? "ring-2 ring-brand ring-offset-2" : ""}`}
                   disabled={runAgent.isPending || !preflight.ready}
-                  onClick={() => runAgent.mutate({ taskType: action.id })}
+                  onClick={() => {
+                    if (isReturnedAction) session.clearPendingIntent();
+                    runAgent.mutate({ taskType: action.id });
+                  }}
                 >
                   {runAgent.isPending
                     ? "正在创建任务…"
-                    : `生成${action.label}预览`}
+                    : isReturnedAction
+                      ? "配置已完成，确认继续"
+                      : `生成${action.label}预览`}
                 </BareButton>
               </article>
             );
@@ -1481,7 +1540,7 @@ export function AgentTaskConfigPanel() {
               }
             >
               <option value="recommended">各引擎推荐配置</option>
-              <option value="same_model">四个引擎使用同一模型</option>
+              <option value="same_model">三个引擎使用同一模型</option>
             </select>
           </label>
           {requiresChapter && !chapterId && (
@@ -1526,7 +1585,7 @@ export function AgentTaskConfigPanel() {
             }
             onClick={() => createExperiment.mutate()}
           >
-            {createExperiment.isPending ? "正在创建盲测…" : "启动四引擎盲测"}
+            {createExperiment.isPending ? "正在创建盲测…" : "启动三引擎盲测"}
           </BareButton>
         </>
       )}
@@ -1617,7 +1676,7 @@ export function AgentTaskConfigPanel() {
 export function AgentExperimentCard(props: {
   experiment: AgentExperiment;
   reviewing: boolean;
-  onReview(candidate: "a" | "b" | "c" | "d" | "tie"): void;
+  onReview(candidate: "a" | "b" | "c" | "tie"): void;
   revealing: boolean;
   onReveal(): void;
 }) {
@@ -1625,13 +1684,12 @@ export function AgentExperimentCard(props: {
     a: "方案 A",
     b: "方案 B",
     c: "方案 C",
-    d: "方案 D",
   };
   const candidateCount = props.experiment.candidates?.length ?? 0;
   return (
     <section className="mt-4 rounded-xl border border-line bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">{candidateCount || 4} 引擎盲测</p>
+        <p className="text-sm font-medium">{candidateCount || 3} 引擎盲测</p>
         <span className="text-xs text-muted">
           {props.experiment.status === "ready_for_review"
             ? "等待评价"

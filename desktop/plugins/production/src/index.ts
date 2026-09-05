@@ -29,6 +29,12 @@ import {
   SeasonPageSchema,
   SeasonPatchSchema,
   SeasonSchema,
+  ScreenplayDocumentSchema,
+  ScreenplayExportDocumentSchema,
+  ScreenplayImportCommitSchema,
+  ScreenplayImportPreviewInputSchema,
+  ScreenplayImportPreviewSchema,
+  ScreenplayPatchSchema,
   type ProductionRecord,
   type ProductionRecordInput,
   type ProductionRecordKind,
@@ -36,7 +42,12 @@ import {
   type ProductionSeasonService,
   type Season,
   type SeasonChapterMapping,
+  type ScreenplayBlock,
+  type ScreenplayDocument,
+  type ScreenplayImportPreview,
+  type ScreenplayLossReport,
 } from "@dramaip/contracts/production";
+import type { DesktopHostClient } from "@dramaip/desktop-host";
 import {
   REVIEW_RECORD_SERVICE,
   type ReviewRecordService,
@@ -57,6 +68,12 @@ import {
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  exportFdx,
+  exportFountain,
+  parseFdx,
+  parseFountain,
+} from "./screenplay-codec.js";
 
 interface ProductionRow {
   id: string;
@@ -93,12 +110,42 @@ interface SeasonChapterMappingRow {
   created_at: string;
 }
 
+interface ScreenplayDocumentRow {
+  id: string;
+  script_record_id: string;
+  project_id: string;
+  title: string;
+  source_format: ScreenplayDocument["sourceFormat"];
+  blocks_json: string;
+  loss_report_json: string;
+  legacy_payload_json: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ScreenplayImportPreviewRow {
+  id: string;
+  project_id: string;
+  parent_id: string | null;
+  title: string;
+  source_name: string;
+  source_format: ScreenplayImportPreview["sourceFormat"];
+  blocks_json: string;
+  loss_report_json: string;
+  etag: string;
+  status: ScreenplayImportPreview["status"];
+  created_at: string;
+}
+
 interface RouteContext {
   req: {
     param(name: string): string;
     query(name: string): string | undefined;
+    header(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
   };
+  header(name: string, value: string): void;
   json(value: unknown, status?: number): Response;
   body(value: null, status?: number): Response;
 }
@@ -384,6 +431,483 @@ function mapSeasonChapter(
     });
     return value;
   });
+}
+
+function screenplayDocument(row: ScreenplayDocumentRow): ScreenplayDocument {
+  return {
+    id: row.id,
+    scriptId: row.script_record_id,
+    projectId: row.project_id,
+    title: row.title,
+    sourceFormat: row.source_format,
+    blocks: JSON.parse(row.blocks_json) as ScreenplayBlock[],
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function screenplayPreview(
+  row: ScreenplayImportPreviewRow,
+): ScreenplayImportPreview {
+  return {
+    previewId: row.id,
+    projectId: row.project_id,
+    ...(row.parent_id ? { parentId: row.parent_id } : {}),
+    title: row.title,
+    sourceName: row.source_name,
+    sourceFormat: row.source_format,
+    blocks: JSON.parse(row.blocks_json) as ScreenplayBlock[],
+    lossReport: JSON.parse(row.loss_report_json) as ScreenplayLossReport,
+    etag: row.etag,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function screenplayRoutes(
+  context: PluginContext,
+  workspace: WorkspaceProjectService,
+  records: ProductionRecordService,
+  host?: DesktopHostClient,
+): readonly RouteContribution[] {
+  const previewParams = z.object({ id: z.string().uuid() });
+  const exportParams = z.object({
+    id: z.string().uuid(),
+    format: z.enum(["fountain", "fdx"]),
+  });
+  return [
+    route(
+      {
+        id: "production:screenplay-import-preview-create",
+        pluginId: "production",
+        method: "post",
+        path: "/api/v2/screenplay-import-previews",
+        operationId: "screenplayImport.createPreview",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/screenplay-import-previews",
+        operationId: "screenplayImport.createPreview",
+        body: ScreenplayImportPreviewInputSchema,
+        response: ScreenplayImportPreviewSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        if (!host)
+          return problem(
+            requestContext,
+            503,
+            "CAPABILITY_UNAVAILABLE",
+            "当前模式无法读取本地剧本文件。",
+          );
+        const input = ScreenplayImportPreviewInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!input.success || !workspace.get(input.data.projectId))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "剧本导入参数或项目无效。",
+          );
+        if (
+          input.data.parentId &&
+          records.get(input.data.parentId)?.projectId !== input.data.projectId
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "剧本父级不属于目标项目。",
+          );
+        const file = await host.readGrantedDocument(
+          input.data.grantId,
+          32 * 1024 * 1024,
+        );
+        if (file.format !== "fountain" && file.format !== "fdx")
+          return problem(
+            requestContext,
+            422,
+            "UNSUPPORTED_SCREENPLAY_FORMAT",
+            "P1 当前仅支持 Fountain 与 FDX；扫描 PDF/OCR 明确不可用。",
+          );
+        let parsed;
+        try {
+          parsed =
+            file.format === "fountain"
+              ? parseFountain(file.content)
+              : parseFdx(file.content);
+        } catch {
+          return problem(
+            requestContext,
+            400,
+            "SCREENPLAY_PARSE_FAILED",
+            "剧本文件无法安全解析。",
+          );
+        }
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const etag = `"screenplay-import:${id}:0"`;
+        const row = context.uow.execute((transaction) => {
+          transaction.run(
+            `INSERT INTO screenplay_import_previews(
+              id, project_id, parent_id, title, source_name, source_format,
+              blocks_json, loss_report_json, etag, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            id,
+            input.data.projectId,
+            input.data.parentId ?? null,
+            input.data.title,
+            file.name.slice(0, 240),
+            file.format,
+            JSON.stringify(parsed.blocks),
+            JSON.stringify(parsed.lossReport),
+            etag,
+            now,
+          );
+          return transaction.get<ScreenplayImportPreviewRow>(
+            "SELECT * FROM screenplay_import_previews WHERE id = ?",
+            id,
+          )!;
+        });
+        return requestContext.json(screenplayPreview(row), 201);
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-import-preview-get",
+        pluginId: "production",
+        method: "get",
+        path: "/api/v2/screenplay-import-previews/{id}",
+        operationId: "screenplayImport.getPreview",
+      },
+      openapi({
+        method: "get",
+        path: "/api/v2/screenplay-import-previews/{id}",
+        operationId: "screenplayImport.getPreview",
+        params: previewParams,
+        response: ScreenplayImportPreviewSchema,
+      }),
+      (requestContext) => {
+        const row = context.uow.execute((transaction) =>
+          transaction.get<ScreenplayImportPreviewRow>(
+            "SELECT * FROM screenplay_import_previews WHERE id = ?",
+            requestContext.req.param("id"),
+          ),
+        );
+        return row
+          ? requestContext.json(screenplayPreview(row))
+          : problem(requestContext, 404, "NOT_FOUND", "未找到剧本导入预览。");
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-import-commit",
+        pluginId: "production",
+        method: "post",
+        path: "/api/v2/screenplay-import-previews/{id}/commit",
+        operationId: "screenplayImport.commit",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/screenplay-import-previews/{id}/commit",
+        operationId: "screenplayImport.commit",
+        params: previewParams,
+        body: ScreenplayImportCommitSchema,
+        response: ScreenplayDocumentSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        const input = ScreenplayImportCommitSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        const id = requestContext.req.param("id");
+        if (!input.success || input.data.previewId !== id)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "剧本导入提交参数无效。",
+          );
+        const result = context.uow.execute((transaction) => {
+          const preview = transaction.get<ScreenplayImportPreviewRow>(
+            "SELECT * FROM screenplay_import_previews WHERE id = ?",
+            id,
+          );
+          if (!preview) return { state: "missing" as const };
+          if (preview.status !== "pending") return { state: "used" as const };
+          if (requestContext.req.header("If-Match")?.trim() !== preview.etag)
+            return { state: "conflict" as const };
+          const scriptId = crypto.randomUUID();
+          const documentId = crypto.randomUUID();
+          const now = new Date().toISOString();
+          const orderIndex =
+            transaction.get<{ value: number }>(
+              `SELECT COALESCE(MAX(order_index), -1) + 1 AS value
+               FROM production_records
+               WHERE kind = 'scripts' AND ((parent_id = ?) OR (parent_id IS NULL AND ? IS NULL))`,
+              preview.parent_id,
+              preview.parent_id,
+            )?.value ?? 0;
+          transaction.run(
+            `INSERT INTO production_records(
+              id, kind, project_id, parent_id, title, payload_json,
+              order_index, version, created_at, updated_at
+            ) VALUES (?, 'scripts', ?, ?, ?, '{}', ?, 0, ?, ?)`,
+            scriptId,
+            preview.project_id,
+            preview.parent_id,
+            preview.title,
+            orderIndex,
+            now,
+            now,
+          );
+          transaction.run(
+            `INSERT INTO screenplay_documents(
+              id, script_record_id, project_id, title, source_format,
+              blocks_json, loss_report_json, legacy_payload_json,
+              version, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?)`,
+            documentId,
+            scriptId,
+            preview.project_id,
+            preview.title,
+            preview.source_format,
+            preview.blocks_json,
+            preview.loss_report_json,
+            now,
+            now,
+          );
+          transaction.run(
+            "UPDATE screenplay_import_previews SET status = 'committed' WHERE id = ? AND status = 'pending'",
+            id,
+          );
+          const document = screenplayDocument(
+            transaction.get<ScreenplayDocumentRow>(
+              "SELECT * FROM screenplay_documents WHERE id = ?",
+              documentId,
+            )!,
+          );
+          transaction.append({
+            type: "production.screenplay-imported.v1",
+            pluginId: "production",
+            aggregateType: "screenplay",
+            aggregateId: document.id,
+            aggregateVersion: 0,
+            payload: JSON.parse(JSON.stringify(document)),
+          });
+          return { state: "created" as const, document };
+        });
+        if (result.state === "missing")
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到剧本导入预览。",
+          );
+        if (result.state !== "created")
+          return problem(
+            requestContext,
+            409,
+            "SCREENPLAY_IMPORT_CONFLICT",
+            "导入预览已使用或版本已变化。",
+          );
+        return requestContext.json(result.document, 201);
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-get",
+        pluginId: "production",
+        method: "get",
+        path: "/api/v2/scripts/{id}/screenplay",
+        operationId: "screenplays.get",
+      },
+      openapi({
+        method: "get",
+        path: "/api/v2/scripts/{id}/screenplay",
+        operationId: "screenplays.get",
+        params: idParams,
+        response: ScreenplayDocumentSchema,
+      }),
+      (requestContext) => {
+        const row = context.uow.execute((transaction) =>
+          transaction.get<ScreenplayDocumentRow>(
+            "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
+            requestContext.req.param("id"),
+          ),
+        );
+        if (!row)
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到结构化剧本。",
+          );
+        requestContext.header("ETag", `"${row.version}"`);
+        return requestContext.json(screenplayDocument(row));
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-update",
+        pluginId: "production",
+        method: "patch",
+        path: "/api/v2/scripts/{id}/screenplay",
+        operationId: "screenplays.update",
+      },
+      openapi({
+        method: "patch",
+        path: "/api/v2/scripts/{id}/screenplay",
+        operationId: "screenplays.update",
+        params: idParams,
+        body: ScreenplayPatchSchema,
+        response: ScreenplayDocumentSchema,
+      }),
+      async (requestContext) => {
+        const input = ScreenplayPatchSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!input.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "结构化剧本更新参数无效。",
+          );
+        if (
+          requestContext.req.header("If-Match")?.trim() !==
+          `"${input.data.version}"`
+        )
+          return problem(
+            requestContext,
+            428,
+            "PRECONDITION_REQUIRED",
+            "更新结构化剧本必须携带与版本一致的 If-Match。",
+          );
+        const result = context.uow.execute((transaction) => {
+          const current = transaction.get<ScreenplayDocumentRow>(
+            "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
+            requestContext.req.param("id"),
+          );
+          if (!current) return { state: "missing" as const };
+          if (current.version !== input.data.version)
+            return { state: "conflict" as const };
+          const now = new Date().toISOString();
+          const title = input.data.title ?? current.title;
+          transaction.run(
+            `UPDATE screenplay_documents
+             SET title = ?, blocks_json = ?, source_format = 'native',
+                 version = version + 1, updated_at = ?
+             WHERE id = ? AND version = ?`,
+            title,
+            JSON.stringify(input.data.blocks),
+            now,
+            current.id,
+            current.version,
+          );
+          transaction.run(
+            `UPDATE production_records
+             SET title = ?, version = version + 1, updated_at = ?
+             WHERE id = ?`,
+            title,
+            now,
+            current.script_record_id,
+          );
+          const document = screenplayDocument(
+            transaction.get<ScreenplayDocumentRow>(
+              "SELECT * FROM screenplay_documents WHERE id = ?",
+              current.id,
+            )!,
+          );
+          transaction.append({
+            type: "production.screenplay-updated.v1",
+            pluginId: "production",
+            aggregateType: "screenplay",
+            aggregateId: document.id,
+            aggregateVersion: document.version,
+            payload: JSON.parse(JSON.stringify(document)),
+          });
+          return { state: "updated" as const, document };
+        });
+        if (result.state === "missing")
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到结构化剧本。",
+          );
+        if (result.state === "conflict")
+          return problem(
+            requestContext,
+            409,
+            "SCREENPLAY_VERSION_CONFLICT",
+            "剧本主稿已经变化，请刷新后重试。",
+          );
+        requestContext.header("ETag", `"${result.document.version}"`);
+        return requestContext.json(result.document);
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-export",
+        pluginId: "production",
+        method: "get",
+        path: "/api/v2/scripts/{id}/screenplay/export/{format}",
+        operationId: "screenplays.export",
+      },
+      openapi({
+        method: "get",
+        path: "/api/v2/scripts/{id}/screenplay/export/{format}",
+        operationId: "screenplays.export",
+        params: exportParams,
+        response: ScreenplayExportDocumentSchema,
+      }),
+      (requestContext) => {
+        const params = exportParams.safeParse({
+          id: requestContext.req.param("id"),
+          format: requestContext.req.param("format"),
+        });
+        if (!params.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "不支持的剧本导出格式。",
+          );
+        const row = context.uow.execute((transaction) =>
+          transaction.get<ScreenplayDocumentRow>(
+            "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
+            params.data.id,
+          ),
+        );
+        if (!row)
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到结构化剧本。",
+          );
+        const document = screenplayDocument(row);
+        const lossReport = JSON.parse(
+          row.loss_report_json,
+        ) as ScreenplayLossReport;
+        return requestContext.json({
+          fileName: `${document.title}.${params.data.format}`,
+          mimeType:
+            params.data.format === "fdx"
+              ? "application/xml"
+              : "text/plain; charset=utf-8",
+          content:
+            params.data.format === "fdx"
+              ? exportFdx(document.blocks)
+              : exportFountain(document.blocks),
+          lossReport,
+        });
+      },
+    ),
+  ];
 }
 
 function problem(
@@ -809,6 +1333,7 @@ function productionRoutes(
   writing: WritingChapterService,
   records: ProductionRecordService,
   seasons: ProductionSeasonService,
+  host?: DesktopHostClient,
 ): readonly RouteContribution[] {
   const graphDeclaration = openapi({
     method: "get",
@@ -835,6 +1360,7 @@ function productionRoutes(
   const result: RouteContribution[] = [
     ...productionResourceRoutes(workspace, records),
     ...seasonRoutes(workspace, writing, seasons),
+    ...screenplayRoutes(context, workspace, records, host),
     route(
       {
         id: "production:graph",
@@ -1322,184 +1848,302 @@ const productionMigrations = [
         );
     `,
   },
+  {
+    id: "production.0003.screenplay-ast-and-script-branches",
+    pluginId: "production",
+    version: "3.0.0-alpha.4",
+    dependsOn: ["production.0002.seasons"],
+    sql: `
+      CREATE TABLE IF NOT EXISTS screenplay_documents (
+        id TEXT PRIMARY KEY,
+        script_record_id TEXT NOT NULL UNIQUE
+          REFERENCES production_records(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        source_format TEXT NOT NULL
+          CHECK(source_format IN ('native','fountain','fdx','pdf')),
+        blocks_json TEXT NOT NULL,
+        loss_report_json TEXT NOT NULL,
+        legacy_payload_json TEXT,
+        version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS screenplay_documents_project
+        ON screenplay_documents(project_id, updated_at DESC, id);
+
+      CREATE TABLE IF NOT EXISTS screenplay_import_previews (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        parent_id TEXT REFERENCES production_records(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        source_format TEXT NOT NULL CHECK(source_format IN ('fountain','fdx','pdf')),
+        blocks_json TEXT NOT NULL,
+        loss_report_json TEXT NOT NULL,
+        etag TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('pending','committed','discarded')),
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS script_branches (
+        id TEXT PRIMARY KEY,
+        script_record_id TEXT NOT NULL REFERENCES production_records(id) ON DELETE CASCADE,
+        owner_ref TEXT NOT NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('active','archived')),
+        base_main_version INTEGER NOT NULL,
+        head_version INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS script_branches_script_owner
+        ON script_branches(script_record_id, owner_ref, status, created_at);
+
+      CREATE TABLE IF NOT EXISTS script_branch_versions (
+        id TEXT PRIMARY KEY,
+        branch_id TEXT NOT NULL REFERENCES script_branches(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        blocks_json TEXT NOT NULL,
+        content_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(branch_id, version)
+      );
+
+      CREATE TABLE IF NOT EXISTS script_merge_previews (
+        id TEXT PRIMARY KEY,
+        branch_id TEXT NOT NULL REFERENCES script_branches(id) ON DELETE CASCADE,
+        base_main_version INTEGER NOT NULL,
+        current_main_version INTEGER NOT NULL,
+        branch_version INTEGER NOT NULL,
+        plan_json TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('pending','committed','expired')),
+        etag TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        committed_at TEXT
+      );
+
+      INSERT OR IGNORE INTO screenplay_documents(
+        id, script_record_id, project_id, title, source_format, blocks_json,
+        loss_report_json, legacy_payload_json, version, created_at, updated_at
+      )
+      SELECT
+        lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+        '4' || substr(lower(hex(randomblob(2))), 2) || '-' ||
+        substr('89ab', abs(random()) % 4 + 1, 1) ||
+        substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),
+        record.id, record.project_id, record.title, 'native',
+        json_array(json_object(
+          'id', lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+            '4' || substr(lower(hex(randomblob(2))), 2) || '-' ||
+            substr('89ab', abs(random()) % 4 + 1, 1) ||
+            substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),
+          'type', 'action',
+          'text', coalesce(
+            json_extract(record.payload_json, '$.content'),
+            json_extract(record.payload_json, '$.正文'),
+            record.title
+          )
+        )),
+        json_object(
+          'unsupported', json_array('legacy_unstructured_payload'),
+          'warnings', json_array('旧通用剧本记录已映射为单个 Action block；原 payload 保留只读备份。'),
+          'preserved', json_array('legacy_payload_backup')
+        ),
+        record.payload_json, 0, record.created_at, record.updated_at
+      FROM production_records record
+      WHERE record.kind = 'scripts';
+    `,
+  },
 ] as const;
 
-export const productionPlugin = defineFirstPartyPlugin({
-  descriptor: {
-    id: "production",
-    version: "3.0.0-alpha.3",
-    apiVersion: "2",
-    requires: ["foundation", "workspace", "automation", "writing", "knowledge"],
-    provides: ["production.records"],
-    stability: "internal",
-  },
-  ui: [
-    {
-      id: "production.route.workspace",
-      pluginId: "production",
-      kind: "route",
-      metadata: { path: "/adapt", title: "改编" },
+export function createProductionPlugin(host?: DesktopHostClient) {
+  return defineFirstPartyPlugin({
+    descriptor: {
+      id: "production",
+      version: "3.0.0-alpha.4",
+      apiVersion: "2",
+      requires: [
+        "foundation",
+        "workspace",
+        "automation",
+        "writing",
+        "knowledge",
+      ],
+      provides: ["production.records"],
+      stability: "internal",
     },
-    {
-      id: "production.navigation.workspace",
-      pluginId: "production",
-      kind: "navigation",
-      metadata: { section: "main", order: 30, label: "改编", to: "/adapt" },
-    },
-    {
-      id: "production.editor.script",
-      pluginId: "production",
-      kind: "editor",
-      metadata: { target: "script", title: "剧本编辑器" },
-    },
-  ],
-  migrations: productionMigrations,
-  activate: (context) => {
-    const workspace = context.services.optional<WorkspaceProjectService>(
-      WORKSPACE_PROJECT_SERVICE,
-    );
-    const writing = context.services.optional<WritingChapterService>(
-      WRITING_CHAPTER_SERVICE,
-    );
-    if (!workspace || !writing)
-      throw new Error("production requires workspace and writing services");
-    const service: ProductionRecordService = {
-      create: (kind, input) => createRecord(context, kind, input),
-      list: (kind, filter) => listRecords(context, kind, filter),
-      get: (id) =>
-        context.uow.execute((transaction) => {
-          const row = transaction.get<ProductionRow>(
-            "SELECT * FROM production_records WHERE id = ?",
-            id,
-          );
-          return row ? toRecord(row) : undefined;
-        }),
-      update: (id, patch) =>
-        context.uow.execute((transaction) => {
-          const row = transaction.get<ProductionRow>(
-            "SELECT * FROM production_records WHERE id = ?",
-            id,
-          );
-          if (!row) return undefined;
-          if (row.version !== patch.version) return "conflict" as const;
-          transaction.run(
-            `UPDATE production_records SET title = ?, payload_json = ?,
-             version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
-            patch.title?.trim() ?? row.title,
-            JSON.stringify(patch.payload ?? JSON.parse(row.payload_json)),
-            new Date().toISOString(),
-            id,
-            row.version,
-          );
-          const value = toRecord(
-            transaction.get<ProductionRow>(
+    ui: [
+      {
+        id: "production.route.workspace",
+        pluginId: "production",
+        kind: "route",
+        metadata: { path: "/adapt", title: "改编" },
+      },
+      {
+        id: "production.navigation.workspace",
+        pluginId: "production",
+        kind: "navigation",
+        metadata: { section: "main", order: 30, label: "改编", to: "/adapt" },
+      },
+      {
+        id: "production.editor.script",
+        pluginId: "production",
+        kind: "editor",
+        metadata: { target: "script", title: "剧本编辑器" },
+      },
+    ],
+    migrations: productionMigrations,
+    activate: (context) => {
+      const workspace = context.services.optional<WorkspaceProjectService>(
+        WORKSPACE_PROJECT_SERVICE,
+      );
+      const writing = context.services.optional<WritingChapterService>(
+        WRITING_CHAPTER_SERVICE,
+      );
+      if (!workspace || !writing)
+        throw new Error("production requires workspace and writing services");
+      const service: ProductionRecordService = {
+        create: (kind, input) => createRecord(context, kind, input),
+        list: (kind, filter) => listRecords(context, kind, filter),
+        get: (id) =>
+          context.uow.execute((transaction) => {
+            const row = transaction.get<ProductionRow>(
               "SELECT * FROM production_records WHERE id = ?",
               id,
-            )!,
-          );
-          appendEvent(transaction, `${row.kind}-updated`, value);
-          return value;
-        }),
-      remove: (id, expectedVersion) =>
-        context.uow.execute((transaction) => {
-          const row = transaction.get<ProductionRow>(
-            "SELECT * FROM production_records WHERE id = ?",
-            id,
-          );
-          if (
-            !row ||
-            (expectedVersion !== undefined && row.version !== expectedVersion)
-          )
-            return false;
-          const value = toRecord(row);
-          transaction.run("DELETE FROM production_records WHERE id = ?", id);
-          transaction.append({
-            type: `production.${row.kind}-removed.v1`,
-            pluginId: "production",
-            aggregateType: row.kind,
-            aggregateId: id,
-            aggregateVersion: row.version,
-            payload: JSON.parse(JSON.stringify(value)),
-          });
-          return true;
-        }),
-    };
-    const seasonService: ProductionSeasonService = {
-      create: (input) => createSeason(context, input),
-      get: (id) =>
-        context.uow.execute((transaction) => {
-          const row = transaction.get<SeasonRow>(
-            "SELECT * FROM production_seasons WHERE id = ?",
-            id,
-          );
-          return row ? season(row) : undefined;
-        }),
-      list: (projectId, options) => listSeasons(context, projectId, options),
-      update: (id, patch) => updateSeason(context, id, patch),
-      mapChapter: (input) => mapSeasonChapter(context, input),
-    };
-    context.effect(`service:${PRODUCTION_RECORD_SERVICE}`, () =>
-      context.services.provide(PRODUCTION_RECORD_SERVICE, service),
-    );
-    context.effect(`service:${PRODUCTION_SEASON_SERVICE}`, () =>
-      context.services.provide(PRODUCTION_SEASON_SERVICE, seasonService),
-    );
-    context.effect("event:season-chapter-staleness", () =>
-      context.events.registerConsumer({
-        id: "production:season-chapter-staleness.v1",
-        pluginId: "production",
-        critical: false,
-        eventTypes: [
-          "writing.chapter-updated.v1",
-          "writing.chapter-content-replaced.v1",
-          "writing.chapter-summary-updated.v1",
-        ],
-        handle: (event) => {
-          const now = new Date().toISOString();
+            );
+            return row ? toRecord(row) : undefined;
+          }),
+        update: (id, patch) =>
           context.uow.execute((transaction) => {
-            const affected = transaction.all<SeasonRow>(
-              `SELECT s.* FROM production_seasons s
+            const row = transaction.get<ProductionRow>(
+              "SELECT * FROM production_records WHERE id = ?",
+              id,
+            );
+            if (!row) return undefined;
+            if (row.version !== patch.version) return "conflict" as const;
+            transaction.run(
+              `UPDATE production_records SET title = ?, payload_json = ?,
+             version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
+              patch.title?.trim() ?? row.title,
+              JSON.stringify(patch.payload ?? JSON.parse(row.payload_json)),
+              new Date().toISOString(),
+              id,
+              row.version,
+            );
+            const value = toRecord(
+              transaction.get<ProductionRow>(
+                "SELECT * FROM production_records WHERE id = ?",
+                id,
+              )!,
+            );
+            appendEvent(transaction, `${row.kind}-updated`, value);
+            return value;
+          }),
+        remove: (id, expectedVersion) =>
+          context.uow.execute((transaction) => {
+            const row = transaction.get<ProductionRow>(
+              "SELECT * FROM production_records WHERE id = ?",
+              id,
+            );
+            if (
+              !row ||
+              (expectedVersion !== undefined && row.version !== expectedVersion)
+            )
+              return false;
+            const value = toRecord(row);
+            transaction.run("DELETE FROM production_records WHERE id = ?", id);
+            transaction.append({
+              type: `production.${row.kind}-removed.v1`,
+              pluginId: "production",
+              aggregateType: row.kind,
+              aggregateId: id,
+              aggregateVersion: row.version,
+              payload: JSON.parse(JSON.stringify(value)),
+            });
+            return true;
+          }),
+      };
+      const seasonService: ProductionSeasonService = {
+        create: (input) => createSeason(context, input),
+        get: (id) =>
+          context.uow.execute((transaction) => {
+            const row = transaction.get<SeasonRow>(
+              "SELECT * FROM production_seasons WHERE id = ?",
+              id,
+            );
+            return row ? season(row) : undefined;
+          }),
+        list: (projectId, options) => listSeasons(context, projectId, options),
+        update: (id, patch) => updateSeason(context, id, patch),
+        mapChapter: (input) => mapSeasonChapter(context, input),
+      };
+      context.effect(`service:${PRODUCTION_RECORD_SERVICE}`, () =>
+        context.services.provide(PRODUCTION_RECORD_SERVICE, service),
+      );
+      context.effect(`service:${PRODUCTION_SEASON_SERVICE}`, () =>
+        context.services.provide(PRODUCTION_SEASON_SERVICE, seasonService),
+      );
+      context.effect("event:season-chapter-staleness", () =>
+        context.events.registerConsumer({
+          id: "production:season-chapter-staleness.v1",
+          pluginId: "production",
+          critical: false,
+          eventTypes: [
+            "writing.chapter-updated.v1",
+            "writing.chapter-content-replaced.v1",
+            "writing.chapter-summary-updated.v1",
+          ],
+          handle: (event) => {
+            const now = new Date().toISOString();
+            context.uow.execute((transaction) => {
+              const affected = transaction.all<SeasonRow>(
+                `SELECT s.* FROM production_seasons s
                JOIN production_season_chapter_mappings m ON m.season_id = s.id
                WHERE m.chapter_id = ? AND m.chapter_version <> ?
                  AND s.status <> 'archived'`,
-              event.aggregateId,
-              event.aggregateVersion,
-            );
-            for (const current of affected) {
-              transaction.run(
-                `UPDATE production_seasons
+                event.aggregateId,
+                event.aggregateVersion,
+              );
+              for (const current of affected) {
+                transaction.run(
+                  `UPDATE production_seasons
                  SET status = 'review_required', version = version + 1, updated_at = ?
                  WHERE id = ?`,
-                now,
-                current.id,
-              );
-              transaction.append({
-                type: "production.season-review-required.v1",
-                pluginId: "production",
-                aggregateType: "season",
-                aggregateId: current.id,
-                aggregateVersion: current.version + 1,
-                payload: {
-                  seasonId: current.id,
-                  sourceChapterId: event.aggregateId,
-                  sourceChapterVersion: event.aggregateVersion,
-                  reason: "来源章节已更新，需要重新核对季纲与分集。",
-                },
-              });
-            }
-          });
-        },
-      }),
-    );
-    for (const contribution of productionRoutes(
-      context,
-      workspace,
-      writing,
-      service,
-      seasonService,
-    ))
-      context.effect(`route:${contribution.id}`, () =>
-        context.http.register(contribution),
+                  now,
+                  current.id,
+                );
+                transaction.append({
+                  type: "production.season-review-required.v1",
+                  pluginId: "production",
+                  aggregateType: "season",
+                  aggregateId: current.id,
+                  aggregateVersion: current.version + 1,
+                  payload: {
+                    seasonId: current.id,
+                    sourceChapterId: event.aggregateId,
+                    sourceChapterVersion: event.aggregateVersion,
+                    reason: "来源章节已更新，需要重新核对季纲与分集。",
+                  },
+                });
+              }
+            });
+          },
+        }),
       );
-  },
-});
+      for (const contribution of productionRoutes(
+        context,
+        workspace,
+        writing,
+        service,
+        seasonService,
+        host,
+      ))
+        context.effect(`route:${contribution.id}`, () =>
+          context.http.register(contribution),
+        );
+    },
+  });
+}
+
+export const productionPlugin = createProductionPlugin();

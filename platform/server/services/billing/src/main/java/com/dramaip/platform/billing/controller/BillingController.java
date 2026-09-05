@@ -1,7 +1,7 @@
 package com.dramaip.platform.billing.controller;
 
 import com.dramaip.platform.billing.service.PlanService;
-import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.billing.service.PaymentProviderRegistry;
 import com.dramaip.platform.common.security.AdminAccess;
 import com.dramaip.platform.common.security.CurrentUser;
 import com.dramaip.platform.common.web.Result;
@@ -21,28 +21,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class BillingController {
     private final PlanService plans;
-    private final DramaipMetrics metrics;
-    public BillingController(PlanService plans, DramaipMetrics metrics) {
+    private final PaymentProviderRegistry paymentProviders;
+    public BillingController(PlanService plans, PaymentProviderRegistry paymentProviders) {
         this.plans = plans;
-        this.metrics = metrics;
+        this.paymentProviders = paymentProviders;
     }
     @GetMapping("/api/v1/plans") public Result<List<PlanService.Plan>> listPlans() { return Result.ok(plans.listPlans()); }
-    @PostMapping("/api/v1/orders") public ResponseEntity<Result<PlanService.Order>> createOrder(Authentication authentication, @Valid @RequestBody CreateOrderRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(plans.createOrder(CurrentUser.id(authentication), new PlanService.CreateOrder(request.planCode(), request.provider()))));
+    @GetMapping("/api/v1/payment-providers")
+    public Result<List<PaymentProviderRegistry.PaymentProviderAvailability>> paymentProviders() {
+        return Result.ok(paymentProviders.publicProviders());
+    }
+    @PostMapping("/api/v1/orders") public ResponseEntity<Result<PlanService.Order>> createOrder(
+            Authentication authentication,
+            @RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
+            @Valid @RequestBody CreateOrderRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(plans.createOrder(
+                CurrentUser.id(authentication),
+                new PlanService.CreateOrder(request.planCode(), request.provider(), idempotencyKey))));
     }
     @GetMapping("/api/v1/orders") public Result<List<PlanService.Order>> orders(Authentication authentication) { return Result.ok(plans.orders(CurrentUser.id(authentication))); }
     @GetMapping("/api/v1/orders/{orderId}") public Result<PlanService.Order> order(Authentication authentication, @PathVariable String orderId) { return Result.ok(plans.order(orderId, CurrentUser.id(authentication))); }
-    @PostMapping("/api/v1/payments/simulated/confirm")
-    public Result<PlanService.Payment> confirmSimulated(Authentication authentication, @Valid @RequestBody ConfirmPaymentRequest request) {
-        try {
-            PlanService.Payment payment = plans.confirmSimulatedPayment(CurrentUser.id(authentication), request.orderId());
-            metrics.paymentConfirmation("succeeded");
-            return Result.ok(payment);
-        } catch (RuntimeException exception) {
-            metrics.paymentConfirmation("failed");
-            throw exception;
-        }
-    }
     @GetMapping("/api/v1/subscriptions/current") public Result<PlanService.Subscription> subscription(Authentication authentication) { return Result.ok(plans.currentSubscription(CurrentUser.id(authentication))); }
     @PostMapping("/api/v1/subscriptions/current/cancel") public Result<PlanService.Subscription> cancel(Authentication authentication, @RequestBody(required = false) CancelRequest request) { return Result.ok(plans.cancelSubscription(CurrentUser.id(authentication), request != null && request.immediate())); }
     @PostMapping("/api/v1/subscriptions/current/resume") public Result<PlanService.Subscription> resume(Authentication authentication) { return Result.ok(plans.resumeSubscription(CurrentUser.id(authentication))); }
@@ -57,7 +55,6 @@ public class BillingController {
         return Result.ok(plans.adminReconciliation(status, limit));
     }
     public record CreateOrderRequest(@NotBlank String planCode, @NotBlank String provider) { }
-    public record ConfirmPaymentRequest(@NotBlank String orderId) { }
     public record CancelRequest(boolean immediate) { }
     public record ChangePlanRequest(@NotBlank String planCode) { }
     public record RefundRequest(@NotBlank String reason) { }

@@ -564,18 +564,26 @@ export async function initializeSingleSeasonMaterials(
         ),
       ].join("\n\n")
     : idea;
-  const chapter = await client.chapters.create({
-    projectId,
-    title: "单季故事母稿",
-    summary: preset?.summary ?? idea,
-    outline: storyOutline || "待完善单季故事结构",
-    content: "",
-    mainConflict: preset?.openingChapter.mainConflict,
-    hook: preset?.openingChapter.hook,
-    highlight: preset?.openingChapter.highlight,
-    reversal: preset?.openingChapter.reversal,
-    cliffhanger: preset?.openingChapter.cliffhanger,
-  });
+  const [existingChapters, existingCharacters, existingAdaptations] =
+    await Promise.all([
+      client.chapters.list(projectId),
+      client.resources.list("characters", projectId),
+      client.resources.list("adaptations", projectId),
+    ]);
+  const chapter =
+    existingChapters.find((item) => item.title === "单季故事母稿") ??
+    (await client.chapters.create({
+      projectId,
+      title: "单季故事母稿",
+      summary: preset?.summary ?? idea,
+      outline: storyOutline || "待完善单季故事结构",
+      content: "",
+      mainConflict: preset?.openingChapter.mainConflict,
+      hook: preset?.openingChapter.hook,
+      highlight: preset?.openingChapter.highlight,
+      reversal: preset?.openingChapter.reversal,
+      cliffhanger: preset?.openingChapter.cliffhanger,
+    }));
   const characterInputs = preset
     ? resourceInputsFromStoryPreset(projectId, preset, idea).filter(
         (resource) => resource.domain === "characters",
@@ -594,36 +602,47 @@ export async function initializeSingleSeasonMaterials(
           },
         },
       }));
-  for (const resource of characterInputs)
+  for (const resource of characterInputs) {
+    if (existingCharacters.some((item) => item.title === resource.input.title))
+      continue;
     await client.resources.create(resource.domain, resource.input);
-  const adaptation = await client.resources.create("adaptations", {
+  }
+  const adaptation =
+    existingAdaptations.find((item) => item.title === "第一季季纲") ??
+    (await client.resources.create("adaptations", {
+      projectId,
+      title: "第一季季纲",
+      payload: {
+        改编方向: preset?.label ?? "原创单季短剧",
+        目标集数: input.targetEpisodeCount,
+        季纲: storyOutline || "待完善",
+        三阶段结构: preset
+          ? preset.storyArcs.map((arc) => ({
+              阶段: arc.title,
+              核心冲突: arc.conflict,
+              高光与回收: arc.highlights,
+            }))
+          : ["开局与关系建立", "冲突升级与关键选择", "高潮与收束"],
+      },
+    }));
+  const existingEpisodes = await client.resources.list(
+    "episodes",
     projectId,
-    title: "第一季季纲",
-    payload: {
-      改编方向: preset?.label ?? "原创单季短剧",
-      目标集数: input.targetEpisodeCount,
-      季纲: storyOutline || "待完善",
-      三阶段结构: preset
-        ? preset.storyArcs.map((arc) => ({
-            阶段: arc.title,
-            核心冲突: arc.conflict,
-            高光与回收: arc.highlights,
-          }))
-        : ["开局与关系建立", "冲突升级与关键选择", "高潮与收束"],
-    },
-  });
-  await client.resources.create("episodes", {
-    projectId,
-    parentId: adaptation.id,
-    title: "第 1 集",
-    payload: {
-      集数: 1,
-      分集简介: preset?.openingChapter.summary ?? (idea || "待完善"),
-      核心冲突: preset?.openingChapter.mainConflict ?? "待完善",
-      开场钩子: preset?.openingChapter.hook ?? "待完善",
-      结尾悬念: preset?.openingChapter.cliffhanger ?? "待完善",
-    },
-  });
+    adaptation.id,
+  );
+  if (!existingEpisodes.some((item) => item.title === "第 1 集"))
+    await client.resources.create("episodes", {
+      projectId,
+      parentId: adaptation.id,
+      title: "第 1 集",
+      payload: {
+        集数: 1,
+        分集简介: preset?.openingChapter.summary ?? (idea || "待完善"),
+        核心冲突: preset?.openingChapter.mainConflict ?? "待完善",
+        开场钩子: preset?.openingChapter.hook ?? "待完善",
+        结尾悬念: preset?.openingChapter.cliffhanger ?? "待完善",
+      },
+    });
   await client.productionStructure.selectCurrentAdaptation(projectId, {
     adaptationId: adaptation.id,
   });
@@ -711,17 +730,27 @@ export async function initializeStoryPresetMaterials(
   idea: string,
 ): Promise<Chapter> {
   const resourceInputs = resourceInputsFromStoryPreset(projectId, preset, idea);
-  const results = await Promise.allSettled([
-    client.chapters.create(chapterInputFromStoryPreset(projectId, preset)),
-    ...resourceInputs.map(({ domain, input }) =>
-      client.resources.create(domain, input),
-    ),
+  const [chapters, characters, outlines, storyArcs] = await Promise.all([
+    client.chapters.list(projectId),
+    client.resources.list("characters", projectId),
+    client.resources.list("outlines", projectId),
+    client.resources.list("story-arcs", projectId),
   ]);
-  const failure = results.find(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (failure) throw failure.reason;
-  return (results[0] as PromiseFulfilledResult<Chapter>).value;
+  const chapterInput = chapterInputFromStoryPreset(projectId, preset);
+  const chapter =
+    chapters.find((item) => item.title === chapterInput.title) ??
+    (await client.chapters.create(chapterInput));
+  const existingByDomain = {
+    characters,
+    outlines,
+    "story-arcs": storyArcs,
+  };
+  for (const { domain, input } of resourceInputs) {
+    if (existingByDomain[domain].some((item) => item.title === input.title))
+      continue;
+    await client.resources.create(domain, input);
+  }
+  return chapter;
 }
 
 export function storyPresetRefinementInstruction(

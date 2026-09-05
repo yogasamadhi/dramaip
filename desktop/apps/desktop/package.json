@@ -2,9 +2,9 @@
   "name": "@dramaip/desktop",
   "version": "3.0.0-alpha.3",
   "private": true,
-  "description": "DramaIP AI 漫剧生产工作室 - 桌面端",
+  "description": "尽意 DramaIP——本地优先的 AI IP 创作工作台",
   "author": "sdns",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "bun ../../../run-desktop.ts",
@@ -14,10 +14,8 @@
     "build:codex": "bun scripts/prepare-codex-runtime.mjs",
     "build:pi": "bun scripts/prepare-pi-runtime.mjs",
     "verify:pi": "bun scripts/verify-pi-runtime.mjs",
-    "build:grok": "bun scripts/prepare-grok-runtime.mjs",
-    "verify:grok": "bun scripts/verify-grok-runtime.mjs",
     "update:codex-protocol": "bun scripts/prepare-codex-runtime.mjs --update-protocol-lock",
-    "package": "bun run build:codex && bun run build:pi && bun run verify:pi && bun run build:grok && bun run verify:grok && bun run build && bun --bun run electron-builder",
+    "package": "bun run build:codex && bun run build:pi && bun run verify:pi && bun run build && bun --bun run electron-builder",
     "typecheck:node": "bun --bun run tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "bun --bun run tsc --noEmit -p tsconfig.web.json",
     "typecheck": "bun run typecheck:node && bun run typecheck:web"

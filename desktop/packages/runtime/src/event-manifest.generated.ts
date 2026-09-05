@@ -135,6 +135,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   "media.animatic-reviewed.v1": {
     owner: "media",
   },
+  "media.artifact-archived.v1": {
+    owner: "media",
+  },
   "media.audio-track-adopted.v1": {
     owner: "media",
   },
@@ -162,6 +165,12 @@ export const DOMAIN_EVENT_MANIFEST = {
   "media.voice-profile-created.v1": {
     owner: "media",
   },
+  "production.screenplay-imported.v1": {
+    owner: "production",
+  },
+  "production.screenplay-updated.v1": {
+    owner: "production",
+  },
   "production.season-chapter-mapped.v1": {
     owner: "production",
   },
@@ -173,6 +182,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   },
   "production.season-updated.v1": {
     owner: "production",
+  },
+  "timeline.render-status-changed.v1": {
+    owner: "timeline",
   },
   "workspace.backup-created.v1": {
     owner: "workspace",

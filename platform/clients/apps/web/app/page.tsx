@@ -8,12 +8,12 @@ export default function HomePage() {
         <div className="studio-grid absolute inset-0 opacity-70" />
         <div className="relative mx-auto grid min-h-[690px] max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
           <div>
-            <p className="eyebrow">AI comic drama production studio · v2</p>
+            <p className="eyebrow">尽意 DramaIP · Local-first creative studio</p>
             <h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-[1.08] tracking-[-.045em] text-ink sm:text-6xl">
-              一部长篇 IP，<br />走到可交付的最后一公里。
+              尽作者之意，<br />成万象之作。
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-stone-600">
-              从故事圣经、角色参考锁和镜头生产，到匿名审片与剪辑工程。每一次采用都有版本，每一次改动都有影响，每一份结果都能复现。
+              本地优先的 AI IP 创作工作台。从灵感、小说、剧本到分镜与影像生产，每一次采用都有版本，每一次改动都有影响，每一份结果都能复现。
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link href="/download"><Button className="h-12 px-7">体验内置样片</Button></Link>

@@ -13,11 +13,11 @@ import { createFoundationPlugin } from "@dramaip/foundation";
 import { createInsightsPlugin } from "@dramaip/insights";
 import { createKnowledgePlugin } from "@dramaip/knowledge";
 import { createMediaPlugin } from "@dramaip/media";
-import { productionPlugin } from "@dramaip/production";
+import { createProductionPlugin } from "@dramaip/production";
 import { createReviewPlugin } from "@dramaip/review";
 import { createSystemPlugin } from "@dramaip/system";
 import type { ExtensionPlatform } from "@dramaip/system";
-import { timelinePlugin } from "@dramaip/timeline";
+import { createTimelinePlugin } from "@dramaip/timeline";
 import { createWorkspacePlugin } from "@dramaip/workspace";
 import { writingPlugin } from "@dramaip/writing";
 
@@ -43,9 +43,9 @@ export function createFirstPartyPluginRegistry(
     createKnowledgePlugin(options.host),
     createAgentsPlugin(options.host),
     creativeQualityPlugin,
-    productionPlugin,
+    createProductionPlugin(options.host),
     createMediaPlugin(options.host),
-    timelinePlugin,
+    createTimelinePlugin(options.host),
     createReviewPlugin(options.host),
     deliveryPlugin,
     createInsightsPlugin(options.host),

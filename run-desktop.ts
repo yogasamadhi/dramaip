@@ -165,11 +165,8 @@ function checkToolchain(): Toolchain {
   return { bun: process.execPath };
 }
 
-export function vendorSubmoduleSpecs(
-  platform: NodeJS.Platform = process.platform,
-  architecture: string = process.arch,
-): readonly VendorSubmoduleSpec[] {
-  const submodules: VendorSubmoduleSpec[] = [
+export function vendorSubmoduleSpecs(): readonly VendorSubmoduleSpec[] {
+  return [
     {
       label: "Codex",
       path: "desktop/vendor/codex-rust",
@@ -181,14 +178,6 @@ export function vendorSubmoduleSpecs(
       marker: "package-lock.json",
     },
   ];
-  if (platform === "darwin" && architecture === "arm64") {
-    submodules.push({
-      label: "Grok Build",
-      path: "desktop/vendor/grok-build",
-      marker: "Cargo.toml",
-    });
-  }
-  return submodules;
 }
 
 async function ensureVendorSubmodules(check: boolean): Promise<void> {
@@ -291,20 +280,6 @@ export function runtimeSpecs(): readonly RuntimeSpec[] {
       verifyScript: "verify:pi",
     },
   ];
-  if (process.platform === "darwin" && process.arch === "arm64") {
-    runtimes.push({
-      label: "Grok Build 1.0.5",
-      entry: join(
-        studioDirectory,
-        "build",
-        "grok",
-        "aarch64-apple-darwin",
-        "runtime-manifest.json",
-      ),
-      buildScript: "build:grok",
-      verifyScript: "verify:grok",
-    });
-  }
   return runtimes;
 }
 

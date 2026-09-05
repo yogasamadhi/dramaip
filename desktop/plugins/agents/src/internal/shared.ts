@@ -210,6 +210,41 @@ export const agentRouteMetadata: Record<
     path: "/api/v2/providers",
     operationId: "providers.list",
   },
+  "agents:context-preview-create": {
+    method: "post",
+    path: "/api/v2/agent-context-previews",
+    operationId: "agent-context.createPreview",
+  },
+  "agents:context-preview-get": {
+    method: "get",
+    path: "/api/v2/agent-context-previews/{id}",
+    operationId: "agent-context.getPreview",
+  },
+  "agents:context-preview-update": {
+    method: "patch",
+    path: "/api/v2/agent-context-previews/{id}",
+    operationId: "agent-context.updatePreview",
+  },
+  "agents:context-snapshot-create": {
+    method: "post",
+    path: "/api/v2/agent-context-previews/{id}/snapshots",
+    operationId: "agent-context.freezePreview",
+  },
+  "agents:context-run-snapshot-get": {
+    method: "get",
+    path: "/api/v2/agent-runs/{id}/context-snapshot",
+    operationId: "agent-context.getRunSnapshot",
+  },
+  "agents:context-policies-get": {
+    method: "get",
+    path: "/api/v2/projects/{id}/agent-context-policies",
+    operationId: "agent-context.getPolicies",
+  },
+  "agents:context-policies-update": {
+    method: "put",
+    path: "/api/v2/projects/{id}/agent-context-policies",
+    operationId: "agent-context.updatePolicies",
+  },
   "agents:providers-create": {
     method: "post",
     path: "/api/v2/providers",

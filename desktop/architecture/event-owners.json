@@ -181,6 +181,10 @@
       "owner": "media"
     },
     {
+      "type": "media.artifact-archived.v1",
+      "owner": "media"
+    },
+    {
       "type": "media.audio-track-adopted.v1",
       "owner": "media"
     },
@@ -217,6 +221,14 @@
       "owner": "media"
     },
     {
+      "type": "production.screenplay-imported.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.screenplay-updated.v1",
+      "owner": "production"
+    },
+    {
       "type": "production.season-chapter-mapped.v1",
       "owner": "production"
     },
@@ -231,6 +243,10 @@
     {
       "type": "production.season-updated.v1",
       "owner": "production"
+    },
+    {
+      "type": "timeline.render-status-changed.v1",
+      "owner": "timeline"
     },
     {
       "type": "workspace.backup-created.v1",

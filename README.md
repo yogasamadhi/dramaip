@@ -1,14 +1,25 @@
-# DramaIP
+# 尽意 DramaIP
 
-DramaIP 是一个以本地优先为基础的 AI 漫剧与短剧 IP 创作系统。仓库包含两个边界独立的子项目：
+> **尽作者之意，成万象之作**
+>
+> 本地优先的 AI IP 创作工作台
+
+尽意 DramaIP 以作者意图为创作原点，贯通灵感、小说、剧本、分镜与影像生产，让创作者始终掌握内容、版本和最终采用权。仓库包含两个边界独立的子项目：
 
 - [`desktop`](./desktop/README.md)：开源 Electron 桌面端、本地 Core Runtime 与插件运行时。
 - [`platform`](./platform/README.md)：闭源 Java/Spring Cloud Alibaba 云平台、Web、Mobile、Admin 与部署资产。
+
+## 许可证边界
+
+- `desktop/` 及其自有源码按 Apache License 2.0 发布，详见 [`desktop/LICENSE`](./desktop/LICENSE) 与 [`desktop/NOTICE`](./desktop/NOTICE)。
+- `platform/` 为专有闭源软件，不因与 Desktop 同仓而获得 Apache-2.0 授权。
+- `desktop/vendor/` 与按需安装的外部 sidecar 适用各自上游许可证和第三方声明。
 
 两个子项目分别管理依赖、构建、测试、数据和发布流程，不允许跨目录形成构建或运行时依赖。`desktop/legacy/` 仅保留为只读历史参考，不是第三个项目。
 
 ## 文档入口
 
+- [品牌与文案规范](./docs/product/BRAND.md)
 - [Desktop Client / Plugin Runtime 目标架构](./docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)
 - [Desktop 当前实现](./desktop/docs/engineering/ARCHITECTURE.md)
 - [Platform 后端技术架构](./docs/后端技术架构.md)

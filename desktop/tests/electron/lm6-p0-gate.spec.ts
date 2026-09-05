@@ -75,8 +75,11 @@ async function createPilotFromEntry(
   }
 
   await openProjectTool(page, "试制计划");
-  await expect(page.getByLabel("试制向导")).toBeVisible();
-  await expect(page.getByLabel(/来源章节：/).first()).toBeChecked();
+  const pilotWizard = page.getByLabel("试制向导");
+  await expect(pilotWizard).toBeVisible();
+  await expect(
+    pilotWizard.locator('input[type="checkbox"]:checked'),
+  ).toHaveCount(1);
   await page.getByRole("button", { name: "建立试制计划" }).click();
   await page.getByRole("button", { name: "确认来源并创建试制分集" }).click();
   await expect(
@@ -99,6 +102,9 @@ for (const [entry, title] of [
 
       running = await launch(userData);
       await expect(
+        running.page.getByRole("button", { name: `当前项目：${title}` }),
+      ).toBeVisible();
+      await expect(
         running.page.getByRole("link", { name: title }),
       ).toBeVisible();
       await running.page.getByRole("link", { name: title }).click();
@@ -113,6 +119,63 @@ for (const [entry, title] of [
     }
   });
 }
+
+test("统一创作草稿经过灵感空间、设置页和应用重启后仍可恢复并明确清空", async () => {
+  const userData = await mkdtemp(join(tmpdir(), "dramaip-p0-draft-"));
+  let running: RunningApp | undefined;
+  try {
+    running = await launch(userData);
+    await selectByKeyboard(running.page, "系列长篇");
+    await selectByKeyboard(running.page, "从灵感开始");
+    await running.page
+      .getByRole("textbox", { name: "项目名称" })
+      .fill("跨重启从零创作草稿");
+    await running.page
+      .getByRole("textbox", { name: "故事构思（可选）" })
+      .fill("一座城市每天都会集体忘记一件小事。");
+
+    await running.page.evaluate(() => {
+      window.location.hash = "#/inspiration";
+    });
+    await expect(
+      running.page.getByRole("heading", { name: "灵感空间" }),
+    ).toBeVisible();
+    await running.page.evaluate(() => {
+      window.location.hash = "#/settings";
+    });
+    await expect(
+      running.page.getByRole("heading", { name: "设置中心" }),
+    ).toBeVisible();
+    await running.application.close();
+
+    running = await launch(userData);
+    await running.page.evaluate(() => {
+      window.location.hash = "#/";
+    });
+    await expect(
+      running.page.getByRole("textbox", { name: "项目名称" }),
+    ).toHaveValue("跨重启从零创作草稿");
+    await expect(
+      running.page.getByRole("textbox", { name: "故事构思（可选）" }),
+    ).toHaveValue("一座城市每天都会集体忘记一件小事。");
+    await running.page
+      .getByRole("button", { name: "清空", exact: true })
+      .click();
+    await expect(
+      running.page.getByText("核心创作", { exact: true }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        running!.page.evaluate(() =>
+          window.localStorage.getItem("dramaip-creation-draft:v1"),
+        ),
+      )
+      .toBeNull();
+  } finally {
+    await running?.application.close();
+    await rm(userData, { recursive: true, force: true });
+  }
+});
 
 test("坏文件在本地预览阶段被拒绝，未伪造导入结果", async () => {
   const userData = await mkdtemp(join(tmpdir(), "dramaip-p0-bad-source-"));

@@ -8,6 +8,8 @@ import type {
   InspirationCard,
   InspirationCardKind,
   InspirationMemoryJob,
+  InspirationProjectPreview,
+  ProjectMode,
 } from "@dramaip/contracts/product";
 import type {
   CorpusCollectionItem,
@@ -17,7 +19,7 @@ import type {
   CreativeFingerprintDimensionKey,
 } from "@dramaip/contracts";
 import { BareButton, Button, Input, confirmDialog } from "@dramaip/ui-shared";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   FlaskConical,
@@ -29,6 +31,22 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { message, useStudio } from "../../studio-shared";
+import {
+  projectInputFromBrief,
+  projectModeBrief,
+  projectModeConfigFromDraft,
+} from "../../project-intake";
+import {
+  initializeProjectMaterials,
+  ProjectInitializationError,
+} from "../../project-creation-coordinator";
+import { createCreationDraft, useStudioSession } from "../../studio-session";
+import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
+import {
+  novelStoryPreset,
+  projectInputFromStoryPreset,
+  type NovelStoryPresetId,
+} from "../novel/story-presets";
 import { AssistantWebAccessControl } from "../assistant-message-content";
 import { GlobalAssistantTimeline } from "./impl";
 
@@ -80,6 +98,25 @@ const CARD_KINDS: readonly [InspirationCardKind, string][] = [
   ["question", "待探索问题"],
 ];
 
+const PROJECT_MODES: readonly {
+  id: ProjectMode;
+  label: string;
+  outcome: string;
+}[] = [
+  { id: "series_longform", label: "系列长篇", outcome: "第一章与长篇故事骨架" },
+  { id: "single_season", label: "单季短剧", outcome: "母稿、人物、季纲与首集" },
+  {
+    id: "personal_theater",
+    label: "我的 AI 小剧场",
+    outcome: "第一集故事与人物授权",
+  },
+  {
+    id: "creator_channel",
+    label: "博主内容工作室",
+    outcome: "主题与持续内容工作台",
+  },
+];
+
 const FINGERPRINT_DIMENSION_LABELS: Record<
   CreativeFingerprintDimensionKey,
   string
@@ -102,6 +139,8 @@ function activeRun(detail?: AssistantConversationDetail) {
 
 export function InspirationSpace() {
   const client = useStudio();
+  const queryClient = useQueryClient();
+  const session = useStudioSession();
   const navigate = useNavigate();
   const { data: engines = [] } = useQuery({
     queryKey: ["inspiration-engines"],
@@ -129,6 +168,23 @@ export function InspirationSpace() {
   const [experiments, setExperiments] = useState<CreativeExperiment[]>([]);
   const [corpusSearch, setCorpusSearch] = useState("");
   const [notice, setNotice] = useState<string>();
+  const [conversionOpen, setConversionOpen] = useState(false);
+  const [conversionMode, setConversionMode] = useState<ProjectMode | undefined>(
+    session.creationDraft?.projectMode,
+  );
+  const [conversionTitle, setConversionTitle] = useState(
+    session.creationDraft?.brief.title ?? "",
+  );
+  const [conversionPresetId, setConversionPresetId] = useState<
+    NovelStoryPresetId | undefined
+  >(() =>
+    novelStoryPreset(session.creationDraft?.storyPresetId as NovelStoryPresetId)
+      ? (session.creationDraft?.storyPresetId as NovelStoryPresetId)
+      : undefined,
+  );
+  const [conversionPreview, setConversionPreview] =
+    useState<InspirationProjectPreview>();
+  const [converting, setConverting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [webAccessMode, setWebAccessMode] = useState<"auto" | "off">("auto");
   const loadedConsent = useRef(false);
@@ -493,37 +549,171 @@ export function InspirationSpace() {
     setExperiments((items) => [created, ...items]);
   };
 
-  const convertToProject = async () => {
-    if (!conversationId) return;
-    const title = window
-      .prompt("项目名称", detail?.conversation.title ?? "新创作项目")
-      ?.trim();
-    if (!title) return;
+  const conversionBrief = () => {
+    if (!conversionMode) return undefined;
+    const adoptedIdea = cards
+      .filter((card) => card.adopted)
+      .map((card) => card.content.trim())
+      .filter(Boolean)
+      .join("\n");
+    const current = session.creationDraft?.brief;
+    const brief = projectModeBrief(conversionMode, "inspiration", current);
+    brief.title = conversionTitle.trim();
+    if (!brief.idea.trim()) brief.idea = adoptedIdea;
+    return brief;
+  };
+
+  const persistConversion = (
+    mode: ProjectMode,
+    title = conversionTitle,
+    presetId = conversionPresetId,
+  ) => {
+    const current =
+      session.creationDraft ??
+      createCreationDraft("inspiration", mode, "inspiration");
+    const brief = projectModeBrief(mode, "inspiration", current.brief);
+    brief.title = title;
+    session.saveCreationDraft({
+      ...current,
+      projectMode: mode,
+      creationSource: "inspiration",
+      brief,
+      storyPresetId: presetId,
+      origin: "inspiration",
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const createConversionPreview = async () => {
+    if (!conversationId || !conversionMode || !conversionTitle.trim()) return;
+    const brief = conversionBrief();
+    if (!brief) return;
+    const modeConfig = projectModeConfigFromDraft(
+      conversionMode,
+      "inspiration",
+      brief,
+      brief.idea || brief.title,
+    );
+    if (!modeConfig) {
+      setNotice("请补充当前模式所需的主题或规模设置。");
+      return;
+    }
+    const preset =
+      conversionMode === "series_longform" || conversionMode === "single_season"
+        ? novelStoryPreset(conversionPresetId)
+        : undefined;
     const selectedCards = cards
       .filter((card) => card.adopted)
       .map((card) => card.id);
-    const preview = await client.inspiration.createProjectPreview({
-      conversationId,
-      project: {
-        title,
-        mode: "single_season",
-        modeConfig: {
-          mode: "single_season",
-          entryPath: "novel",
-          targetEpisodeCount: 80,
+    setConverting(true);
+    setNotice(undefined);
+    try {
+      const preview = await client.inspiration.createProjectPreview({
+        conversationId,
+        project: preset
+          ? projectInputFromStoryPreset(brief, preset, modeConfig)
+          : projectInputFromBrief(brief, modeConfig),
+        cardIds: selectedCards,
+      });
+      setConversionPreview(preview);
+      persistConversion(conversionMode, conversionTitle, conversionPresetId);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const commitConversion = async () => {
+    if (!conversionPreview || !conversionMode) return;
+    setConverting(true);
+    setNotice(undefined);
+    let committedProjectId: string | undefined;
+    let committedDraft = session.creationDraft;
+    let failedInitializationSteps = committedDraft?.initializationSteps ?? [];
+    try {
+      const result = await client.inspiration.commitProjectPreview(
+        conversionPreview.id,
+      );
+      committedProjectId = result.project.id;
+      committedDraft =
+        committedDraft ??
+        createCreationDraft("inspiration", conversionMode, "inspiration");
+      session.saveCreationDraft(
+        {
+          ...committedDraft,
+          projectMode: conversionMode,
+          createdProjectId: committedProjectId,
+          initializationSteps: [
+            {
+              key: "project",
+              status: "completed",
+              message: "项目记录与已采用卡片已创建",
+            },
+          ],
+          updatedAt: new Date().toISOString(),
         },
-      },
-      cardIds: selectedCards,
-    });
-    if (
-      !(await confirmDialog(
-        `预览：将创建“${title}”，复制 ${preview.cards.length} 张已选卡片。确认提交？`,
-      ))
-    )
-      return;
-    const result = await client.inspiration.commitProjectPreview(preview.id);
-    setNotice(`项目已创建，复制 ${result.cardsCopied} 张卡片。原对话仍保留。`);
-    navigate(`/projects/${result.project.id}`);
+        true,
+      );
+      const brief = conversionBrief();
+      const preset =
+        conversionMode === "series_longform" ||
+        conversionMode === "single_season"
+          ? novelStoryPreset(conversionPresetId)
+          : undefined;
+      if (!brief) throw new Error("创作草稿缺少模式初始化资料");
+      const initialized = await initializeProjectMaterials(client, {
+        project: result.project,
+        brief,
+        preset,
+      }).catch((cause: unknown) => {
+        if (cause instanceof ProjectInitializationError)
+          failedInitializationSteps = cause.steps;
+        throw cause;
+      });
+      if (initialized.chapterId)
+        window.localStorage.setItem(
+          `dramaip-novel-last-chapter:${result.project.id}`,
+          initialized.chapterId,
+        );
+      session.clearCreationDraft();
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setNotice(
+        `项目已创建，复制 ${result.cardsCopied} 张已采用卡片；原灵感对话仍保留。`,
+      );
+      navigate(`/projects/${result.project.id}`);
+    } catch (cause) {
+      if (committedProjectId && committedDraft) {
+        session.saveCreationDraft(
+          {
+            ...committedDraft,
+            createdProjectId: committedProjectId,
+            initializationSteps: [
+              {
+                key: "project",
+                status: "completed",
+                message: "项目记录与已采用卡片已创建",
+              },
+              ...failedInitializationSteps,
+            ],
+            updatedAt: new Date().toISOString(),
+          },
+          true,
+        );
+        await queryClient.invalidateQueries({ queryKey: ["projects"] });
+        setNotice(
+          `${message(cause)} 项目与已采用卡片均已安全保留，可在项目首页继续补齐初始化材料。`,
+        );
+        navigate("/");
+      } else {
+        setConversionPreview(undefined);
+        setNotice(
+          `${message(cause)} 项目转换预览可能已过期；创作草稿和已采用卡片均已保留，请重新预览。`,
+        );
+      }
+    } finally {
+      setConverting(false);
+    }
   };
 
   return (
@@ -995,14 +1185,157 @@ export function InspirationSpace() {
               </p>
             )}
           </div>
+          {conversionOpen && (
+            <section
+              aria-label="灵感转项目预览"
+              className="mt-3 space-y-3 rounded-xl border border-brand/25 bg-brand-soft/45 p-3"
+            >
+              <div>
+                <p className="text-sm font-semibold">确认创作模式</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  原对话不会移动；只复制已经采用的卡片。
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {PROJECT_MODES.map((entry) => (
+                  <BareButton
+                    key={entry.id}
+                    type="button"
+                    aria-pressed={conversionMode === entry.id}
+                    className={`rounded-lg border p-2 text-left text-xs ${conversionMode === entry.id ? "border-brand bg-surface-raised text-brand" : "border-line bg-surface text-muted"}`}
+                    onClick={() => {
+                      setConversionMode(entry.id);
+                      setConversionPreview(undefined);
+                      if (
+                        entry.id !== "series_longform" &&
+                        entry.id !== "single_season"
+                      )
+                        setConversionPresetId(undefined);
+                      persistConversion(
+                        entry.id,
+                        conversionTitle,
+                        entry.id === "series_longform" ||
+                          entry.id === "single_season"
+                          ? conversionPresetId
+                          : undefined,
+                      );
+                    }}
+                  >
+                    <span className="block font-medium text-ink">
+                      {entry.label}
+                    </span>
+                    <span className="mt-1 block leading-4">
+                      {entry.outcome}
+                    </span>
+                  </BareButton>
+                ))}
+              </div>
+              <label className="grid gap-1 text-xs font-medium">
+                项目名称
+                <Input
+                  value={conversionTitle}
+                  placeholder={detail?.conversation.title ?? "新创作项目"}
+                  onChange={(event) => {
+                    setConversionTitle(event.target.value);
+                    setConversionPreview(undefined);
+                    if (conversionMode)
+                      persistConversion(
+                        conversionMode,
+                        event.target.value,
+                        conversionPresetId,
+                      );
+                  }}
+                />
+              </label>
+              {conversionMode &&
+                (conversionMode === "series_longform" ||
+                  conversionMode === "single_season") && (
+                  <NovelStoryPresetPicker
+                    selectedId={conversionPresetId}
+                    mode={conversionMode}
+                    compact
+                    onSelect={(id) => {
+                      setConversionPresetId(id);
+                      setConversionPreview(undefined);
+                      persistConversion(conversionMode, conversionTitle, id);
+                    }}
+                    onClear={() => {
+                      setConversionPresetId(undefined);
+                      setConversionPreview(undefined);
+                      persistConversion(
+                        conversionMode,
+                        conversionTitle,
+                        undefined,
+                      );
+                    }}
+                  />
+                )}
+              {conversionPreview ? (
+                <div className="rounded-lg border border-brand/25 bg-surface-raised p-3 text-xs leading-5">
+                  <p className="font-medium text-ink">最终写入预览</p>
+                  <p className="mt-1 text-muted">
+                    创建“{conversionPreview.project.title}” ·
+                    {PROJECT_MODES.find(
+                      (entry) => entry.id === conversionPreview.project.mode,
+                    )?.label ?? "创作项目"}
+                    · 复制 {conversionPreview.cards.length} 张卡片
+                    {conversionPresetId
+                      ? ` · 使用${novelStoryPreset(conversionPresetId)?.label ?? "所选"}预设`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-emerald-800">
+                    确认前不会创建项目或修改正式资料。
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={converting}
+                      onClick={() => void commitConversion()}
+                    >
+                      {converting ? "正在创建…" : "确认创建项目"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={converting}
+                      onClick={() => setConversionPreview(undefined)}
+                    >
+                      修改
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  className="w-full"
+                  size="sm"
+                  disabled={
+                    converting || !conversionMode || !conversionTitle.trim()
+                  }
+                  onClick={() => void createConversionPreview()}
+                >
+                  {converting ? "正在生成预览…" : "生成最终预览"}
+                </Button>
+              )}
+            </section>
+          )}
           <Button
             className="mt-3 w-full"
             variant="secondary"
             disabled={!conversationId}
-            onClick={() => void convertToProject()}
+            onClick={() => {
+              const opening = !conversionOpen;
+              setConversionOpen(opening);
+              setConversionPreview(undefined);
+              if (opening && !conversionTitle.trim())
+                setConversionTitle(
+                  session.creationDraft?.brief.title ||
+                    detail?.conversation.title ||
+                    "",
+                );
+            }}
           >
             <ArrowRight aria-hidden="true" className="size-4" />
-            预览并转为项目
+            {conversionOpen ? "收起项目预览" : "预览并转为项目"}
           </Button>
         </section>
 

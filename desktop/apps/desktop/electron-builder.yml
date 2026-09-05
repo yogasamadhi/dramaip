@@ -1,6 +1,6 @@
 # electron-builder 配置（ROADMAP v1.0-5）—— macOS / Windows / Linux 安装包
 appId: com.sdns.studio
-productName: DramaIP Studio
+productName: 尽意 DramaIP
 afterSign: ../../scripts/notarize-mac.cjs
 # 版本号从 apps/desktop/package.json 读取；GA 前必须由 v2 release gate 验证。
 directories:
@@ -37,19 +37,11 @@ extraResources:
     to: third-party-notices/pi/LICENSE
   - from: pi-adapter/THIRD_PARTY_NOTICES.md
     to: third-party-notices/pi/THIRD_PARTY_NOTICES.md
-  - from: build/grok/aarch64-apple-darwin
-    to: grok/aarch64-apple-darwin
-    filter:
-      - "**/*"
-  - from: ../../vendor/grok-build/LICENSE
-    to: third-party-notices/grok/LICENSE
-  - from: ../../vendor/grok-build/THIRD-PARTY-NOTICES
-    to: third-party-notices/grok/THIRD-PARTY-NOTICES
 # .sdnspkg 项目包文件关联（双击可在应用内打开导入）
 fileAssociations:
   - ext: sdnspkg
-    name: SDNS Project Package
-    description: 短剧IP小说工作室 项目包
+    name: 尽意 DramaIP Project Package
+    description: 尽意 DramaIP 项目包
     role: Editor
 # 图标（buildResources 下：icon.icns / icon.ico / icon.png，缺失则用默认）
 mac:

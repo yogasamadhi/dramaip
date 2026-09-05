@@ -37,7 +37,10 @@ describe("system host facade", () => {
     const host = {
       credentialStorageStatus: async () => ({
         available: true,
-        storage: "local_encrypted_file" as const,
+        storage: "os_safe_storage" as const,
+        backend: "keychain",
+        locked: false,
+        migrationState: "complete" as const,
       }),
     } as unknown as DesktopHostClient;
     const app = await installSystemRoutes(host);
@@ -49,8 +52,34 @@ describe("system host facade", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       available: true,
-      storage: "local_encrypted_file",
+      storage: "os_safe_storage",
+      backend: "keychain",
+      locked: false,
+      migrationState: "complete",
     });
+  });
+
+  it("exposes local model discovery without leaking the loopback URL", async () => {
+    const host = {
+      localModelRuntimes: async () => [
+        {
+          kind: "ollama",
+          endpointRef: "local-model-runtime:ollama",
+          state: "inactive",
+          models: [{ id: "qwen3:8b", displayName: "qwen3:8b" }],
+          lastHealthAt: "2026-08-31T00:00:00.000Z",
+        },
+      ],
+    } as unknown as DesktopHostClient;
+    const app = await installSystemRoutes(host);
+
+    const response = await app.request(
+      "http://runtime.test/api/v2/local-model-runtimes",
+    );
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("local-model-runtime:ollama");
+    expect(body).not.toContain("11434");
   });
 
   it("reports Host unavailability in headless mode", async () => {

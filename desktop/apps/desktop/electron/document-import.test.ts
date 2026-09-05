@@ -17,6 +17,20 @@ describe("granted document extraction", () => {
         strToU8('{"episodes":[{"episodeNumber":1,"content":"正文"}]}'),
       ).format,
     ).toBe("script-json");
+    expect(
+      extractGrantedDocument(
+        "pilot.fountain",
+        strToU8("INT. 旧车站 - 夜\n\n林晚\n信不是寄给我的。"),
+      ).format,
+    ).toBe("fountain");
+    expect(
+      extractGrantedDocument(
+        "pilot.fdx",
+        strToU8(
+          '<FinalDraft DocumentType="Script"><Content><Paragraph Type="Action"><Text>雨夜</Text></Paragraph></Content></FinalDraft>',
+        ),
+      ).format,
+    ).toBe("fdx");
   });
 
   test("extracts DOCX paragraphs and heading styles", () => {

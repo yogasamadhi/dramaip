@@ -8,6 +8,16 @@
     ]
   },
   {
+    "id": "agents.context.v1",
+    "owner": "agents",
+    "major": 1,
+    "capabilities": [
+      "preview",
+      "freeze",
+      "read"
+    ]
+  },
+  {
     "id": "agents.task-runner.v1",
     "owner": "agents",
     "major": 1,

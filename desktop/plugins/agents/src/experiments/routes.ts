@@ -1,4 +1,7 @@
-import { type AgentEngineKind } from "@dramaip/contracts";
+import {
+  type AgentContextService,
+  type AgentEngineKind,
+} from "@dramaip/contracts";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import { createHostAgentRuntime } from "@dramaip/desktop-host";
 import { type PluginContext } from "@dramaip/plugin-api/internal";
@@ -6,22 +9,22 @@ import { AgentRouteDraft, problem } from "../internal/shared.js";
 import {
   AgentModelSelection,
   agentEngineDescriptors,
+  configuredProvider,
+  findProvider,
   isRecord,
   modelSelection,
   text,
 } from "../providers/routes.js";
 import { assistantTaskType, engineResponseText } from "../sessions/routes.js";
-export type EvaluationCandidate = "a" | "b" | "c" | "d";
+export type EvaluationCandidate = "a" | "b" | "c";
 export const evaluationCandidates: readonly EvaluationCandidate[] = [
   "a",
   "b",
   "c",
-  "d",
 ];
 export const activeEvaluationEngines: readonly AgentEngineKind[] = [
   "pi",
   "codex",
-  "grok",
   "langgraph",
 ];
 
@@ -31,6 +34,8 @@ export interface EvaluationRow {
   task_type: string;
   prompt: string;
   context_snapshot_json: string;
+  context_snapshot_id: string | null;
+  context_manifest_sha256: string | null;
   status: string;
   revealed_at: string | null;
   created_at: string;
@@ -79,9 +84,16 @@ export function evaluationPayload(
 ): Record<string, unknown> | undefined {
   return pluginContext.uow.execute((transaction) => {
     const evaluation = transaction.get<EvaluationRow>(
-      `SELECT id, project_id, task_type, prompt, context_snapshot_json, status,
-              revealed_at, created_at, updated_at
-       FROM agent_evaluations WHERE id = ?`,
+      `SELECT evaluation.id, evaluation.project_id, evaluation.task_type,
+              evaluation.prompt, evaluation.context_snapshot_json,
+              evaluation.context_snapshot_id, evaluation.status,
+              evaluation.revealed_at, evaluation.created_at,
+              evaluation.updated_at,
+              snapshot.manifest_sha256 AS context_manifest_sha256
+       FROM agent_evaluations evaluation
+       LEFT JOIN agent_context_snapshots snapshot
+         ON snapshot.id = evaluation.context_snapshot_id
+       WHERE evaluation.id = ?`,
       id,
     );
     if (!evaluation) return undefined;
@@ -127,7 +139,12 @@ export function evaluationPayload(
       id: evaluation.id,
       projectId: evaluation.project_id,
       taskType: evaluation.task_type,
-      contextSnapshotId: evaluation.id,
+      ...(evaluation.context_snapshot_id
+        ? { contextSnapshotId: evaluation.context_snapshot_id }
+        : {}),
+      ...(evaluation.context_manifest_sha256
+        ? { contextManifestSha256: evaluation.context_manifest_sha256 }
+        : {}),
       status: evaluation.status,
       comparisonMode: model ? "same_model" : "recommended",
       ...(evaluation.revealed_at && isRecord(model) ? { model } : {}),
@@ -355,6 +372,7 @@ export async function runEvaluationCandidate(
 export function evaluationRoutes(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
+  agentContext: AgentContextService,
 ): readonly AgentRouteDraft[] {
   return [
     {
@@ -374,7 +392,7 @@ export function evaluationRoutes(
               context,
               503,
               "CAPABILITY_UNAVAILABLE",
-              "当前 Runtime 未连接 Desktop Host，无法启动四引擎盲测。",
+              "当前 Runtime 未连接 Desktop Host，无法启动三引擎盲测。",
             );
           const unavailable = (
             await agentEngineDescriptors(pluginContext, host)
@@ -389,27 +407,73 @@ export function evaluationRoutes(
               context,
               409,
               "ENGINE_NOT_READY",
-              `四引擎盲测要求全部引擎就绪；当前不可用：${unavailable
+              `三引擎盲测要求全部引擎就绪；当前不可用：${unavailable
                 .map((engine) => String(engine.name ?? engine.kind))
-                .join("、")}。Grok Build 仅支持 macOS arm64。`,
+                .join("、")}。`,
             );
           const evaluationId = crypto.randomUUID();
           const now = new Date().toISOString();
           const prompt =
             text(body.prompt) ?? "请基于已授权的项目上下文完成此项任务。";
           const model = modelSelection(body.model);
+          const selectedProvider = model?.providerId
+            ? findProvider(pluginContext, model.providerId)
+            : undefined;
+          const provider = selectedProvider
+            ? configuredProvider(selectedProvider)
+            : undefined;
+          if (provider?.authentication === "none")
+            return problem(
+              context,
+              422,
+              "UNSUPPORTED_OPERATION",
+              "三引擎盲测包含不支持本地模型服务商的 Codex 引擎，不能静默切换到云端模型。",
+            );
+          let contextSnapshot;
+          try {
+            const preview = agentContext.createPreview({
+              projectId: text(body.projectId)!,
+              runIntent: `blind-experiment:${assistantTaskType(body.taskType)}`,
+              basePrompt: prompt,
+              tokenBudget: 64_000,
+              destination: {
+                kind: "cloud",
+                provider: "multi-engine-benchmark",
+                ...(model?.modelId ? { model: model.modelId } : {}),
+              },
+              temporaryOverrides: [],
+            });
+            contextSnapshot = agentContext.freeze(preview.id, preview.version);
+          } catch (error) {
+            return problem(
+              context,
+              409,
+              "CONTEXT_PREVIEW_FAILED",
+              error instanceof Error
+                ? error.message
+                : "盲测上下文预览无法冻结。",
+            );
+          }
+          if (!contextSnapshot)
+            return problem(
+              context,
+              409,
+              "CONTEXT_PREVIEW_STALE",
+              "盲测上下文预览已失效，请重新创建。",
+            );
           const mapping = shuffledEvaluationEngines();
           const runInputs = pluginContext.uow.execute((transaction) => {
             transaction.run(
               `INSERT INTO agent_evaluations(
-                id, project_id, task_type, prompt, context_snapshot_json, status,
-                revealed_at, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, 'running', NULL, ?, ?)`,
+                id, project_id, task_type, prompt, context_snapshot_json,
+                context_snapshot_id, status, revealed_at, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, 'running', NULL, ?, ?)`,
               evaluationId,
               text(body.projectId),
               assistantTaskType(body.taskType),
               prompt,
               JSON.stringify({ projectId: text(body.projectId), model }),
+              contextSnapshot.id,
               now,
               now,
             );
@@ -443,7 +507,7 @@ export function evaluationRoutes(
             void runEvaluationCandidate(pluginContext, host, {
               evaluationId,
               ...candidate,
-              prompt,
+              prompt: contextSnapshot.finalPrompt,
               projectId: text(body.projectId)!,
               ...(model ? { model } : {}),
             });

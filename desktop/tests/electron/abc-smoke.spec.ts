@@ -123,7 +123,9 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   expect(englishOnly).toEqual([]);
 
   await page.getByRole("button", { name: "先看看示例" }).click();
-  await expect(page.getByText("示例短剧：雨夜归来")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "更多", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置", exact: true }).click();
   await expect(
@@ -132,19 +134,15 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   await expect(page.getByText("Codex", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Pi", { exact: true }).first()).toBeVisible();
   await expect(
-    page.getByText("Grok Build", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(
     page.getByText("LangGraph.js", { exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByText("测试版", { exact: true })).toHaveCount(0);
   await expect(
     page.getByLabel("智能引擎状态").locator("article > div > p"),
-  ).toHaveText(["Pi", "Codex", "Grok Build", "LangGraph.js"]);
+  ).toHaveText(["Pi", "Codex", "LangGraph.js"]);
   await expect(page.getByLabel("全局默认引擎").locator("option")).toHaveText([
     "Pi",
     "Codex",
-    "Grok Build",
     "LangGraph.js",
   ]);
 });
@@ -295,22 +293,21 @@ test("灵感空间的输入框和发送按钮始终位于视口内", async () =>
 
 test("智能助手只在用户打开弹窗后显示", async () => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "DramaIP 智能助手" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "尽意智能助手" })).toHaveCount(
+    0,
+  );
 
   await page.getByRole("button", { name: "打开智能助手" }).click();
-  const dialog = page.getByRole("dialog", { name: "DramaIP 智能助手" });
+  const dialog = page.getByRole("dialog", { name: "尽意智能助手" });
   await expect(dialog).toBeVisible();
   await expect(
-    dialog.getByRole("heading", { name: "DramaIP 智能助手" }).first(),
+    dialog.getByRole("heading", { name: "尽意智能助手" }).first(),
   ).toBeVisible();
   await expect(dialog.getByText("AI 办事助手", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("智能助手引擎")).toBeVisible();
   await expect(dialog.getByLabel("智能助手引擎").locator("option")).toHaveText([
     /Pi/,
     /Codex/,
-    /Grok Build/,
     /LangGraph\.js/,
   ]);
   await expect(
@@ -319,13 +316,64 @@ test("智能助手只在用户打开弹窗后显示", async () => {
   await expect(
     dialog.getByRole("switch", { name: "联网搜索 · 自动" }),
   ).toBeVisible();
+  const assistantLayout = await dialog.evaluate((element) => {
+    const messages = element.querySelector<HTMLElement>(
+      '[aria-label="助手消息列表"]',
+    );
+    const composer = element.querySelector<HTMLElement>(
+      '[aria-label="给 AI 办事助手发消息"]',
+    );
+    const dialogBounds = element.getBoundingClientRect();
+    return {
+      dialogHeight: dialogBounds.height,
+      dialogBottom: dialogBounds.bottom,
+      messagesHeight: messages?.getBoundingClientRect().height ?? 0,
+      composerHeight: composer?.getBoundingClientRect().height ?? 0,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(assistantLayout.dialogBottom).toBeLessThanOrEqual(
+    assistantLayout.viewportHeight,
+  );
+  expect(assistantLayout.messagesHeight).toBeGreaterThanOrEqual(240);
+  expect(assistantLayout.messagesHeight).toBeGreaterThan(
+    assistantLayout.composerHeight * 2,
+  );
+  const messages = dialog.getByLabel("助手消息列表");
+  await messages.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        element.scrollTop = element.scrollHeight;
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+  await messages.evaluate((element) => {
+    const streamed = document.createElement("div");
+    streamed.dataset.assistantStreamTest = "true";
+    streamed.style.height = "1600px";
+    streamed.style.flex = "none";
+    element.appendChild(streamed);
+  });
+  await expect
+    .poll(() =>
+      messages.evaluate(
+        (element) =>
+          element.scrollHeight - element.scrollTop - element.clientHeight,
+      ),
+    )
+    .toBeLessThanOrEqual(2);
+  await messages.evaluate((element) => {
+    element
+      .querySelector<HTMLElement>('[data-assistant-stream-test="true"]')
+      ?.remove();
+  });
 
   await dialog.getByRole("button", { name: "关闭智能助手" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡片呈现", async () => {
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
   await expect(page.getByText("更多创作方式", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /系列长篇/ })).toBeVisible();
@@ -349,7 +397,7 @@ test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡�
   ).toHaveAttribute("href", "#/inspiration");
   await page.getByRole("button", { name: "打开智能助手获取灵感" }).click();
   await expect(
-    page.getByRole("dialog").getByRole("heading", { name: "DramaIP 智能助手" }),
+    page.getByRole("dialog").getByRole("heading", { name: "尽意智能助手" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭智能助手" }).click();
   await expect(page.getByRole("heading", { name: "选择怎么开始" })).toHaveCount(
@@ -359,7 +407,7 @@ test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡�
 });
 
 test("系列长篇把用户修改后的章节、季和每季集数持久化", async () => {
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();
   await page.getByRole("button", { name: /从灵感开始/ }).click();
   const titleInput = page.getByLabel("项目名称");
@@ -401,7 +449,7 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
 });
 
 test("单季短剧从创意开始生成母稿、四个人物、季纲和首集", async () => {
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /从创意开始/ }).click();
   await page.getByLabel("项目名称").fill("单季初始化验收");
@@ -445,7 +493,7 @@ test("单季短剧从创意开始生成母稿、四个人物、季纲和首集",
 });
 
 test("项目外导入预览不创建项目，确认后才创建并导入", async () => {
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
@@ -471,11 +519,12 @@ test("项目外导入预览不创建项目，确认后才创建并导入", async
   expect(chapters.map((chapter) => chapter.title)).toEqual([
     "第一章 雨夜来信",
     "第二章 失联电话",
+    "单季故事母稿",
   ]);
 });
 
 test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览并取消", async () => {
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   for (const fixture of importFixtures) {
     await application.evaluate((_, filePath) => {
       process.env.DRAMAIP_E2E_SOURCE_IMPORT_FILE = filePath;
@@ -484,6 +533,12 @@ test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览
     await expect(
       page.getByRole("heading", { name: "项目工作台" }),
     ).toBeVisible();
+    const clearDraft = page.getByRole("button", {
+      name: "清空",
+      exact: true,
+    });
+    if (await clearDraft.isVisible().catch(() => false))
+      await clearDraft.click();
     const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
     await page.getByRole("button", { name: /单季短剧/ }).click();
     await page
@@ -507,8 +562,17 @@ test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览
 });
 
 test("只填作品名即可创建小说、首章并进入写作", async () => {
-  await page.getByRole("link", { name: "小说写作", exact: true }).click();
-  await page.getByRole("link", { name: "新建小说", exact: true }).click();
+  await page.evaluate(() => {
+    window.location.hash = "#/write/new";
+  });
+  await expect(
+    page.getByRole("heading", { name: "创建小说项目" }),
+  ).toBeVisible();
+  const startNewSeries = page.getByRole("button", {
+    name: "开始新的系列长篇",
+  });
+  if (await startNewSeries.isVisible().catch(() => false))
+    await startNewSeries.click();
   await page.getByRole("textbox", { name: "作品名称" }).fill("端到端空白小说");
   await page.getByRole("button", { name: "创建并开始写作" }).click();
 
@@ -531,8 +595,12 @@ test("只填作品名即可创建小说、首章并进入写作", async () => {
 });
 
 test("快捷入口选择末世囤货后初始化首章、人物、大纲和故事弧", async () => {
-  await page.getByRole("link", { name: "小说写作", exact: true }).click();
-  await page.getByRole("link", { name: "新建小说", exact: true }).click();
+  await page.evaluate(() => {
+    window.location.hash = "#/write/new";
+  });
+  await expect(
+    page.getByRole("heading", { name: "创建小说项目" }),
+  ).toBeVisible();
   await page.getByRole("textbox", { name: "作品名称" }).fill("末日早餐店");
   await page
     .getByRole("textbox", { name: "一句话灵感" })
@@ -567,7 +635,7 @@ test("快捷入口选择末世囤货后初始化首章、人物、大纲和故�
 });
 
 test("完整向导创建嘉豪预设并提供四个分区的可确认 AI 润色入口", async () => {
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();
   await page.getByRole("button", { name: /从灵感开始/ }).click();
   await page.getByLabel("项目名称").fill("普通人的主角镜头");
@@ -782,4 +850,24 @@ test("模型服务商置顶、模型级联并通过独立安全窗口采集密�
   await expect(
     deepseekProvider.getByText("deepseek-v4-pro", { exact: true }),
   ).toBeVisible();
+
+  const codexProviderSelect = page.getByRole("combobox", {
+    name: "Codex 模型服务商",
+    exact: true,
+  });
+  const deepseekCodexOption = codexProviderSelect
+    .locator("option")
+    .filter({ hasText: "DeepSeek" });
+  const deepseekProviderId = await deepseekCodexOption.getAttribute("value");
+  expect(deepseekProviderId).toBeTruthy();
+  await codexProviderSelect.selectOption(deepseekProviderId!);
+
+  const codexProtocolSelect = page.getByRole("combobox", {
+    name: "Codex 连接协议",
+    exact: true,
+  });
+  await expect(codexProtocolSelect).toHaveValue("chat_completions");
+  await codexProtocolSelect.selectOption("responses");
+  await page.waitForTimeout(100);
+  await expect(codexProtocolSelect).toHaveValue("responses");
 });

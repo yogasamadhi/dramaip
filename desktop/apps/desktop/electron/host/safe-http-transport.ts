@@ -5,15 +5,18 @@ import { isIP, type LookupFunction } from "node:net";
 
 export interface SafeHttpRequest {
   url: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "DELETE";
   body?: Record<string, unknown>;
   accept: "json" | "binary" | "text" | "mcp";
   maximumBytes: number;
   timeoutMs: number;
   authorization: string;
   apiKey?: string;
+  idempotencyKey?: string;
   allowHttp?: boolean;
   allowPrivateNetwork?: boolean;
+  /** Host-only streaming sink. When present, response bytes are not retained in memory. */
+  onChunk?: (chunk: Buffer) => void | Promise<void>;
 }
 
 export interface SafeHttpResponse {
@@ -21,6 +24,7 @@ export interface SafeHttpResponse {
   contentType: string;
   bytes: Buffer;
   finalUrl: string;
+  sizeBytes: number;
 }
 
 function ipv4Parts(address: string): readonly number[] | undefined {
@@ -154,6 +158,7 @@ async function requestOnce(
   url: URL,
   authorization: string | undefined,
   apiKey: string | undefined,
+  idempotencyKey: string | undefined,
 ): Promise<SafeHttpResponse & { location?: string }> {
   if (
     url.username ||
@@ -192,6 +197,7 @@ async function requestOnce(
             : {}),
           ...(authorization ? { Authorization: authorization } : {}),
           ...(apiKey ? { "x-api-key": apiKey } : {}),
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
           "User-Agent": "DramaIP-Desktop/3.0",
         },
         lookup: createPinnedLookup(pinned),
@@ -208,6 +214,7 @@ async function requestOnce(
             contentType,
             bytes: Buffer.alloc(0),
             finalUrl: url.toString(),
+            sizeBytes: 0,
             location,
           });
           return;
@@ -217,25 +224,28 @@ async function requestOnce(
           reject(new Error("Provider response content type is not allowed"));
           return;
         }
-        const chunks: Buffer[] = [];
-        let size = 0;
-        response.on("data", (chunk: Buffer) => {
-          size += chunk.byteLength;
-          if (size > input.maximumBytes) {
-            response.destroy(new Error("Provider response is too large"));
-            return;
+        void (async () => {
+          const chunks: Buffer[] = [];
+          let size = 0;
+          for await (const raw of response) {
+            const chunk = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+            size += chunk.byteLength;
+            if (size > input.maximumBytes)
+              throw new Error("Provider response is too large");
+            if (input.onChunk) await input.onChunk(chunk);
+            else chunks.push(chunk);
           }
-          chunks.push(chunk);
-        });
-        response.once("error", reject);
-        response.once("end", () =>
           resolve({
             status,
             contentType,
-            bytes: Buffer.concat(chunks),
+            bytes: input.onChunk ? Buffer.alloc(0) : Buffer.concat(chunks),
             finalUrl: url.toString(),
-          }),
-        );
+            sizeBytes: size,
+          });
+        })().catch((error) => {
+          response.destroy();
+          reject(error);
+        });
       },
     );
     request.once("error", reject);
@@ -255,6 +265,7 @@ export async function safeHttpRequest(
       url,
       url.origin === credentialOrigin ? input.authorization : undefined,
       url.origin === credentialOrigin ? input.apiKey : undefined,
+      url.origin === credentialOrigin ? input.idempotencyKey : undefined,
     );
     if (!response.location) return response;
     if (redirects === 3) throw new Error("Provider redirect limit exceeded");

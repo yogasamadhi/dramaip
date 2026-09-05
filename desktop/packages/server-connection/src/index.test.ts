@@ -15,6 +15,7 @@ const runtime = {
   bundles: ["core"],
   plugins: [],
   capabilities: {},
+  capabilityDescriptors: {},
   engineStatus: {},
   uiContributions: [],
 };

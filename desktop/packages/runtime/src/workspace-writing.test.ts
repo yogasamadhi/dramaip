@@ -10,12 +10,13 @@ import type {
   PluginProfile,
 } from "@dramaip/plugin-api/internal";
 import { automationPlugin } from "@dramaip/automation";
+import { createAgentsPlugin } from "@dramaip/agents";
 import { creativeQualityPlugin } from "@dramaip/creative-quality";
 import { deliveryPlugin } from "@dramaip/delivery";
 import { foundationPlugin } from "@dramaip/foundation";
 import { knowledgePlugin } from "@dramaip/knowledge";
 import { mediaPlugin } from "@dramaip/media";
-import { productionPlugin } from "@dramaip/production";
+import { createProductionPlugin } from "@dramaip/production";
 import { reviewPlugin } from "@dramaip/review";
 import { createSystemPlugin } from "@dramaip/system";
 import { timelinePlugin } from "@dramaip/timeline";
@@ -39,8 +40,9 @@ async function fixture(host?: DesktopHostClient): Promise<Fixture> {
     automationPlugin,
     writingPlugin,
     knowledgePlugin,
+    createAgentsPlugin(),
     creativeQualityPlugin,
-    productionPlugin,
+    createProductionPlugin(host),
     mediaPlugin,
     timelinePlugin,
     reviewPlugin,
@@ -75,6 +77,7 @@ async function fixture(host?: DesktopHostClient): Promise<Fixture> {
       bundles: [...profile.bundles],
       plugins: [],
       capabilities: {},
+      capabilityDescriptors: {},
       engineStatus: {},
       uiContributions: [],
     }),
@@ -129,6 +132,135 @@ afterEach(async () => {
 });
 
 describe("workspace and writing vertical slice", () => {
+  it("previews, overrides and freezes an immutable AI context manifest", async () => {
+    const runtime = await fixture();
+    const projectResponse = await runtime.request("/api/v2/projects", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({
+        title: "上下文清单项目",
+        mode: "single_season",
+        modeConfig: {
+          mode: "single_season",
+          entryPath: "novel",
+          targetEpisodeCount: 3,
+        },
+        synopsis: "一个测试用的短剧故事。",
+      }),
+    });
+    expect(projectResponse.status).toBe(201);
+    const project = (await projectResponse.json()) as {
+      project: { id: string };
+    };
+    const chapterResponse = await runtime.request("/api/v2/chapters", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.project.id,
+        title: "第一章",
+        content: "主角发现了被隐藏的证据。",
+      }),
+    });
+    expect(chapterResponse.status).toBe(201);
+    const chapter = (await chapterResponse.json()) as { id: string };
+
+    const policies = await runtime.request(
+      `/api/v2/projects/${project.project.id}/agent-context-policies`,
+      {
+        method: "PUT",
+        headers: { "If-Match": '"0"' },
+        body: JSON.stringify({
+          version: 0,
+          policies: [{ fieldPath: "/project", mode: "never" }],
+        }),
+      },
+    );
+    expect(policies.status, await policies.clone().text()).toBe(200);
+
+    const previewResponse = await runtime.request(
+      "/api/v2/agent-context-previews",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.project.id,
+          chapterId: chapter.id,
+          runIntent: "续写本章",
+          basePrompt: "请续写，并保持人物动机一致。",
+          selection: { text: "隐藏的证据" },
+          tokenBudget: 4_096,
+          destination: { kind: "cloud", provider: "test-provider" },
+        }),
+      },
+    );
+    expect(previewResponse.status, await previewResponse.clone().text()).toBe(
+      201,
+    );
+    expect(previewResponse.headers.get("ETag")).toBe('"0"');
+    const preview = (await previewResponse.json()) as {
+      id: string;
+      version: number;
+      entries: Array<{
+        fieldPath: string;
+        mode: string;
+        included: boolean;
+      }>;
+      manifestSha256: string;
+    };
+    expect(preview.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: "/project",
+          mode: "never",
+          included: false,
+        }),
+        expect.objectContaining({
+          fieldPath: `/chapters/${chapter.id}`,
+          included: true,
+        }),
+      ]),
+    );
+
+    const override = await runtime.request(
+      `/api/v2/agent-context-previews/${preview.id}`,
+      {
+        method: "PATCH",
+        headers: { "If-Match": '"0"' },
+        body: JSON.stringify({
+          temporaryOverrides: [{ fieldPath: "/project", mode: "always" }],
+        }),
+      },
+    );
+    expect(override.status, await override.clone().text()).toBe(200);
+    const overridden = (await override.json()) as {
+      version: number;
+      entries: Array<{
+        fieldPath: string;
+        mode: string;
+        included: boolean;
+      }>;
+    };
+    expect(overridden.entries).toContainEqual(
+      expect.objectContaining({
+        fieldPath: "/project",
+        mode: "always",
+        included: true,
+      }),
+    );
+
+    const snapshotResponse = await runtime.request(
+      `/api/v2/agent-context-previews/${preview.id}/snapshots`,
+      { method: "POST", headers: { "If-Match": '"1"' }, body: "{}" },
+    );
+    expect(snapshotResponse.status, await snapshotResponse.clone().text()).toBe(
+      201,
+    );
+    await expect(snapshotResponse.json()).resolves.toMatchObject({
+      projectId: project.project.id,
+      manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      finalPromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      destination: { kind: "cloud", provider: "test-provider" },
+    });
+  });
+
   it("creates all four project modes with replay-safe initialization and immutable modes", async () => {
     const runtime = await fixture();
     const modes = [
@@ -562,6 +694,125 @@ describe("workspace and writing vertical slice", () => {
       { method: "POST", body: JSON.stringify(commitBody) },
     );
     expect(duplicate.status).toBe(404);
+  });
+
+  it("previews, commits and exports a Fountain screenplay through Production", async () => {
+    const runtime = await fixture({
+      readGrantedDocument: async () => ({
+        name: "试播集.fountain",
+        format: "fountain",
+        size: 104,
+        content: [
+          "INT. 旧车站 - 夜 #1#",
+          "",
+          "雨水沿着站牌落下。",
+          "",
+          "林晚",
+          "(压低声音)",
+          "信不是寄给我的。",
+          "",
+          "CUT TO:",
+        ].join("\n"),
+      }),
+    } as unknown as DesktopHostClient);
+    const projectResponse = await runtime.request("/api/v2/projects", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ title: "Fountain 导入测试" }),
+    });
+    expect(projectResponse.status).toBe(201);
+    const project = (await projectResponse.json()) as {
+      project: { id: string };
+    };
+
+    const previewResponse = await runtime.request(
+      "/api/v2/screenplay-import-previews",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.project.id,
+          title: "试播集",
+          grantId: crypto.randomUUID(),
+        }),
+      },
+    );
+    expect(previewResponse.status, await previewResponse.clone().text()).toBe(
+      201,
+    );
+    const preview = (await previewResponse.json()) as {
+      previewId: string;
+      etag: string;
+      blocks: Array<{ type: string; text?: string }>;
+    };
+    expect(preview.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "scene_heading" }),
+        expect.objectContaining({ type: "dialogue" }),
+      ]),
+    );
+
+    const staleCommit = await runtime.request(
+      `/api/v2/screenplay-import-previews/${preview.previewId}/commit`,
+      {
+        method: "POST",
+        headers: { "If-Match": '"stale"' },
+        body: JSON.stringify({ previewId: preview.previewId }),
+      },
+    );
+    expect(staleCommit.status).toBe(409);
+    const commitResponse = await runtime.request(
+      `/api/v2/screenplay-import-previews/${preview.previewId}/commit`,
+      {
+        method: "POST",
+        headers: { "If-Match": preview.etag },
+        body: JSON.stringify({ previewId: preview.previewId }),
+      },
+    );
+    expect(commitResponse.status, await commitResponse.clone().text()).toBe(
+      201,
+    );
+    const document = (await commitResponse.json()) as {
+      scriptId: string;
+      sourceFormat: string;
+      version: number;
+      blocks: Array<Record<string, unknown>>;
+    };
+    expect(document.sourceFormat).toBe("fountain");
+
+    const current = await runtime.request(
+      `/api/v2/scripts/${document.scriptId}/screenplay`,
+    );
+    expect(current.headers.get("ETag")).toBe('"0"');
+    const updated = await runtime.request(
+      `/api/v2/scripts/${document.scriptId}/screenplay`,
+      {
+        method: "PATCH",
+        headers: { "If-Match": '"0"' },
+        body: JSON.stringify({
+          version: document.version,
+          blocks: [
+            ...document.blocks,
+            {
+              id: crypto.randomUUID(),
+              type: "action",
+              text: "站台尽头亮起一盏灯。",
+            },
+          ],
+        }),
+      },
+    );
+    expect(updated.status, await updated.clone().text()).toBe(200);
+    expect(updated.headers.get("ETag")).toBe('"1"');
+
+    const exported = await runtime.request(
+      `/api/v2/scripts/${document.scriptId}/screenplay/export/fdx`,
+    );
+    expect(exported.status, await exported.clone().text()).toBe(200);
+    await expect(exported.json()).resolves.toMatchObject({
+      fileName: "试播集.fdx",
+      mimeType: "application/xml",
+      content: expect.stringContaining("FinalDraft"),
+    });
   });
 
   it("imports structured script JSON into production records", async () => {

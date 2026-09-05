@@ -140,7 +140,6 @@ export default defineConfig({
             "../../packages/ai/src/codex-sidecar.ts",
           ),
           "pi-engine": resolve(root, "../../packages/ai/src/pi-sidecar.ts"),
-          "grok-engine": resolve(root, "../../packages/ai/src/grok-sidecar.ts"),
           "langgraph-engine": resolve(
             root,
             "../../packages/ai/src/langgraph-sidecar.ts",

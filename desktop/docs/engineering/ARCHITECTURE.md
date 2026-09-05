@@ -24,7 +24,7 @@ Independent Core Runtime（Desktop: Electron Node；Headless/Server: Bun）
        ▼
 Electron Desktop Host
   ├── file grants / credential vault / SafeHttpTransport
-  ├── EngineSupervisor → Pi / Codex / Grok Build / LangGraph.js
+  ├── EngineSupervisor → Pi / Codex / LangGraph.js
   └── ExtensionProcessSupervisor
        └── one utility process + one QuickJS/WASM runtime per active revision
 ```
@@ -66,7 +66,7 @@ created / queued / preparing / running / waiting_approval / committing / complet
 interrupted / failed / aborted / orphaned / recoverable
 ```
 
-Pi、Codex、Grok Build、LangGraph.js 实现同一 vendor-neutral contract 和 conformance。LangGraph.js 在 Electron utility process 中执行固定提示图，只是 external-benchmark Engine，不接管 Core Runtime workflow。Engine 退出立即拒绝 pending、结束 stream、发送 `RUN_INTERRUPTED` 并清理队列。Host generation reconciler 恢复 Provider 配置并扫描 recoverable/running/committing：持久结果幂等 Commit；Codex 和 LangGraph.js 还能从私有快照读取已完成结果；句柄缺失转 orphaned；临时不可用保持 recoverable；不支持恢复转 interrupted。旧 generation、重复 cursor 和迟到 terminal event 被拒绝。
+Pi、Codex、LangGraph.js 实现同一 vendor-neutral contract 和 conformance。LangGraph.js 在 Electron utility process 中执行固定提示图，只是 external-benchmark Engine，不接管 Core Runtime workflow。Engine 退出立即拒绝 pending、结束 stream、发送 `RUN_INTERRUPTED` 并清理队列。Host generation reconciler 恢复 Provider 配置并扫描 recoverable/running/committing：持久结果幂等 Commit；Codex 和 LangGraph.js 还能从私有快照读取已完成结果；句柄缺失转 orphaned；临时不可用保持 recoverable；不支持恢复转 interrupted。旧 generation、重复 cursor 和迟到 terminal event 被拒绝。
 
 ## Extension Platform v1
 

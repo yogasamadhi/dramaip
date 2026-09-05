@@ -3,6 +3,7 @@ import type {
   CreativeCaseStudy,
   CreativeDiagnosticKind,
   DomainEntity,
+  Project,
   ProviderActionPreview,
   RevisionPreview,
   StoryBibleChangeSet,
@@ -17,6 +18,8 @@ import {
   message,
   useStudio,
 } from "../studio-shared";
+import { CreativeIntentSummary } from "../creative-intent";
+import { useStudioSession } from "../studio-session";
 export const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
   queued: "等待生成",
   draft: "待确认草案",
@@ -30,13 +33,16 @@ export const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
 
 export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
   const client = useStudio();
+  const session = useStudioSession();
   const queryClient = useQueryClient();
   const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState(props.projectId ?? "");
+  const [projectId, setProjectId] = useState(
+    props.projectId ?? session.activeProjectId ?? "",
+  );
   const [chapterId, setChapterId] = useState("");
   const [notice, setNotice] = useState<string>();
   const { data: chapters = [] } = useQuery({
@@ -63,8 +69,13 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
     if (props.projectId) setProjectId(props.projectId);
   }, [props.projectId]);
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (
+      !props.projectId &&
+      session.activeProjectId &&
+      projectId !== session.activeProjectId
+    )
+      setProjectId(session.activeProjectId);
+  }, [projectId, props.projectId, session.activeProjectId]);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("projectId");
     if (requested && projects.some((project) => project.id === requested))
@@ -198,7 +209,9 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
               className="rounded-lg border border-line px-3 py-2"
               value={projectId}
               onChange={(event) => {
-                setProjectId(event.target.value);
+                const nextProjectId = event.target.value;
+                setProjectId(nextProjectId);
+                if (nextProjectId) session.selectProject(nextProjectId);
                 setChapterId("");
               }}
             >
@@ -322,8 +335,9 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
   );
 }
 
-export function CreativeDiagnosticsPanel() {
+export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
   const client = useStudio();
+  const session = useStudioSession();
   const queryClient = useQueryClient();
   const { data: projects = [] } = useQuery({
     queryKey: ["creative-diagnostic-projects"],
@@ -333,7 +347,9 @@ export function CreativeDiagnosticsPanel() {
     queryKey: ["creative-case-studies"],
     queryFn: client.creative.listCaseStudies,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(
+    props.projectId ?? session.activeProjectId ?? "",
+  );
   const [chapterId, setChapterId] = useState("");
   const [kinds, setKinds] = useState<CreativeDiagnosticKind[]>([
     "freshness",
@@ -359,8 +375,12 @@ export function CreativeDiagnosticsPanel() {
     enabled: Boolean(projectId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    const next = props.projectId ?? session.activeProjectId;
+    if (next && projectId !== next) {
+      setProjectId(next);
+      setChapterId("");
+    }
+  }, [projectId, props.projectId, session.activeProjectId]);
   useEffect(() => {
     if (chapterId && !chapters.some((chapter) => chapter.id === chapterId))
       setChapterId("");
@@ -430,7 +450,9 @@ export function CreativeDiagnosticsPanel() {
             className="rounded-lg border border-line px-3 py-2"
             value={projectId}
             onChange={(event) => {
-              setProjectId(event.target.value);
+              const nextProjectId = event.target.value;
+              setProjectId(nextProjectId);
+              if (nextProjectId) session.selectProject(nextProjectId);
               setChapterId("");
             }}
           >
@@ -932,6 +954,10 @@ export function AgentChangePreviewCard(props: {
 }) {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const { data: project } = useQuery<Project>({
+    queryKey: ["project", props.preview.projectId],
+    queryFn: () => client.projects.get(props.preview.projectId),
+  });
   const [status, setStatus] = useState(props.preview.status);
   const [notice, setNotice] = useState<string>();
   useEffect(
@@ -982,6 +1008,15 @@ export function AgentChangePreviewCard(props: {
       <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">
         {props.preview.rationale}
       </p>
+      {project && (
+        <div className="mt-3">
+          <CreativeIntentSummary
+            project={project}
+            preview={{ ...props.preview, status }}
+            compact
+          />
+        </div>
+      )}
       <div className="mt-3 space-y-2">
         {props.preview.targets.map((target, index) => (
           <details
@@ -1021,6 +1056,33 @@ export function AgentChangePreviewCard(props: {
           >
             {discard.isPending ? "正在放弃…" : "放弃此预览"}
           </BareButton>
+        </div>
+      )}
+      {status === "conflicted" && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p>
+            正式内容已有更新，本预览不会覆盖新版本。请重新读取最新内容，再从原任务生成新的差异预览。
+          </p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            <BareButton
+              className="font-medium underline"
+              onClick={async () => {
+                await queryClient.invalidateQueries({
+                  queryKey: ["project", props.preview.projectId],
+                });
+                await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+                setNotice("已重新读取最新项目与任务状态，请重新生成建议。");
+              }}
+            >
+              重新读取最新内容
+            </BareButton>
+            <Link
+              className="font-medium underline"
+              to={`/tasks?projectId=${encodeURIComponent(props.preview.projectId)}`}
+            >
+              返回原任务重新生成
+            </Link>
+          </div>
         </div>
       )}
       {notice && <p className="mt-3 text-xs leading-5 text-muted">{notice}</p>}
@@ -1843,11 +1905,12 @@ export function PluginResourceWorkspace(props: {
       `UI contribution ownership mismatch: ${foreignDomain} is not owned by ${props.owner}`,
     );
   const client = useStudio();
+  const session = useStudioSession();
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState(props.domains[0]);
   const definition = resourceDefinition(domain);
   const [selectedProjectId, setSelectedProjectId] = useState(
-    props.projectId ?? "",
+    props.projectId ?? session.activeProjectId ?? "",
   );
   const effectiveProjectId = props.projectId ?? selectedProjectId;
   const [editor, setEditor] = useState<DomainEntity | "new" | null>(null);
@@ -1893,15 +1956,15 @@ export function PluginResourceWorkspace(props: {
     if (
       definition.projectRequired !== false &&
       !props.projectId &&
-      !selectedProjectId &&
-      projects[0]
+      session.activeProjectId &&
+      selectedProjectId !== session.activeProjectId
     )
-      setSelectedProjectId(projects[0].id);
+      setSelectedProjectId(session.activeProjectId);
   }, [
     definition.projectRequired,
     props.projectId,
     selectedProjectId,
-    projects,
+    session.activeProjectId,
   ]);
   const openEditor = (item: DomainEntity | "new") => {
     const payload = item === "new" ? {} : recordPayload(item.payload);
@@ -2133,7 +2196,11 @@ export function PluginResourceWorkspace(props: {
             <select
               className="rounded-lg border border-line px-3 py-2"
               value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
+              onChange={(event) => {
+                const nextProjectId = event.target.value;
+                setSelectedProjectId(nextProjectId);
+                if (nextProjectId) session.selectProject(nextProjectId);
+              }}
             >
               {!definition.projectRequired && (
                 <option value="">全局设置</option>

@@ -5,7 +5,6 @@ import type {
   PilotPlan,
   Project,
   ProjectMode,
-  ProjectModeConfig,
   ProjectPackagePreview,
   Series,
   SeriesLibrary,
@@ -26,15 +25,21 @@ import {
 } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { deriveProjectCockpit } from "../../project-cockpit";
+import { CreativeIntentSummary } from "../../creative-intent";
+import {
+  initializeProjectMaterials,
+  ProjectInitializationError,
+} from "../../project-creation-coordinator";
 import {
   PROJECT_GENRE_CHOICES,
   PROJECT_GENRE_GROUPS,
 } from "../../project-genres";
 import {
-  defaultProductionBrief,
   positiveInteger,
+  projectModeBrief,
+  projectModeConfigFromDraft,
   projectInputFromBrief,
   type ProductionBriefDraft,
   type ProjectCreationSource,
@@ -47,13 +52,20 @@ import {
   EditableChapter,
   EditableProject,
   ProjectToolKey,
+  RecoveryNotice,
   TASK_STATUS_LABELS,
   WorkspaceIntro,
   message,
+  productStatusLabel,
   searchKindLabel,
   searchResultPath,
   useStudio,
 } from "../../studio-shared";
+import {
+  createCreationDraft,
+  useStudioSession,
+  type CreationDraftV1,
+} from "../../studio-session";
 import { ChapterAnalysisPanel } from "../creative/impl";
 import { NovelChapterWorkspace } from "../novel/NovelChapterWorkspace";
 import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
@@ -66,8 +78,6 @@ import {
 } from "../novel/NovelProjectSections";
 import {
   applyNovelStoryPresetToBrief,
-  initializeSingleSeasonMaterials,
-  initializeStoryPresetMaterials,
   novelStoryPreset,
   novelStoryPresetForLabel,
   projectInputFromStoryPreset,
@@ -242,7 +252,7 @@ export function ProjectPackageImportPanel(props: {
         <div>
           <h2 className="font-semibold">导入新版项目包</h2>
           <p className="mt-1 text-sm text-muted">
-            导入由 DramaIP 新版导出的项目
+            导入由尽意 DramaIP 新版导出的项目
             JSON。系统会先预览，再创建一个新的独立项目；不会读取旧版数据库。
           </p>
         </div>
@@ -689,102 +699,6 @@ function projectStartOptions(mode: ProjectMode): readonly ProjectStartOption[] {
   ];
 }
 
-function projectModeBrief(
-  mode: ProjectMode,
-  source: ProjectCreationSource,
-  current?: ProductionBriefDraft,
-): ProductionBriefDraft {
-  const base = defaultProductionBrief(source);
-  const modeDefaults: Record<ProjectMode, Partial<ProductionBriefDraft>> = {
-    series_longform: {
-      shortDramaType: "逆袭爽文",
-      targetChapterCount: "300",
-      targetSeasonCount: "5",
-      targetEpisodesPerSeason: "80",
-      episodeDuration: "60—90 秒",
-    },
-    single_season: {
-      shortDramaType: "逆袭爽剧",
-      targetEpisodeCount: "80",
-      episodeDuration: "60—90 秒",
-    },
-    personal_theater: {
-      shortDramaType: "个人故事",
-      targetAudience: "本人及亲友",
-      targetEpisodeCount: "1",
-      episodeDuration: "5 分钟",
-    },
-    creator_channel: {
-      shortDramaType: "主题内容",
-      targetAudience: "目标账号受众",
-      targetEpisodeCount: "",
-      episodeDuration: "60—180 秒",
-      visualStyleDirection: "统一账号视觉与表达风格",
-    },
-  };
-  return {
-    ...base,
-    ...modeDefaults[mode],
-    title: current?.title ?? "",
-    idea: current?.idea ?? "",
-  };
-}
-
-export function projectModeConfigFromDraft(
-  mode: ProjectMode,
-  source: ProjectCreationSource,
-  brief: ProductionBriefDraft,
-  creatorTopic: string,
-): ProjectModeConfig | undefined {
-  if (mode === "series_longform") {
-    const targetChapterCount = positiveInteger(brief.targetChapterCount);
-    const targetSeasonCount = positiveInteger(brief.targetSeasonCount);
-    const targetEpisodesPerSeason = positiveInteger(
-      brief.targetEpisodesPerSeason,
-    );
-    return targetChapterCount && targetSeasonCount && targetEpisodesPerSeason
-      ? {
-          mode,
-          targetChapterCount,
-          targetSeasonCount,
-          targetEpisodesPerSeason,
-        }
-      : undefined;
-  }
-  if (mode === "single_season") {
-    const targetEpisodeCount = positiveInteger(brief.targetEpisodeCount);
-    return targetEpisodeCount
-      ? {
-          mode,
-          entryPath:
-            source === "script"
-              ? "script"
-              : source === "source-import"
-                ? "source-import"
-                : "novel",
-          targetEpisodeCount,
-        }
-      : undefined;
-  }
-  if (mode === "personal_theater") {
-    const episodeCount = positiveInteger(brief.targetEpisodeCount);
-    const durationMatch = brief.episodeDuration.match(
-      /^\s*(\d+)(?:\s*分钟)?\s*$/u,
-    );
-    const episodeDurationMinutes = positiveInteger(durationMatch?.[1] ?? "");
-    return episodeCount && episodeDurationMinutes
-      ? {
-          mode,
-          storyMethod: source === "script" ? "freeform" : "template",
-          episodeCount,
-          episodeDurationMinutes,
-        }
-      : undefined;
-  }
-  const topic = creatorTopic.trim();
-  return topic ? { mode, topic, riskDomain: "general" } : undefined;
-}
-
 function projectCreateLabel(mode: ProjectMode): string {
   return {
     series_longform: "创建系列长篇",
@@ -794,29 +708,119 @@ function projectCreateLabel(mode: ProjectMode): string {
   }[mode];
 }
 
+function ProjectHomeContinueCard(props: { project: Project }) {
+  const client = useStudio();
+  const session = useStudioSession();
+  const { data: chapters = [] } = useQuery({
+    queryKey: ["chapters", props.project.id],
+    queryFn: () => client.chapters.list(props.project.id),
+  });
+  const { data: graph } = useQuery({
+    queryKey: ["production-graph", props.project.id],
+    queryFn: () => client.production.graph(props.project.id),
+  });
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: client.tasks.list,
+  });
+  if (!graph)
+    return (
+      <section className="rounded-xl border border-brand/25 bg-brand-soft/45 p-5">
+        <p className="text-sm font-medium text-brand">继续当前项目</p>
+        <h2 className="mt-1 text-xl font-semibold">{props.project.title}</h2>
+        <p className="mt-2 text-sm text-muted">正在整理真实进度和下一步…</p>
+      </section>
+    );
+  const cockpit = deriveProjectCockpit({
+    project: props.project,
+    chapters,
+    graph,
+    tasks,
+  });
+  const lastRoute = session.lastProjectRoute(props.project.id);
+  return (
+    <section
+      aria-label="继续当前项目"
+      className="rounded-xl border border-brand/30 bg-gradient-to-br from-brand-soft/65 to-surface p-5 shadow-card"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-brand">继续当前项目</p>
+          <h2 className="mt-1 text-2xl font-semibold">{props.project.title}</h2>
+          <p className="mt-2 text-sm text-muted">
+            {cockpit.statusLabel} · {cockpit.recentResult}
+          </p>
+        </div>
+        <span className="rounded-full bg-surface-raised px-3 py-1 text-xs text-brand">
+          {cockpit.blockers.length ? "需要补充资料" : "可以继续"}
+        </span>
+      </div>
+      {cockpit.blockers.length > 0 && (
+        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          {cockpit.blockers.join("；")}
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button asChild variant="primary">
+          <Link to={cockpit.primaryAction.to}>
+            {cockpit.primaryAction.label}
+          </Link>
+        </Button>
+        {lastRoute && lastRoute !== cockpit.primaryAction.to && (
+          <Button asChild variant="secondary">
+            <Link to={lastRoute}>返回上次位置</Link>
+          </Button>
+        )}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-muted">
+        推荐原因：{cockpit.primaryAction.description}
+      </p>
+    </section>
+  );
+}
+
 export function ProjectHome() {
   const client = useStudio();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const session = useStudioSession();
+  const restoredDraft = session.creationDraft;
   const [projects, setProjects] = useState<Project[]>([]);
-  const [creationSource, setCreationSource] =
-    useState<ProjectCreationSource>("inspiration");
-  const [projectMode, setProjectMode] =
-    useState<ProjectMode>("series_longform");
-  const [storyPresetId, setStoryPresetId] = useState<NovelStoryPresetId>();
+  const [creationSource, setCreationSource] = useState<ProjectCreationSource>(
+    restoredDraft?.creationSource ?? "inspiration",
+  );
+  const [projectMode, setProjectMode] = useState<ProjectMode>(
+    restoredDraft?.projectMode ?? "series_longform",
+  );
+  const [storyPresetId, setStoryPresetId] = useState<
+    NovelStoryPresetId | undefined
+  >(() =>
+    novelStoryPreset(restoredDraft?.storyPresetId as NovelStoryPresetId)
+      ? (restoredDraft?.storyPresetId as NovelStoryPresetId)
+      : undefined,
+  );
   const [pendingImport, setPendingImport] = useState<PendingSourceImport>();
   const pendingImportRef = useRef<PendingSourceImport | undefined>(undefined);
-  const [creatorTopic, setCreatorTopic] = useState("");
-  const [brief, setBrief] = useState<ProductionBriefDraft>(() =>
-    projectModeBrief("series_longform", "inspiration"),
+  const [creatorTopic, setCreatorTopic] = useState(
+    restoredDraft?.creatorTopic ?? "",
   );
-  const [scriptContent, setScriptContent] = useState("");
+  const [brief, setBrief] = useState<ProductionBriefDraft>(
+    () =>
+      restoredDraft?.brief ??
+      projectModeBrief("series_longform", "inspiration"),
+  );
+  const [scriptContent, setScriptContent] = useState(
+    restoredDraft?.scriptDraft ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [error, setError] = useState<string>();
   const [showTrash, setShowTrash] = useState(false);
   const [trashedProjects, setTrashedProjects] = useState<Project[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [activeCreateStep, setActiveCreateStep] = useState<1 | 2 | 3>(1);
+  const [activeCreateStep, setActiveCreateStep] = useState<1 | 2 | 3>(
+    restoredDraft ? 3 : 1,
+  );
   const startMethodRef = useRef<HTMLDivElement>(null);
   const projectFormRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -850,14 +854,43 @@ export function ProjectHome() {
         .discard(current.importId)
         .catch(() => undefined);
   };
+  const persistCreationDraft = (
+    values: Partial<CreationDraftV1>,
+    preserveAttempt = false,
+  ) => {
+    const base =
+      session.creationDraft ??
+      createCreationDraft("project-home", projectMode, creationSource);
+    session.saveCreationDraft(
+      {
+        ...base,
+        projectMode,
+        creationSource,
+        brief,
+        storyPresetId,
+        scriptDraft: scriptContent,
+        creatorTopic,
+        origin: "project-home",
+        ...values,
+      },
+      preserveAttempt,
+    );
+  };
   const selectCreationSource = (source: ProjectCreationSource) => {
     discardPendingImport();
     setCreationSource(source);
     setStoryPresetId(undefined);
-    setBrief((current) => ({ ...current, creationSource: source }));
+    const nextBrief = { ...brief, creationSource: source };
+    setBrief(nextBrief);
     setScriptContent("");
     setActiveCreateStep(3);
     setError(undefined);
+    persistCreationDraft({
+      creationSource: source,
+      brief: nextBrief,
+      storyPresetId: undefined,
+      scriptDraft: "",
+    });
     window.setTimeout(
       () =>
         projectFormRef.current?.scrollIntoView({
@@ -873,12 +906,21 @@ export function ProjectHome() {
     setProjectMode(mode);
     setCreationSource(source);
     setStoryPresetId(undefined);
-    setBrief((current) => projectModeBrief(mode, source, current));
+    const nextBrief = projectModeBrief(mode, source, brief);
+    setBrief(nextBrief);
     setScriptContent("");
     setShowAdvanced(false);
     setError(undefined);
     setCreatorTopic("");
     setActiveCreateStep(mode === "creator_channel" ? 3 : 2);
+    persistCreationDraft({
+      projectMode: mode,
+      creationSource: source,
+      brief: nextBrief,
+      storyPresetId: undefined,
+      scriptDraft: "",
+      creatorTopic: "",
+    });
     window.setTimeout(
       () =>
         (mode === "creator_channel"
@@ -900,31 +942,22 @@ export function ProjectHome() {
   const updateBrief = <Key extends keyof ProductionBriefDraft>(
     key: Key,
     value: ProductionBriefDraft[Key],
-  ) => setBrief((current) => ({ ...current, [key]: value }));
+  ) => {
+    const next = { ...brief, [key]: value };
+    setBrief(next);
+    persistCreationDraft({ brief: next });
+  };
   const clearStoryPreset = (shortDramaType?: string) => {
     setStoryPresetId(undefined);
-    setBrief((current) => {
-      const defaults = projectModeBrief(projectMode, creationSource, current);
-      return {
-        ...current,
-        shortDramaType: shortDramaType ?? defaults.shortDramaType,
-        targetAudience: defaults.targetAudience,
-        visualStyleDirection: defaults.visualStyleDirection,
-      };
-    });
-  };
-  const cleanupUnfinishedProject = async (
-    project: Project,
-  ): Promise<boolean> => {
-    try {
-      await client.projects.trash(project.id);
-      await client.projects.purge(project.id, project.title);
-      return true;
-    } catch {
-      // The source write itself is transactional. A failed local cleanup never
-      // hides the error or makes an unverified draft look like an imported one.
-      return false;
-    }
+    const defaults = projectModeBrief(projectMode, creationSource, brief);
+    const next = {
+      ...brief,
+      shortDramaType: shortDramaType ?? defaults.shortDramaType,
+      targetAudience: defaults.targetAudience,
+      visualStyleDirection: defaults.visualStyleDirection,
+    };
+    setBrief(next);
+    persistCreationDraft({ brief: next, storyPresetId: undefined });
   };
   const createFromBrief = async (
     mode: "inspiration" | "source-file" | "script-draft" | "script-file",
@@ -936,19 +969,27 @@ export function ProjectHome() {
       return;
     setSaving(true);
     setError(undefined);
+    let createdProject: Project | undefined;
     try {
       const storyPreset =
         mode === "inspiration" &&
         (projectMode === "series_longform" || projectMode === "single_season")
           ? novelStoryPreset(storyPresetId)
           : undefined;
-      const project = (
-        await client.projects.create({
-          ...(storyPreset
-            ? projectInputFromStoryPreset(brief, storyPreset, modeConfig)
-            : projectInputFromBrief(brief, modeConfig)),
-        })
-      ).project;
+      const attemptId = session.creationDraft?.attemptId ?? crypto.randomUUID();
+      persistCreationDraft({ attemptId }, true);
+      const project = session.creationDraft?.createdProjectId
+        ? await client.projects.get(session.creationDraft.createdProjectId)
+        : (
+            await client.projects.create(
+              storyPreset
+                ? projectInputFromStoryPreset(brief, storyPreset, modeConfig)
+                : projectInputFromBrief(brief, modeConfig),
+              attemptId,
+            )
+          ).project;
+      createdProject = project;
+      persistCreationDraft({ attemptId, createdProjectId: project.id }, true);
       if (sourceFile && pendingImport) {
         try {
           await client.sourceImports.commit(pendingImport.importId, {
@@ -960,88 +1001,42 @@ export function ProjectHome() {
           });
           setPendingImport(undefined);
         } catch (cause) {
-          const cleaned = await cleanupUnfinishedProject(project);
-          if (!cleaned) {
-            load();
-            throw new Error(
-              `${message(cause)}；空项目未能自动清理，请在项目列表中手动删除。`,
-            );
-          }
-          throw cause;
+          throw new Error(
+            `${message(cause)}；项目记录和原文件预览均未被覆盖，可重试导入或移除这个空项目。`,
+          );
         }
       }
-      if (mode === "inspiration" && projectMode !== "creator_channel") {
-        try {
-          const chapter =
-            projectMode === "single_season"
-              ? await initializeSingleSeasonMaterials(client, project.id, {
-                  idea: brief.idea,
-                  targetEpisodeCount:
-                    modeConfig.mode === "single_season"
-                      ? (modeConfig.targetEpisodeCount ?? 80)
-                      : 80,
-                  preset: storyPreset,
-                })
-              : storyPreset
-                ? await initializeStoryPresetMaterials(
-                    client,
-                    project.id,
-                    storyPreset,
-                    brief.idea,
-                  )
-                : await client.chapters.create({
-                    projectId: project.id,
-                    title:
-                      projectMode === "personal_theater"
-                        ? "第 1 集故事"
-                        : "第 1 章",
-                    summary: "",
-                    content: "",
-                  });
+      try {
+        const initialized = await initializeProjectMaterials(client, {
+          project,
+          brief,
+          preset: storyPreset,
+          ...(mode === "script-draft" ? { scriptDraft: scriptContent } : {}),
+        });
+        persistCreationDraft({ initializationSteps: initialized.steps }, true);
+        if (initialized.chapterId)
           window.localStorage.setItem(
             `dramaip-novel-last-chapter:${project.id}`,
-            chapter.id,
+            initialized.chapterId,
           );
-        } catch (cause) {
-          const cleaned = await cleanupUnfinishedProject(project);
-          if (!cleaned) {
-            load();
-            throw new Error(
-              `${message(cause)}；未完成项目未能自动清理，请在项目列表中手动删除。`,
-            );
-          }
-          throw cause;
-        }
-      }
-      if (mode === "script-draft") {
-        try {
-          await client.chapters.create({
-            projectId: project.id,
-            title:
-              projectMode === "personal_theater"
-                ? "第 1 集故事草稿"
-                : "第 1 集剧本草稿",
-            summary:
-              projectMode === "personal_theater"
-                ? "从首页自由描述创建的个人小剧场故事，待完成人物授权后制作。"
-                : "从首页直接粘贴的剧本草稿，待后续拆分为场景与分镜。",
-            content: scriptContent.trim(),
-          });
-        } catch (cause) {
-          const cleaned = await cleanupUnfinishedProject(project);
-          if (!cleaned) {
-            load();
-            throw new Error(
-              `${message(cause)}；未完成项目未能自动清理，请在项目列表中手动删除。`,
-            );
-          }
-          throw cause;
-        }
+      } catch (cause) {
+        if (cause instanceof ProjectInitializationError)
+          persistCreationDraft({ initializationSteps: cause.steps }, true);
+        throw new Error(
+          `${message(cause)}；项目和已完成的初始化资料均已保留，可安全继续初始化。`,
+        );
       }
       setProjects((items) => [project, ...items]);
+      session.clearCreationDraft();
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${project.id}`);
     } catch (cause) {
-      setError(message(cause));
+      setError(
+        createdProject
+          ? `${message(cause)} 当前项目已保留，不会自动永久删除。`
+          : message(cause),
+      );
+      load();
     } finally {
       setSaving(false);
     }
@@ -1052,10 +1047,33 @@ export function ProjectHome() {
     try {
       const project = await client.support.createDemoProject();
       setProjects((items) => [project, ...items]);
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
     } catch (cause) {
       setError(message(cause));
     } finally {
       setCreatingDemo(false);
+    }
+  };
+  const removeUnfinishedProject = async () => {
+    const projectId = session.creationDraft?.createdProjectId;
+    if (!projectId) return;
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) {
+      session.clearCreationDraft();
+      return;
+    }
+    if (
+      !(await confirmDialog(`将未完成项目「${project.title}」移入回收站吗？`))
+    )
+      return;
+    try {
+      await client.projects.trash(project.id);
+      session.clearCreationDraft();
+      setProjects((items) => items.filter((item) => item.id !== project.id));
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setError(undefined);
+    } catch (cause) {
+      setError(message(cause));
     }
   };
   const trashProject = async (project: Project) => {
@@ -1064,6 +1082,7 @@ export function ProjectHome() {
       await client.projects.trash(project.id);
       setProjects((items) => items.filter((item) => item.id !== project.id));
       if (showTrash) loadTrash();
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
     } catch (cause) {
       setError(message(cause));
     }
@@ -1075,6 +1094,7 @@ export function ProjectHome() {
         items.filter((item) => item.id !== project.id),
       );
       setProjects((items) => [restored, ...items]);
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
     } catch (cause) {
       setError(message(cause));
     }
@@ -1089,6 +1109,7 @@ export function ProjectHome() {
       setTrashedProjects((items) =>
         items.filter((item) => item.id !== project.id),
       );
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
     } catch (cause) {
       setError(message(cause));
     }
@@ -1139,11 +1160,14 @@ export function ProjectHome() {
   return (
     <div className="space-y-6">
       <WorkspaceIntro
-        eyebrow="本地项目库"
+        eyebrow="尽意 DramaIP · 本地项目库"
         title="项目工作台"
-        description="创建、导入和管理创作项目，从已有内容继续推进下一步工作。"
+        description="尽作者之意，成万象之作。本地优先的 AI IP 创作工作台，帮助你创建、导入和管理项目，并从已有内容继续推进下一步。"
         badge="项目管理"
       />
+      {session.activeProject && (
+        <ProjectHomeContinueCard project={session.activeProject} />
+      )}
       <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1356,7 +1380,11 @@ export function ProjectHome() {
                   <Input
                     placeholder="例如：面向新手的宏观财经解读"
                     value={creatorTopic}
-                    onChange={(event) => setCreatorTopic(event.target.value)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setCreatorTopic(value);
+                      persistCreationDraft({ creatorTopic: value });
+                    }}
                   />
                 </label>
               )}
@@ -1444,10 +1472,16 @@ export function ProjectHome() {
                   onSelect={(id) => {
                     const preset = novelStoryPreset(id);
                     if (!preset) return;
-                    setStoryPresetId(id);
-                    setBrief((current) =>
-                      applyNovelStoryPresetToBrief(current, preset),
+                    const nextBrief = applyNovelStoryPresetToBrief(
+                      brief,
+                      preset,
                     );
+                    setStoryPresetId(id);
+                    setBrief(nextBrief);
+                    persistCreationDraft({
+                      storyPresetId: id,
+                      brief: nextBrief,
+                    });
                   }}
                   onClear={() => clearStoryPreset()}
                 />
@@ -1486,19 +1520,20 @@ export function ProjectHome() {
                         : "粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目"
                     }
                     value={scriptContent}
-                    onChange={(event) => setScriptContent(event.target.value)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setScriptContent(value);
+                      persistCreationDraft({ scriptDraft: value });
+                    }}
                   />
                 </label>
                 <ProjectlessSourceImportEditor
                   value={pendingImport}
                   disabled={saving}
                   onChange={setPendingImport}
-                  onSuggestedTitle={(title) =>
-                    setBrief((current) => ({
-                      ...current,
-                      title: current.title.trim() ? current.title : title,
-                    }))
-                  }
+                  onSuggestedTitle={(title) => {
+                    if (!brief.title.trim()) updateBrief("title", title);
+                  }}
                 />
               </>
             )}
@@ -1507,12 +1542,9 @@ export function ProjectHome() {
                 value={pendingImport}
                 disabled={saving}
                 onChange={setPendingImport}
-                onSuggestedTitle={(title) =>
-                  setBrief((current) => ({
-                    ...current,
-                    title: current.title.trim() ? current.title : title,
-                  }))
-                }
+                onSuggestedTitle={(title) => {
+                  if (!brief.title.trim()) updateBrief("title", title);
+                }}
               />
             )}
             <BareButton
@@ -1675,12 +1707,18 @@ export function ProjectHome() {
                   variant="ghost"
                   disabled={saving}
                   onClick={() => {
-                    setBrief(projectModeBrief(projectMode, creationSource));
+                    setProjectMode("series_longform");
+                    setCreationSource("inspiration");
+                    setBrief(
+                      projectModeBrief("series_longform", "inspiration"),
+                    );
                     setStoryPresetId(undefined);
                     discardPendingImport();
                     setCreatorTopic("");
                     setScriptContent("");
                     setShowAdvanced(false);
+                    setActiveCreateStep(1);
+                    session.clearCreationDraft();
                   }}
                 >
                   清空
@@ -1747,14 +1785,59 @@ export function ProjectHome() {
           </div>
         )}
         {error && (
-          <InlineNotice className="mt-3" tone="danger">
-            {error}
-          </InlineNotice>
+          <div className="mt-3">
+            <RecoveryNotice
+              tone="danger"
+              happened={error}
+              contentSafety={
+                session.creationDraft?.createdProjectId
+                  ? "项目、已完成的初始化资料和创作草稿均已保留在本机。"
+                  : "创作草稿已保留，尚未确认成功的项目不会被当作完成项目。"
+              }
+              nextStep={
+                session.creationDraft?.createdProjectId
+                  ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
+                  : "检查当前输入后重试创建。"
+              }
+              returnTo="成功后进入刚创建的项目工作区。"
+              actions={
+                session.creationDraft?.createdProjectId ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      disabled={saving}
+                      onClick={() =>
+                        void createFromBrief(
+                          creationSource === "inspiration"
+                            ? "inspiration"
+                            : creationSource === "source-import"
+                              ? "source-file"
+                              : pendingImport
+                                ? "script-file"
+                                : "script-draft",
+                        )
+                      }
+                    >
+                      继续初始化
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={saving}
+                      onClick={() => void removeUnfinishedProject()}
+                    >
+                      移除这个空项目
+                    </Button>
+                  </>
+                ) : undefined
+              }
+            />
+          </div>
         )}
       </section>
       <ProjectPackageImportPanel
-        onImported={(project) => {
+        onImported={async (project) => {
           setProjects((items) => [project, ...items]);
+          await queryClient.invalidateQueries({ queryKey: ["projects"] });
           navigate(`/projects/${project.id}`);
         }}
       />
@@ -1789,9 +1872,16 @@ export function ProjectHome() {
                 {String(index + 1).padStart(2, "0")}
               </span>
               <Link to={`/projects/${project.id}`} className="block">
-                <span className="inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-rust">
-                  {projectModeLabel(project.mode)}
-                </span>
+                <div className="flex flex-wrap gap-2 pr-8">
+                  <span className="inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-rust">
+                    {projectModeLabel(project.mode)}
+                  </span>
+                  {project.id === session.activeProjectId && (
+                    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+                      当前项目
+                    </span>
+                  )}
+                </div>
                 <p className="mt-8 text-xl font-semibold tracking-tight group-hover:text-rust">
                   {project.title}
                 </p>
@@ -1800,6 +1890,10 @@ export function ProjectHome() {
                 </p>
                 <p className="mt-6 text-sm font-medium text-rust">
                   {projectModeNextStep(project)}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  最近更新：
+                  {new Date(project.updatedAt).toLocaleString("zh-CN")}
                 </p>
               </Link>
               <BareButton
@@ -2416,14 +2510,35 @@ function CreatorChannelToolPanel(props: { project: Project }) {
 export function ProjectWorkspace() {
   const client = useStudio();
   const { projectId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project>();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [error, setError] = useState<string>();
+  const requestedNovelSection = new URLSearchParams(location.search).get(
+    "section",
+  );
   const [novelSection, setNovelSection] = useState<
     "settings" | "characters" | "outlines" | "chapters" | "story-bible" | "more"
-  >("chapters");
+  >(() =>
+    [
+      "settings",
+      "characters",
+      "outlines",
+      "chapters",
+      "story-bible",
+      "more",
+    ].includes(requestedNovelSection ?? "")
+      ? (requestedNovelSection as
+          | "settings"
+          | "characters"
+          | "outlines"
+          | "chapters"
+          | "story-bible"
+          | "more")
+      : "chapters",
+  );
   const [outlineMode, setOutlineMode] = useState<NovelOutlineMode>("book");
   const [exporting, setExporting] = useState<
     | "markdown"
@@ -2461,6 +2576,20 @@ export function ProjectWorkspace() {
   useEffect(() => {
     void load();
   }, [client, projectId]);
+  useEffect(() => {
+    if (
+      requestedNovelSection &&
+      [
+        "settings",
+        "characters",
+        "outlines",
+        "chapters",
+        "story-bible",
+        "more",
+      ].includes(requestedNovelSection)
+    )
+      setNovelSection(requestedNovelSection as typeof novelSection);
+  }, [requestedNovelSection]);
   const selectChapter = (chapterId: string): void => {
     setActiveId(chapterId);
     if (projectId)
@@ -2796,6 +2925,7 @@ export function ProjectWorkspace() {
           <div className="mx-auto max-w-6xl space-y-5">
             {novelSection === "settings" && (
               <div className="space-y-4">
+                <CreativeIntentSummary project={project} />
                 <section className="studio-card p-6">
                   <div>
                     <h2 className="text-xl font-semibold">
@@ -2982,7 +3112,7 @@ export function ProjectCockpitPanel(props: {
           <p className="mt-1 text-sm text-muted">{cockpit.recentResult}</p>
         </div>
         <span className="rounded-full bg-surface-raised px-3 py-1 text-xs text-brand">
-          {cockpit.status}
+          {productStatusLabel(cockpit.status)}
         </span>
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
@@ -3412,16 +3542,22 @@ export function ProjectPilotPanel(props: {
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState(false);
   useEffect(() => {
-    setSelectedIds((current) =>
-      current.filter((id) =>
+    setSelectedIds((current) => {
+      const valid = current.filter((id) =>
         props.chapters.some((chapter) => chapter.id === id),
-      ).length
-        ? current.filter((id) =>
-            props.chapters.some((chapter) => chapter.id === id),
-          )
-        : props.chapters.slice(0, 1).map((chapter) => chapter.id),
-    );
-  }, [props.chapters]);
+      );
+      if (valid.length) return valid;
+      const remembered = window.localStorage.getItem(
+        `dramaip-novel-last-chapter:${props.project.id}`,
+      );
+      const preferred = props.chapters.find(
+        (chapter) => chapter.id === remembered,
+      );
+      return (preferred ? [preferred] : props.chapters.slice(0, 1)).map(
+        (chapter) => chapter.id,
+      );
+    });
+  }, [props.chapters, props.project.id]);
   const active = plans.find((plan) => plan.status !== "canceled") ?? plans[0];
   const refresh = async () => {
     await Promise.all([

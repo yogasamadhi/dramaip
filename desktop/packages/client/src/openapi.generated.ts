@@ -196,6 +196,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/system/host/credentials/unlock-sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["system.credentials.createUnlockSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/system/host/credentials/capture-sessions": {
     parameters: {
       query?: never;
@@ -254,6 +270,86 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations["system.window.setTheme"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/local-model-runtimes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["localModelRuntimes.list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/local-model-runtimes/{kind}/activate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["localModelRuntimes.activate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/local-model-runtimes/{kind}/deactivate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["localModelRuntimes.deactivate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/local-model-runtimes/{kind}/models": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["localModelRuntimes.models"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/local-model-runtimes/{kind}/health-checks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["localModelRuntimes.healthCheck"];
     delete?: never;
     options?: never;
     head?: never;
@@ -3220,6 +3316,86 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/agent-context-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["agent-context.createPreview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/agent-context-previews/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["agent-context.getPreview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["agent-context.updatePreview"];
+    trace?: never;
+  };
+  "/api/v2/agent-context-previews/{id}/snapshots": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["agent-context.freezePreview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/agent-runs/{id}/context-snapshot": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["agent-context.getRunSnapshot"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/projects/{id}/agent-context-policies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["agent-context.getPolicies"];
+    put: operations["agent-context.updatePolicies"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/assistant-web-research-settings": {
     parameters: {
       query?: never;
@@ -3918,6 +4094,86 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations["seasons.mapChapter"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/screenplay-import-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["screenplayImport.createPreview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/screenplay-import-previews/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["screenplayImport.getPreview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/screenplay-import-previews/{id}/commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["screenplayImport.commit"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/scripts/{id}/screenplay": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["screenplays.get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["screenplays.update"];
+    trace?: never;
+  };
+  "/api/v2/scripts/{id}/screenplay/export/{format}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["screenplays.export"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -4916,6 +5172,102 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/timelines/{id}/render-preflight": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["timeline.renderPreflight"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/timelines/{id}/renders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["timeline.createRender"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/timeline-renders/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["timeline.getRender"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/timeline-renders/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["timeline.cancelRender"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/timeline-renders/{id}/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["timeline.retryRender"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/timeline-renders/{id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["timeline.renderEvents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/episodes/{episodeId}/audio-assembly/preview": {
     parameters: {
       query?: never;
@@ -5069,22 +5421,6 @@ export interface paths {
     };
     get: operations["cloud-review.connection"];
     put: operations["cloud-review.saveConnection"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v2/episodes/{episodeId}/editor-timeline/export/{format}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get: operations["review-editor.editorExport"];
-    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -6050,6 +6386,42 @@ export interface operations {
       };
     };
   };
+  "system.credentials.createUnlockSession": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
   "system.credentials.createCaptureSession": {
     parameters: {
       query?: never;
@@ -6174,6 +6546,255 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "localModelRuntimes.list": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            kind: "ollama" | "lm_studio";
+            endpointRef: string;
+            /** @enum {string} */
+            state: "inactive" | "active" | "unavailable";
+            version?: string;
+            models: {
+              id: string;
+              displayName: string;
+              sizeBytes?: number;
+              digest?: string;
+            }[];
+            /** Format: date-time */
+            lastHealthAt: string;
+            limitation?: string;
+          }[];
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "localModelRuntimes.activate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            kind: "ollama" | "lm_studio";
+            endpointRef: string;
+            /** @enum {string} */
+            state: "inactive" | "active" | "unavailable";
+            version?: string;
+            models: {
+              id: string;
+              displayName: string;
+              sizeBytes?: number;
+              digest?: string;
+            }[];
+            /** Format: date-time */
+            lastHealthAt: string;
+            limitation?: string;
+          };
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "localModelRuntimes.deactivate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            kind: "ollama" | "lm_studio";
+            endpointRef: string;
+            /** @enum {string} */
+            state: "inactive" | "active" | "unavailable";
+            version?: string;
+            models: {
+              id: string;
+              displayName: string;
+              sizeBytes?: number;
+              digest?: string;
+            }[];
+            /** Format: date-time */
+            lastHealthAt: string;
+            limitation?: string;
+          };
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "localModelRuntimes.models": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            id: string;
+            displayName: string;
+            sizeBytes?: number;
+            digest?: string;
+          }[];
+        };
+      };
+      /** @description Desktop Host capability completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop Host unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  "localModelRuntimes.healthCheck": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Desktop Host capability response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            kind: "ollama" | "lm_studio";
+            endpointRef: string;
+            /** @enum {string} */
+            state: "inactive" | "active" | "unavailable";
+            version?: string;
+            models: {
+              id: string;
+              displayName: string;
+              sizeBytes?: number;
+              digest?: string;
+            }[];
+            /** Format: date-time */
+            lastHealthAt: string;
+            limitation?: string;
+          };
         };
       };
       /** @description Desktop Host capability completed */
@@ -13386,7 +14007,7 @@ export interface operations {
       content: {
         "application/json": {
           /** @enum {string} */
-          engineKind: "pi" | "codex" | "grok" | "langgraph";
+          engineKind: "pi" | "codex" | "langgraph";
         };
       };
     };
@@ -14163,7 +14784,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok" | "langgraph";
+            engineKind?: "pi" | "codex" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -14299,7 +14920,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok" | "langgraph";
+            engineKind?: "pi" | "codex" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -14429,7 +15050,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok" | "langgraph";
+            engineKind?: "pi" | "codex" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -14559,7 +15180,7 @@ export interface operations {
             /** Format: uuid */
             taskId?: string;
             /** @enum {string} */
-            engineKind?: "pi" | "codex" | "grok" | "langgraph";
+            engineKind?: "pi" | "codex" | "langgraph";
             taskType?: string;
             targets: {
               /** @enum {string} */
@@ -22807,7 +23428,7 @@ export interface operations {
         "application/json": {
           taskType: string;
           /** @enum {string} */
-          engineKind: "pi" | "codex" | "grok" | "langgraph";
+          engineKind: "pi" | "codex" | "langgraph";
           model?: {
             [key: string]: unknown;
           };
@@ -22919,7 +23540,7 @@ export interface operations {
       content: {
         "application/json": {
           /** @enum {string} */
-          engineKind: "pi" | "codex" | "grok" | "langgraph";
+          engineKind: "pi" | "codex" | "langgraph";
           model?: {
             [key: string]: unknown;
           };
@@ -39240,6 +39861,510 @@ export interface operations {
       };
     };
   };
+  "agent-context.createPreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "agent-context.getPreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "agent-context.updatePreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "agent-context.freezePreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "agent-context.getRunSnapshot": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "agent-context.getPolicies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
+  "agent-context.updatePolicies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Agent operation response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent resource created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Agent operation completed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+      /** @description Agent engine unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": unknown;
+        };
+      };
+    };
+  };
   "assistant-web-research-settings.get": {
     parameters: {
       query?: never;
@@ -44986,6 +46111,1243 @@ export interface operations {
             id: string;
             /** Format: date-time */
             createdAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "screenplayImport.createPreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          projectId: string;
+          /** Format: uuid */
+          parentId?: string;
+          title: string;
+          /** Format: uuid */
+          grantId: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            previewId: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            sourceName: string;
+            /** @enum {string} */
+            sourceFormat: "fountain" | "fdx" | "pdf";
+            blocks: (
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "scene_heading";
+                  text: string;
+                  sceneNumber?: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "action";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "character";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "dialogue";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "parenthetical";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "transition";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "note";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "page_break";
+                }
+            )[];
+            lossReport: {
+              unsupported: string[];
+              warnings: string[];
+              preserved: string[];
+            };
+            etag: string;
+            /** @enum {string} */
+            status: "pending" | "committed" | "discarded";
+            /** Format: date-time */
+            createdAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "screenplayImport.getPreview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            previewId: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string;
+            title: string;
+            sourceName: string;
+            /** @enum {string} */
+            sourceFormat: "fountain" | "fdx" | "pdf";
+            blocks: (
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "scene_heading";
+                  text: string;
+                  sceneNumber?: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "action";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "character";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "dialogue";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "parenthetical";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "transition";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "note";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "page_break";
+                }
+            )[];
+            lossReport: {
+              unsupported: string[];
+              warnings: string[];
+              preserved: string[];
+            };
+            etag: string;
+            /** @enum {string} */
+            status: "pending" | "committed" | "discarded";
+            /** Format: date-time */
+            createdAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "screenplayImport.commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          previewId: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            scriptId: string;
+            /** Format: uuid */
+            projectId: string;
+            title: string;
+            /** @enum {string} */
+            sourceFormat: "native" | "fountain" | "fdx" | "pdf";
+            blocks: (
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "scene_heading";
+                  text: string;
+                  sceneNumber?: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "action";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "character";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "dialogue";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "parenthetical";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "transition";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "note";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "page_break";
+                }
+            )[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "screenplays.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            scriptId: string;
+            /** Format: uuid */
+            projectId: string;
+            title: string;
+            /** @enum {string} */
+            sourceFormat: "native" | "fountain" | "fdx" | "pdf";
+            blocks: (
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "scene_heading";
+                  text: string;
+                  sceneNumber?: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "action";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "character";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "dialogue";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "parenthetical";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "transition";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "note";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "page_break";
+                }
+            )[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "screenplays.update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          blocks: (
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "scene_heading";
+                text: string;
+                sceneNumber?: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "action";
+                text: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "character";
+                text: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "dialogue";
+                text: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "parenthetical";
+                text: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "transition";
+                text: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "note";
+                text: string;
+              }
+            | {
+                /** Format: uuid */
+                id: string;
+                sourceLocation?: {
+                  line: number;
+                  /** @default 1 */
+                  column?: number;
+                };
+                /** @enum {string} */
+                type: "page_break";
+              }
+          )[];
+          version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            scriptId: string;
+            /** Format: uuid */
+            projectId: string;
+            title: string;
+            /** @enum {string} */
+            sourceFormat: "native" | "fountain" | "fdx" | "pdf";
+            blocks: (
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "scene_heading";
+                  text: string;
+                  sceneNumber?: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "action";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "character";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "dialogue";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "parenthetical";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "transition";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "note";
+                  text: string;
+                }
+              | {
+                  /** Format: uuid */
+                  id: string;
+                  sourceLocation?: {
+                    line: number;
+                    /** @default 1 */
+                    column: number;
+                  };
+                  /** @enum {string} */
+                  type: "page_break";
+                }
+            )[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "screenplays.export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        format: "fountain" | "fdx";
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            fileName: string;
+            mimeType: string;
+            content: string;
+            lossReport: {
+              unsupported: string[];
+              warnings: string[];
+              preserved: string[];
+            };
           };
         };
       };
@@ -53900,6 +56262,21 @@ export interface operations {
               blockers: string[];
               warnings: string[];
               /** @enum {string} */
+              providerKind?: "seedance" | "minimax_h3_cloud";
+              providerCapabilities?: {
+                /** @enum {string} */
+                cancellation: "unsupported" | "queued_only" | "supported";
+                nativeAudio: boolean;
+                durationSeconds:
+                  | number[]
+                  | {
+                      minimum: number;
+                      maximum: number;
+                    };
+                resolutions: string[];
+                aspectRatios: string[];
+              };
+              /** @enum {string} */
               costStatus: "known" | "unknown";
               estimatedCost?: number;
               currency?: string;
@@ -54027,6 +56404,21 @@ export interface operations {
             blockers: string[];
             warnings: string[];
             /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            providerCapabilities?: {
+              /** @enum {string} */
+              cancellation: "unsupported" | "queued_only" | "supported";
+              nativeAudio: boolean;
+              durationSeconds:
+                | number[]
+                | {
+                    minimum: number;
+                    maximum: number;
+                  };
+              resolutions: string[];
+              aspectRatios: string[];
+            };
+            /** @enum {string} */
             costStatus: "known" | "unknown";
             estimatedCost?: number;
             currency?: string;
@@ -54148,10 +56540,19 @@ export interface operations {
             shotId?: string;
             /** Format: uuid */
             providerId: string;
+            /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            modelRevision?: string;
             remoteJobId: string;
             prompt: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            remoteStatus:
+              "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            archiveStatus:
+              "not_started" | "pending" | "archived" | "failed" | "unavailable";
             results: {
               /** Format: uuid */
               id: string;
@@ -54297,10 +56698,19 @@ export interface operations {
             shotId?: string;
             /** Format: uuid */
             providerId: string;
+            /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            modelRevision?: string;
             remoteJobId: string;
             prompt: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            remoteStatus:
+              "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            archiveStatus:
+              "not_started" | "pending" | "archived" | "failed" | "unavailable";
             results: {
               /** Format: uuid */
               id: string;
@@ -54446,10 +56856,19 @@ export interface operations {
             shotId?: string;
             /** Format: uuid */
             providerId: string;
+            /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            modelRevision?: string;
             remoteJobId: string;
             prompt: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            remoteStatus:
+              "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            archiveStatus:
+              "not_started" | "pending" | "archived" | "failed" | "unavailable";
             results: {
               /** Format: uuid */
               id: string;
@@ -54595,10 +57014,19 @@ export interface operations {
             shotId?: string;
             /** Format: uuid */
             providerId: string;
+            /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            modelRevision?: string;
             remoteJobId: string;
             prompt: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            remoteStatus:
+              "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            archiveStatus:
+              "not_started" | "pending" | "archived" | "failed" | "unavailable";
             results: {
               /** Format: uuid */
               id: string;
@@ -54744,10 +57172,19 @@ export interface operations {
             shotId?: string;
             /** Format: uuid */
             providerId: string;
+            /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            modelRevision?: string;
             remoteJobId: string;
             prompt: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            remoteStatus:
+              "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            archiveStatus:
+              "not_started" | "pending" | "archived" | "failed" | "unavailable";
             results: {
               /** Format: uuid */
               id: string;
@@ -54900,10 +57337,19 @@ export interface operations {
             shotId?: string;
             /** Format: uuid */
             providerId: string;
+            /** @enum {string} */
+            providerKind?: "seedance" | "minimax_h3_cloud";
+            modelRevision?: string;
             remoteJobId: string;
             prompt: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            remoteStatus:
+              "queued" | "running" | "succeeded" | "failed" | "canceled";
+            /** @enum {string} */
+            archiveStatus:
+              "not_started" | "pending" | "archived" | "failed" | "unavailable";
             results: {
               /** Format: uuid */
               id: string;
@@ -55040,7 +57486,7 @@ export interface operations {
             /** @enum {string} */
             format: "dramaip-timeline";
             /** @enum {number} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -55050,11 +57496,21 @@ export interface operations {
             /** Format: uuid */
             episodeId: string;
             sourceFingerprint: string;
-            /** @enum {number} */
-            frameRate: 25;
+            profile: {
+              width: number;
+              height: number;
+              frameRate: {
+                numerator: number;
+                denominator: number;
+                dropFrame: boolean;
+              };
+              audioSampleRate: number;
+              channels: number;
+            };
             /** @enum {string} */
-            timebase: "seconds";
-            durationSeconds: number;
+            timebase: "frames";
+            durationFrames: number;
+            migrationWarnings: string[];
             tracks: {
               /** Format: uuid */
               id: string;
@@ -55075,17 +57531,20 @@ export interface operations {
                 assetId?: string;
                 /** Format: uuid */
                 audioTrackId?: string;
+                mediaRef?: string;
+                /** Format: uuid */
+                trackId: string;
                 name: string;
-                startSeconds: number;
-                durationSeconds: number;
-                sourceOffsetSeconds: number;
+                startFrame: number;
+                durationFrames: number;
+                sourceOffsetFrame: number;
                 /** @enum {string} */
                 mediaStatus:
                   "linked" | "missing" | "unsupported" | "proxy" | "unattached";
                 text?: string;
                 volume?: number;
-                fadeInSeconds?: number;
-                fadeOutSeconds?: number;
+                fadeInFrames?: number;
+                fadeOutFrames?: number;
                 duckingGain?: number;
                 locked?: boolean;
                 manuallyEdited: boolean;
@@ -55186,22 +57645,22 @@ export interface operations {
                 type: "move";
                 /** Format: uuid */
                 clipId: string;
-                startSeconds: number;
+                startFrame: number;
               }
             | {
                 /** @enum {string} */
                 type: "trim";
                 /** Format: uuid */
                 clipId: string;
-                startSeconds?: number;
-                durationSeconds: number;
+                startFrame?: number;
+                durationFrames: number;
               }
             | {
                 /** @enum {string} */
                 type: "split";
                 /** Format: uuid */
                 clipId: string;
-                atSeconds: number;
+                atFrame: number;
               }
             | {
                 /** @enum {string} */
@@ -55241,7 +57700,7 @@ export interface operations {
             /** @enum {string} */
             format: "dramaip-timeline";
             /** @enum {number} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -55251,11 +57710,21 @@ export interface operations {
             /** Format: uuid */
             episodeId: string;
             sourceFingerprint: string;
-            /** @enum {number} */
-            frameRate: 25;
+            profile: {
+              width: number;
+              height: number;
+              frameRate: {
+                numerator: number;
+                denominator: number;
+                dropFrame: boolean;
+              };
+              audioSampleRate: number;
+              channels: number;
+            };
             /** @enum {string} */
-            timebase: "seconds";
-            durationSeconds: number;
+            timebase: "frames";
+            durationFrames: number;
+            migrationWarnings: string[];
             tracks: {
               /** Format: uuid */
               id: string;
@@ -55276,17 +57745,20 @@ export interface operations {
                 assetId?: string;
                 /** Format: uuid */
                 audioTrackId?: string;
+                mediaRef?: string;
+                /** Format: uuid */
+                trackId: string;
                 name: string;
-                startSeconds: number;
-                durationSeconds: number;
-                sourceOffsetSeconds: number;
+                startFrame: number;
+                durationFrames: number;
+                sourceOffsetFrame: number;
                 /** @enum {string} */
                 mediaStatus:
                   "linked" | "missing" | "unsupported" | "proxy" | "unattached";
                 text?: string;
                 volume?: number;
-                fadeInSeconds?: number;
-                fadeOutSeconds?: number;
+                fadeInFrames?: number;
+                fadeOutFrames?: number;
                 duckingGain?: number;
                 locked?: boolean;
                 manuallyEdited: boolean;
@@ -55389,7 +57861,7 @@ export interface operations {
             /** @enum {string} */
             format: "dramaip-timeline";
             /** @enum {number} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -55399,11 +57871,21 @@ export interface operations {
             /** Format: uuid */
             episodeId: string;
             sourceFingerprint: string;
-            /** @enum {number} */
-            frameRate: 25;
+            profile: {
+              width: number;
+              height: number;
+              frameRate: {
+                numerator: number;
+                denominator: number;
+                dropFrame: boolean;
+              };
+              audioSampleRate: number;
+              channels: number;
+            };
             /** @enum {string} */
-            timebase: "seconds";
-            durationSeconds: number;
+            timebase: "frames";
+            durationFrames: number;
+            migrationWarnings: string[];
             tracks: {
               /** Format: uuid */
               id: string;
@@ -55424,17 +57906,20 @@ export interface operations {
                 assetId?: string;
                 /** Format: uuid */
                 audioTrackId?: string;
+                mediaRef?: string;
+                /** Format: uuid */
+                trackId: string;
                 name: string;
-                startSeconds: number;
-                durationSeconds: number;
-                sourceOffsetSeconds: number;
+                startFrame: number;
+                durationFrames: number;
+                sourceOffsetFrame: number;
                 /** @enum {string} */
                 mediaStatus:
                   "linked" | "missing" | "unsupported" | "proxy" | "unattached";
                 text?: string;
                 volume?: number;
-                fadeInSeconds?: number;
-                fadeOutSeconds?: number;
+                fadeInFrames?: number;
+                fadeOutFrames?: number;
                 duckingGain?: number;
                 locked?: boolean;
                 manuallyEdited: boolean;
@@ -55537,7 +58022,7 @@ export interface operations {
             /** @enum {string} */
             format: "dramaip-timeline";
             /** @enum {number} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -55547,11 +58032,21 @@ export interface operations {
             /** Format: uuid */
             episodeId: string;
             sourceFingerprint: string;
-            /** @enum {number} */
-            frameRate: 25;
+            profile: {
+              width: number;
+              height: number;
+              frameRate: {
+                numerator: number;
+                denominator: number;
+                dropFrame: boolean;
+              };
+              audioSampleRate: number;
+              channels: number;
+            };
             /** @enum {string} */
-            timebase: "seconds";
-            durationSeconds: number;
+            timebase: "frames";
+            durationFrames: number;
+            migrationWarnings: string[];
             tracks: {
               /** Format: uuid */
               id: string;
@@ -55572,17 +58067,20 @@ export interface operations {
                 assetId?: string;
                 /** Format: uuid */
                 audioTrackId?: string;
+                mediaRef?: string;
+                /** Format: uuid */
+                trackId: string;
                 name: string;
-                startSeconds: number;
-                durationSeconds: number;
-                sourceOffsetSeconds: number;
+                startFrame: number;
+                durationFrames: number;
+                sourceOffsetFrame: number;
                 /** @enum {string} */
                 mediaStatus:
                   "linked" | "missing" | "unsupported" | "proxy" | "unattached";
                 text?: string;
                 volume?: number;
-                fadeInSeconds?: number;
-                fadeOutSeconds?: number;
+                fadeInFrames?: number;
+                fadeOutFrames?: number;
                 duckingGain?: number;
                 locked?: boolean;
                 manuallyEdited: boolean;
@@ -55870,12 +58368,12 @@ export interface operations {
             /** @enum {string} */
             format: "dramaip-timeline-delivery";
             /** @enum {number} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             timeline: {
               /** @enum {string} */
               format: "dramaip-timeline";
               /** @enum {number} */
-              schemaVersion: 1;
+              schemaVersion: 2;
               /** Format: uuid */
               id: string;
               /** Format: uuid */
@@ -55885,11 +58383,21 @@ export interface operations {
               /** Format: uuid */
               episodeId: string;
               sourceFingerprint: string;
-              /** @enum {number} */
-              frameRate: 25;
+              profile: {
+                width: number;
+                height: number;
+                frameRate: {
+                  numerator: number;
+                  denominator: number;
+                  dropFrame: boolean;
+                };
+                audioSampleRate: number;
+                channels: number;
+              };
               /** @enum {string} */
-              timebase: "seconds";
-              durationSeconds: number;
+              timebase: "frames";
+              durationFrames: number;
+              migrationWarnings: string[];
               tracks: {
                 /** Format: uuid */
                 id: string;
@@ -55915,10 +58423,13 @@ export interface operations {
                   assetId?: string;
                   /** Format: uuid */
                   audioTrackId?: string;
+                  mediaRef?: string;
+                  /** Format: uuid */
+                  trackId: string;
                   name: string;
-                  startSeconds: number;
-                  durationSeconds: number;
-                  sourceOffsetSeconds: number;
+                  startFrame: number;
+                  durationFrames: number;
+                  sourceOffsetFrame: number;
                   /** @enum {string} */
                   mediaStatus:
                     | "linked"
@@ -55928,8 +58439,8 @@ export interface operations {
                     | "unattached";
                   text?: string;
                   volume?: number;
-                  fadeInSeconds?: number;
-                  fadeOutSeconds?: number;
+                  fadeInFrames?: number;
+                  fadeOutFrames?: number;
                   duckingGain?: number;
                   locked?: boolean;
                   manuallyEdited: boolean;
@@ -56006,6 +58517,621 @@ export interface operations {
       };
       /** @description Conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "timeline.renderPreflight": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            timelineId: string;
+            timelineVersion: number;
+            timelineEtag: string;
+            profileVersion: string;
+            ready: boolean;
+            blockers: string[];
+            warnings: string[];
+            rendererVersion?: string;
+            sidecarArtifactVersion?: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "timeline.createRender": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          timelineProfileVersion: string;
+          rendererVersion: string;
+          sidecarArtifactVersion: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            jobId: string;
+            /** Format: uuid */
+            timelineId: string;
+            timelineVersion: number;
+            timelineProfileVersion: string;
+            rendererVersion: string;
+            sidecarArtifactVersion: string;
+            /** @enum {string} */
+            status:
+              | "queued"
+              | "running"
+              | "succeeded"
+              | "failed"
+              | "canceled"
+              | "interrupted";
+            progress: number;
+            /** Format: uuid */
+            outputMediaRef?: string;
+            outputSha256?: string;
+            failureCode?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "timeline.getRender": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            jobId: string;
+            /** Format: uuid */
+            timelineId: string;
+            timelineVersion: number;
+            timelineProfileVersion: string;
+            rendererVersion: string;
+            sidecarArtifactVersion: string;
+            /** @enum {string} */
+            status:
+              | "queued"
+              | "running"
+              | "succeeded"
+              | "failed"
+              | "canceled"
+              | "interrupted";
+            progress: number;
+            /** Format: uuid */
+            outputMediaRef?: string;
+            outputSha256?: string;
+            failureCode?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "timeline.cancelRender": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            jobId: string;
+            /** Format: uuid */
+            timelineId: string;
+            timelineVersion: number;
+            timelineProfileVersion: string;
+            rendererVersion: string;
+            sidecarArtifactVersion: string;
+            /** @enum {string} */
+            status:
+              | "queued"
+              | "running"
+              | "succeeded"
+              | "failed"
+              | "canceled"
+              | "interrupted";
+            progress: number;
+            /** Format: uuid */
+            outputMediaRef?: string;
+            outputSha256?: string;
+            failureCode?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "timeline.retryRender": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          timelineProfileVersion: string;
+          rendererVersion: string;
+          sidecarArtifactVersion: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            jobId: string;
+            /** Format: uuid */
+            timelineId: string;
+            timelineVersion: number;
+            timelineProfileVersion: string;
+            rendererVersion: string;
+            sidecarArtifactVersion: string;
+            /** @enum {string} */
+            status:
+              | "queued"
+              | "running"
+              | "succeeded"
+              | "failed"
+              | "canceled"
+              | "interrupted";
+            progress: number;
+            /** Format: uuid */
+            outputMediaRef?: string;
+            outputSha256?: string;
+            failureCode?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": {
+            /** Format: uri */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
+            code?: string;
+            /** Format: uuid */
+            traceId: string;
+            errors?: {
+              [key: string]: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "timeline.renderEvents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Replayable render event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": string;
+        };
+      };
+      /** @description Not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -56197,7 +59323,7 @@ export interface operations {
             /** @enum {string} */
             format: "dramaip-timeline";
             /** @enum {number} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -56207,11 +59333,21 @@ export interface operations {
             /** Format: uuid */
             episodeId: string;
             sourceFingerprint: string;
-            /** @enum {number} */
-            frameRate: 25;
+            profile: {
+              width: number;
+              height: number;
+              frameRate: {
+                numerator: number;
+                denominator: number;
+                dropFrame: boolean;
+              };
+              audioSampleRate: number;
+              channels: number;
+            };
             /** @enum {string} */
-            timebase: "seconds";
-            durationSeconds: number;
+            timebase: "frames";
+            durationFrames: number;
+            migrationWarnings: string[];
             tracks: {
               /** Format: uuid */
               id: string;
@@ -56232,17 +59368,20 @@ export interface operations {
                 assetId?: string;
                 /** Format: uuid */
                 audioTrackId?: string;
+                mediaRef?: string;
+                /** Format: uuid */
+                trackId: string;
                 name: string;
-                startSeconds: number;
-                durationSeconds: number;
-                sourceOffsetSeconds: number;
+                startFrame: number;
+                durationFrames: number;
+                sourceOffsetFrame: number;
                 /** @enum {string} */
                 mediaStatus:
                   "linked" | "missing" | "unsupported" | "proxy" | "unattached";
                 text?: string;
                 volume?: number;
-                fadeInSeconds?: number;
-                fadeOutSeconds?: number;
+                fadeInFrames?: number;
+                fadeOutFrames?: number;
                 duckingGain?: number;
                 locked?: boolean;
                 manuallyEdited: boolean;
@@ -57367,77 +60506,6 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
-        };
-      };
-      /** @description Invalid request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": {
-            /** Format: uri */
-            type: string;
-            title: string;
-            status: number;
-            detail?: string;
-            instance?: string;
-            code?: string;
-            /** Format: uuid */
-            traceId: string;
-            errors?: {
-              [key: string]: string[];
-            };
-          };
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": {
-            /** Format: uri */
-            type: string;
-            title: string;
-            status: number;
-            detail?: string;
-            instance?: string;
-            code?: string;
-            /** Format: uuid */
-            traceId: string;
-            errors?: {
-              [key: string]: string[];
-            };
-          };
-        };
-      };
-    };
-  };
-  "review-editor.editorExport": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        episodeId: string;
-        format: "json" | "edl" | "fcpxml" | "srt";
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Success */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            fileName: string;
-            mimeType: string;
-            content: string;
-          };
         };
       };
       /** @description Invalid request */

@@ -1,6 +1,7 @@
 import {
   Fragment,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   type ReactNode,
@@ -8,7 +9,8 @@ import {
   type UIEventHandler,
 } from "react";
 
-const FOLLOW_LATEST_TOLERANCE = 8;
+const FOLLOW_LATEST_TOLERANCE = 32;
+const AUTO_SCROLL_TARGET_TOLERANCE = 2;
 
 export function isAssistantTimelineAtLatest(metrics: {
   scrollHeight: number;
@@ -21,6 +23,16 @@ export function isAssistantTimelineAtLatest(metrics: {
   );
 }
 
+export function isAssistantTimelineAutoScrollEvent(
+  scrollTop: number,
+  target: number | undefined,
+): boolean {
+  return (
+    target !== undefined &&
+    Math.abs(scrollTop - target) <= AUTO_SCROLL_TARGET_TOLERANCE
+  );
+}
+
 export function useAssistantAutoScroll(
   contentVersion: unknown,
   resetKey?: unknown,
@@ -28,47 +40,79 @@ export function useAssistantAutoScroll(
   scrollRef: RefObject<HTMLDivElement | null>;
   endRef: RefObject<HTMLDivElement | null>;
   onScroll: UIEventHandler<HTMLDivElement>;
+  followLatest(): void;
 } {
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const followLatestRef = useRef(true);
   const previousResetKeyRef = useRef(resetKey);
+  const frameRef = useRef<number | undefined>(undefined);
+  const autoScrollTargetRef = useRef<number | undefined>(undefined);
 
   const onScroll = useCallback<UIEventHandler<HTMLDivElement>>((event) => {
-    const end = endRef.current;
-    if (end) {
-      const containerBounds = event.currentTarget.getBoundingClientRect();
-      const endBounds = end.getBoundingClientRect();
-      followLatestRef.current =
-        Math.abs(endBounds.bottom - containerBounds.bottom) <=
-        FOLLOW_LATEST_TOLERANCE;
+    if (
+      isAssistantTimelineAutoScrollEvent(
+        event.currentTarget.scrollTop,
+        autoScrollTargetRef.current,
+      )
+    ) {
+      autoScrollTargetRef.current = undefined;
+      followLatestRef.current = true;
       return;
     }
+    autoScrollTargetRef.current = undefined;
     followLatestRef.current = isAssistantTimelineAtLatest(event.currentTarget);
   }, []);
+
+  const scheduleLatest = useCallback(() => {
+    if (!followLatestRef.current || frameRef.current !== undefined) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = undefined;
+      const container = scrollRef.current;
+      if (!container || !followLatestRef.current) return;
+      const target = Math.max(
+        0,
+        container.scrollHeight - container.clientHeight,
+      );
+      autoScrollTargetRef.current = target;
+      container.scrollTop = target;
+    });
+  }, []);
+
+  const followLatest = useCallback(() => {
+    followLatestRef.current = true;
+    scheduleLatest();
+  }, [scheduleLatest]);
 
   useLayoutEffect(() => {
     if (previousResetKeyRef.current !== resetKey) {
       previousResetKeyRef.current = resetKey;
       followLatestRef.current = true;
     }
-    if (!followLatestRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const container = scrollRef.current;
-      if (!container || !followLatestRef.current) return;
-      const end = endRef.current;
-      if (end) {
-        const containerBounds = container.getBoundingClientRect();
-        const endBounds = end.getBoundingClientRect();
-        container.scrollTop += endBounds.bottom - containerBounds.bottom;
-      } else {
-        container.scrollTop = container.scrollHeight;
-      }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [contentVersion, resetKey]);
+    scheduleLatest();
+  }, [contentVersion, resetKey, scheduleLatest]);
 
-  return { scrollRef, endRef, onScroll };
+  useEffect(
+    () => () => {
+      if (frameRef.current !== undefined)
+        window.cancelAnimationFrame(frameRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const observer = new MutationObserver(() => scheduleLatest());
+    observer.observe(container, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, [scheduleLatest]);
+
+  return { scrollRef, endRef, onScroll, followLatest };
 }
 
 const TOOL_LABELS: Record<string, string> = {

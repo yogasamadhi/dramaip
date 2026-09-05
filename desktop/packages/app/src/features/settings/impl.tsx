@@ -11,12 +11,23 @@ import {
   recommendedProviderModel,
   type ModelProviderPresetId,
 } from "@dramaip/contracts/product";
-import { BareButton, LoadingState, confirmDialog } from "@dramaip/ui-shared";
+import {
+  BareButton,
+  Button,
+  LoadingState,
+  confirmDialog,
+} from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ThemeSettings } from "../../app-shell";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
+import { safeLocalRoute, useStudioSession } from "../../studio-session";
 import { recordPayload } from "../studio-widgets";
+import {
+  recommendedCodexConnectionProtocol,
+  type CodexConnectionProtocol,
+} from "./codex-connection-protocol";
 export const ExtensionMarketplace = lazy(
   () => import("./ExtensionMarketplace"),
 );
@@ -141,7 +152,7 @@ export function DiagnosticPanel() {
     setWorking(true);
     try {
       const result = await client.host.saveTextFile({
-        suggestedName: "DramaIP-诊断信息.json",
+        suggestedName: "尽意-DramaIP-诊断信息.json",
         content: JSON.stringify(report, null, 2),
       });
       setNotice(result.saved ? "诊断信息已导出。" : "已取消导出。");
@@ -214,12 +225,15 @@ export function DiagnosticPanel() {
 
 export function GenerationLedgerPanel() {
   const client = useStudio();
+  const session = useStudioSession();
   const queryClient = useQueryClient();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(
+    () => session.activeProjectId ?? "",
+  );
   const [notice, setNotice] = useState<string>();
   const { data: records = [], error } = useQuery({
     queryKey: ["generation-ledger", projectId],
@@ -227,8 +241,9 @@ export function GenerationLedgerPanel() {
     enabled: Boolean(projectId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (session.activeProjectId && projectId !== session.activeProjectId)
+      setProjectId(session.activeProjectId);
+  }, [projectId, session.activeProjectId]);
   const updateCost = async (
     id: string,
     current?: number,
@@ -345,7 +360,11 @@ export function providerDiscoveredModels(
     : [];
 }
 
-export function ProviderSettingsPanel() {
+export function ProviderSettingsPanel(props: {
+  onProviderSaved?(): void;
+  onProviderTested?(providerId: string): void;
+  onProviderActivated?(providerId: string): void;
+}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const { data: providers = [] } = useQuery({
@@ -355,6 +374,16 @@ export function ProviderSettingsPanel() {
   const { data: credentialStorage } = useQuery({
     queryKey: ["credential-storage-status"],
     queryFn: client.host.getCredentialStorageStatus,
+  });
+  const unlockCredentialVault = useMutation({
+    mutationFn: client.host.unlockCredentialVault,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["credential-storage-status"],
+      });
+      setNotice("本地凭据保险库已为本次启动解锁。");
+    },
+    onError: (cause) => setError(message(cause)),
   });
   const [choice, setChoice] = useState<ProviderChoice>("openai");
   const [modelId, setModelId] = useState(
@@ -503,6 +532,7 @@ export function ProviderSettingsPanel() {
       setCredentialRefreshRequested(false);
       setEditing(undefined);
       setNotice(`已保存 ${title}，密钥不会写入业务数据库。`);
+      props.onProviderSaved?.();
       await queryClient.invalidateQueries({
         queryKey: ["resource", "providers"],
       });
@@ -548,6 +578,7 @@ export function ProviderSettingsPanel() {
         editProvider(refreshed);
       }
       setNotice(`${provider.title}：${result.message}`);
+      if (result.ok) props.onProviderTested?.(provider.id);
     } catch (cause) {
       setError(message(cause));
     }
@@ -559,6 +590,7 @@ export function ProviderSettingsPanel() {
     try {
       const result = await client.providers.activateForAgent(provider.id);
       setNotice(`${provider.title}：${result.message}`);
+      props.onProviderActivated?.(provider.id);
       await queryClient.invalidateQueries({ queryKey: ["agent-engines"] });
     } catch (cause) {
       setError(message(cause));
@@ -751,9 +783,24 @@ export function ProviderSettingsPanel() {
         </div>
 
         {credentialStorage?.available === false && (
-          <p className="mt-3 text-sm text-amber-700">
-            本地凭据库不可用，当前不能新增或更换接口密钥，也不会降级保存明文。
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-amber-700">
+            <span>
+              {credentialStorage.message ??
+                "本地凭据库不可用，当前不能新增或更换接口密钥，也不会降级保存明文。"}
+            </span>
+            {credentialStorage.locked &&
+              credentialStorage.storage === "master_password" && (
+                <BareButton
+                  className="rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                  disabled={unlockCredentialVault.isPending}
+                  onClick={() => unlockCredentialVault.mutate()}
+                >
+                  {unlockCredentialVault.isPending
+                    ? "等待安全输入…"
+                    : "输入主密码解锁"}
+                </BareButton>
+              )}
+          </div>
         )}
         {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
@@ -822,7 +869,119 @@ export function ProviderSettingsPanel() {
   );
 }
 
+function SmartCreationPreparation(props: { testedProviderId?: string }) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const session = useStudioSession();
+  const navigate = useNavigate();
+  const returnButtonRef = useRef<HTMLButtonElement>(null);
+  const { data: engines = [], isFetching } = useQuery({
+    queryKey: ["agent-engines"],
+    queryFn: client.agentEngines.list,
+    refetchInterval: 2_000,
+  });
+  const { data: providers = [] } = useQuery({
+    queryKey: ["resource", "providers"],
+    queryFn: () => client.resources.list("providers"),
+  });
+  const intent = session.pendingIntent;
+  const runnableEngine = engines.find(
+    (engine) => engine.canRun ?? engine.status === "available",
+  );
+  useEffect(() => {
+    if (intent && runnableEngine) returnButtonRef.current?.focus();
+  }, [intent, runnableEngine]);
+  if (!intent) return null;
+  const returnTo = safeLocalRoute(intent.returnTo) ?? "/";
+  const failureReasons = engines
+    .filter((engine) => !(engine.canRun ?? engine.status === "available"))
+    .map(
+      (engine) =>
+        `${engine.name}：${engine.statusMessage ?? "尚未达到可运行状态"}`,
+    );
+  const returnToCreation = () => {
+    if (intent.projectId) session.selectProject(intent.projectId);
+    navigate(returnTo);
+  };
+  const nextStep = !providers.length
+    ? "保存一个模型服务商"
+    : !props.testedProviderId
+      ? "对准备使用的服务商执行连接测试"
+      : `将${providers.find((provider) => provider.id === props.testedProviderId)?.title ?? "已测试的服务商"}设为智能助手模型`;
+  return (
+    <section className="rounded-xl border-2 border-brand bg-brand-soft/40 p-5 shadow-card">
+      <p className="studio-eyebrow">智能创作准备</p>
+      <h2 className="mt-1 text-xl font-semibold">完成配置后返回原动作</h2>
+      <p className="mt-2 text-sm leading-6 text-muted">
+        原页面、项目、章节和未提交输入已保留。这里不会自动调用模型；返回后仍需由你再次确认原动作。
+      </p>
+      {!runnableEngine && (
+        <div className="mt-4 rounded-lg border border-brand/30 bg-surface p-4 text-sm">
+          <p className="text-xs font-medium text-muted">唯一下一步</p>
+          <p className="mt-1 font-semibold text-ink">{nextStep}</p>
+          <p className="mt-1 text-xs text-muted">
+            完成后这里会刷新为下一步；连接或激活失败时不会清除已有安全配置。
+          </p>
+        </div>
+      )}
+      {runnableEngine ? (
+        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+          <p>
+            已刷新确认 {runnableEngine.name}{" "}
+            可以运行。正式内容仍未修改，可以安全返回。
+          </p>
+          <Button
+            ref={returnButtonRef}
+            className="mt-3"
+            onClick={returnToCreation}
+          >
+            返回继续创作
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p>
+            {isFetching
+              ? "正在刷新智能引擎状态…"
+              : "配置尚未达到可运行状态，请按上方顺序完成并重试。"}
+          </p>
+          {failureReasons.length > 0 && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+              {failureReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs">
+            原创作草稿和项目内容是安全的；连接失败不会覆盖任何正式内容。
+          </p>
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-3 text-sm">
+        <BareButton
+          className="font-medium text-brand underline"
+          onClick={() =>
+            void queryClient.invalidateQueries({ queryKey: ["agent-engines"] })
+          }
+        >
+          重新检查引擎状态
+        </BareButton>
+        <BareButton
+          className="text-muted underline"
+          onClick={() => {
+            session.clearPendingIntent();
+            returnToCreation();
+          }}
+        >
+          取消配置并返回
+        </BareButton>
+      </div>
+    </section>
+  );
+}
+
 export function SettingsPage() {
+  const [testedProviderId, setTestedProviderId] = useState<string>();
   return (
     <div className="space-y-5">
       <WorkspaceIntro
@@ -831,6 +990,7 @@ export function SettingsPage() {
         description="先配置模型服务商，再管理智能引擎、备份、诊断和外部连接。"
         badge="安全配置"
       />
+      <SmartCreationPreparation testedProviderId={testedProviderId} />
       <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
         <div className="mb-4">
           <p className="studio-eyebrow">外观</p>
@@ -841,7 +1001,11 @@ export function SettingsPage() {
         </div>
         <ThemeSettings />
       </section>
-      <ProviderSettingsPanel />
+      <ProviderSettingsPanel
+        onProviderSaved={() => setTestedProviderId(undefined)}
+        onProviderTested={setTestedProviderId}
+        onProviderActivated={setTestedProviderId}
+      />
       <AgentEngineSettingsPanel />
       <Suspense fallback={<LoadingState label="正在加载扩展管理…" />}>
         <ExtensionMarketplace />
@@ -857,7 +1021,6 @@ export function SettingsPage() {
 export const AGENT_ENGINE_LABELS: Record<AgentEngineKind, string> = {
   pi: "Pi",
   codex: "Codex",
-  grok: "Grok Build",
   langgraph: "LangGraph.js",
 };
 export const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
@@ -868,6 +1031,7 @@ export const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
 export function AgentEngineSettingsPanel() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const session = useStudioSession();
   const { data: engines = [] } = useQuery({
     queryKey: ["agent-engines"],
     queryFn: client.agentEngines.list,
@@ -894,16 +1058,17 @@ export function AgentEngineSettingsPanel() {
     queryKey: ["credential-storage-status"],
     queryFn: client.host.getCredentialStorageStatus,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(
+    () => session.activeProjectId ?? "",
+  );
   const [globalDefaultEngine, setGlobalDefaultEngine] =
     useState<AgentEngineKind>("pi");
   const [globalModelId, setGlobalModelId] = useState("");
   const [defaultEngine, setDefaultEngine] = useState<AgentEngineKind>("pi");
   const [defaultModelId, setDefaultModelId] = useState("");
   const [codexProviderId, setCodexProviderId] = useState("");
-  const [codexProtocol, setCodexProtocol] = useState<
-    "responses" | "chat_completions"
-  >("chat_completions");
+  const [codexProtocol, setCodexProtocol] =
+    useState<CodexConnectionProtocol>("chat_completions");
   const [notice, setNotice] = useState<string>();
   const codexProviders = providers.filter((provider) => {
     const payload = recordPayload(provider.payload);
@@ -920,8 +1085,9 @@ export function AgentEngineSettingsPanel() {
     enabled: Boolean(projectId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (session.activeProjectId && projectId !== session.activeProjectId)
+      setProjectId(session.activeProjectId);
+  }, [projectId, session.activeProjectId]);
   useEffect(() => {
     if (globalSettings) {
       setGlobalDefaultEngine(globalSettings.defaultEngineKind);
@@ -939,20 +1105,6 @@ export function AgentEngineSettingsPanel() {
     if (codexAuth?.provider?.protocol)
       setCodexProtocol(codexAuth.provider.protocol);
   }, [codexAuth?.provider?.id, codexAuth?.provider?.protocol]);
-  useEffect(() => {
-    if (!codexProviderId) return;
-    const provider = codexProviders.find(
-      (candidate) => candidate.id === codexProviderId,
-    );
-    if (!provider) return;
-    const preset = String(
-      recordPayload(provider.payload)["预设服务商"] ?? "",
-    ).toLowerCase();
-    // The built-in non-OpenAI presets currently expose Chat Completions only.
-    // Keep the safe adapter selected when the user changes providers.
-    if (preset && preset !== "openai" && preset !== "other")
-      setCodexProtocol("chat_completions");
-  }, [codexProviderId, codexProviders]);
   const updateGlobalDefault = useMutation({
     mutationFn: () =>
       client.agentEngines.updateGlobalSettings({
@@ -1191,9 +1343,23 @@ export function AgentEngineSettingsPanel() {
           <div className="mt-3 space-y-3">
             <div className="flex flex-wrap gap-2">
               <select
+                aria-label="Codex 模型服务商"
                 className="min-w-64 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
                 value={codexProviderId}
-                onChange={(event) => setCodexProviderId(event.target.value)}
+                onChange={(event) => {
+                  const providerId = event.target.value;
+                  const provider = codexProviders.find(
+                    (candidate) => candidate.id === providerId,
+                  );
+                  setCodexProviderId(providerId);
+                  setCodexProtocol(
+                    recommendedCodexConnectionProtocol(
+                      provider
+                        ? recordPayload(provider.payload)["预设服务商"]
+                        : undefined,
+                    ),
+                  );
+                }}
                 disabled={
                   credentialStorage?.available !== true || loginCodex.isPending
                 }
@@ -1210,11 +1376,12 @@ export function AgentEngineSettingsPanel() {
                 })}
               </select>
               <select
+                aria-label="Codex 连接协议"
                 className="min-w-56 rounded-lg border border-line px-3 py-2 text-sm"
                 value={codexProtocol}
                 onChange={(event) =>
                   setCodexProtocol(
-                    event.target.value as "responses" | "chat_completions",
+                    event.target.value as CodexConnectionProtocol,
                   )
                 }
                 disabled={loginCodex.isPending}
@@ -1241,7 +1408,9 @@ export function AgentEngineSettingsPanel() {
               <code className="mx-1">/v1/responses</code>；Chat Completions
               模式会在本机转换为 Responses，兼容更多厂商，但 Codex 的部分
               高级能力可能受限。目录内仅提供 Chat Completions
-              的厂商会自动使用转换模式。
+              的厂商在首次选择时默认使用转换模式；如果厂商实际支持
+              <code className="mx-1">/v1/responses</code>，可手动切换为
+              Responses 直连。
             </p>
             <div className="flex flex-wrap gap-2">
               <BareButton

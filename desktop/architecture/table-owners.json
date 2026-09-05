@@ -24,6 +24,22 @@
     "owner": "agents"
   },
   {
+    "table": "agent_context_policies",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_context_policy_sets",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_context_previews",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_context_snapshots",
+    "owner": "agents"
+  },
+  {
     "table": "agent_creative_memories",
     "owner": "agents"
   },
@@ -300,6 +316,10 @@
     "owner": "media"
   },
   {
+    "table": "media_artifacts",
+    "owner": "media"
+  },
+  {
     "table": "media_audio_tracks",
     "owner": "media"
   },
@@ -388,6 +408,26 @@
     "owner": "review"
   },
   {
+    "table": "screenplay_documents",
+    "owner": "production"
+  },
+  {
+    "table": "screenplay_import_previews",
+    "owner": "production"
+  },
+  {
+    "table": "script_branch_versions",
+    "owner": "production"
+  },
+  {
+    "table": "script_branches",
+    "owner": "production"
+  },
+  {
+    "table": "script_merge_previews",
+    "owner": "production"
+  },
+  {
     "table": "series",
     "owner": "workspace"
   },
@@ -402,6 +442,14 @@
   {
     "table": "series_story_bible_overrides",
     "owner": "workspace"
+  },
+  {
+    "table": "timeline_deliveries",
+    "owner": "timeline"
+  },
+  {
+    "table": "timeline_render_jobs",
+    "owner": "timeline"
   },
   {
     "table": "timelines",

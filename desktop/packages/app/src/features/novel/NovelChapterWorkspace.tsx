@@ -26,6 +26,7 @@ import type {
   Chapter,
   DomainEntity,
   NovelChapterStatus,
+  Project,
   Task,
 } from "@dramaip/contracts/product";
 import { MODEL_PROVIDER_CATALOG } from "@dramaip/contracts/product";
@@ -36,6 +37,8 @@ import {
   Textarea,
   confirmDialog,
 } from "@dramaip/ui-shared";
+import { AiSettingsLink, useStudioSession } from "../../studio-session";
+import { CreativeIntentSummary } from "../../creative-intent";
 import {
   buildSegmentedTextDiff,
   changedBlockIds,
@@ -772,6 +775,14 @@ function NovelEditor(
     onWorkspaceChanged(): void;
   },
 ) {
+  const studioSession = useStudioSession();
+  const pendingChapterIntent =
+    studioSession.pendingIntent?.actionId.startsWith("novel-chapter:") &&
+    studioSession.pendingIntent.projectId === props.projectId &&
+    (!studioSession.pendingIntent.chapterId ||
+      studioSession.pendingIntent.chapterId === props.chapter.id)
+      ? studioSession.pendingIntent
+      : undefined;
   const [title, setTitle] = useState(props.chapter.title);
   const [content, setContent] = useState(props.chapter.content);
   const [preferences, setPreferences] = useState(readPreferences);
@@ -787,7 +798,9 @@ function NovelEditor(
   const [workspacePreferences, setWorkspacePreferences] = useState(() =>
     readWorkspacePreferences(props.projectId),
   );
-  const [instruction, setInstruction] = useState("");
+  const [instruction, setInstruction] = useState(
+    () => pendingChapterIntent?.input ?? "",
+  );
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
   const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [modelId, setModelId] = useState("");
@@ -802,6 +815,7 @@ function NovelEditor(
   const [streamText, setStreamText] = useState("");
   const [notice, setNotice] = useState<string>();
   const [preview, setPreview] = useState<ChangePreview>();
+  const [intentProject, setIntentProject] = useState<Project>();
   const [previewView, setPreviewView] = useState<"original" | "candidate">(
     "candidate",
   );
@@ -1031,11 +1045,13 @@ function NovelEditor(
     void Promise.all([
       props.client.agentEngines.list(),
       props.client.agentEngines.getProjectSettings(props.projectId),
+      props.client.projects.get(props.projectId),
     ])
-      .then(([items, settings]) => {
+      .then(([items, settings, project]) => {
         setEngines(items);
         setEngineKind(settings.defaultEngineKind);
         setModelId(settings.defaultModel?.modelId ?? "");
+        setIntentProject(project);
       })
       .catch((cause) =>
         setNotice(cause instanceof Error ? cause.message : String(cause)),
@@ -1889,6 +1905,20 @@ function NovelEditor(
             </div>
           </div>
         )}
+        {preview && intentProject && (
+          <details className="shrink-0 border-b border-line bg-surface px-4 py-2">
+            <summary className="cursor-pointer text-xs font-medium text-brand">
+              查看作者意图与本次变更来源
+            </summary>
+            <div className="mt-2 max-h-72 overflow-auto">
+              <CreativeIntentSummary
+                project={intentProject}
+                preview={preview}
+                compact
+              />
+            </div>
+          </details>
+        )}
         {activeRun && !drawerOpen && (
           <BareButton
             className="flex items-center gap-3 border-b border-line bg-brand-soft px-5 py-2 text-left text-sm text-rust xl:hidden"
@@ -2238,6 +2268,8 @@ function NovelEditor(
           <div className="min-h-0 flex-1 overflow-hidden">
             {workspacePreferences.rightTab === "writing" ? (
               <WritingPanel
+                projectId={props.projectId}
+                chapterId={props.activeChapter?.id}
                 engines={engines}
                 selectedEngine={selectedEngine}
                 engineKind={engineKind}
@@ -2474,6 +2506,8 @@ function EditorToolbar(props: {
 }
 
 function WritingPanel(props: {
+  projectId: string;
+  chapterId?: string;
   engines: AgentEngineDescriptor[];
   selectedEngine?: AgentEngineDescriptor;
   engineKind: AgentEngineKind;
@@ -2512,6 +2546,7 @@ function WritingPanel(props: {
   onRegeneratePreview(): void;
   onOpenDiff(): void;
 }) {
+  const studioSession = useStudioSession();
   const runnable = props.selectedEngine
     ? (props.selectedEngine.canRun ??
       props.selectedEngine.status === "available")
@@ -2525,6 +2560,8 @@ function WritingPanel(props: {
       COMMON_ACTIONS.find((action) => action.taskType === taskType),
     )
     .filter((action): action is AiAction => Boolean(action));
+  const settingsActionId = `novel-chapter:${actions[0]?.taskType ?? "chapter_draft"}`;
+  const returnedActionId = studioSession.pendingIntent?.actionId;
   const locked = props.busy || Boolean(props.preview);
   const assistantScroll = useAssistantAutoScroll(
     props.conversationDetail,
@@ -2673,12 +2710,15 @@ function WritingPanel(props: {
               最近原因：{props.selectedEngine.lastFailure.message}
             </p>
           )}
-          <Link
+          <AiSettingsLink
+            actionId={settingsActionId}
+            projectId={props.projectId}
+            chapterId={props.chapterId}
+            input={props.instruction}
             className="mt-2 inline-block font-medium underline"
-            to="/settings"
           >
             前往模型服务商设置
-          </Link>
+          </AiSettingsLink>
         </div>
       )}
       {props.selectedText && !props.preview && (
@@ -2697,15 +2737,23 @@ function WritingPanel(props: {
         {actions.map((action, index) => (
           <BareButton
             key={action.taskType}
-            className={`rounded-xl border p-3 text-left shadow-card disabled:cursor-not-allowed disabled:opacity-40 ${index === 0 ? "border-studio-dark bg-studio-dark text-white hover:border-rust hover:bg-rust" : "border-line bg-surface-raised hover:border-brand"}`}
+            className={`rounded-xl border p-3 text-left shadow-card disabled:cursor-not-allowed disabled:opacity-40 ${returnedActionId === `novel-chapter:${action.taskType}` ? "ring-2 ring-brand ring-offset-2" : ""} ${index === 0 ? "border-studio-dark bg-studio-dark text-white hover:border-rust hover:bg-rust" : "border-line bg-surface-raised hover:border-brand"}`}
             disabled={
               locked ||
               !runnable ||
               (action.requiresContent && !props.hasContent)
             }
-            onClick={() => props.onRun(action.taskType)}
+            onClick={() => {
+              if (returnedActionId === `novel-chapter:${action.taskType}`)
+                studioSession.clearPendingIntent();
+              props.onRun(action.taskType);
+            }}
           >
-            <span className="block text-sm font-semibold">{action.label}</span>
+            <span className="block text-sm font-semibold">
+              {returnedActionId === `novel-chapter:${action.taskType}`
+                ? "配置已完成，确认继续"
+                : action.label}
+            </span>
             <span
               className={`mt-1 block text-xs leading-5 ${index === 0 ? "text-white/80" : "text-muted"}`}
             >

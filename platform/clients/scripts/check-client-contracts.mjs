@@ -39,7 +39,7 @@ if (!sdk.includes("API_CONTRACT_VERSION = '2'")) {
 try {
   const mainSchema = execFileSync('git', ['show', `origin/main:${schemaPath}`], { cwd: platformRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
   if (mainSchema !== schemaRaw) {
-    const mainVersion = JSON.parse(mainSchema).properties?.contract_version?.const
+    const mainVersion = JSON.parse(mainSchema).properties?.contractVersion?.const
     if (mainVersion === version) throw new Error('public HTTP schema changed without a contract-version bump')
   }
 } catch (error) {

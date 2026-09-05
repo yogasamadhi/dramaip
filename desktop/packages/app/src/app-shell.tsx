@@ -11,6 +11,7 @@ import {
   Check,
   ChevronDown,
   Ellipsis,
+  FolderKanban,
   Moon,
   Sparkles,
   Sun,
@@ -18,7 +19,8 @@ import {
   Monitor,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { contextualNavigationTarget, useStudioSession } from "./studio-session";
 
 export interface ShellNavigationItem {
   id: string;
@@ -43,6 +45,17 @@ function routeActive(pathname: string, target: string): boolean {
   if (target === "/write")
     return pathname.startsWith("/write") || pathname.startsWith("/projects/");
   return pathname.startsWith(target);
+}
+
+function appBarProjectModeLabel(mode: string): string {
+  return (
+    {
+      series_longform: "系列长篇",
+      single_season: "单季短剧",
+      personal_theater: "AI 小剧场",
+      creator_channel: "博主内容工作室",
+    }[mode] ?? "创作项目"
+  );
 }
 
 export function ThemeMenu(props: { compact?: boolean }) {
@@ -141,6 +154,14 @@ export function AppShell(props: {
 }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const {
+    projects,
+    activeProject,
+    activeProjectId,
+    activeProjectNotice,
+    selectProject,
+  } = useStudioSession();
   const primaryNavigation = props.navigation
     .filter((item) => item.section === "main")
     .sort((left, right) => left.order - right.order);
@@ -151,6 +172,31 @@ export function AppShell(props: {
     routeActive(location.pathname, item.to),
   );
   const projectWorkspace = location.pathname.startsWith("/projects/");
+
+  const switchProject = (projectId: string): void => {
+    selectProject(projectId);
+    if (location.pathname.startsWith("/projects/")) {
+      navigate(`/projects/${encodeURIComponent(projectId)}`);
+      return;
+    }
+    if (
+      ["/create", "/adapt", "/produce", "/review", "/tasks"].includes(
+        location.pathname,
+      )
+    ) {
+      const search = new URLSearchParams(location.search);
+      search.set("projectId", projectId);
+      for (const key of [
+        "adaptationId",
+        "episodeId",
+        "scriptId",
+        "sceneId",
+        "shotId",
+      ])
+        search.delete(key);
+      navigate(`${location.pathname}?${search}`);
+    }
+  };
 
   useEffect(() => {
     const open = () => setAssistantOpen(true);
@@ -172,18 +218,77 @@ export function AppShell(props: {
         <div className="app-titlebar-content flex h-full w-full items-center gap-3 px-5">
           <Link
             to="/"
-            aria-label="DramaIP 项目首页"
+            aria-label="尽意项目首页"
             className="no-drag mr-2 flex shrink-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-ink"
           >
             <span
               aria-hidden="true"
               className="grid size-8 place-items-center rounded-md bg-action text-sm font-semibold text-action-contrast shadow-control"
             >
-              D
+              意
             </span>
-            <span className="hidden 2xl:inline">DramaIP Studio</span>
-            <span className="2xl:hidden">DramaIP</span>
+            <span className="hidden 2xl:inline">尽意 DramaIP</span>
+            <span className="2xl:hidden">尽意</span>
           </Link>
+
+          <DropdownMenu>
+            <DropdownMenu.Trigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="no-drag min-w-0 max-w-56"
+                aria-label={
+                  activeProject
+                    ? `当前项目：${activeProject.title}`
+                    : "当前没有项目"
+                }
+              >
+                <FolderKanban aria-hidden="true" className="size-4 shrink-0" />
+                <span className="truncate">
+                  {activeProject?.title ?? "选择项目"}
+                </span>
+                {activeProject && (
+                  <span className="hidden shrink-0 text-[10px] text-muted xl:inline">
+                    {appBarProjectModeLabel(activeProject.mode)}
+                  </span>
+                )}
+                <ChevronDown aria-hidden="true" className="size-3.5 shrink-0" />
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="start" aria-label="切换当前项目">
+              {activeProject && (
+                <DropdownMenu.Item asChild>
+                  <Link
+                    to={`/projects/${encodeURIComponent(activeProject.id)}/tools/cockpit`}
+                  >
+                    返回当前项目驾驶舱
+                  </Link>
+                </DropdownMenu.Item>
+              )}
+              {projects.map((project) => (
+                <DropdownMenu.Item
+                  key={project.id}
+                  onSelect={() => switchProject(project.id)}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{project.title}</span>
+                    <span className="block text-[10px] text-muted">
+                      {appBarProjectModeLabel(project.mode)}
+                    </span>
+                  </span>
+                  {project.id === activeProjectId && (
+                    <Check
+                      aria-hidden="true"
+                      className="size-4 text-brand-strong"
+                    />
+                  )}
+                </DropdownMenu.Item>
+              ))}
+              {!projects.length && (
+                <DropdownMenu.Item disabled>尚未创建项目</DropdownMenu.Item>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu>
 
           <nav
             className="no-drag flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto py-1 studio-scrollbar"
@@ -191,10 +296,14 @@ export function AppShell(props: {
           >
             {primaryNavigation.map(({ id, to, label }) => {
               const active = routeActive(location.pathname, to);
+              const destination = contextualNavigationTarget(
+                to,
+                activeProjectId,
+              );
               return (
                 <Link
                   key={id}
-                  to={to}
+                  to={destination}
                   aria-current={active ? "page" : undefined}
                   className={`relative shrink-0 rounded-md px-3 py-2 text-[15px] font-medium leading-none outline-none transition focus-visible:ring-2 focus-visible:ring-focus ${active ? "bg-brand-soft text-brand-strong" : "text-muted hover:bg-surface-muted hover:text-ink"}`}
                 >
@@ -224,9 +333,16 @@ export function AppShell(props: {
               <DropdownMenu.Content align="start" aria-label="更多页面">
                 {secondaryNavigation.map(({ id, to, label }) => {
                   const active = routeActive(location.pathname, to);
+                  const destination = contextualNavigationTarget(
+                    to,
+                    activeProjectId,
+                  );
                   return (
                     <DropdownMenu.Item key={id} asChild>
-                      <Link to={to} aria-current={active ? "page" : undefined}>
+                      <Link
+                        to={destination}
+                        aria-current={active ? "page" : undefined}
+                      >
                         <span className="flex-1">{label}</span>
                         {active ? (
                           <Check
@@ -264,20 +380,25 @@ export function AppShell(props: {
             : "mx-auto w-full max-w-[1440px] px-5 py-6 lg:px-7 lg:py-7"
         }
       >
+        {activeProjectNotice && (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {activeProjectNotice}
+          </p>
+        )}
         {props.children}
       </main>
 
       <Drawer open={assistantOpen} onOpenChange={setAssistantOpen}>
         <Drawer.Content
-          aria-label="DramaIP 智能助手"
-          className="w-[min(560px,calc(100vw-1rem))] p-0"
+          aria-label="尽意智能助手"
+          className="w-[min(560px,calc(100vw-1rem))] overflow-hidden p-0"
         >
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface-raised/95 px-5 py-4 backdrop-blur-xl">
+          <div className="z-10 flex shrink-0 items-center justify-between border-b border-line bg-surface-raised/95 px-5 py-4 backdrop-blur-xl">
             <div>
               <p className="text-xs font-semibold tracking-[0.14em] text-brand-strong">
-                DRAMAIP · 智能协作
+                尽意 DramaIP · 智能协作
               </p>
-              <Drawer.Title className="mt-1">DramaIP 智能助手</Drawer.Title>
+              <Drawer.Title className="mt-1">尽意智能助手</Drawer.Title>
             </div>
             <Drawer.Close asChild>
               <IconButton aria-label="关闭智能助手" variant="ghost" size="sm">
@@ -285,7 +406,7 @@ export function AppShell(props: {
               </IconButton>
             </Drawer.Close>
           </div>
-          <div className="p-4">{props.assistant}</div>
+          <div className="min-h-0 flex-1 p-3 sm:p-4">{props.assistant}</div>
         </Drawer.Content>
       </Drawer>
     </div>

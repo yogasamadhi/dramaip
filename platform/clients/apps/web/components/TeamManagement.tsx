@@ -11,7 +11,7 @@ export function TeamManagement() {
   const workspaces = useQuery({ queryKey: ['workspaces'], queryFn: () => apiClient.getWorkspaces() })
   const [selectedID, setSelectedID] = useState('')
   const selected = useMemo(
-    () => workspaces.data?.workspaces.find((item) => item.id === selectedID) ?? workspaces.data?.workspaces[0],
+    () => workspaces.data?.find((item) => item.id === selectedID) ?? workspaces.data?.[0],
     [selectedID, workspaces.data],
   )
   const members = useQuery({
@@ -22,7 +22,7 @@ export function TeamManagement() {
   const invitations = useQuery({
     queryKey: ['workspace-invitations', selected?.id],
     queryFn: () => apiClient.getWorkspaceInvitations(selected!.id),
-    enabled: Boolean(selected?.id && selected.current_user_role !== 'member'),
+    enabled: Boolean(selected?.id && selected.currentUserRole !== 'member'),
   })
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'member'>('member')
@@ -35,7 +35,7 @@ export function TeamManagement() {
     await queryClient.invalidateQueries({ queryKey: ['workspace-invitations', selected?.id] })
   }
   const invite = useMutation({
-    mutationFn: () => apiClient.inviteWorkspaceMember({ workspace_id: selected!.id, email, role, expires_in_hours: 72 }),
+    mutationFn: () => apiClient.inviteWorkspaceMember({ workspaceId: selected!.id, email, role, expiresInHours: 72 }),
     onSuccess: async (result) => {
       setEmail('')
       setInviteLink(result.token ? `${window.location.origin}/account/team?invite=${encodeURIComponent(result.token)}` : '')
@@ -43,15 +43,15 @@ export function TeamManagement() {
     },
   })
   const updateRole = useMutation({
-    mutationFn: (input: { userID: string; role: 'admin' | 'member' }) => apiClient.updateWorkspaceMember({ workspace_id: selected!.id, member_user_id: input.userID, role: input.role }),
+    mutationFn: (input: { memberId: string; role: 'admin' | 'member' }) => apiClient.updateWorkspaceMember({ workspaceId: selected!.id, memberId: input.memberId, role: input.role }),
     onSuccess: refresh,
   })
   const remove = useMutation({
-    mutationFn: (userID: string) => apiClient.removeWorkspaceMember({ workspace_id: selected!.id, member_user_id: userID }),
+    mutationFn: (memberId: string) => apiClient.removeWorkspaceMember({ workspaceId: selected!.id, memberId }),
     onSuccess: refresh,
   })
   const revoke = useMutation({
-    mutationFn: (invitationID: string) => apiClient.revokeWorkspaceInvitation({ workspace_id: selected!.id, invitation_id: invitationID }),
+    mutationFn: (invitationId: string) => apiClient.revokeWorkspaceInvitation({ workspaceId: selected!.id, invitationId }),
     onSuccess: refresh,
   })
   const accept = useMutation({
@@ -70,21 +70,21 @@ export function TeamManagement() {
           <label className="grid gap-2 text-sm font-medium text-stone-700">
             当前工作区
             <select className="h-11 rounded-xl border border-stone-300 bg-white px-3" value={selected?.id ?? ''} onChange={(event) => setSelectedID(event.target.value)}>
-              {(workspaces.data?.workspaces ?? []).map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+              {(workspaces.data ?? []).map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
             </select>
           </label>
         </div>
-        {selected ? <div className="text-sm text-stone-600"><strong className="text-ink">{selected.active_member_count}/{selected.included_seats}</strong> 席已用 · {selected.plan_code}</div> : null}
+        {selected ? <div className="text-sm text-stone-600"><strong className="text-ink">{selected.activeMemberCount}/{selected.includedSeats}</strong> 席已用 · {selected.planCode}</div> : null}
       </section>
 
-      {selected && selected.included_seats <= 1 ? (
+      {selected && selected.includedSeats <= 1 ? (
         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="font-semibold text-amber-950">当前套餐仅包含 1 个席位</h2>
           <p className="mt-2 text-sm text-amber-900">升级到 Studio 可获得 5 个包含 owner 的团队席位；外部审片人不占席位。</p>
         </section>
       ) : null}
 
-      {selected?.current_user_role !== 'member' ? (
+      {selected?.currentUserRole !== 'member' ? (
         <section className="rounded-3xl border border-stone-200 bg-white p-6">
           <h2 className="text-xl font-semibold text-ink">邀请成员</h2>
           <form className="mt-5 grid gap-3 sm:grid-cols-[1fr_150px_auto]" onSubmit={(event) => { event.preventDefault(); invite.mutate() }}>
@@ -92,7 +92,7 @@ export function TeamManagement() {
             <select className="h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm" value={role} onChange={(event) => setRole(event.target.value as 'admin' | 'member')}>
               <option value="member">成员</option><option value="admin">管理员</option>
             </select>
-            <Button disabled={invite.isPending || !selected || selected.active_member_count + selected.pending_invitation_count >= selected.included_seats}>创建邀请</Button>
+            <Button disabled={invite.isPending || !selected || selected.activeMemberCount + selected.pendingInvitationCount >= selected.includedSeats}>创建邀请</Button>
           </form>
           {inviteLink ? (
             <div className="mt-4 rounded-xl bg-stone-100 p-4 text-sm">
@@ -111,17 +111,17 @@ export function TeamManagement() {
           {(members.data?.members ?? []).map((member) => (
             <div key={member.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-ink">{member.display_name || member.email}</p>
+                <p className="truncate font-medium text-ink">{member.displayName || member.email}</p>
                 <p className="truncate text-sm text-stone-500">{member.email}</p>
               </div>
-              {member.role === 'owner' || selected?.current_user_role === 'member' ? (
+              {member.role === 'owner' || selected?.currentUserRole === 'member' ? (
                 <span className="text-sm text-stone-500">{roleLabel(member.role)}</span>
               ) : (
                 <>
-                  <select aria-label={`修改 ${member.email} 的角色`} className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm" value={member.role} onChange={(event) => updateRole.mutate({ userID: member.user_id, role: event.target.value as 'admin' | 'member' })}>
+                  <select aria-label={`修改 ${member.email} 的角色`} className="h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm" value={member.role} onChange={(event) => updateRole.mutate({ memberId: member.id, role: event.target.value as 'admin' | 'member' })}>
                     <option value="member">成员</option><option value="admin">管理员</option>
                   </select>
-                  <Button variant="secondary" onClick={() => remove.mutate(member.user_id)} disabled={remove.isPending}>移除</Button>
+                  <Button variant="secondary" onClick={() => remove.mutate(member.id)} disabled={remove.isPending}>移除</Button>
                 </>
               )}
             </div>
@@ -129,13 +129,13 @@ export function TeamManagement() {
         </div>
       </section>
 
-      {selected?.current_user_role !== 'member' && (invitations.data?.invitations.length ?? 0) > 0 ? (
+      {selected?.currentUserRole !== 'member' && (invitations.data?.invitations.length ?? 0) > 0 ? (
         <section className="rounded-3xl border border-stone-200 bg-white p-6">
           <h2 className="text-xl font-semibold text-ink">待接受邀请</h2>
           <div className="mt-4 divide-y divide-stone-100">
             {invitations.data?.invitations.map((invitation) => (
               <div key={invitation.id} className="flex items-center gap-4 py-4">
-                <div className="min-w-0 flex-1"><p className="truncate font-medium text-ink">{invitation.email}</p><p className="text-sm text-stone-500">{roleLabel(invitation.role)} · {new Date(invitation.expires_at).toLocaleString('zh-CN')} 到期</p></div>
+                <div className="min-w-0 flex-1"><p className="truncate font-medium text-ink">{invitation.email}</p><p className="text-sm text-stone-500">{roleLabel(invitation.role)} · {new Date(invitation.expiresAt).toLocaleString('zh-CN')} 到期</p></div>
                 <Button variant="secondary" onClick={() => revoke.mutate(invitation.id)}>撤销</Button>
               </div>
             ))}

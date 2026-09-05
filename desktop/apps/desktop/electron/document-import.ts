@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import { unzipSync } from "fflate";
 
 export type GrantedDocumentFormat =
-  "txt" | "markdown" | "docx" | "epub" | "script-json";
+  "txt" | "markdown" | "docx" | "epub" | "script-json" | "fountain" | "fdx";
 
 export interface GrantedDocument {
   name: string;
@@ -42,6 +42,12 @@ export function extractGrantedDocument(
     content = decodeUtf8(source);
   } else if (extension === "json") {
     format = "script-json";
+    content = decodeUtf8(source);
+  } else if (extension === "fountain") {
+    format = "fountain";
+    content = decodeUtf8(source);
+  } else if (extension === "fdx") {
+    format = "fdx";
     content = decodeUtf8(source);
   } else if (extension === "docx") {
     format = "docx";

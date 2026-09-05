@@ -23,7 +23,7 @@ class GatewayRoutes {
                 .route("creation", r -> r.path("/api/v1/drafts/**", "/api/v1/project-snapshots/**", "/api/v1/upload-sessions/**", "/api/v1/review-packages/**").uri("lb://creation"))
                 .route("quota", r -> r.path("/api/v1/quota/**").uri("lb://quota"))
                 .route("ai", r -> r.path("/api/v1/models/**", "/api/v1/preflight/**", "/api/v1/chats/**", "/api/v1/stream/**", "/api/v1/cancel/**", "/api/v1/expansions/**", "/api/v1/cost-alerts/**", "/api/v1/inspiration-conversations/**", "/api/v1/inspiration-memories/**", "/api/v1/inspiration-project-previews/**", "/api/v1/creative-corpus/**", "/api/v1/creative-collections/**", "/api/v1/creative-fingerprint/**", "/api/v1/inspiration-experiments/**").uri("lb://ai"))
-                .route("billing", r -> r.path("/api/v1/plans/**", "/api/v1/orders/**", "/api/v1/payments/**", "/api/v1/subscriptions/**", "/api/v1/refunds/**", "/api/v1/reconciliation/**", "/api/v1/payment-webhooks/**").uri("lb://billing"))
+                .route("billing", r -> r.path("/api/v1/plans/**", "/api/v1/payment-providers/**", "/api/v1/orders/**", "/api/v1/payments/**", "/api/v1/subscriptions/**", "/api/v1/refunds/**", "/api/v1/reconciliation/**", "/api/v1/payment-webhooks/**").uri("lb://billing"))
                 .build();
     }
 }

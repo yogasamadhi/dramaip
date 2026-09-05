@@ -3,15 +3,19 @@ import { BareButton } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
+import { useStudioSession } from "../../studio-session";
 import { importWarning } from "../workspace/impl";
 export function FeedbackPage() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const session = useStudioSession();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(
+    () => session.activeProjectId ?? "",
+  );
   const [preview, setPreview] = useState<FeedbackPreview>();
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string>();
@@ -21,8 +25,9 @@ export function FeedbackPage() {
     enabled: Boolean(projectId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (session.activeProjectId && projectId !== session.activeProjectId)
+      setProjectId(session.activeProjectId);
+  }, [projectId, session.activeProjectId]);
   const choose = async (kind: FeedbackKind) => {
     if (!projectId) return;
     setWorking(true);
@@ -115,7 +120,9 @@ export function FeedbackPage() {
             className="rounded-lg border border-line px-3 py-2"
             value={projectId}
             onChange={(event) => {
-              setProjectId(event.target.value);
+              const nextProjectId = event.target.value;
+              setProjectId(nextProjectId);
+              if (nextProjectId) session.selectProject(nextProjectId);
               setPreview(undefined);
               setNotice(undefined);
             }}

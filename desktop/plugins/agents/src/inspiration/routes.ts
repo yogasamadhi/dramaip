@@ -547,11 +547,18 @@ export function inspirationRoutes(
                 model: string | null;
                 input_tokens: number;
                 output_tokens: number;
+                context_snapshot_id: string | null;
+                context_manifest_sha256: string | null;
                 created_at: string;
                 updated_at: string;
               }>(
-                `SELECT * FROM agent_inspiration_memory_jobs
-                 WHERE conversation_id = ? ORDER BY created_at DESC, id DESC LIMIT 50`,
+                `SELECT job.*,
+                        snapshot.manifest_sha256 AS context_manifest_sha256
+                 FROM agent_inspiration_memory_jobs job
+                 LEFT JOIN agent_context_snapshots snapshot
+                   ON snapshot.id = job.context_snapshot_id
+                 WHERE job.conversation_id = ?
+                 ORDER BY job.created_at DESC, job.id DESC LIMIT 50`,
                 conversationId,
               )
               .map((job) => ({
@@ -562,6 +569,12 @@ export function inspirationRoutes(
                 reason: job.reason,
                 ...(job.error ? { error: job.error } : {}),
                 ...(job.model ? { model: job.model } : {}),
+                ...(job.context_snapshot_id
+                  ? { contextSnapshotId: job.context_snapshot_id }
+                  : {}),
+                ...(job.context_manifest_sha256
+                  ? { contextManifestSha256: job.context_manifest_sha256 }
+                  : {}),
                 inputTokens: job.input_tokens,
                 outputTokens: job.output_tokens,
                 createdAt: job.created_at,

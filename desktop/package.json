@@ -32,7 +32,8 @@
     "@tanstack/react-query": "5.101.4",
     "tailwindcss": "4.1.17"
   },
-  "description": "本地优先、可审片、可复现、可交付的 AI 漫剧生产工作室",
+  "description": "尽意 DramaIP——本地优先的 AI IP 创作工作台",
+  "license": "Apache-2.0",
   "engines": {
     "bun": "1.4.0"
   },
@@ -55,7 +56,7 @@
     "test": "bun run typecheck && bun run test:unit",
     "test:e2e": "bun run build && bun scripts/run-electron-playwright.ts test",
     "serve": "bun run --filter @dramaip/runtime serve",
-    "test:runtime:bun": "bun test packages/ai/src/langgraph-engine.test.ts packages/ai/src/langgraph-sidecar.test.ts packages/bundles/src/index.test.ts packages/server-connection/src/index.test.ts packages/kernel/src/index.test.ts packages/database/src/cutover.test.ts packages/database/src/migration-worker.test.ts packages/desktop-host/src/agent-runtime.test.ts packages/desktop-host/src/server.test.ts packages/ui-runtime/src/index.test.ts packages/runtime/src/effective-graph.test.ts packages/runtime/src/event-runtime.test.ts packages/runtime/src/http-security.test.ts packages/runtime/src/route-registry.test.ts packages/runtime/src/providers.test.ts packages/runtime/src/workspace-writing.test.ts plugins/system/src/index.test.ts && bun packages/database/src/migration-worker.integration.ts",
+    "test:runtime:bun": "bun test --cwd packages/ai src/codex-mcp-bridge.test.ts src/codex-sidecar.test.ts && bun test packages/ai/src/langgraph-engine.test.ts packages/ai/src/langgraph-sidecar.test.ts packages/bundles/src/index.test.ts packages/server-connection/src/index.test.ts packages/kernel/src/index.test.ts packages/database/src/cutover.test.ts packages/database/src/migration-worker.test.ts packages/desktop-host/src/agent-runtime.test.ts packages/desktop-host/src/server.test.ts packages/ui-runtime/src/index.test.ts packages/runtime/src/effective-graph.test.ts packages/runtime/src/event-runtime.test.ts packages/runtime/src/http-security.test.ts packages/runtime/src/route-registry.test.ts packages/runtime/src/providers.test.ts packages/runtime/src/workspace-writing.test.ts plugins/production/src/screenplay-codec.test.ts plugins/production/src/draft-merge.test.ts plugins/system/src/index.test.ts && bun packages/database/src/migration-worker.integration.ts",
     "test:runtime": "bun run test:runtime:bun",
     "test:plugin-api-conformance": "bun test packages/runtime/src/plugin-api-conformance.test.ts",
     "test:engine-conformance": "bun test packages/desktop-host/src/engine-conformance.test.ts",
@@ -75,6 +76,7 @@
     "check:extension-packages": "bun scripts/check-extension-packages.ts",
     "check:renderer-chunks": "bun scripts/check-renderer-chunks.ts",
     "check:timeline-exports": "bun scripts/check-timeline-exports.mjs",
+    "check:licenses": "bun scripts/check-license-compliance.mjs",
     "migration:generate": "bun scripts/generate-functional-migration-matrix.mjs",
     "check:migration": "bun scripts/generate-functional-migration-matrix.mjs --check",
     "check:migration:complete": "bun scripts/generate-functional-migration-matrix.mjs --check --complete",

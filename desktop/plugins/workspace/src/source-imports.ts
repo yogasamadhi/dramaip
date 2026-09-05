@@ -179,9 +179,11 @@ function fingerprint(value: string): string {
 export function parseImportedDocument(
   file: HostGrantedDocument,
 ): SourceImportPreview {
-  return file.format === "script-json"
-    ? parseStructuredScript(file.name, file.content)
-    : parseTextSource(file.name, file.content, file.format);
+  if (file.format === "script-json")
+    return parseStructuredScript(file.name, file.content);
+  if (file.format === "fountain" || file.format === "fdx")
+    throw new Error("剧本文件必须通过 Production Screenplay Import 导入。");
+  return parseTextSource(file.name, file.content, file.format);
 }
 
 function parseTextSource(

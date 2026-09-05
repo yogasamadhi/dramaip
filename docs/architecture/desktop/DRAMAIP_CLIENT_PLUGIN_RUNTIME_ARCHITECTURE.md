@@ -127,7 +127,7 @@ Desktop / Web / CLI / Automation Client
 │ Runtime / Engine / Extension supervisors                 │
 │                                                          │
 │ EngineSupervisor                                         │
-│   Pi / Codex / Grok Build / LangGraph.js Adapters        │
+│   Pi / Codex / LangGraph.js Adapters                     │
 └──────────────────────────────────────────────────────────┘
 
 未来：
@@ -274,7 +274,7 @@ electron/
 └── windows/
 ```
 
-Runtime、Host、Pi、Codex、Grok Build、LangGraph.js 和未来 Extension Host 使用统一监督状态：
+Runtime、Host、Pi、Codex、LangGraph.js 和未来 Extension Host 使用统一监督状态：
 
 ```text
 created → starting → ready → degraded → restarting → stopping → stopped
@@ -722,11 +722,10 @@ audit without secret
 ```text
 Pi 0.84.2
 Codex 0.147.0
-Grok Build 1.0.5
 LangGraph.js 1.4.9
 ```
 
-Pi 是默认签名第一方 utility-process harness；Codex 使用 native stdio App Server；Grok Build 使用 native ACP；LangGraph.js 在 Electron utility process 中运行固定的“模型调用 → 文本/JSON 校验 → 最多一次修复”基线图。LangGraph.js 是活动 external-benchmark Engine，但不是 Core Runtime 的 Workflow Runtime，也不运行自主模型工具循环。OpenCode 与 DeepSeek Harness 仅为只读参考。
+Pi 是默认签名第一方 utility-process harness；Codex 使用 native stdio App Server；LangGraph.js 在 Electron utility process 中运行固定的“模型调用 → 文本/JSON 校验 → 最多一次修复”基线图。LangGraph.js 是活动 external-benchmark Engine，但不是 Core Runtime 的 Workflow Runtime，也不运行自主模型工具循环。OpenCode 与 DeepSeek Harness 仅为只读参考。
 
 `@dramaip/agent-runtime` 是 Vendor-neutral Contract，不得暴露 Electron、SQLite、Hono、Cordis 或 Vendor 类型。
 
@@ -770,7 +769,7 @@ Runtime 启动扫描不一致 Run，确定性决定 resume、recover、fail 或 
 
 ## 19.3 Engine Conformance
 
-Pi、Codex、Grok Build、LangGraph.js 运行共享测试：
+Pi、Codex、LangGraph.js 运行共享测试：
 
 ```text
 availability / authentication
@@ -895,8 +894,8 @@ acquisition-style tracked effects and atomic route registry
 typed service contracts
 plugin migration ledger and checksums
 transactional afterCommit events, schema/upcaster and realtime distinction
-Pi / Codex / Grok Build / LangGraph.js vendor-neutral contract
-Pi / Codex / Grok / LangGraph shared engine conformance
+Pi / Codex / LangGraph.js vendor-neutral contract
+Pi / Codex / LangGraph shared engine conformance
 opaque file/artifact grants and Host-owned credential capture
 policy-bound credential vault and SafeHttpTransport
 Public / Experimental / Internal plugin-api surfaces
@@ -994,7 +993,7 @@ alpha data upgrade and rollback
 11. MUST 使用 RFC 7807、ETag、Idempotency-Key、cursor pagination 和可恢复 SSE。
 12. MUST 保持持久状态与 Domain Event 同事务。
 13. MUST 使用 `credentialRef`、grant 和 artifact reference 隔离敏感能力。
-14. MUST 保持 Pi、Codex、Grok Build、LangGraph.js 的统一 Agent Contract 和无静默 fallback；LangGraph.js 只作为 Engine，不能接管 Core Runtime workflow。
+14. MUST 保持 Pi、Codex、LangGraph.js 的统一 Agent Contract 和无静默 fallback；LangGraph.js 只作为 Engine，不能接管 Core Runtime workflow。
 15. MUST 让 Runtime 拥有 Session/Run/Item、workflow、Preview/Commit 和恢复状态。
 16. MUST 保持 `@dramaip/agent-runtime` Vendor-neutral。
 17. MUST 在 Extension Host 完成前拒绝第三方代码加载。

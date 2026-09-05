@@ -30,7 +30,7 @@ export function UiShowcase() {
     <section className="mx-auto max-w-5xl space-y-5">
       <PageHeader
         eyebrow="LM7 · 设计系统"
-        title="DramaIP UI 组件"
+        title="尽意 DramaIP UI 组件"
         description="集中检查主题、控件状态、表单、浮层与反馈样式；此页面仅在开发环境可用。"
         actions={<StatusBadge tone="success">组件基线</StatusBadge>}
       />

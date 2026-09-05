@@ -57,7 +57,7 @@ export function createMainWindow(input: {
     minWidth: 1080,
     minHeight: 700,
     show: false,
-    title: "DramaIP Studio",
+    title: "尽意 DramaIP",
     backgroundColor: dark ? "#191a19" : "#f8f7f4",
     ...(input.developmentIconPath ? { icon: input.developmentIconPath } : {}),
     ...(process.platform === "darwin"

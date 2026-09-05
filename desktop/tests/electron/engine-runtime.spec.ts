@@ -5,7 +5,7 @@ import {
   type Page,
 } from "playwright";
 import { mkdtemp, rm } from "node:fs/promises";
-import { arch, platform, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 let application: ElectronApplication;
@@ -30,7 +30,7 @@ test.afterAll(async () => {
   if (userData) await rm(userData, { recursive: true, force: true });
 });
 
-test("Pi、Codex、Grok Build 与 LangGraph.js 受支持智能引擎均完成进程启动", async () => {
+test("Pi、Codex 与 LangGraph.js 受支持智能引擎均完成进程启动", async () => {
   const bootstrap = await page.evaluate(() =>
     window.runtimeBootstrap.resolve(),
   );
@@ -46,7 +46,6 @@ test("Pi、Codex、Grok Build 与 LangGraph.js 受支持智能引擎均完成进
     engines.map((engine) => [engine.kind, engine.runtimeStatus]),
   );
   const supported = ["pi", "codex", "langgraph"];
-  if (platform() === "darwin" && arch() === "arm64") supported.push("grok");
   for (const kind of supported)
     expect(statusByKind.get(kind), `${kind} should be running`).toBe("running");
 });

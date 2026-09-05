@@ -44,7 +44,7 @@ function conformanceHost(
   } as unknown as DesktopHostClient;
 }
 
-describe.each(["pi", "codex", "grok", "langgraph"] as const)(
+describe.each(["pi", "codex", "langgraph"] as const)(
   "%s AgentRuntime conformance",
   (kind) => {
     it("conforms to health, lifecycle, cursor replay, abort, resume, fork, and dispose", async () => {

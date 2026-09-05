@@ -10,16 +10,32 @@ export const TimelineTrackKindSchema = z.enum([
   "subtitle",
 ]);
 
+export const FrameRateSchema = z.object({
+  numerator: z.number().int().positive(),
+  denominator: z.number().int().positive(),
+  dropFrame: z.boolean(),
+});
+
+export const TimelineProfileSchema = z.object({
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  frameRate: FrameRateSchema,
+  audioSampleRate: z.number().int().positive(),
+  channels: z.number().int().positive(),
+});
+
 export const TimelineClipSchema = z.object({
   id: z.string().uuid(),
   sourceClipId: z.string().uuid().optional(),
   shotId: z.string().uuid().optional(),
   assetId: z.string().uuid().optional(),
   audioTrackId: z.string().uuid().optional(),
+  mediaRef: z.string().min(1).optional(),
+  trackId: z.string().uuid(),
   name: z.string(),
-  startSeconds: z.number().nonnegative(),
-  durationSeconds: z.number().positive(),
-  sourceOffsetSeconds: z.number().nonnegative(),
+  startFrame: z.number().int().nonnegative(),
+  durationFrames: z.number().int().positive(),
+  sourceOffsetFrame: z.number().int().nonnegative(),
   mediaStatus: z.enum([
     "linked",
     "missing",
@@ -29,8 +45,8 @@ export const TimelineClipSchema = z.object({
   ]),
   text: z.string().optional(),
   volume: z.number().optional(),
-  fadeInSeconds: z.number().optional(),
-  fadeOutSeconds: z.number().optional(),
+  fadeInFrames: z.number().int().nonnegative().optional(),
+  fadeOutFrames: z.number().int().nonnegative().optional(),
   duckingGain: z.number().optional(),
   locked: z.boolean().optional(),
   manuallyEdited: z.boolean(),
@@ -47,15 +63,16 @@ export const TimelineTrackSchema = z.object({
 
 export const TimelineManifestSchema = z.object({
   format: z.literal("dramaip-timeline"),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   id: z.string().uuid(),
   projectId: z.string().uuid(),
   adaptationId: z.string().uuid(),
   episodeId: z.string().uuid(),
   sourceFingerprint: z.string(),
-  frameRate: z.literal(25),
-  timebase: z.literal("seconds"),
-  durationSeconds: z.number().positive(),
+  profile: TimelineProfileSchema,
+  timebase: z.literal("frames"),
+  durationFrames: z.number().int().positive(),
+  migrationWarnings: z.array(z.string()),
   tracks: z.array(TimelineTrackSchema),
   version: z.number().int().nonnegative(),
   createdAt: z.string().datetime(),
@@ -66,18 +83,18 @@ export const TimelineEditCommandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("move"),
     clipId: z.string().uuid(),
-    startSeconds: z.number().nonnegative(),
+    startFrame: z.number().int().nonnegative(),
   }),
   z.object({
     type: z.literal("trim"),
     clipId: z.string().uuid(),
-    startSeconds: z.number().nonnegative().optional(),
-    durationSeconds: z.number().positive(),
+    startFrame: z.number().int().nonnegative().optional(),
+    durationFrames: z.number().int().positive(),
   }),
   z.object({
     type: z.literal("split"),
     clipId: z.string().uuid(),
-    atSeconds: z.number().positive(),
+    atFrame: z.number().int().positive(),
   }),
   z.object({
     type: z.literal("set-track-audio"),
@@ -110,7 +127,7 @@ export const TimelineHistoryAvailabilitySchema = z.object({
 
 export const TimelineDeliveryManifestSchema = z.object({
   format: z.literal("dramaip-timeline-delivery"),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   timeline: TimelineManifestSchema,
   media: z.array(
     z.object({
@@ -126,6 +143,50 @@ export const TimelineDeliveryManifestSchema = z.object({
   ),
   unsupportedFeatures: z.array(z.string()),
   warnings: z.array(z.string()),
+});
+
+export const TimelineRenderPreflightSchema = z.object({
+  timelineId: z.string().uuid(),
+  timelineVersion: z.number().int().nonnegative(),
+  timelineEtag: z.string().min(1),
+  profileVersion: z.string().min(1),
+  ready: z.boolean(),
+  blockers: z.array(z.string()),
+  warnings: z.array(z.string()),
+  rendererVersion: z.string().optional(),
+  sidecarArtifactVersion: z.string().optional(),
+});
+
+export const TimelineRenderCreateInputSchema = z.object({
+  timelineProfileVersion: z.string().min(1).max(120),
+  rendererVersion: z.string().min(1).max(120),
+  sidecarArtifactVersion: z.string().min(1).max(120),
+});
+
+export const TimelineRenderJobSchema = z.object({
+  jobId: z.string().uuid(),
+  timelineId: z.string().uuid(),
+  timelineVersion: z.number().int().nonnegative(),
+  timelineProfileVersion: z.string(),
+  rendererVersion: z.string(),
+  sidecarArtifactVersion: z.string(),
+  status: z.enum([
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "canceled",
+    "interrupted",
+  ]),
+  progress: z.number().min(0).max(1),
+  outputMediaRef: z.string().uuid().optional(),
+  outputSha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/u)
+    .optional(),
+  failureCode: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 export const AudioAssemblyClipSchema = z.object({
@@ -192,9 +253,12 @@ export const TimelineMediaPreviewSchema = z.object({
 });
 
 export type TimelineManifest = z.infer<typeof TimelineManifestSchema>;
+export type FrameRate = z.infer<typeof FrameRateSchema>;
+export type TimelineProfile = z.infer<typeof TimelineProfileSchema>;
 export type TimelineTrack = z.infer<typeof TimelineTrackSchema>;
 export type TimelineClip = z.infer<typeof TimelineClipSchema>;
 export type TimelineEditCommand = z.infer<typeof TimelineEditCommandSchema>;
+export type TimelineRenderJob = z.infer<typeof TimelineRenderJobSchema>;
 export type AudioAssemblyPreview = z.infer<typeof AudioAssemblyPreviewSchema>;
 
 export const TIMELINE_SERVICE = defineServiceContract<TimelineService>({

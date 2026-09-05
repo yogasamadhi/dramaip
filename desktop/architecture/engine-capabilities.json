@@ -16,22 +16,6 @@
     }
   },
   {
-    "kind": "grok",
-    "role": "external-benchmark",
-    "name": "Grok Build",
-    "version": "1.0.5",
-    "capabilities": {
-      "prompt": true,
-      "streaming": true,
-      "steer": false,
-      "abort": true,
-      "resume": true,
-      "fork": true,
-      "compaction": false,
-      "readOnlyTools": true
-    }
-  },
-  {
     "kind": "langgraph",
     "role": "external-benchmark",
     "name": "LangGraph.js",

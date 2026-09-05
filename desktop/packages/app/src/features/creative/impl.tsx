@@ -2,12 +2,15 @@ import { BareButton } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
+import { useStudioSession } from "../../studio-session";
 import {
   CreativeDiagnosticsPanel,
   PluginResourceWorkspace,
   StoryBibleChangeSetPanel,
 } from "../studio-widgets";
 export function CreativeWorkspace() {
+  const session = useStudioSession();
+  const projectId = session.activeProjectId;
   return (
     <div className="space-y-5">
       <WorkspaceIntro
@@ -16,14 +19,15 @@ export function CreativeWorkspace() {
         description="把故事圣经、章节分析、人物关系和创意诊断集中在同一个上下文中。"
         badge="智能创作"
       />
-      <StoryBibleChangeSetPanel />
-      <ChapterAnalysisPanel />
-      <CreativeDiagnosticsPanel />
-      <StoryIntelligencePanel />
+      <StoryBibleChangeSetPanel projectId={projectId} />
+      <ChapterAnalysisPanel projectId={projectId} />
+      <CreativeDiagnosticsPanel projectId={projectId} />
+      <StoryIntelligencePanel projectId={projectId} />
       <PluginResourceWorkspace
         owner="writing"
         title="人物与故事结构"
         domains={["characters", "outlines", "story-arcs"]}
+        projectId={projectId}
       />
       <PluginResourceWorkspace
         owner="knowledge"
@@ -38,6 +42,7 @@ export function CreativeWorkspace() {
           "story-events",
           "foreshadowings",
         ]}
+        projectId={projectId}
       />
       <PluginResourceWorkspace
         owner="automation"
@@ -48,6 +53,7 @@ export function CreativeWorkspace() {
           "inspirations",
           "templates",
         ]}
+        projectId={projectId}
       />
       <PluginResourceWorkspace
         owner="creative-quality"
@@ -60,24 +66,27 @@ export function CreativeWorkspace() {
           "trends",
           "evaluations",
         ]}
+        projectId={projectId}
       />
     </div>
   );
 }
 
-function StoryIntelligencePanel() {
+function StoryIntelligencePanel(props: { projectId?: string }) {
   const client = useStudio();
+  const session = useStudioSession();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(props.projectId ?? "");
   const [hypothesis, setHypothesis] = useState("");
   const [notice, setNotice] = useState<string>();
   const [running, setRunning] = useState(false);
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (props.projectId && projectId !== props.projectId)
+      setProjectId(props.projectId);
+  }, [projectId, props.projectId]);
   const { data: graph, refetch } = useQuery({
     queryKey: ["story-intelligence", projectId],
     queryFn: () => client.storyIntelligence.graph(projectId),
@@ -159,7 +168,11 @@ function StoryIntelligencePanel() {
         <select
           className="rounded-lg border border-line px-3 py-2 text-sm"
           value={projectId}
-          onChange={(event) => setProjectId(event.target.value)}
+          onChange={(event) => {
+            const nextProjectId = event.target.value;
+            setProjectId(nextProjectId);
+            if (nextProjectId) session.selectProject(nextProjectId);
+          }}
         >
           <option value="">选择项目</option>
           {projects.map((project) => (
@@ -216,14 +229,15 @@ function Stat(props: { label: string; value: number }) {
   );
 }
 
-export function ChapterAnalysisPanel() {
+export function ChapterAnalysisPanel(props: { projectId?: string } = {}) {
   const client = useStudio();
+  const session = useStudioSession();
   const queryClient = useQueryClient();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(props.projectId ?? "");
   const [chapterId, setChapterId] = useState("");
   const [notice, setNotice] = useState<string>();
   const { data: chapters = [] } = useQuery({
@@ -232,8 +246,11 @@ export function ChapterAnalysisPanel() {
     enabled: Boolean(projectId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (props.projectId && projectId !== props.projectId) {
+      setProjectId(props.projectId);
+      setChapterId("");
+    }
+  }, [projectId, props.projectId]);
   useEffect(() => {
     if (chapterId && !chapters.some((chapter) => chapter.id === chapterId))
       setChapterId("");
@@ -269,7 +286,9 @@ export function ChapterAnalysisPanel() {
             className="rounded-lg border border-line px-3 py-2"
             value={projectId}
             onChange={(event) => {
-              setProjectId(event.target.value);
+              const nextProjectId = event.target.value;
+              setProjectId(nextProjectId);
+              if (nextProjectId) session.selectProject(nextProjectId);
               setChapterId("");
             }}
           >

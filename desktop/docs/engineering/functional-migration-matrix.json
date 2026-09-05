@@ -3,7 +3,7 @@
   "productBaseline": "desktop/legacy/desktop (read-only)",
   "sourceOfTruth": "studio/e2e Effective Runtime Graph OpenAPI",
   "baselineSha256": "57eadb81adbda208978d5f46ca36c26a5a128ab303dbae2cff789bdd372cab3c",
-  "effectiveOpenApiSha256": "d3512709b451befa3cb27e65ee867141f39d4ba00ab6cf93e6ec18a606e7fafb",
+  "effectiveOpenApiSha256": "33c18bf409baae420854b09142daead43a762a05b0891b2c954f58844008247f",
   "expected": {
     "legacyOperations": 217,
     "retiredGenericOperations": 5,
@@ -11,15 +11,15 @@
     "visualBaselines": 12
   },
   "actual": {
-    "effectiveOperations": 542,
-    "uniqueOperationIds": 542,
-    "uniqueMethodPaths": 542,
-    "newV2Operations": 330
+    "effectiveOperations": 566,
+    "uniqueOperationIds": 566,
+    "uniqueMethodPaths": 566,
+    "newV2Operations": 355
   },
   "summary": {
-    "implemented": 211,
+    "implemented": 210,
     "not_migrated": 0,
-    "replaced": 1,
+    "replaced": 2,
     "retired": 5,
     "byOwner": {
       "retired-generic-router": 5,
@@ -2162,21 +2162,21 @@
       "owner": "review",
       "contract": "@dramaip/contracts/review",
       "routeContribution": {
-        "operationId": "review-editor.editorExport",
+        "operationId": "timeline.exportDelivery",
         "method": "GET",
-        "path": "/api/v2/episodes/{episodeId}/editor-timeline/export/{format}",
+        "path": "/api/v2/episodes/{episodeId}/timeline-delivery/export/{format}",
         "profile": "studio/e2e"
       },
-      "migration": "owned-forward-only",
-      "event": "same-transaction-domain-event",
-      "client": "@dramaip/client#review-editor.editorExport",
-      "uiContribution": "review",
+      "migration": "not-applicable",
+      "event": "not-applicable",
+      "client": "@dramaip/client#timeline.exportDelivery",
+      "uiContribution": "not-applicable",
       "automatedEvidence": [
         "effective-runtime-openapi",
         "generated-client",
         "runtime-conformance"
       ],
-      "status": "implemented"
+      "status": "replaced"
     },
     {
       "legacyBehavior": "review-editor.editorPreflight",
@@ -5679,6 +5679,62 @@
       ]
     },
     {
+      "operationId": "agent-context.createPreview",
+      "method": "POST",
+      "path": "/api/v2/agent-context-previews",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "agent-context.freezePreview",
+      "method": "POST",
+      "path": "/api/v2/agent-context-previews/{id}/snapshots",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "agent-context.getPolicies",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/agent-context-policies",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "agent-context.getPreview",
+      "method": "GET",
+      "path": "/api/v2/agent-context-previews/{id}",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "agent-context.getRunSnapshot",
+      "method": "GET",
+      "path": "/api/v2/agent-runs/{id}/context-snapshot",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "agent-context.updatePolicies",
+      "method": "PUT",
+      "path": "/api/v2/projects/{id}/agent-context-policies",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
+      "operationId": "agent-context.updatePreview",
+      "method": "PATCH",
+      "path": "/api/v2/agent-context-previews/{id}",
+      "tags": [
+        "agents"
+      ]
+    },
+    {
       "operationId": "agent-experiments.reveal",
       "method": "POST",
       "path": "/api/v2/agent-experiments/{id}/reveal",
@@ -6895,6 +6951,36 @@
       ]
     },
     {
+      "operationId": "localModelRuntimes.activate",
+      "method": "POST",
+      "path": "/api/v2/local-model-runtimes/{kind}/activate",
+      "tags": []
+    },
+    {
+      "operationId": "localModelRuntimes.deactivate",
+      "method": "POST",
+      "path": "/api/v2/local-model-runtimes/{kind}/deactivate",
+      "tags": []
+    },
+    {
+      "operationId": "localModelRuntimes.healthCheck",
+      "method": "POST",
+      "path": "/api/v2/local-model-runtimes/{kind}/health-checks",
+      "tags": []
+    },
+    {
+      "operationId": "localModelRuntimes.list",
+      "method": "GET",
+      "path": "/api/v2/local-model-runtimes",
+      "tags": []
+    },
+    {
+      "operationId": "localModelRuntimes.models",
+      "method": "GET",
+      "path": "/api/v2/local-model-runtimes/{kind}/models",
+      "tags": []
+    },
+    {
       "operationId": "memory.create",
       "method": "POST",
       "path": "/api/v2/memory",
@@ -7367,6 +7453,54 @@
       ]
     },
     {
+      "operationId": "screenplayImport.commit",
+      "method": "POST",
+      "path": "/api/v2/screenplay-import-previews/{id}/commit",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplayImport.createPreview",
+      "method": "POST",
+      "path": "/api/v2/screenplay-import-previews",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplayImport.getPreview",
+      "method": "GET",
+      "path": "/api/v2/screenplay-import-previews/{id}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplays.export",
+      "method": "GET",
+      "path": "/api/v2/scripts/{id}/screenplay/export/{format}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplays.get",
+      "method": "GET",
+      "path": "/api/v2/scripts/{id}/screenplay",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplays.update",
+      "method": "PATCH",
+      "path": "/api/v2/scripts/{id}/screenplay",
+      "tags": [
+        "production"
+      ]
+    },
+    {
       "operationId": "scripts.create",
       "method": "POST",
       "path": "/api/v2/scripts",
@@ -7763,6 +7897,12 @@
       "tags": []
     },
     {
+      "operationId": "system.credentials.createUnlockSession",
+      "method": "POST",
+      "path": "/api/v2/system/host/credentials/unlock-sessions",
+      "tags": []
+    },
+    {
       "operationId": "system.credentials.getCaptureSession",
       "method": "GET",
       "path": "/api/v2/system/host/credentials/capture-sessions/{captureSessionId}",
@@ -7988,6 +8128,54 @@
       "path": "/api/v2/templates/{id}",
       "tags": [
         "automation"
+      ]
+    },
+    {
+      "operationId": "timeline.cancelRender",
+      "method": "POST",
+      "path": "/api/v2/timeline-renders/{id}/cancel",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.createRender",
+      "method": "POST",
+      "path": "/api/v2/timelines/{id}/renders",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.getRender",
+      "method": "GET",
+      "path": "/api/v2/timeline-renders/{id}",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.renderEvents",
+      "method": "GET",
+      "path": "/api/v2/timeline-renders/{id}/events",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.renderPreflight",
+      "method": "GET",
+      "path": "/api/v2/timelines/{id}/render-preflight",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.retryRender",
+      "method": "POST",
+      "path": "/api/v2/timeline-renders/{id}/retry",
+      "tags": [
+        "timeline"
       ]
     },
     {

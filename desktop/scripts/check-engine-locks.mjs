@@ -10,7 +10,6 @@ const protocol = await readJson(join(root, "vendor/codex.protocol.lock.json"));
 const opencode = await readJson(join(root, "vendor/opencode.lock.json"));
 const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
 const pi = await readJson(join(root, "vendor/pi.lock.json"));
-const grok = await readJson(join(root, "vendor/grok-build.lock.json"));
 const langgraph = await readJson(join(root, "vendor/langgraph.lock.json"));
 
 const langgraphPackages = {
@@ -259,45 +258,6 @@ if (
 )
   throw new Error("Pi 完整源码树校验失败，vendor 冻结快照可能已变化");
 
-const grokRoot = join(root, "vendor/grok-build");
-const grokTarget = "aarch64-apple-darwin";
-if (
-  grok.version !== "1.0.5" ||
-  grok.license !== "Apache-2.0" ||
-  grok.target !== grokTarget ||
-  grok.rustToolchain !== "1.94.0" ||
-  grok.sourceTreeAlgorithm !==
-    "sha256(path + NUL + sha256(content) + LF), sorted by path"
-)
-  throw new Error("Grok Build 固定版本必须为 1.0.5（Apache-2.0，Rust 1.94.0）");
-const grokSourceRev = (
-  await readFile(join(grokRoot, "SOURCE_REV"), "utf8")
-).trim();
-if (grokSourceRev !== grok.sourceRev)
-  throw new Error("Grok SOURCE_REV 校验失败");
-const grokCargoLockSha = createHash("sha256")
-  .update(await readFile(join(grokRoot, "Cargo.lock")))
-  .digest("hex");
-if (grokCargoLockSha !== grok.cargoLockSha256)
-  throw new Error("Grok Cargo.lock 校验失败");
-for (const file of ["LICENSE", "THIRD-PARTY-NOTICES"])
-  if (!(await readFile(join(grokRoot, file), "utf8")).trim())
-    throw new Error(`Grok ${file} 不能为空`);
-const grokTree = await frozenTree(
-  grokRoot,
-  new Set([".git", "target", "node_modules", "build", "dist"]),
-);
-if (
-  grokTree.count !== grok.sourceTreeFileCount ||
-  grokTree.sha256 !== grok.sourceTreeSha256
-)
-  throw new Error("Grok 完整源码树校验失败，vendor 冻结快照可能已变化");
-const grokBinarySha = grok.platforms?.[grokTarget]?.binarySha256;
-if (grok.platforms?.[grokTarget]?.binary !== "xai-grok-pager")
-  throw new Error("Grok macOS arm64 入口必须为 xai-grok-pager");
-if (!/^[a-f0-9]{64}$/.test(grokBinarySha ?? ""))
-  throw new Error("Grok macOS arm64 缺少二进制 SHA-256");
-
 process.stdout.write(
-  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；Grok Build ${grok.version}；LangGraph.js ${langgraph.version}。归档参考快照完整：OpenCode ${opencode.version}；DSH ${dsh.version}\n`,
+  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；LangGraph.js ${langgraph.version}。归档参考快照完整：OpenCode ${opencode.version}；DSH ${dsh.version}\n`,
 );

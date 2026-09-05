@@ -31,7 +31,6 @@ import {
   type ReviewRecordService,
 } from "@dramaip/contracts/review";
 import {
-  ExportDocumentSchema,
   TIMELINE_SERVICE,
   type TimelineService,
 } from "@dramaip/contracts/timeline";
@@ -205,8 +204,14 @@ function editorManifest(
               shotId: clip.shotId,
               orderIndex,
               name: clip.name,
-              startSeconds: clip.startSeconds,
-              durationSeconds: clip.durationSeconds,
+              startSeconds:
+                clip.startFrame /
+                (source.profile.frameRate.numerator /
+                  source.profile.frameRate.denominator),
+              durationSeconds:
+                clip.durationFrames /
+                (source.profile.frameRate.numerator /
+                  source.profile.frameRate.denominator),
               ...(subtitles?.find((cue) => cue.shotId === clip.shotId)?.text
                 ? {
                     subtitle: subtitles.find(
@@ -1580,41 +1585,6 @@ function reviewRoutes(
     ),
   ];
 
-  const editorExportPath =
-    "/api/v2/episodes/{episodeId}/editor-timeline/export/{format}" as const;
-  result.push(
-    route(
-      {
-        id: "review:editor-export",
-        pluginId: "review",
-        method: "get",
-        path: editorExportPath,
-        operationId: "review-editor.editorExport",
-      },
-      openapi({
-        method: "get",
-        path: editorExportPath,
-        operationId: "review-editor.editorExport",
-        params: z.object({
-          episodeId: z.string().uuid(),
-          format: z.enum(["json", "edl", "fcpxml", "srt"]),
-        }),
-        response: ExportDocumentSchema,
-      }),
-      (requestContext) => {
-        const manifest = manifestFor(requestContext.req.param("episodeId"));
-        const format = requestContext.req.param("format");
-        return manifest
-          ? requestContext.json({
-              fileName: `${manifest.episodeId}.${format}`,
-              mimeType:
-                format === "fcpxml" ? "application/xml" : "application/json",
-              content: JSON.stringify(manifest, null, 2),
-            })
-          : problem(requestContext, 404, "NOT_FOUND", "未找到审片时间线。");
-      },
-    ),
-  );
   result.push(...supplementalRoutes(context, production, records, host));
   return result;
 }

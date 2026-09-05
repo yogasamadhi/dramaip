@@ -28,7 +28,9 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await page.waitForLoadState("domcontentloaded");
 
   await page.getByRole("button", { name: "先看看示例" }).click();
-  await expect(page.getByText("示例短剧：雨夜归来")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /直接写剧本/ }).click();
   await page
@@ -41,7 +43,11 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await openProjectTool(page, "试制计划");
 
   const inputPilot = page.getByLabel("试制向导");
-  await expect(inputPilot.getByRole("checkbox")).toBeChecked();
+  await expect(
+    inputPilot.getByRole("checkbox", {
+      name: "来源章节：第 1 集剧本草稿",
+    }),
+  ).toBeChecked();
   await inputPilot.getByRole("button", { name: "建立试制计划" }).click();
   await inputPilot
     .getByRole("button", { name: "确认来源并创建试制分集" })
@@ -51,7 +57,7 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
     inputPilot.getByRole("link", { name: "前往唯一待办" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await expect(page.getByText("示例短剧：雨夜归来")).toBeVisible();
   await page.reload();
   await page.waitForLoadState("domcontentloaded");

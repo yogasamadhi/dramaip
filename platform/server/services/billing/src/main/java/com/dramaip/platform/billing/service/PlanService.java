@@ -21,7 +21,15 @@ public class PlanService {
     private final QuotaProvisionClient quota;
     private final QuotaRefundClient refunds;
     private final String internalToken;
-    public PlanService(JdbcTemplate jdbc, QuotaProvisionClient quota, QuotaRefundClient refunds, @Value("${dramaip.internal.token:}") String internalToken) { this.jdbc = jdbc; this.quota = quota; this.refunds = refunds; this.internalToken = internalToken; }
+    private final PaymentProviderRegistry paymentProviders;
+    public PlanService(JdbcTemplate jdbc, QuotaProvisionClient quota, QuotaRefundClient refunds,
+            @Value("${dramaip.internal.token:}") String internalToken, PaymentProviderRegistry paymentProviders) {
+        this.jdbc = jdbc;
+        this.quota = quota;
+        this.refunds = refunds;
+        this.internalToken = internalToken;
+        this.paymentProviders = paymentProviders;
+    }
 
     public List<Plan> listPlans() {
         return jdbc.query("""
@@ -34,6 +42,9 @@ public class PlanService {
 
     @Transactional
     public Order createOrder(String userId, CreateOrder request) {
+        Order replay = jdbc.query(orderSelect("where user_id = ?::uuid and idempotency_key = ?"),
+                rs -> rs.next() ? order(rs) : null, userId, request.idempotencyKey());
+        if (replay != null) return replay;
         Plan plan = jdbc.query("""
                 select id::text, code, name, billing_period, cast(round(price * 100) as bigint), currency, monthly_token_quota,
                        max_rpm, max_context_tokens, model_level, purchase_mode, entitlements::text
@@ -41,19 +52,28 @@ public class PlanService {
                 """, rs -> rs.next() ? new Plan(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getLong(5), rs.getString(6), rs.getLong(7), rs.getInt(8), rs.getLong(9), rs.getString(10), rs.getString(11), rs.getString(12)) : null, request.planCode());
         if (plan == null) throw new BusinessException("BILLING_PLAN_NOT_FOUND", "plan not found", HttpStatus.NOT_FOUND);
         if (!"self_service".equals(plan.purchaseMode())) throw new BusinessException("BILLING_SALES_CONTACT_REQUIRED", "plan requires sales contact", HttpStatus.CONFLICT);
-        if (!"simulated".equals(request.provider())) {
-            throw new BusinessException("BILLING_PROVIDER_NOT_CONFIGURED", "only the simulated provider is enabled in this deployment", HttpStatus.SERVICE_UNAVAILABLE);
+        if (!paymentProviders.isKnown(request.provider())) {
+            throw new BusinessException("BILLING_PROVIDER_INVALID", "payment provider is not recognized", HttpStatus.BAD_REQUEST);
+        }
+        if (!paymentProviders.canCreateOrder(request.provider())) {
+            throw new BusinessException("BILLING_PROVIDER_UNAVAILABLE", "payment provider is unavailable in this deployment", HttpStatus.SERVICE_UNAVAILABLE);
         }
         String id = UUID.randomUUID().toString();
         jdbc.update("""
-                insert into billing.orders(id, user_id, plan_id, amount, currency, status, provider, provider_order_id)
-                values (?::uuid, ?::uuid, ?::uuid, ?::numeric / 100, ?, 'pending', ?, ?)
-                """, id, userId, plan.id(), plan.amountMinor(), plan.currency(), request.provider(), id);
+                insert into billing.orders(id, user_id, plan_id, amount, currency, status, provider, provider_order_id, idempotency_key)
+                values (?::uuid, ?::uuid, ?::uuid, ?::numeric / 100, ?, 'pending', ?, ?, ?)
+                on conflict (user_id, idempotency_key) do nothing
+                """, id, userId, plan.id(), plan.amountMinor(), plan.currency(), request.provider(), id, request.idempotencyKey());
+        Order persisted = jdbc.query(orderSelect("where user_id = ?::uuid and idempotency_key = ?"),
+                rs -> rs.next() ? order(rs) : null, userId, request.idempotencyKey());
+        if (persisted == null) throw new BusinessException("BILLING_ORDER_CREATE_FAILED", "order could not be persisted", HttpStatus.CONFLICT);
+        if (!id.equals(persisted.id())) return persisted;
         jdbc.update("""
                 insert into billing.outbox_events(id, aggregate_type, aggregate_id, event_type, payload)
                 values (?::uuid, 'order', ?::uuid, 'billing.checkout.created', jsonb_build_object('orderId', ?, 'userId', ?, 'amountMinor', ?))
-                """, UUID.randomUUID().toString(), id, id, userId, plan.amountMinor());
-        return order(id, userId);
+                on conflict do nothing
+                """, UUID.randomUUID().toString(), persisted.id(), persisted.id(), userId, plan.amountMinor());
+        return persisted;
     }
 
     public List<Order> orders(String userId) {
@@ -84,6 +104,9 @@ public class PlanService {
     /** Payment activation remains quota-gated; this endpoint is intentionally limited to the configured non-production provider. */
     @Transactional
     public Payment confirmSimulatedPayment(String userId, String orderId) {
+        if (!paymentProviders.simulatedEnabled()) {
+            throw new BusinessException("BILLING_PROVIDER_UNAVAILABLE", "simulated payment is restricted to dev/test profiles", HttpStatus.NOT_FOUND);
+        }
         Order order = jdbc.query(orderSelect("where id = ?::uuid and user_id = ?::uuid for update"), rs -> rs.next() ? order(rs) : null, orderId, userId);
         if (order == null) throw new BusinessException("BILLING_ORDER_NOT_FOUND", "order not found", HttpStatus.NOT_FOUND);
         if (!"simulated".equals(order.provider())) throw new BusinessException("BILLING_PAYMENT_FORBIDDEN", "order is not simulated", HttpStatus.CONFLICT);
@@ -256,7 +279,7 @@ public class PlanService {
     private static Timestamp timestamp(Instant instant) { return Timestamp.from(instant); }
 
     public record Plan(String id, String code, String name, String billingPeriod, long amountMinor, String currency, long monthlyTokenQuota, int maxRpm, long maxContextTokens, String modelLevel, String purchaseMode, String entitlements) { }
-    public record CreateOrder(String planCode, String provider) { }
+    public record CreateOrder(String planCode, String provider, String idempotencyKey) { }
     public record Order(String id, String planId, String planCode, String status, String provider, long amountMinor, String currency, Instant createdAt, Instant paidAt, String paymentUrl, Instant paymentExpiresAt, String subscriptionId) { }
     public record Subscription(String id, String planId, String planCode, String planName, String provider, String status, Instant currentPeriodStart, Instant currentPeriodEnd, boolean cancelAtPeriodEnd, String renewalPlanCode, String entitlements) { }
     public record Payment(String id, String orderId, String provider, String status, long amountMinor, String currency, Instant createdAt) { }

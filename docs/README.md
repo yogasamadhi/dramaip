@@ -1,4 +1,11 @@
-# DramaIP 文档索引
+# 尽意 DramaIP 文档索引
+
+## 品牌与产品
+
+- [品牌与文案规范](./product/BRAND.md)
+- [项目定义](./product/PROJECT_BRIEF.md)
+- [产品路线图](./product/ROADMAP.md)
+- [创意竞争力系统](./product/CREATIVE_INTELLIGENCE.md)
 
 ## Desktop 架构
 

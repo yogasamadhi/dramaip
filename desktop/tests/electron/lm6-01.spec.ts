@@ -52,7 +52,7 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     page.getByRole("heading", { name: "LM6 灵感项目" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 原著项目");
@@ -68,7 +68,7 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     page.getByRole("heading", { name: "LM6 原著项目" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "DramaIP 项目首页" }).click();
+  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /直接写剧本/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 剧本项目");

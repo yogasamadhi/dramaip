@@ -1,4 +1,8 @@
 import { createRoute } from "@hono/zod-openapi";
+import {
+  LocalModelRuntimeKindSchema,
+  LocalModelRuntimeSchema,
+} from "@dramaip/contracts";
 import type {
   CredentialCaptureRequest,
   DesktopHostClient,
@@ -59,6 +63,11 @@ function hostRoutes(
       path: "/api/v2/system/host/credentials/status",
       operationId: "system.credentials.status",
     },
+    "system:host-credential-unlock-create": {
+      method: "post",
+      path: "/api/v2/system/host/credentials/unlock-sessions",
+      operationId: "system.credentials.createUnlockSession",
+    },
     "system:host-credential-capture-create": {
       method: "post",
       path: "/api/v2/system/host/credentials/capture-sessions",
@@ -78,6 +87,36 @@ function hostRoutes(
       method: "post",
       path: "/api/v2/system/host/window/theme",
       operationId: "system.window.setTheme",
+    },
+    "system:local-model-runtimes-list": {
+      method: "get",
+      path: "/api/v2/local-model-runtimes",
+      operationId: "localModelRuntimes.list",
+      response: z.array(LocalModelRuntimeSchema),
+    },
+    "system:local-model-runtimes-activate": {
+      method: "post",
+      path: "/api/v2/local-model-runtimes/{kind}/activate",
+      operationId: "localModelRuntimes.activate",
+      response: LocalModelRuntimeSchema,
+    },
+    "system:local-model-runtimes-deactivate": {
+      method: "post",
+      path: "/api/v2/local-model-runtimes/{kind}/deactivate",
+      operationId: "localModelRuntimes.deactivate",
+      response: LocalModelRuntimeSchema,
+    },
+    "system:local-model-runtimes-models": {
+      method: "get",
+      path: "/api/v2/local-model-runtimes/{kind}/models",
+      operationId: "localModelRuntimes.models",
+      response: LocalModelRuntimeSchema.shape.models,
+    },
+    "system:local-model-runtimes-health": {
+      method: "post",
+      path: "/api/v2/local-model-runtimes/{kind}/health-checks",
+      operationId: "localModelRuntimes.healthCheck",
+      response: LocalModelRuntimeSchema,
     },
   } as const;
   type RouteId = keyof typeof metadata;
@@ -124,6 +163,12 @@ function hostRoutes(
       const result = await call((client) => client.credentialStorageStatus());
       return result instanceof Response ? result : context.json(result);
     },
+    "system:host-credential-unlock-create": async (context) => {
+      const result = await call((client) =>
+        client.createCredentialVaultUnlockSession(),
+      );
+      return result instanceof Response ? result : context.json(result, 201);
+    },
     "system:host-credential-capture-create": async (context) => {
       const input = await context.req.json<CredentialCaptureRequest>();
       const result = await call((client) =>
@@ -150,6 +195,54 @@ function hostRoutes(
       const result = await call((client) => client.setWindowTheme(theme));
       return result instanceof Response ? result : context.body(null, 204);
     },
+    "system:local-model-runtimes-list": async (context) => {
+      const result = await call((client) => client.localModelRuntimes());
+      return result instanceof Response ? result : context.json(result);
+    },
+    "system:local-model-runtimes-activate": async (context) => {
+      const kind = LocalModelRuntimeKindSchema.safeParse(
+        context.req.param("kind"),
+      );
+      if (!kind.success)
+        return context.json({ code: "LOCAL_RUNTIME_UNKNOWN" }, 400);
+      const result = await call((client) =>
+        client.activateLocalModelRuntime(kind.data),
+      );
+      return result instanceof Response ? result : context.json(result);
+    },
+    "system:local-model-runtimes-deactivate": async (context) => {
+      const kind = LocalModelRuntimeKindSchema.safeParse(
+        context.req.param("kind"),
+      );
+      if (!kind.success)
+        return context.json({ code: "LOCAL_RUNTIME_UNKNOWN" }, 400);
+      const result = await call((client) =>
+        client.deactivateLocalModelRuntime(kind.data),
+      );
+      return result instanceof Response ? result : context.json(result);
+    },
+    "system:local-model-runtimes-models": async (context) => {
+      const kind = LocalModelRuntimeKindSchema.safeParse(
+        context.req.param("kind"),
+      );
+      if (!kind.success)
+        return context.json({ code: "LOCAL_RUNTIME_UNKNOWN" }, 400);
+      const result = await call((client) =>
+        client.localModelRuntime(kind.data),
+      );
+      return result instanceof Response ? result : context.json(result.models);
+    },
+    "system:local-model-runtimes-health": async (context) => {
+      const kind = LocalModelRuntimeKindSchema.safeParse(
+        context.req.param("kind"),
+      );
+      if (!kind.success)
+        return context.json({ code: "LOCAL_RUNTIME_UNKNOWN" }, 400);
+      const result = await call((client) =>
+        client.localModelRuntime(kind.data),
+      );
+      return result instanceof Response ? result : context.json(result);
+    },
   };
   return (Object.keys(metadata) as RouteId[]).map((id) => {
     const route = metadata[id];
@@ -158,7 +251,11 @@ function hostRoutes(
       responses: {
         200: {
           description: "Desktop Host capability response",
-          content: { "application/json": { schema: z.unknown() } },
+          content: {
+            "application/json": {
+              schema: "response" in route ? route.response : z.unknown(),
+            },
+          },
         },
         204: { description: "Desktop Host capability completed" },
         503: {

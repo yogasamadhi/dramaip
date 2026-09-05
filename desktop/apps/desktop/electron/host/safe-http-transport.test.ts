@@ -107,7 +107,7 @@ describe("SafeHttpTransport response policy", () => {
     const destination = createServer((request, response) => {
       response.setHeader("Content-Type", "text/plain");
       response.end(
-        `${request.headers.authorization ?? "no-authorization"}|${request.headers["x-api-key"] ?? "no-api-key"}`,
+        `${request.headers.authorization ?? "no-authorization"}|${request.headers["x-api-key"] ?? "no-api-key"}|${request.headers["idempotency-key"] ?? "no-idempotency-key"}`,
       );
     });
     await new Promise<void>((resolve) =>
@@ -141,10 +141,47 @@ describe("SafeHttpTransport response policy", () => {
       timeoutMs: 1_000,
       authorization: "Bearer must-not-cross-origin",
       apiKey: "must-not-cross-origin-api-key",
+      idempotencyKey: "must-not-cross-origin-idempotency-key",
       allowHttp: true,
       allowPrivateNetwork: true,
     });
-    expect(result.bytes.toString("utf8")).toBe("no-authorization|no-api-key");
+    expect(result.bytes.toString("utf8")).toBe(
+      "no-authorization|no-api-key|no-idempotency-key",
+    );
+  });
+
+  it("sends a DELETE request and idempotency key only to the provider origin", async () => {
+    const server = createServer((request, response) => {
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify({
+          method: request.method,
+          idempotencyKey: request.headers["idempotency-key"],
+        }),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    servers.push(server);
+    const address = server.address();
+    if (!address || typeof address === "string")
+      throw new Error("test server did not bind");
+    const result = await safeHttpRequest({
+      url: `http://127.0.0.1:${address.port}/task-1`,
+      method: "DELETE",
+      accept: "json",
+      maximumBytes: 1_024,
+      timeoutMs: 1_000,
+      authorization: "Bearer secret",
+      idempotencyKey: "delete-task-1",
+      allowHttp: true,
+      allowPrivateNetwork: true,
+    });
+    expect(JSON.parse(result.bytes.toString("utf8"))).toEqual({
+      method: "DELETE",
+      idempotencyKey: "delete-task-1",
+    });
   });
 
   it("rejects an oversized response before returning partial content", async () => {

@@ -57,12 +57,6 @@ export const engineDefinitions = {
     isBeta: false,
     role: "external-benchmark",
   },
-  grok: {
-    name: "Grok Build",
-    version: "1.0.5",
-    isBeta: false,
-    role: "external-benchmark",
-  },
   langgraph: {
     name: "LangGraph.js",
     version: "1.4.9",
@@ -135,12 +129,22 @@ export function agentProviderConfiguration(
   const credentialRef = text(provider.payload["凭据引用"]);
   const model = text(provider.payload["模型名称"]);
   const baseUrl = text(provider.payload["服务地址"]);
+  const authentication =
+    text(provider.payload["认证方式"]) === "none" ? "none" : "apiKey";
+  const localRuntimeKind = text(provider.payload["本地运行时"]);
   const protocol = text(provider.payload["调用协议"])?.toLowerCase() ?? "";
   const presetProvider = text(provider.payload["预设服务商"])?.toLowerCase();
   if (serviceType !== "智能模型")
     throw new Error("仅“智能模型”类型的服务商可供智能助手使用。");
-  if (!credentialRef || !model)
-    throw new Error("智能助手模型需要模型名称和已保存的接口密钥。");
+  if (!model) throw new Error("智能助手模型需要模型名称。");
+  if (
+    authentication === "none" &&
+    localRuntimeKind !== "ollama" &&
+    localRuntimeKind !== "lm_studio"
+  )
+    throw new Error("无密钥认证只允许固定的 Ollama 或 LM Studio 本地运行时。");
+  if (authentication === "apiKey" && !credentialRef)
+    throw new Error("云端智能助手模型需要已保存的接口密钥。");
   if (baseUrl) {
     let address: URL;
     try {
@@ -174,14 +178,21 @@ export function agentProviderConfiguration(
             ? "openai"
             : "openai-compatible",
     model,
-    ...(baseUrl ? { baseUrl } : {}),
-    credentialRef,
-    environmentName:
-      providerKind === "anthropic"
-        ? "ANTHROPIC_API_KEY"
-        : providerKind === "google"
-          ? "GOOGLE_GENERATIVE_AI_API_KEY"
-          : "OPENAI_API_KEY",
+    authentication,
+    ...(authentication === "none"
+      ? {
+          localRuntimeKind: localRuntimeKind as "ollama" | "lm_studio",
+        }
+      : {
+          ...(baseUrl ? { baseUrl } : {}),
+          credentialRef: credentialRef!,
+          environmentName:
+            providerKind === "anthropic"
+              ? ("ANTHROPIC_API_KEY" as const)
+              : providerKind === "google"
+                ? ("GOOGLE_GENERATIVE_AI_API_KEY" as const)
+                : ("OPENAI_API_KEY" as const),
+        }),
   };
 }
 
@@ -192,8 +203,18 @@ export function configuredProvider(
   const credentialRef = text(provider.payload["凭据引用"]);
   const model = text(provider.payload["模型名称"]);
   const baseUrl = text(provider.payload["服务地址"]);
-  if (!credentialRef || !model)
-    throw new Error("服务商需要模型名称和已保存的接口密钥。");
+  const authentication =
+    text(provider.payload["认证方式"]) === "none" ? "none" : "apiKey";
+  const localRuntimeKind = text(provider.payload["本地运行时"]);
+  if (!model) throw new Error("服务商需要模型名称。");
+  if (authentication === "apiKey" && !credentialRef)
+    throw new Error("云端服务商需要已保存的接口密钥。");
+  if (
+    authentication === "none" &&
+    localRuntimeKind !== "ollama" &&
+    localRuntimeKind !== "lm_studio"
+  )
+    throw new Error("无密钥认证只允许固定的 Ollama 或 LM Studio 本地运行时。");
   if (baseUrl) {
     const value = new URL(baseUrl);
     if (
@@ -210,8 +231,15 @@ export function configuredProvider(
     title: provider.title,
     serviceType,
     model,
-    credentialRef,
-    ...(baseUrl ? { baseUrl } : {}),
+    authentication,
+    ...(authentication === "none"
+      ? {
+          localRuntimeKind: localRuntimeKind as "ollama" | "lm_studio",
+        }
+      : {
+          credentialRef: credentialRef!,
+          ...(baseUrl ? { baseUrl } : {}),
+        }),
     ...(text(provider.payload["调用协议"])
       ? { protocol: text(provider.payload["调用协议"]) }
       : {}),
@@ -468,9 +496,7 @@ export async function agentEngineDescriptors(
         isBeta: definition.isBeta,
         statusMessage: !running
           ? host
-            ? kind === "grok"
-              ? "Grok Build 当前仅支持 macOS arm64，或引擎进程未通过健康检查"
-              : "引擎进程未启动或未通过健康检查"
+            ? "引擎进程未启动或未通过健康检查"
             : "当前 Runtime 未连接 Desktop Host，本地引擎不可用"
           : !configured
             ? kind === "codex"

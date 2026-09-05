@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { JsonValue } from "./index.js";
 import { TaskSchema } from "./automation.js";
 import { defineServiceContract } from "./service-contract.js";
 
@@ -368,6 +369,22 @@ export const VideoGenerationPreflightSchema = z.object({
   lockedAssetIds: z.array(z.string().uuid()),
   blockers: z.array(z.string()),
   warnings: z.array(z.string()),
+  providerKind: z.enum(["seedance", "minimax_h3_cloud"]).optional(),
+  providerCapabilities: z
+    .object({
+      cancellation: z.enum(["unsupported", "queued_only", "supported"]),
+      nativeAudio: z.boolean(),
+      durationSeconds: z.union([
+        z.array(z.number().int().positive()),
+        z.object({
+          minimum: z.number().int().positive(),
+          maximum: z.number().int().positive(),
+        }),
+      ]),
+      resolutions: z.array(z.string()),
+      aspectRatios: z.array(z.string()),
+    })
+    .optional(),
   costStatus: z.enum(["known", "unknown"]),
   estimatedCost: z.number().nonnegative().optional(),
   currency: z.string().optional(),
@@ -391,9 +408,25 @@ export const VideoGenerationJobSchema = z.object({
   episodeId: z.string().uuid().optional(),
   shotId: z.string().uuid().optional(),
   providerId: z.string().uuid(),
+  providerKind: z.enum(["seedance", "minimax_h3_cloud"]).optional(),
+  modelRevision: z.string().optional(),
   remoteJobId: z.string(),
   prompt: z.string(),
   status: z.enum(["queued", "running", "succeeded", "failed", "canceled"]),
+  remoteStatus: z.enum([
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "canceled",
+  ]),
+  archiveStatus: z.enum([
+    "not_started",
+    "pending",
+    "archived",
+    "failed",
+    "unavailable",
+  ]),
   results: z.array(MediaRecordSchema),
   error: z.string().optional(),
   createdAt: z.string().datetime(),
@@ -401,6 +434,27 @@ export const VideoGenerationJobSchema = z.object({
 });
 export const VideoGenerationRetryInputSchema = z.object({
   providerId: z.string().uuid().optional(),
+});
+
+export const MediaArtifactDescriptorSchema = z.object({
+  artifactId: z.string().uuid(),
+  mediaRef: z.string().uuid(),
+  kind: z.enum(["image", "audio", "video", "subtitle", "project-package"]),
+  mimeType: z.string().min(1).max(200),
+  extension: z.string().regex(/^\.[a-z0-9]{1,12}$/u),
+  sizeBytes: z.number().int().positive(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  durationFrames: z.number().int().positive().optional(),
+  frameRate: z
+    .object({
+      numerator: z.number().int().positive(),
+      denominator: z.number().int().positive(),
+      dropFrame: z.boolean(),
+    })
+    .optional(),
+  status: z.enum(["archived", "quarantined", "removed"]),
 });
 
 export type MediaRecordKind = z.infer<typeof MediaRecordKindSchema>;
@@ -428,6 +482,9 @@ export type VideoGenerationPreflight = z.infer<
   typeof VideoGenerationPreflightSchema
 >;
 export type VideoGenerationJob = z.infer<typeof VideoGenerationJobSchema>;
+export type MediaArtifactDescriptor = z.infer<
+  typeof MediaArtifactDescriptorSchema
+>;
 
 export const MEDIA_RECORD_SERVICE = defineServiceContract<MediaRecordService>({
   id: "media.records.v1",
@@ -461,6 +518,13 @@ export interface MediaRecordService {
     },
   ): MediaRecord | "conflict" | undefined;
   remove(id: string, expectedVersion?: number): boolean;
+  registerArchivedArtifact(input: {
+    projectId: string;
+    parentId?: string;
+    title: string;
+    descriptor: Omit<MediaArtifactDescriptor, "artifactId">;
+    lineage: JsonValue;
+  }): MediaRecord;
 }
 
 export interface MediaAudioTrackService {

@@ -8,13 +8,20 @@ import {
   LoadingState,
   Textarea,
 } from "@dramaip/ui-shared";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   defaultProductionBrief,
+  projectModeBrief,
+  projectModeConfigFromDraft,
   projectInputFromBrief,
 } from "../../project-intake";
+import {
+  initializeProjectMaterials,
+  ProjectInitializationError,
+} from "../../project-creation-coordinator";
+import { createCreationDraft, useStudioSession } from "../../studio-session";
 import {
   NOVEL_GENRE_CHOICES,
   WorkspaceIntro,
@@ -24,7 +31,6 @@ import {
 import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
 import {
   applyNovelStoryPresetToBrief,
-  initializeStoryPresetMaterials,
   novelStoryPreset,
   projectInputFromStoryPreset,
   type NovelStoryPresetId,
@@ -128,26 +134,76 @@ export function NovelWritingHome() {
 
 export function NovelQuickStart() {
   const client = useStudio();
+  const queryClient = useQueryClient();
+  const session = useStudioSession();
   const navigate = useNavigate();
   const location = useLocation();
   const requestedMode = new URLSearchParams(location.search).get("mode");
+  const restored =
+    session.creationDraft?.projectMode === "series_longform"
+      ? session.creationDraft
+      : undefined;
+  const initialSource =
+    requestedMode === "source"
+      ? "source-import"
+      : (restored?.creationSource ?? "inspiration");
+  const initialBrief =
+    restored?.brief ?? projectModeBrief("series_longform", initialSource);
   const [mode, setMode] = useState<"inspiration" | "source">(
-    requestedMode === "source" ? "source" : "inspiration",
+    initialSource === "source-import" ? "source" : "inspiration",
   );
-  const [title, setTitle] = useState("");
-  const [idea, setIdea] = useState("");
-  const [genre, setGenre] = useState<string>("都市情感");
-  const [storyPresetId, setStoryPresetId] = useState<NovelStoryPresetId>();
+  const [title, setTitle] = useState(initialBrief.title);
+  const [idea, setIdea] = useState(initialBrief.idea);
+  const [genre, setGenre] = useState<string>(initialBrief.shortDramaType);
+  const [storyPresetId, setStoryPresetId] = useState<
+    NovelStoryPresetId | undefined
+  >(() =>
+    novelStoryPreset(restored?.storyPresetId as NovelStoryPresetId)
+      ? (restored?.storyPresetId as NovelStoryPresetId)
+      : undefined,
+  );
+  const [replaceOtherDraft, setReplaceOtherDraft] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const conflictingDraft = Boolean(
+    session.creationDraft &&
+    session.creationDraft.projectMode !== "series_longform" &&
+    !replaceOtherDraft,
+  );
 
-  const cleanup = async (project: Project): Promise<void> => {
-    try {
-      await client.projects.trash(project.id);
-      await client.projects.purge(project.id, project.title);
-    } catch {
-      // The creation error remains authoritative; cleanup is best-effort only.
-    }
+  const persist = (values: {
+    nextMode?: "inspiration" | "source";
+    nextTitle?: string;
+    nextIdea?: string;
+    nextGenre?: string;
+    nextPresetId?: NovelStoryPresetId;
+  }) => {
+    const nextMode = values.nextMode ?? mode;
+    const source = nextMode === "source" ? "source-import" : "inspiration";
+    const brief = projectModeBrief("series_longform", source, {
+      ...initialBrief,
+      title: values.nextTitle ?? title,
+      idea: values.nextIdea ?? idea,
+      shortDramaType: values.nextGenre ?? genre,
+    });
+    brief.shortDramaType = values.nextGenre ?? genre;
+    const base = createCreationDraft(
+      "novel-quick-start",
+      "series_longform",
+      source,
+    );
+    session.saveCreationDraft({
+      ...base,
+      ...restored,
+      projectMode: "series_longform",
+      creationSource: source,
+      brief,
+      storyPresetId: values.nextPresetId,
+      scriptDraft: "",
+      creatorTopic: "",
+      origin: "novel-quick-start",
+      updatedAt: new Date().toISOString(),
+    });
   };
 
   const create = async (): Promise<void> => {
@@ -165,39 +221,117 @@ export function NovelQuickStart() {
       const preset =
         mode === "inspiration" ? novelStoryPreset(storyPresetId) : undefined;
       if (preset) draft = applyNovelStoryPresetToBrief(draft, preset);
-      const modeConfig = {
-        mode: "series_longform" as const,
-        targetChapterCount: 300,
-        targetSeasonCount: 5,
-        targetEpisodesPerSeason: 80,
-      };
+      const modeConfig = projectModeConfigFromDraft(
+        "series_longform",
+        draft.creationSource,
+        draft,
+        "",
+      );
+      if (!modeConfig) throw new Error("系列长篇规模设置无效。");
+      const attemptId = session.creationDraft?.attemptId ?? crypto.randomUUID();
+      session.saveCreationDraft(
+        {
+          ...(session.creationDraft ??
+            createCreationDraft(
+              "novel-quick-start",
+              "series_longform",
+              draft.creationSource,
+            )),
+          brief: draft,
+          storyPresetId,
+          attemptId,
+          updatedAt: new Date().toISOString(),
+        },
+        true,
+      );
       project = (
         await client.projects.create(
           preset
             ? projectInputFromStoryPreset(draft, preset, modeConfig)
             : projectInputFromBrief(draft, modeConfig),
+          attemptId,
         )
       ).project;
+      session.saveCreationDraft(
+        {
+          ...(session.creationDraft ??
+            createCreationDraft(
+              "novel-quick-start",
+              "series_longform",
+              draft.creationSource,
+            )),
+          brief: draft,
+          storyPresetId,
+          attemptId,
+          createdProjectId: project.id,
+          updatedAt: new Date().toISOString(),
+        },
+        true,
+      );
+      try {
+        const initialized = await initializeProjectMaterials(client, {
+          project,
+          brief: draft,
+          preset,
+        });
+        session.saveCreationDraft(
+          {
+            ...(session.creationDraft ??
+              createCreationDraft(
+                "novel-quick-start",
+                "series_longform",
+                draft.creationSource,
+              )),
+            brief: draft,
+            storyPresetId,
+            attemptId,
+            createdProjectId: project.id,
+            initializationSteps: initialized.steps,
+            updatedAt: new Date().toISOString(),
+          },
+          true,
+        );
+        if (initialized.chapterId)
+          window.localStorage.setItem(
+            `dramaip-novel-last-chapter:${project.id}`,
+            initialized.chapterId,
+          );
+      } catch (cause) {
+        if (cause instanceof ProjectInitializationError)
+          session.saveCreationDraft(
+            {
+              ...(session.creationDraft ??
+                createCreationDraft(
+                  "novel-quick-start",
+                  "series_longform",
+                  draft.creationSource,
+                )),
+              brief: draft,
+              storyPresetId,
+              attemptId,
+              createdProjectId: project.id,
+              initializationSteps: cause.steps,
+              updatedAt: new Date().toISOString(),
+            },
+            true,
+          );
+        throw cause;
+      }
       if (mode === "source") {
+        session.clearCreationDraft();
+        await queryClient.invalidateQueries({ queryKey: ["projects"] });
         navigate(`/projects/${project.id}/tools/import`);
         return;
       }
-      const chapter = preset
-        ? await initializeStoryPresetMaterials(client, project.id, preset, idea)
-        : await client.chapters.create({
-            projectId: project.id,
-            title: "第 1 章",
-            summary: "",
-            content: "",
-          });
-      window.localStorage.setItem(
-        `dramaip-novel-last-chapter:${project.id}`,
-        chapter.id,
-      );
+      session.clearCreationDraft();
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${project.id}`);
     } catch (cause) {
-      if (project) await cleanup(project);
-      setError(message(cause));
+      setError(
+        project
+          ? `${message(cause)} 项目和已完成资料均已保留，可安全重试。`
+          : message(cause),
+      );
     } finally {
       setSaving(false);
     }
@@ -214,111 +348,155 @@ export function NovelQuickStart() {
         <p className="mt-2 text-sm leading-6 text-muted">
           起一个作品名即可开始。人物、大纲和制作设置都可以稍后补充。
         </p>
-        <div className="mt-5 grid grid-cols-2 gap-2 rounded-lg bg-surface-muted p-1.5">
-          {(
-            [
-              ["inspiration", "从灵感开始"],
-              ["source", "导入已有原著"],
-            ] as const
-          ).map(([value, label]) => (
-            <BareButton
-              key={value}
-              className={`rounded-md px-3 py-2.5 text-sm font-medium ${mode === value ? "bg-surface-raised text-brand shadow-control" : "text-muted hover:text-ink"}`}
-              onClick={() => {
-                setMode(value);
-                if (value === "source") {
-                  setStoryPresetId(undefined);
-                  setGenre("都市情感");
-                }
-              }}
-            >
-              {label}
-            </BareButton>
-          ))}
-        </div>
-        <div className="mt-5 space-y-4">
-          <label className="grid gap-1.5 text-sm font-medium">
-            作品名称
-            <Input
-              autoFocus
-              aria-label="作品名称"
-              value={title}
-              placeholder="例如：雨夜归来"
-              onChange={(event) => setTitle(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) void create();
-              }}
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            一句话灵感（可选）
-            <Textarea
-              className="min-h-24"
-              aria-label="一句话灵感"
-              value={idea}
-              placeholder="例如：失踪三年的姐姐在雨夜寄来一封来自明天的信。"
-              onChange={(event) => setIdea(event.target.value)}
-            />
-          </label>
-          {mode === "inspiration" && (
-            <NovelStoryPresetPicker
-              selectedId={storyPresetId}
-              onSelect={(id) => {
-                const preset = novelStoryPreset(id);
-                if (!preset) return;
-                setStoryPresetId(id);
-                setGenre(preset.label);
-              }}
-              onClear={() => {
-                setStoryPresetId(undefined);
-                setGenre("都市情感");
-              }}
-            />
-          )}
-          <fieldset>
-            <legend className="text-sm font-medium">题材（可选）</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {NOVEL_GENRE_CHOICES.map((item) => (
+        {conflictingDraft && (
+          <InlineNotice className="mt-4" tone="warning">
+            你还有一份其他模式的未完成创作草稿。可以返回项目首页继续，或明确开始新的系列长篇；系统不会静默覆盖它。
+            <span className="mt-3 flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/">继续原草稿</Link>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  session.clearCreationDraft();
+                  setReplaceOtherDraft(true);
+                }}
+              >
+                开始新的系列长篇
+              </Button>
+            </span>
+          </InlineNotice>
+        )}
+        {!conflictingDraft && (
+          <>
+            <div className="mt-5 grid grid-cols-2 gap-2 rounded-lg bg-surface-muted p-1.5">
+              {(
+                [
+                  ["inspiration", "从灵感开始"],
+                  ["source", "导入已有原著"],
+                ] as const
+              ).map(([value, label]) => (
                 <BareButton
-                  key={item}
-                  type="button"
-                  aria-pressed={genre === item}
-                  className={`rounded-full border px-3 py-1.5 text-sm ${genre === item ? "border-brand bg-brand-soft text-brand" : "border-line text-muted hover:border-line-strong hover:text-ink"}`}
+                  key={value}
+                  className={`rounded-md px-3 py-2.5 text-sm font-medium ${mode === value ? "bg-surface-raised text-brand shadow-control" : "text-muted hover:text-ink"}`}
                   onClick={() => {
-                    setStoryPresetId(undefined);
-                    setGenre(item);
+                    setMode(value);
+                    if (value === "source") {
+                      setStoryPresetId(undefined);
+                      setGenre("都市情感");
+                    }
+                    persist({
+                      nextMode: value,
+                      nextGenre: value === "source" ? "都市情感" : genre,
+                      nextPresetId: undefined,
+                    });
                   }}
                 >
-                  {item}
+                  {label}
                 </BareButton>
               ))}
             </div>
-          </fieldset>
-        </div>
-        {mode === "source" && (
-          <p className="mt-5 rounded-lg bg-brand-soft/50 p-3 text-sm text-muted">
-            项目创建后会直接进入本地文件导入向导；确认预览和内容权利前不会写入章节。
-          </p>
+            <div className="mt-5 space-y-4">
+              <label className="grid gap-1.5 text-sm font-medium">
+                作品名称
+                <Input
+                  autoFocus
+                  aria-label="作品名称"
+                  value={title}
+                  placeholder="例如：雨夜归来"
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    persist({
+                      nextTitle: event.target.value,
+                      nextPresetId: storyPresetId,
+                    });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) void create();
+                  }}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium">
+                一句话灵感（可选）
+                <Textarea
+                  className="min-h-24"
+                  aria-label="一句话灵感"
+                  value={idea}
+                  placeholder="例如：失踪三年的姐姐在雨夜寄来一封来自明天的信。"
+                  onChange={(event) => {
+                    setIdea(event.target.value);
+                    persist({
+                      nextIdea: event.target.value,
+                      nextPresetId: storyPresetId,
+                    });
+                  }}
+                />
+              </label>
+              {mode === "inspiration" && (
+                <NovelStoryPresetPicker
+                  selectedId={storyPresetId}
+                  onSelect={(id) => {
+                    const preset = novelStoryPreset(id);
+                    if (!preset) return;
+                    setStoryPresetId(id);
+                    setGenre(preset.label);
+                    persist({ nextGenre: preset.label, nextPresetId: id });
+                  }}
+                  onClear={() => {
+                    setStoryPresetId(undefined);
+                    setGenre("都市情感");
+                    persist({ nextGenre: "都市情感", nextPresetId: undefined });
+                  }}
+                />
+              )}
+              <fieldset>
+                <legend className="text-sm font-medium">题材（可选）</legend>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {NOVEL_GENRE_CHOICES.map((item) => (
+                    <BareButton
+                      key={item}
+                      type="button"
+                      aria-pressed={genre === item}
+                      className={`rounded-full border px-3 py-1.5 text-sm ${genre === item ? "border-brand bg-brand-soft text-brand" : "border-line text-muted hover:border-line-strong hover:text-ink"}`}
+                      onClick={() => {
+                        setStoryPresetId(undefined);
+                        setGenre(item);
+                        persist({ nextGenre: item, nextPresetId: undefined });
+                      }}
+                    >
+                      {item}
+                    </BareButton>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+            {mode === "source" && (
+              <p className="mt-5 rounded-lg bg-brand-soft/50 p-3 text-sm text-muted">
+                项目创建后会直接进入本地文件导入向导；确认预览和内容权利前不会写入章节。
+              </p>
+            )}
+            {error && (
+              <InlineNotice className="mt-5" tone="danger">
+                {error}
+              </InlineNotice>
+            )}
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="primary"
+                loading={saving}
+                disabled={saving || !title.trim()}
+                onClick={() => void create()}
+              >
+                {saving
+                  ? "正在创建…"
+                  : mode === "source"
+                    ? "创建并导入原著"
+                    : "创建并开始写作"}
+              </Button>
+            </div>
+          </>
         )}
-        {error && (
-          <InlineNotice className="mt-5" tone="danger">
-            {error}
-          </InlineNotice>
-        )}
-        <div className="mt-6 flex justify-end">
-          <Button
-            variant="primary"
-            loading={saving}
-            disabled={saving || !title.trim()}
-            onClick={() => void create()}
-          >
-            {saving
-              ? "正在创建…"
-              : mode === "source"
-                ? "创建并导入原著"
-                : "创建并开始写作"}
-          </Button>
-        </div>
       </section>
     </div>
   );

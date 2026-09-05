@@ -1,5 +1,6 @@
 export { AGENT_TASK_CATALOG } from "./task-catalog.js";
 import {
+  AGENT_CONTEXT_SERVICE,
   AGENT_TASK_RUNNER_SERVICE,
   CONFIGURED_PROVIDER_SERVICE,
   type ConfiguredProviderService,
@@ -8,6 +9,8 @@ import type { DesktopHostClient } from "@dramaip/desktop-host";
 import { defineFirstPartyPlugin } from "@dramaip/plugin-api/internal";
 import { AGENTS_DESCRIPTOR, AGENTS_UI_CONTRIBUTIONS } from "./descriptor.js";
 import { evaluationRoutes } from "./experiments/routes.js";
+import { agentContextRoutes } from "./context/routes.js";
+import { createAgentContextStore } from "./context/store.js";
 import {
   AgentRouteHandler,
   agentRouteBuilder,
@@ -37,8 +40,13 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
     ui: AGENTS_UI_CONTRIBUTIONS,
     migrations: agentMigrations,
     activate: async (context) => {
+      const agentContext = createAgentContextStore(context);
+      if (context.services)
+        context.effect(`service:${AGENT_CONTEXT_SERVICE}`, () =>
+          context.services.provide(AGENT_CONTEXT_SERVICE, agentContext),
+        );
       context.effect("worker:inspiration-memory", () =>
-        startInspirationMemoryWorker(context, host),
+        startInspirationMemoryWorker(context, host, agentContext),
       );
       recoverAgentRuns(context, host);
       const providerService: ConfiguredProviderService = {
@@ -63,10 +71,14 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
         context.effect(`service:${AGENT_TASK_RUNNER_SERVICE}`, () =>
           context.services.provide(
             AGENT_TASK_RUNNER_SERVICE,
-            createAgentTaskRunner(context, host),
+            createAgentTaskRunner(context, host, agentContext),
           ),
         );
-      const assistantRoutes = assistantConversationRoutes(context, host);
+      const assistantRoutes = assistantConversationRoutes(
+        context,
+        host,
+        agentContext,
+      );
       const assistantHandler = (id: string): AgentRouteHandler => {
         const draft = assistantRoutes.find((route) => route.id === id);
         if (!draft) throw new Error(`Agent route is missing: ${id}`);
@@ -74,6 +86,7 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
       };
       for (const route of [
         ...providerRoutes(context, host),
+        ...agentContextRoutes(agentContext),
         ...assistantRoutes,
         ...typedAgentSessionRoutes(context, host, {
           create: assistantHandler("agents:assistant-conversations-create"),
@@ -82,7 +95,7 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
           ),
         }),
         ...inspirationRoutes(context),
-        ...evaluationRoutes(context, host),
+        ...evaluationRoutes(context, host, agentContext),
       ]) {
         const registered =
           "bind" in route ? materializeAgentRoute(route) : route;

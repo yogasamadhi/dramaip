@@ -8,6 +8,8 @@ import type {
   RevisionPreview,
 } from "@dramaip/contracts/product";
 import { BareButton, PageHeader } from "@dramaip/ui-shared";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useStudioClient } from "./runtime-connection";
 export const NOVEL_GENRE_CHOICES = [
   "都市情感",
@@ -92,6 +94,18 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   failed: "失败",
   canceled: "已取消",
   interrupted: "已中断",
+  active: "可用",
+  available: "可用",
+  ready: "可以继续",
+  draft: "尚未开始",
+  initializing: "正在准备",
+  blocked: "需要补充资料",
+  conflicted: "需要处理",
+  discarded: "已放弃",
+  applied: "已完成",
+  stale: "需要重新确认",
+  expired: "已过期",
+  revoked: "已撤销",
 };
 
 export const CREATIVE_DIAGNOSTIC_LABELS: Record<
@@ -122,8 +136,21 @@ export function searchResultPath(
 ): string {
   if (kind === "project") return `/projects/${id}`;
   if (kind === "chapter" && projectId) return `/projects/${projectId}`;
-  if (["adaptations", "episodes", "scripts", "scenes", "shots"].includes(kind))
-    return "/adapt";
+  if (
+    ["adaptations", "episodes", "scripts", "scenes", "shots"].includes(kind)
+  ) {
+    const search = new URLSearchParams({ stage: kind });
+    if (projectId) search.set("projectId", projectId);
+    const idKey = {
+      adaptations: "adaptationId",
+      episodes: "episodeId",
+      scripts: "scriptId",
+      scenes: "sceneId",
+      shots: "shotId",
+    }[kind];
+    if (idKey) search.set(idKey, id);
+    return `/adapt?${search}`;
+  }
   if (
     [
       "assets",
@@ -136,14 +163,20 @@ export function searchResultPath(
       "animatics",
       "renders",
     ].includes(kind)
-  )
-    return "/produce";
+  ) {
+    const search = new URLSearchParams({ stage: kind });
+    if (projectId) search.set("projectId", projectId);
+    return `/produce?${search}`;
+  }
   if (
     ["quality", "compliance", "localization", "review", "delivery"].includes(
       kind,
     )
-  )
-    return "/review";
+  ) {
+    const search = new URLSearchParams({ stage: kind });
+    if (projectId) search.set("projectId", projectId);
+    return `/review?${search}`;
+  }
   if (["providers", "settings", "backup", "cloud", "agents"].includes(kind))
     return "/settings";
   return "/create";
@@ -193,30 +226,131 @@ export function WorkspaceIntro(props: {
 
 export function StageNavigation(props: {
   label: string;
-  items: readonly string[];
+  items: readonly (string | WorkspaceStageItem)[];
   active: string;
   onChange(value: string): void;
 }) {
+  const items = props.items.map((item): WorkspaceStageItem =>
+    typeof item === "string"
+      ? {
+          id: item,
+          label: domainLabel(item),
+          availability: "available",
+          recommended: false,
+        }
+      : item,
+  );
+  const activeItem = items.find((item) => item.id === props.active);
   return (
-    <nav
-      aria-label={props.label}
-      className="flex flex-wrap gap-1 rounded-lg border border-line bg-surface-muted p-1.5"
+    <section className="space-y-2">
+      <nav
+        aria-label={props.label}
+        className="flex flex-wrap gap-1 rounded-lg border border-line bg-surface-muted p-1.5"
+      >
+        {items.map((item) => {
+          const active = props.active === item.id;
+          return (
+            <BareButton
+              key={item.id}
+              type="button"
+              aria-current={active ? "step" : undefined}
+              aria-label={item.label}
+              aria-describedby={`${props.label}-${item.id}-state`}
+              className={`rounded-md px-3 py-2 text-left text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-focus ${active ? "bg-surface-raised text-ink shadow-control" : "text-muted hover:bg-surface hover:text-ink"}`}
+              onClick={() => props.onChange(item.id)}
+            >
+              <span className="block">{item.label}</span>
+              <span
+                id={`${props.label}-${item.id}-state`}
+                className={`mt-0.5 block text-[10px] font-normal ${item.availability === "blocked" ? "text-amber-700" : item.recommended ? "text-brand" : "text-muted"}`}
+              >
+                {workspaceStageStateLabel(item)}
+              </span>
+            </BareButton>
+          );
+        })}
+      </nav>
+      {activeItem?.availability === "blocked" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p>{activeItem.reason ?? "当前阶段需要先补齐上游资料。"}</p>
+          {activeItem.recoveryTarget && activeItem.recoveryLabel && (
+            <Link
+              className="font-medium text-brand underline underline-offset-2"
+              to={activeItem.recoveryTarget}
+            >
+              {activeItem.recoveryLabel}
+            </Link>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export type WorkspaceStageAvailability = "available" | "blocked";
+
+export interface WorkspaceStageItem {
+  id: string;
+  label: string;
+  availability: WorkspaceStageAvailability;
+  recommended: boolean;
+  reason?: string;
+  recoveryLabel?: string;
+  recoveryTarget?: string;
+}
+
+export function workspaceStageStateLabel(
+  item: Pick<WorkspaceStageItem, "availability" | "recommended">,
+): "需要先完成" | "建议现在做" | "可以稍后做" {
+  if (item.availability === "blocked") return "需要先完成";
+  return item.recommended ? "建议现在做" : "可以稍后做";
+}
+
+export const PRODUCT_STATUS_LABELS: Record<string, string> = {
+  "not-started": "尚未开始",
+  preparing: "正在准备",
+  pending: "等待用户确认",
+  queued: "正在准备",
+  running: "进行中",
+  working: "进行中",
+  succeeded: "已完成",
+  completed: "已完成",
+  delivered: "已完成",
+  "needs-input": "需要补充资料",
+  "needs-attention": "需要处理",
+  "needs-human": "等待用户确认",
+  "ready-for-review": "可以进入审核",
+  failed: "执行失败",
+  retryable: "可以重试",
+  canceled: "已取消",
+  interrupted: "已中断",
+};
+
+export function productStatusLabel(status: string): string {
+  return PRODUCT_STATUS_LABELS[status] ?? "状态待确认";
+}
+
+export function RecoveryNotice(props: {
+  happened: string;
+  contentSafety: string;
+  nextStep: string;
+  returnTo: string;
+  actions?: ReactNode;
+  tone?: "warning" | "danger";
+}) {
+  return (
+    <section
+      role="alert"
+      className={`rounded-xl border p-4 text-sm ${props.tone === "danger" ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
     >
-      {props.items.map((item) => {
-        const active = props.active === item;
-        return (
-          <BareButton
-            key={item}
-            type="button"
-            aria-current={active ? "step" : undefined}
-            className={`rounded-md px-3 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-focus ${active ? "bg-surface-raised text-ink shadow-control" : "text-muted hover:bg-surface hover:text-ink"}`}
-            onClick={() => props.onChange(item)}
-          >
-            {domainLabel(item)}
-          </BareButton>
-        );
-      })}
-    </nav>
+      <p className="font-medium">发生了什么：{props.happened}</p>
+      <p className="mt-2">已有内容：{props.contentSafety}</p>
+      <p className="mt-1">下一步：{props.nextStep}</p>
+      <p className="mt-1">完成后：{props.returnTo}</p>
+      {props.actions && (
+        <div className="mt-3 flex flex-wrap gap-2">{props.actions}</div>
+      )}
+    </section>
   );
 }
 export function message(cause: unknown): string {

@@ -1,6 +1,6 @@
 # @dramaip/mobile
 
-React Native mobile client for DramaIP, built on **Expo SDK 54** with **Expo
+尽意 DramaIP 的 React Native mobile client, built on **Expo SDK 54** with **Expo
 Router**, **NativeWind v5** (Tailwind CSS v4), **gluestack-ui v5**, and
 **Reanimated**. Development and debugging use **Expo Go**.
 

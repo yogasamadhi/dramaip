@@ -419,13 +419,8 @@ export interface TaskInput {
   payload?: unknown;
 }
 
-export const AgentEngineKind = Schema.Literals([
-  "pi",
-  "codex",
-  "grok",
-  "langgraph",
-]);
-export type AgentEngineKind = "pi" | "codex" | "grok" | "langgraph";
+export const AgentEngineKind = Schema.Literals(["pi", "codex", "langgraph"]);
+export type AgentEngineKind = "pi" | "codex" | "langgraph";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -2074,22 +2069,50 @@ export const TimelineMediaStatus = Schema.Literals([
 export type TimelineMediaStatus =
   "linked" | "missing" | "unsupported" | "proxy" | "unattached";
 
+export const FrameRate = Schema.Struct({
+  numerator: Schema.Int,
+  denominator: Schema.Int,
+  dropFrame: Schema.Boolean,
+});
+export interface FrameRate {
+  numerator: number;
+  denominator: number;
+  dropFrame: boolean;
+}
+
+export const TimelineProfile = Schema.Struct({
+  width: Schema.Int,
+  height: Schema.Int,
+  frameRate: FrameRate,
+  audioSampleRate: Schema.Int,
+  channels: Schema.Int,
+});
+export interface TimelineProfile {
+  width: number;
+  height: number;
+  frameRate: FrameRate;
+  audioSampleRate: number;
+  channels: number;
+}
+
 export const TimelineClip = Schema.Struct({
   id: Id,
   sourceClipId: Schema.optionalKey(Id),
   shotId: Schema.optionalKey(Id),
   assetId: Schema.optionalKey(Id),
   audioTrackId: Schema.optionalKey(Id),
+  mediaRef: Schema.optionalKey(Schema.String),
+  trackId: Id,
   name: Schema.String,
-  startSeconds: Schema.Number,
-  durationSeconds: Schema.Number,
-  sourceOffsetSeconds: Schema.Number,
+  startFrame: Schema.Int,
+  durationFrames: Schema.Int,
+  sourceOffsetFrame: Schema.Int,
   mediaStatus: TimelineMediaStatus,
   text: Schema.optionalKey(Schema.String),
   /** 音频片段的非破坏性混音参数；视频和字幕可省略。 */
   volume: Schema.optionalKey(Schema.Number),
-  fadeInSeconds: Schema.optionalKey(Schema.Number),
-  fadeOutSeconds: Schema.optionalKey(Schema.Number),
+  fadeInFrames: Schema.optionalKey(Schema.Int),
+  fadeOutFrames: Schema.optionalKey(Schema.Int),
   /** BGM 在对白 / 旁白存在时采用的相对增益。 */
   duckingGain: Schema.optionalKey(Schema.Number),
   /** 用户显式锁定，自动编排不得替换或删除该片段。 */
@@ -2102,15 +2125,17 @@ export interface TimelineClip {
   shotId?: Id;
   assetId?: Id;
   audioTrackId?: Id;
+  mediaRef?: string;
+  trackId: Id;
   name: string;
-  startSeconds: number;
-  durationSeconds: number;
-  sourceOffsetSeconds: number;
+  startFrame: number;
+  durationFrames: number;
+  sourceOffsetFrame: number;
   mediaStatus: TimelineMediaStatus;
   text?: string;
   volume?: number;
-  fadeInSeconds?: number;
-  fadeOutSeconds?: number;
+  fadeInFrames?: number;
+  fadeOutFrames?: number;
   duckingGain?: number;
   locked?: boolean;
   manuallyEdited: boolean;
@@ -2135,15 +2160,16 @@ export interface TimelineTrack {
 
 export const TimelineManifest = Schema.Struct({
   format: Schema.Literal("dramaip-timeline"),
-  schemaVersion: Schema.Literal(1),
+  schemaVersion: Schema.Literal(2),
   id: Id,
   projectId: Id,
   adaptationId: Id,
   episodeId: Id,
   sourceFingerprint: Schema.String,
-  frameRate: Schema.Literal(25),
-  timebase: Schema.Literal("seconds"),
-  durationSeconds: Schema.Number,
+  profile: TimelineProfile,
+  timebase: Schema.Literal("frames"),
+  durationFrames: Schema.Int,
+  migrationWarnings: Schema.Array(Schema.String),
   tracks: Schema.Array(TimelineTrack),
   version: Schema.Int,
   createdAt: IsoDateTime,
@@ -2151,15 +2177,16 @@ export const TimelineManifest = Schema.Struct({
 });
 export interface TimelineManifest {
   format: "dramaip-timeline";
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: Id;
   projectId: Id;
   adaptationId: Id;
   episodeId: Id;
   sourceFingerprint: string;
-  frameRate: 25;
-  timebase: "seconds";
-  durationSeconds: number;
+  profile: TimelineProfile;
+  timebase: "frames";
+  durationFrames: number;
+  migrationWarnings: string[];
   tracks: TimelineTrack[];
   version: number;
   createdAt: IsoDateTime;
@@ -2170,18 +2197,18 @@ export const TimelineEditCommand = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("move"),
     clipId: Id,
-    startSeconds: Schema.Number,
+    startFrame: Schema.Int,
   }),
   Schema.Struct({
     type: Schema.Literal("trim"),
     clipId: Id,
-    startSeconds: Schema.optionalKey(Schema.Number),
-    durationSeconds: Schema.Number,
+    startFrame: Schema.optionalKey(Schema.Int),
+    durationFrames: Schema.Int,
   }),
   Schema.Struct({
     type: Schema.Literal("split"),
     clipId: Id,
-    atSeconds: Schema.Number,
+    atFrame: Schema.Int,
   }),
   Schema.Struct({
     type: Schema.Literal("set-track-audio"),
@@ -2202,14 +2229,14 @@ export const TimelineEditCommand = Schema.Union([
   }),
 ]);
 export type TimelineEditCommand =
-  | { type: "move"; clipId: Id; startSeconds: number }
+  | { type: "move"; clipId: Id; startFrame: number }
   | {
       type: "trim";
       clipId: Id;
-      startSeconds?: number;
-      durationSeconds: number;
+      startFrame?: number;
+      durationFrames: number;
     }
-  | { type: "split"; clipId: Id; atSeconds: number }
+  | { type: "split"; clipId: Id; atFrame: number }
   | {
       type: "set-track-audio";
       trackId: Id;
@@ -2284,7 +2311,7 @@ export interface TimelineDeliveryMedia {
 
 export const TimelineDeliveryManifest = Schema.Struct({
   format: Schema.Literal("dramaip-timeline-delivery"),
-  schemaVersion: Schema.Literal(1),
+  schemaVersion: Schema.Literal(2),
   timeline: TimelineManifest,
   media: Schema.Array(TimelineDeliveryMedia),
   unsupportedFeatures: Schema.Array(Schema.String),
@@ -2292,7 +2319,7 @@ export const TimelineDeliveryManifest = Schema.Struct({
 });
 export interface TimelineDeliveryManifest {
   format: "dramaip-timeline-delivery";
-  schemaVersion: 1;
+  schemaVersion: 2;
   timeline: TimelineManifest;
   media: TimelineDeliveryMedia[];
   unsupportedFeatures: string[];
@@ -4611,7 +4638,7 @@ export const AgentExperiment = Schema.Struct({
   candidates: Schema.optionalKey(
     Schema.Array(
       Schema.Struct({
-        candidate: Schema.Literals(["a", "b", "c", "d"]),
+        candidate: Schema.Literals(["a", "b", "c"]),
         runId: Id,
         status: AgentRunStatus,
         output: Schema.optionalKey(Schema.Unknown),
@@ -4657,7 +4684,7 @@ export interface AgentExperiment {
   error?: string;
   revealed: boolean;
   candidates?: ReadonlyArray<{
-    candidate: "a" | "b" | "c" | "d";
+    candidate: "a" | "b" | "c";
     runId: Id;
     status: AgentRunStatus;
     output?: unknown;
@@ -4707,11 +4734,11 @@ export interface AgentExperimentInput {
   confirmedEstimatedCost: boolean;
 }
 export const AgentExperimentReviewInput = Schema.Struct({
-  preferredCandidate: Schema.Literals(["a", "b", "c", "d", "tie"]),
+  preferredCandidate: Schema.Literals(["a", "b", "c", "tie"]),
   notes: Schema.optionalKey(Schema.String),
 });
 export interface AgentExperimentReviewInput {
-  preferredCandidate: "a" | "b" | "c" | "d" | "tie";
+  preferredCandidate: "a" | "b" | "c" | "tie";
   notes?: string;
 }
 

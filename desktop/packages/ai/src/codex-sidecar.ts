@@ -7,6 +7,11 @@ import {
   startCodexChatBridge,
   type CodexChatBridge,
 } from "./codex-chat-bridge";
+import {
+  startCodexMcpBridge,
+  type CodexMcpBridge,
+  type CodexMcpGrant,
+} from "./codex-mcp-bridge";
 import { normalizeCodexOutput } from "./codex-output";
 
 type StartCommand = {
@@ -32,6 +37,7 @@ type RuntimeProvider = {
 };
 type Command = StartCommand | EngineRequest | { type: "stop" };
 type ParentPort = {
+  testHarness?: true;
   postMessage(message: unknown): void;
   on(event: "message", cb: (event: { data: unknown }) => void): void;
 };
@@ -46,16 +52,21 @@ type RpcMessage = {
 const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
   .parentPort;
 const runtimeVersions = process.versions as Record<string, string | undefined>;
-if (!parentPort || !runtimeVersions.electron || Boolean(runtimeVersions.bun))
+const testHarness = parentPort?.testHarness === true;
+if (
+  !parentPort ||
+  (!testHarness && (!runtimeVersions.electron || Boolean(runtimeVersions.bun)))
+)
   throw new Error("Codex 引擎必须作为 Electron utilityProcess 运行");
 
 let startCommand: StartCommand | undefined;
-let activeMcpToken: string | undefined;
 let appServer: ChildProcessWithoutNullStreams | undefined;
 let rpcSequence = 0;
 let runtimeApiKey: string | undefined;
 let runtimeProvider: RuntimeProvider | undefined;
 let chatBridge: CodexChatBridge | undefined;
+let mcpBridge: CodexMcpBridge | undefined;
+let mcpConnectionGrantToken: string | undefined;
 const pendingRpc = new Map<
   number,
   {
@@ -106,9 +117,12 @@ async function start(command: StartCommand): Promise<void> {
       return;
     }
     startCommand = command;
-    activeMcpToken = command.mcp.token;
     await mkdir(command.codexHome, { recursive: true, mode: 0o700 });
     await mkdir(command.sessionRoot, { recursive: true, mode: 0o700 });
+    mcpBridge = await startCodexMcpBridge({
+      targetUrl: command.mcp.url,
+      staticToken: command.mcp.token,
+    });
     await launchAppServer();
     let authenticated = false;
     try {
@@ -126,6 +140,14 @@ async function start(command: StartCommand): Promise<void> {
       authenticated,
     });
   } catch (error) {
+    if (appServer) {
+      appServer.kill("SIGTERM");
+      appServer = undefined;
+    }
+    await chatBridge?.close().catch(() => undefined);
+    chatBridge = undefined;
+    await mcpBridge?.close().catch(() => undefined);
+    mcpBridge = undefined;
     parentPort!.postMessage({ type: "unavailable", reason: message(error) });
   }
 }
@@ -138,6 +160,8 @@ async function launchAppServer(): Promise<void> {
   }
   loadedThreads.clear();
   threadResumes.clear();
+  mcpConnectionGrantToken = undefined;
+  mcpBridge?.setGrant(undefined);
   const env: NodeJS.ProcessEnv = {};
   for (const key of [
     "SystemRoot",
@@ -160,7 +184,8 @@ async function launchAppServer(): Promise<void> {
   ])
     if (process.env[key]) env[key] = process.env[key];
   env.CODEX_HOME = startCommand.codexHome;
-  env.DRAMAIP_MCP_TOKEN = activeMcpToken ?? startCommand.mcp.token;
+  if (!mcpBridge) throw new Error("Codex MCP 转发服务未启动");
+  env.DRAMAIP_MCP_TOKEN = mcpBridge.token;
   let providerBaseUrl = runtimeProvider?.baseUrl;
   let providerEnvKey = "DRAMAIP_CODEX_PROVIDER_API_KEY";
   if (runtimeProvider?.protocol === "chat_completions") {
@@ -278,7 +303,7 @@ async function launchAppServer(): Promise<void> {
   await rpc("initialize", {
     clientInfo: {
       name: "dramaip_desktop",
-      title: "DramaIP Desktop",
+      title: "尽意 DramaIP Desktop",
       version: "3.0.0",
     },
     capabilities: {
@@ -345,7 +370,7 @@ function notify(method: string, params: Record<string, unknown>): void {
 
 function rpc(
   method: string,
-  params: Record<string, unknown>,
+  params: Record<string, unknown> | undefined,
   timeoutMs = 30_000,
 ): Promise<any> {
   const id = ++rpcSequence;
@@ -732,10 +757,7 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   if (activeRuns.size > 0)
     throw new Error("Codex 当前正在执行另一项任务，请稍后重试");
   const grant = capabilityGrantFrom(payload);
-  if (grant && activeMcpToken !== grant.token) {
-    activeMcpToken = grant.token;
-    await restartAppServer();
-  }
+  await activateMcpGrant(grant);
   await ensureThreadLoaded(threadId, model);
   if (activeRuns.has(threadId))
     throw new Error("Codex Thread 已有运行中的任务");
@@ -768,7 +790,23 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   } catch (error) {
     activeRuns.delete(threadId);
     throw error;
+  } finally {
+    mcpBridge?.setGrant(undefined);
   }
+}
+
+async function activateMcpGrant(
+  grant: CodexMcpGrant | undefined,
+): Promise<void> {
+  if (!mcpBridge) throw new Error("Codex MCP 转发服务未启动");
+  mcpBridge.setGrant(grant);
+  const nextToken = grant?.token;
+  if (mcpConnectionGrantToken === nextToken) return;
+  mcpConnectionGrantToken = nextToken;
+  // Refresh only the MCP clients inside the live app-server. Restarting the
+  // app-server here loses a newly-created thread before its first turn has
+  // written a rollout, which makes the first user message fail immediately.
+  if (loadedThreads.size > 0) await rpc("config/mcpServer/reload", undefined);
 }
 
 function capabilityGrantFrom(
@@ -874,6 +912,7 @@ async function recoverRun(payload: Record<string, unknown>): Promise<unknown> {
 
 function threadOverrides(model = ""): Record<string, unknown> {
   if (!startCommand) throw new Error("Codex 引擎未初始化");
+  if (!mcpBridge) throw new Error("Codex MCP 转发服务未启动");
   return {
     ...(model ? { model } : {}),
     approvalPolicy: "never",
@@ -893,7 +932,7 @@ function threadOverrides(model = ""): Record<string, unknown> {
       },
       mcp_servers: {
         dramaip: {
-          url: startCommand.mcp.url,
+          url: mcpBridge.baseUrl,
           bearer_token_env_var: "DRAMAIP_MCP_TOKEN",
           required: true,
         },
@@ -924,12 +963,14 @@ async function ensureThreadLoaded(threadId: string, model = ""): Promise<void> {
 
 async function stop(): Promise<void> {
   failAll(new Error("Codex 引擎正在关闭"));
-  if (chatBridge) await chatBridge.close();
-  chatBridge = undefined;
   if (appServer) {
     appServer.kill("SIGTERM");
     appServer = undefined;
   }
+  if (chatBridge) await chatBridge.close();
+  chatBridge = undefined;
+  if (mcpBridge) await mcpBridge.close();
+  mcpBridge = undefined;
   parentPort!.postMessage({ type: "stopped" });
   process.exit(0);
 }
@@ -942,6 +983,7 @@ function failAll(error: Error): void {
   pendingRpc.clear();
   for (const active of activeRuns.values()) active.reject(error);
   activeRuns.clear();
+  mcpBridge?.setGrant(undefined);
 }
 
 function extractText(value: unknown): string {

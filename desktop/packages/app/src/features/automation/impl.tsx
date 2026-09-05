@@ -13,6 +13,7 @@ import {
   taskResultText,
   useStudio,
 } from "../../studio-shared";
+import { useStudioSession } from "../../studio-session";
 import { AgentTaskConfigPanel } from "../agents/impl";
 import {
   AgentChangePreviewCard,
@@ -23,7 +24,10 @@ export function TaskPage() {
   const client = useStudio();
   const queryClient = useQueryClient();
   const location = useLocation();
-  const projectId = new URLSearchParams(location.search).get("projectId");
+  const session = useStudioSession();
+  const projectId =
+    new URLSearchParams(location.search).get("projectId") ??
+    session.activeProjectId;
   const [retryEngine, setRetryEngine] = useState<AgentEngineKind>("pi");
   const { data: items = [], error } = useQuery({
     queryKey: ["tasks"],
@@ -78,7 +82,6 @@ export function TaskPage() {
         >
           <option value="pi">Pi（默认内嵌）</option>
           <option value="codex">Codex</option>
-          <option value="grok">Grok Build</option>
           <option value="langgraph">LangGraph.js</option>
         </select>
       </label>

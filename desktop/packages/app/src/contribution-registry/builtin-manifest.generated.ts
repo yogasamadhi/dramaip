@@ -85,6 +85,18 @@ export const BUILTIN_UI_MANIFEST = {
     metadataHash:
       "2d320f4e8fe50886e72b349df0990b417d5ff356ed04dbea67c15e4f030329ba",
   },
+  "creative-quality.navigation.workspace": {
+    pluginId: "creative-quality",
+    kind: "navigation",
+    metadata: {
+      section: "secondary",
+      order: 10,
+      label: "创作分析",
+      to: "/create",
+    },
+    metadataHash:
+      "d7402ab0d65d24660b38c24566ef739218089c947cde9326686711fecbeecebb",
+  },
   "creative-quality.panel.diagnostics": {
     pluginId: "creative-quality",
     kind: "panel",

@@ -10,13 +10,17 @@ import type {
 import { BareButton } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   StageNavigation,
   WorkspaceIntro,
+  domainLabel,
+  type WorkspaceStageItem,
   message,
+  productStatusLabel,
   useStudio,
 } from "../../studio-shared";
+import { useStudioSession } from "../../studio-session";
 import {
   AgentChangePreviewCard,
   PluginResourceWorkspace,
@@ -24,11 +28,13 @@ import {
 export function ReviewDeliveryWorkspace() {
   const client = useStudio();
   const location = useLocation();
+  const navigate = useNavigate();
+  const session = useStudioSession();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(session.activeProjectId ?? "");
   const [adaptationId, setAdaptationId] = useState("");
   const [episodeId, setEpisodeId] = useState("");
   const [stage, setStage] = useState<
@@ -45,8 +51,13 @@ export function ReviewDeliveryWorkspace() {
     enabled: Boolean(projectId && adaptationId),
   });
   useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+    if (
+      session.activeProjectId &&
+      projects.some((project) => project.id === session.activeProjectId) &&
+      projectId !== session.activeProjectId
+    )
+      setProjectId(session.activeProjectId);
+  }, [projectId, projects, session.activeProjectId]);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("projectId");
     if (requested && projects.some((project) => project.id === requested))
@@ -94,6 +105,51 @@ export function ReviewDeliveryWorkspace() {
     if (requested && episodes.some((item) => item.id === requested))
       setEpisodeId(requested);
   }, [episodes, location.search]);
+  const requestedStage = new URLSearchParams(location.search).get("stage");
+  const reviewStageIds = [
+    "quality",
+    "compliance",
+    "localization",
+    "review",
+    "delivery",
+  ] as const;
+  const recommendedStage =
+    requestedStage &&
+    reviewStageIds.includes(requestedStage as (typeof reviewStageIds)[number])
+      ? requestedStage
+      : "quality";
+  const stageItems: WorkspaceStageItem[] = reviewStageIds.map((id) => ({
+    id,
+    label: domainLabel(id),
+    availability:
+      projectId && adaptationId && episodeId ? "available" : "blocked",
+    recommended: recommendedStage === id,
+    reason: !projectId
+      ? "请先创建或选择一个项目。"
+      : !adaptationId
+        ? "审核资料必须归属改编方案，请先创建或选择改编方案。"
+        : "审核资料必须归属具体分集，请先创建或选择分集。",
+    recoveryLabel: !projectId ? "返回项目工作台" : "去改编工作区补齐",
+    recoveryTarget: !projectId
+      ? "/"
+      : `/adapt?${new URLSearchParams({
+          projectId,
+          stage: adaptationId ? "episodes" : "adaptations",
+        })}`,
+  }));
+  const syncRoute = (next: {
+    projectId?: string;
+    stage?: typeof stage;
+    adaptationId?: string;
+    episodeId?: string;
+  }) => {
+    const search = new URLSearchParams();
+    const values = { projectId, stage, adaptationId, episodeId, ...next };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    navigate(`/review?${search}`);
+  };
   return (
     <section className="space-y-5">
       <WorkspaceIntro
@@ -110,9 +166,16 @@ export function ReviewDeliveryWorkspace() {
               className="rounded-lg border border-line px-3 py-2"
               value={projectId}
               onChange={(event) => {
-                setProjectId(event.target.value);
+                const nextProjectId = event.target.value;
+                setProjectId(nextProjectId);
+                if (nextProjectId) session.selectProject(nextProjectId);
                 setAdaptationId("");
                 setEpisodeId("");
+                syncRoute({
+                  projectId: nextProjectId,
+                  adaptationId: "",
+                  episodeId: "",
+                });
               }}
             >
               <option value="">选择项目</option>
@@ -130,8 +193,10 @@ export function ReviewDeliveryWorkspace() {
               disabled={!projectId}
               value={adaptationId}
               onChange={(event) => {
-                setAdaptationId(event.target.value);
+                const nextId = event.target.value;
+                setAdaptationId(nextId);
                 setEpisodeId("");
+                syncRoute({ adaptationId: nextId, episodeId: "" });
               }}
             >
               <option value="">选择改编项目</option>
@@ -148,7 +213,11 @@ export function ReviewDeliveryWorkspace() {
               className="rounded-lg border border-line px-3 py-2"
               disabled={!adaptationId}
               value={episodeId}
-              onChange={(event) => setEpisodeId(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setEpisodeId(nextId);
+                syncRoute({ episodeId: nextId });
+              }}
             >
               <option value="">选择分集</option>
               {episodes.map((item) => (
@@ -161,15 +230,13 @@ export function ReviewDeliveryWorkspace() {
         </section>
         <StageNavigation
           label="审核交付阶段"
-          items={[
-            "quality",
-            "compliance",
-            "localization",
-            "review",
-            "delivery",
-          ]}
+          items={stageItems}
           active={stage}
-          onChange={(value) => setStage(value as typeof stage)}
+          onChange={(value) => {
+            const nextStage = value as typeof stage;
+            setStage(nextStage);
+            syncRoute({ stage: nextStage });
+          }}
         />
         {projectId && episodeId && (
           <EpisodeWorkflowPanel projectId={projectId} episodeId={episodeId} />
@@ -1047,11 +1114,13 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
   };
   const saveDocument = async (fileName: string, content: string) =>
     client.host.saveTextFile({ suggestedName: fileName, content });
-  const exportTimeline = async (format: "json" | "edl" | "fcpxml" | "srt") => {
+  const exportTimeline = async (
+    format: "manifest" | "edl" | "fcpxml" | "srt",
+  ) => {
     setWorking(`时间线-${format}`);
     setNotice(undefined);
     try {
-      const document = await client.reviewEditor.exportTimeline(
+      const document = await client.timeline.exportDelivery(
         props.episodeId,
         format,
       );
@@ -1410,7 +1479,7 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
             <div className="flex flex-wrap gap-2">
               {(
                 [
-                  ["json", "导出时间线数据"],
+                  ["manifest", "导出时间线数据"],
                   ["edl", "导出剪辑清单"],
                   ["fcpxml", "导出剪辑工程"],
                   ["srt", "导出字幕"],
@@ -1710,7 +1779,7 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
           <p className="mt-3 break-all rounded-lg bg-brand-soft p-3 text-sm text-brand">
             已创建受控分享链接：{cloudShareUrl ?? cloudBinding?.shareUrl}
             {cloudBinding &&
-              ` · 状态：${cloudBinding.status} · 到期：${cloudBinding.expiresAt}`}
+              ` · 状态：${productStatusLabel(cloudBinding.status)} · 到期：${cloudBinding.expiresAt}`}
           </p>
         )}
       </section>

@@ -1,4 +1,4 @@
-/* 此文件封装由四引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
+/* 此文件封装由三引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
 import {
   type DomainEvent,
   type JsonValue,
@@ -236,7 +236,10 @@ export interface StudioClient {
   projects: {
     list(): Promise<Project[]>;
     get(id: string): Promise<Project>;
-    create(input: ProjectInput): Promise<ProjectCreationResult>;
+    create(
+      input: ProjectInput,
+      idempotencyKey?: string,
+    ): Promise<ProjectCreationResult>;
     update(id: string, input: ProjectPatch): Promise<Project>;
     initialization(id: string): Promise<ProjectInitialization>;
     retryInitialization(id: string): Promise<ProjectInitialization>;
@@ -683,10 +686,6 @@ export interface StudioClient {
   reviewEditor: {
     timeline(episodeId: string): Promise<EditorTimelineManifest>;
     preflight(episodeId: string): Promise<EditorExportPreflight>;
-    exportTimeline(
-      episodeId: string,
-      format: "json" | "edl" | "fcpxml" | "srt",
-    ): Promise<ExportDocument>;
     listPackages(episodeId: string): Promise<ReviewPackage[]>;
     createPackage(episodeId: string): Promise<ReviewPackage>;
     exportPackage(id: string): Promise<ExportDocument>;
@@ -964,9 +963,13 @@ export interface StudioClient {
     removeCredential(credentialRef: string): Promise<void>;
     getCredentialStorageStatus(): Promise<{
       available: boolean;
-      storage: "local_encrypted_file";
+      storage: "os_safe_storage" | "master_password" | "unavailable";
+      backend: string;
+      locked: boolean;
+      migrationState: "none" | "migrating" | "complete" | "failed";
       message?: string;
     }>;
+    unlockCredentialVault(): Promise<void>;
     setWindowTheme(theme: "light" | "dark"): Promise<void>;
   };
   extensions: {
@@ -1080,6 +1083,28 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       getCredentialStorageStatus: () =>
         request("/api/v2/system/host/credentials/status"),
+      unlockCredentialVault: async () => {
+        const session = await request<{
+          captureSessionId: string;
+          status: "pending" | "completed" | "canceled" | "expired";
+          expiresAt: string;
+        }>("/api/v2/system/host/credentials/unlock-sessions", {
+          method: "POST",
+          body: "{}",
+        });
+        for (let attempt = 0; attempt < 1_200; attempt += 1) {
+          const current = await request<{
+            status: "pending" | "completed" | "canceled" | "expired";
+          }>(
+            `/api/v2/system/host/credentials/capture-sessions/${encodeURIComponent(session.captureSessionId)}`,
+          );
+          if (current.status === "completed") return;
+          if (current.status !== "pending")
+            throw new Error("凭据保险库解锁已取消或过期。");
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        throw new Error("凭据保险库解锁已过期。");
+      },
       setWindowTheme: (theme) =>
         request("/api/v2/system/host/window/theme", {
           method: "POST",
@@ -1089,10 +1114,10 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     projects: {
       list: () => request("/api/v2/projects"),
       get: (id) => request(`/api/v2/projects/${id}`),
-      create: (input) =>
+      create: (input, idempotencyKey) =>
         request("/api/v2/projects", {
           method: "POST",
-          headers: { "Idempotency-Key": crypto.randomUUID() },
+          headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
           body: JSON.stringify(input),
         }),
       update: (id, input) =>
@@ -1901,10 +1926,6 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       preflight: (episodeId) =>
         request(
           `/api/v2/episodes/${encodeURIComponent(episodeId)}/editor-timeline/preflight`,
-        ),
-      exportTimeline: (episodeId, format) =>
-        request(
-          `/api/v2/episodes/${encodeURIComponent(episodeId)}/editor-timeline/export/${format}`,
         ),
       listPackages: (episodeId) =>
         request(
