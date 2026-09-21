@@ -71,98 +71,6 @@ function electronNodeWorker(
   };
 }
 
-function bunWorker(
-  executable: string,
-  entry: string,
-  execArgv: readonly string[],
-  environment: NodeJS.ProcessEnv,
-  request: MigrationWorkerRequest | MigrationWorkerIntegrityRequest,
-): MigrationWorkerProcess {
-  const stderr: string[] = [];
-  const pendingMessages: unknown[] = [];
-  let messageListener: ((value: unknown) => void) | undefined;
-  let errorListener: ((error: Error) => void) | undefined;
-  let exitListener:
-    ((code: number | null, signal: string | number | null) => void) | undefined;
-  let pendingError: Error | undefined;
-  let pendingExit:
-    { code: number | null; signal: string | number | null } | undefined;
-  const child = Bun.spawn([executable, "run", ...execArgv, entry], {
-    stdin: new TextEncoder().encode(`${JSON.stringify(request)}\n`),
-    stdout: "pipe",
-    stderr: "pipe",
-    env: environment,
-  });
-  const publish = (value: unknown): void => {
-    if (messageListener) messageListener(value);
-    else pendingMessages.push(value);
-  };
-  const stdoutDrained = (async () => {
-    const decoder = new TextDecoder();
-    const reader = child.stdout.getReader();
-    let buffered = "";
-    while (true) {
-      const { done, value: chunk } = await reader.read();
-      if (done) break;
-      buffered += decoder.decode(chunk, { stream: true });
-      const lines = buffered.split("\n");
-      buffered = lines.pop() ?? "";
-      for (const line of lines)
-        if (line.trim()) publish(JSON.parse(line) as unknown);
-    }
-    buffered += decoder.decode();
-    if (buffered.trim()) publish(JSON.parse(buffered) as unknown);
-  })().catch((error: unknown) => {
-    const workerError =
-      error instanceof Error ? error : new Error(String(error));
-    if (errorListener) errorListener(workerError);
-    else pendingError = workerError;
-  });
-  const stderrDrained = (async () => {
-    const decoder = new TextDecoder();
-    const reader = child.stderr.getReader();
-    while (true) {
-      const { done, value: chunk } = await reader.read();
-      if (done) break;
-      stderr.push(decoder.decode(chunk, { stream: true }));
-    }
-  })();
-  void child.exited.then(async (code) => {
-    await Promise.all([stdoutDrained, stderrDrained]);
-    const result = { code, signal: child.signalCode };
-    if (exitListener) exitListener(result.code, result.signal);
-    else pendingExit = result;
-  });
-  return {
-    stderr,
-    get exitCode() {
-      return child.exitCode;
-    },
-    send: () => undefined,
-    kill: (signal) => child.kill(signal),
-    onMessage: (listener) => {
-      messageListener = listener;
-      for (const message of pendingMessages.splice(0)) listener(message);
-    },
-    onceError: (listener) => {
-      errorListener = listener;
-      if (pendingError) {
-        const error = pendingError;
-        pendingError = undefined;
-        queueMicrotask(() => listener(error));
-      }
-    },
-    onceExit: (listener) => {
-      exitListener = listener;
-      if (pendingExit) {
-        const result = pendingExit;
-        pendingExit = undefined;
-        queueMicrotask(() => listener(result.code, result.signal));
-      }
-    },
-  };
-}
-
 function worker(
   executable: string,
   entry: string,
@@ -170,10 +78,11 @@ function worker(
   execArgv: readonly string[] = [],
 ): MigrationWorkerProcess {
   const environment = migrationWorkerEnvironment(request.runtimeKind);
-  const child =
-    request.runtimeKind === "bun"
-      ? bunWorker(executable, entry, execArgv, environment, request)
-      : electronNodeWorker(executable, entry, execArgv, environment);
+  if (request.runtimeKind === "bun")
+    throw new Error(
+      "Bun Core Runtime is no longer supported; use Node 24.18.0",
+    );
+  const child = electronNodeWorker(executable, entry, execArgv, environment);
   child.send(request);
   return child;
 }

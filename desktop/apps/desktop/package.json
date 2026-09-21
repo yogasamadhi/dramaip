@@ -8,8 +8,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "bun ../../../run-desktop.ts",
-    "dev:raw": "bun --bun run electron-vite dev",
-    "build": "bun --bun run electron-vite build",
+    "dev:raw": "bun ../../scripts/dev-desktop.mjs",
+    "build": "bun ../../scripts/build-runtime.mjs && bun --bun run electron-vite build",
     "preview": "bun --bun run electron-vite preview",
     "build:codex": "bun scripts/prepare-codex-runtime.mjs",
     "build:pi": "bun scripts/prepare-pi-runtime.mjs",
@@ -62,6 +62,7 @@
     "fflate": "0.8.3",
     "tailwindcss": "catalog:",
     "typescript": "^5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.3",
+    "@dramaip/runtime-adapters": "workspace:*"
   }
 }

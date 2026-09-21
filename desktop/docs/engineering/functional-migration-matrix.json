@@ -3,7 +3,7 @@
   "productBaseline": "desktop/legacy/desktop (read-only)",
   "sourceOfTruth": "studio/e2e Effective Runtime Graph OpenAPI",
   "baselineSha256": "57eadb81adbda208978d5f46ca36c26a5a128ab303dbae2cff789bdd372cab3c",
-  "effectiveOpenApiSha256": "33c18bf409baae420854b09142daead43a762a05b0891b2c954f58844008247f",
+  "effectiveOpenApiSha256": "02f60e6f26a82b6e6c39245803d66456ba23ef96c07f624572b6ee1a98369974",
   "expected": {
     "legacyOperations": 217,
     "retiredGenericOperations": 5,
@@ -11,10 +11,10 @@
     "visualBaselines": 12
   },
   "actual": {
-    "effectiveOperations": 566,
-    "uniqueOperationIds": 566,
-    "uniqueMethodPaths": 566,
-    "newV2Operations": 355
+    "effectiveOperations": 577,
+    "uniqueOperationIds": 577,
+    "uniqueMethodPaths": 577,
+    "newV2Operations": 366
   },
   "summary": {
     "implemented": 210,
@@ -5967,6 +5967,22 @@
       ]
     },
     {
+      "operationId": "change-previews.merge",
+      "method": "GET",
+      "path": "/api/v2/change-previews/{id}/merge",
+      "tags": [
+        "automation"
+      ]
+    },
+    {
+      "operationId": "change-previews.rebase",
+      "method": "POST",
+      "path": "/api/v2/change-previews/{id}/rebase",
+      "tags": [
+        "automation"
+      ]
+    },
+    {
       "operationId": "chapter-memories.create",
       "method": "POST",
       "path": "/api/v2/chapter-memories",
@@ -6124,6 +6140,54 @@
       "path": "/api/v2/compliance/{id}",
       "tags": [
         "review"
+      ]
+    },
+    {
+      "operationId": "creation.action",
+      "method": "POST",
+      "path": "/api/v2/workflows/creation/{id}/actions",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.get",
+      "method": "GET",
+      "path": "/api/v2/workflows/creation/{id}",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.list",
+      "method": "GET",
+      "path": "/api/v2/workflows/creation",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.merge",
+      "method": "GET",
+      "path": "/api/v2/workflows/creation/{id}/merge",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.rebase",
+      "method": "POST",
+      "path": "/api/v2/workflows/creation/{id}/rebase",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.start",
+      "method": "POST",
+      "path": "/api/v2/workflows/creation",
+      "tags": [
+        "creation"
       ]
     },
     {
@@ -7133,6 +7197,14 @@
       ]
     },
     {
+      "operationId": "projects.progress",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/progress",
+      "tags": [
+        "production"
+      ]
+    },
+    {
       "operationId": "projects.retryInitialization",
       "method": "POST",
       "path": "/api/v2/projects/{id}/initialization/retry",
@@ -8081,6 +8153,22 @@
       "method": "POST",
       "path": "/api/v2/system/host/window/theme",
       "tags": []
+    },
+    {
+      "operationId": "tasks.setAttention",
+      "method": "POST",
+      "path": "/api/v2/tasks/{id}/attention",
+      "tags": [
+        "tasks"
+      ]
+    },
+    {
+      "operationId": "tasks.worklist",
+      "method": "GET",
+      "path": "/api/v2/task-worklist",
+      "tags": [
+        "tasks"
+      ]
     },
     {
       "operationId": "template-runs.list",

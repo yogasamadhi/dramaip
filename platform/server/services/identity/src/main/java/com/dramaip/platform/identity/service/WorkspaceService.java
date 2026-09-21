@@ -1,6 +1,8 @@
 package com.dramaip.platform.identity.service;
 
+import com.dramaip.platform.common.observability.OutboxObservability;
 import com.dramaip.platform.common.web.BusinessException;
+import com.dramaip.platform.common.web.RequestContext;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -20,10 +22,12 @@ public class WorkspaceService {
     private static final int MAX_INVITATION_HOURS = 168;
 
     private final JdbcTemplate jdbc;
+    private final OutboxObservability outbox;
     private final SecureRandom random = new SecureRandom();
 
-    public WorkspaceService(JdbcTemplate jdbc) {
+    public WorkspaceService(JdbcTemplate jdbc, OutboxObservability outbox) {
         this.jdbc = jdbc;
+        this.outbox = outbox;
     }
 
     public List<Workspace> workspaces(String userId) {
@@ -282,15 +286,17 @@ public class WorkspaceService {
     private void auditAndPublish(String actorUserId, String workspaceId, String eventType, String targetType, String targetId) {
         jdbc.update("""
                 insert into user_profile.workspace_audit_events(
-                  id, workspace_id, actor_user_id, event_type, target_type, target_id, payload
-                ) values (?::uuid, ?::uuid, ?::uuid, ?, ?, ?::uuid, '{}'::jsonb)
-                """, UUID.randomUUID().toString(), workspaceId, actorUserId, eventType, targetType, targetId);
-        jdbc.update("""
-                insert into user_profile.identity_outbox_events(
-                  id, aggregate_type, aggregate_id, event_type, payload
-                ) values (?::uuid, 'workspace', ?::uuid, ?,
-                  jsonb_build_object('workspaceId', ?, 'targetType', ?, 'targetId', ?, 'actorUserId', ?))
-                """, UUID.randomUUID().toString(), workspaceId, eventType, workspaceId, targetType, targetId, actorUserId);
+                  id, workspace_id, actor_user_id, event_type, target_type, target_id, payload, trace_id
+                ) values (?::uuid, ?::uuid, ?::uuid, ?, ?, ?::uuid, '{}'::jsonb, ?)
+                """, UUID.randomUUID().toString(), workspaceId, actorUserId, eventType, targetType, targetId,
+                RequestContext.traceId());
+        outbox.stage("identity", eventType, () -> jdbc.update("""
+                    insert into user_profile.identity_outbox_events(
+                      id, aggregate_type, aggregate_id, event_type, payload
+                    ) values (?::uuid, 'workspace', ?::uuid, ?,
+                      jsonb_build_object('workspaceId', ?, 'targetType', ?, 'targetId', ?, 'actorUserId', ?, 'traceId', ?))
+                    """, UUID.randomUUID().toString(), workspaceId, eventType, workspaceId, targetType, targetId, actorUserId,
+                    RequestContext.traceId()));
     }
 
     private static String invitationSelect(String where) {

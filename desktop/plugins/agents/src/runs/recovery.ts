@@ -16,6 +16,7 @@ interface RecoverableRunRow {
   recovery_attempts: number;
   engine_session_id?: string;
   last_engine_cursor?: number;
+  engine_generation?: number | null;
 }
 
 /** Reconciles recoverable Runs after each observed Host/Engine generation. */
@@ -27,7 +28,7 @@ export async function recoverAvailableAgentRuns(
   const runs = pluginContext.uow.execute((transaction) =>
     transaction.all<RecoverableRunRow>(
       `SELECT r.id, r.session_id, r.engine_kind, r.status, r.engine_run_id,
-              r.checkpoint_json, r.recovery_attempts, r.last_engine_cursor,
+              r.checkpoint_json, r.recovery_attempts, r.last_engine_cursor, r.engine_generation,
               s.engine_session_id
        FROM agent_assistant_runs r
        JOIN agent_assistant_sessions s ON s.id = r.session_id
@@ -50,6 +51,13 @@ export async function recoverAvailableAgentRuns(
     try {
       const health = await runtime.health();
       if (!health.healthy || !health.configured) continue;
+      // A different engine becoming ready must not recover a live run owned by
+      // this generation. Startup already marks stale runs as recoverable.
+      if (
+        run.status !== "recoverable" &&
+        run.engine_generation === health.generation
+      )
+        continue;
       const recovered = await runtime.recoverRun({
         session: {
           sessionId: run.session_id,

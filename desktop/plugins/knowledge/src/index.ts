@@ -1,4 +1,9 @@
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
+import {
+  registerKnowledgeCreation,
+  knowledgeCreationMigration,
+} from "./creation.js";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   KNOWLEDGE_RESEARCH_SERVICE,
@@ -22,7 +27,7 @@ import {
 } from "@dramaip/contracts/writing";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -251,10 +256,12 @@ function emit(
 }
 
 function routes(context: PluginContext): readonly RouteContribution[] {
-  const workspace = context.services.optional<WorkspaceProjectService>(
+  const workspace = optionalService<WorkspaceProjectService>(
+    context,
     WORKSPACE_PROJECT_SERVICE,
   );
-  const writing = context.services.optional<WritingChapterService>(
+  const writing = optionalService<WritingChapterService>(
+    context,
     WRITING_CHAPTER_SERVICE,
   );
   if (!workspace || !writing)
@@ -1207,7 +1214,8 @@ const knowledgeMigrations = [
 export function createKnowledgePlugin(host?: DesktopHostClient) {
   const search = new DuckDuckGoSearchAdapter(host);
   const webResearch = new WebResearchAdapter(host);
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [WORKSPACE_PROJECT_SERVICE.id, WRITING_CHAPTER_SERVICE.id],
     descriptor: {
       id: "knowledge",
       version: "3.0.0-alpha.3",
@@ -1234,37 +1242,63 @@ export function createKnowledgePlugin(host?: DesktopHostClient) {
         metadata: { target: "chapter", title: "故事圣经侧栏" },
       },
     ],
-    migrations: knowledgeMigrations,
-    activate: (context) => {
-      const workspace = context.services.optional<WorkspaceProjectService>(
+    migrations: [...knowledgeMigrations, knowledgeCreationMigration],
+    apply: (context) => {
+      registerKnowledgeCreation(context);
+      const workspace = optionalService<WorkspaceProjectService>(
+        context,
         WORKSPACE_PROJECT_SERVICE,
       );
       if (!workspace)
         throw new Error("knowledge requires workspace.projects.v1");
-      context.effect(`service:${KNOWLEDGE_RESEARCH_SERVICE}`, () =>
-        context.services.provide(
-          KNOWLEDGE_RESEARCH_SERVICE,
-          researchService(context),
-        ),
+      context.effect(
+        () =>
+          provideService(
+            context,
+            KNOWLEDGE_RESEARCH_SERVICE,
+            researchService(context),
+          ),
+        `service:${KNOWLEDGE_RESEARCH_SERVICE}`,
       );
-      context.effect(`service:${KNOWLEDGE_WEB_RESEARCH_SERVICE}`, () =>
-        context.services.provide(KNOWLEDGE_WEB_RESEARCH_SERVICE, webResearch),
+      context.effect(
+        () =>
+          provideService(context, KNOWLEDGE_WEB_RESEARCH_SERVICE, webResearch),
+        `service:${KNOWLEDGE_WEB_RESEARCH_SERVICE}`,
       );
       const creativeIntelligence = creativeIntelligenceService(context);
-      context.effect(`service:${CREATIVE_KNOWLEDGE_SERVICE}`, () =>
-        context.services.provide(
-          CREATIVE_KNOWLEDGE_SERVICE,
-          creativeIntelligence,
-        ),
+      context.effect(
+        () =>
+          provideService(
+            context,
+            CREATIVE_KNOWLEDGE_SERVICE,
+            creativeIntelligence,
+          ),
+        `service:${CREATIVE_KNOWLEDGE_SERVICE}`,
       );
       for (const route of [
         ...routes(context),
         ...researchRoutes(context, workspace, search),
         ...creativeIntelligenceRoutes(context, creativeIntelligence),
       ])
-        context.effect(`route:${route.id}`, () => context.http.register(route));
+        context.effect(() => context.http.register(route), `route:${route.id}`);
     },
   });
 }
 
 export const knowledgePlugin = createKnowledgePlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "knowledge-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createKnowledgePlugin(
+        ctx.pluginEnvironment.host as Parameters<
+          typeof createKnowledgePlugin
+        >[0],
+      ),
+      config,
+    );
+  },
+};

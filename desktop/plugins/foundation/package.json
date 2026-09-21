@@ -13,6 +13,7 @@
   "dependencies": {
     "@dramaip/contracts": "workspace:*",
     "@dramaip/database": "workspace:*",
-    "@dramaip/plugin-api": "workspace:*"
+    "@dramaip/plugin-api": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
   }
 }

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test"
+    "test": "bun ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

@@ -3,7 +3,9 @@ package com.dramaip.platform.ai.service;
 import com.dramaip.platform.ai.AiProperties;
 import com.dramaip.platform.ai.client.QuotaClient;
 import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.observability.DramaipTelemetry;
 import com.dramaip.platform.common.web.BusinessException;
+import com.dramaip.platform.common.web.CorrelationContextSnapshot;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +30,8 @@ import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import io.micrometer.core.instrument.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -44,6 +48,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @Service
 public class ChatService {
+    private static final Logger LOG = LoggerFactory.getLogger(ChatService.class);
     private static final String PROVIDER = "openai-compatible";
     private final AiProperties properties;
     private final QuotaClient quota;
@@ -51,19 +56,22 @@ public class ChatService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final DramaipMetrics metrics;
+    private final DramaipTelemetry telemetry;
     private final String internalToken;
     private final HttpClient streamClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ExecutorService streams = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
     private final ConcurrentHashMap<String, FutureTask<Void>> activeStreams = new ConcurrentHashMap<>();
 
     public ChatService(AiProperties properties, QuotaClient quota, RestClient.Builder restClient, JdbcTemplate jdbc, ObjectMapper json,
-            DramaipMetrics metrics, @Value("${dramaip.internal.token:}") String internalToken) {
+            DramaipMetrics metrics, DramaipTelemetry telemetry,
+            @Value("${dramaip.internal.token:}") String internalToken) {
         this.properties = properties;
         this.quota = quota;
         this.restClient = restClient.build();
         this.jdbc = jdbc;
         this.json = json;
         this.metrics = metrics;
+        this.telemetry = telemetry;
         this.internalToken = internalToken;
     }
 
@@ -144,7 +152,7 @@ public class ChatService {
         }
         SseEmitter emitter = new SseEmitter(0L);
         String key = activeKey(userId, idempotencyKey);
-        FutureTask<Void> task = new FutureTask<>(() -> {
+        Runnable streaming = CorrelationContextSnapshot.capture().wrap(() -> {
             try {
                 emit(emitter, "started", Map.of("requestId", idempotencyKey));
                 Chat result = execute(userId, idempotencyKey, model, messages, maxTokens,
@@ -163,8 +171,8 @@ public class ChatService {
             } finally {
                 activeStreams.remove(key);
             }
-            return null;
         });
+        FutureTask<Void> task = new FutureTask<>(streaming, null);
         if (activeStreams.putIfAbsent(key, task) != null) {
             throw new BusinessException("AI_REQUEST_IN_PROGRESS", "request is already streaming", HttpStatus.CONFLICT);
         }
@@ -194,9 +202,18 @@ public class ChatService {
                     new QuotaClient.ReserveRequest(userId, idempotencyKey, estimateTokens(messages, preflight.maxTokens()))).data();
             jdbc.update("update ai_gateway.request_audits set reservation_id = ?::uuid, updated_at = now() where id = ?::uuid", reservation.id(), claimed.id());
             providerSample = metrics.startProvider();
-            ProviderReply reply = delta == null
-                    ? providerCompletion(model, messages, preflight.maxTokens())
-                    : providerStream(model, messages, preflight.maxTokens(), delta);
+            ProviderReply reply;
+            try (DramaipTelemetry.Operation operation = telemetry.start("ai.provider.request")) {
+                try {
+                    reply = delta == null
+                            ? providerCompletion(model, messages, preflight.maxTokens())
+                            : providerStream(model, messages, preflight.maxTokens(), delta);
+                    operation.succeeded();
+                } catch (RuntimeException exception) {
+                    operation.failed(failureCategory(exception));
+                    throw exception;
+                }
+            }
             QuotaClient.Usage usage = quota.settle(internalToken, reservation.id(),
                     new QuotaClient.SettleRequest(userId, idempotencyKey, model, reply.promptTokens(), reply.completionTokens())).data();
             jdbc.update("""
@@ -206,13 +223,25 @@ public class ChatService {
                     where id = ?::uuid
                     """, reply.promptTokens(), reply.completionTokens(), usage.totalTokens(), reply.content(), claimed.id());
             metrics.provider(providerSample, PROVIDER, "succeeded");
+            metrics.workflow("ai_generation", "succeeded");
+            LOG.atInfo().addKeyValue("operation", "ai_generation").addKeyValue("outcome", "succeeded")
+                    .addKeyValue("provider", PROVIDER).log("AI generation completed");
             return new Chat(idempotencyKey, PROVIDER, model, reply.content(), reply.promptTokens(), reply.completionTokens(), usage.totalTokens(), reservation.id(), "succeeded");
         } catch (ChatCancelledException exception) {
             if (providerSample != null) metrics.provider(providerSample, PROVIDER, "failed");
+            metrics.workflow("ai_generation", "canceled");
+            LOG.atInfo().addKeyValue("operation", "ai_generation").addKeyValue("outcome", "canceled")
+                    .addKeyValue("provider", PROVIDER).log("AI generation canceled");
             compensate(userId, reservation, claimed.id(), "canceled", "author canceled generation");
             throw exception;
         } catch (RuntimeException exception) {
             if (providerSample != null) metrics.provider(providerSample, PROVIDER, "failed");
+            String failure = failureCategory(exception);
+            metrics.workflow("ai_generation", "failed");
+            metrics.error(failure, "ai_generation");
+            LOG.atWarn().addKeyValue("operation", "ai_generation").addKeyValue("outcome", "failed")
+                    .addKeyValue("failure_class", failure).addKeyValue("provider", PROVIDER)
+                    .log("AI generation failed");
             compensate(userId, reservation, claimed.id(), "failed", safeError(exception));
             throw exception;
         }
@@ -335,6 +364,11 @@ public class ChatService {
     private static String activeKey(String userId, String idempotencyKey) { return userId + '\u0000' + idempotencyKey; }
     private static long estimateTokens(List<Message> messages, int maxTokens) { return Math.max(1, maxTokens + messages.stream().mapToLong(message -> message.content().length() / 4L + 1).sum()); }
     private static String safeError(RuntimeException exception) { return exception instanceof BusinessException business ? business.code() : "provider call failed"; }
+    private static String failureCategory(RuntimeException exception) {
+        if (exception instanceof ChatCancelledException) return "canceled";
+        if (exception instanceof BusinessException) return "business";
+        return "internal";
+    }
     private static String requestHash(String model, List<Message> messages, int maxTokens) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

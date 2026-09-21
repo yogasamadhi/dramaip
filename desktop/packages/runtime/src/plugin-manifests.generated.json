@@ -1,0 +1,1091 @@
+[
+  {
+    "id": "foundation",
+    "descriptor": {
+      "id": "foundation",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [],
+      "provides": ["foundation.database-maintenance.v1"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": true
+    },
+    "migrations": [
+      {
+        "id": "foundation.0001.runtime-ledger",
+        "pluginId": "foundation",
+        "version": "3.0.0-alpha.2",
+        "dependsOn": [],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS plugin_migrations (\n        migration_id TEXT PRIMARY KEY,\n        plugin_id TEXT NOT NULL,\n        version TEXT NOT NULL,\n        checksum TEXT NOT NULL,\n        applied_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS domain_events (\n        cursor INTEGER PRIMARY KEY AUTOINCREMENT,\n        event_id TEXT NOT NULL UNIQUE,\n        type TEXT NOT NULL,\n        plugin_id TEXT NOT NULL,\n        aggregate_type TEXT NOT NULL,\n        aggregate_id TEXT NOT NULL,\n        aggregate_version INTEGER NOT NULL,\n        payload_json TEXT NOT NULL,\n        occurred_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS domain_events_type_cursor\n        ON domain_events(type, cursor);\n      CREATE TABLE IF NOT EXISTS event_consumer_checkpoints (\n        consumer_id TEXT PRIMARY KEY,\n        plugin_id TEXT NOT NULL,\n        cursor INTEGER NOT NULL DEFAULT 0,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS idempotency_records (\n        scope TEXT NOT NULL,\n        idempotency_key TEXT NOT NULL,\n        request_hash TEXT NOT NULL,\n        response_status INTEGER NOT NULL,\n        response_headers_json TEXT NOT NULL,\n        response_body BLOB,\n        created_at TEXT NOT NULL,\n        PRIMARY KEY (scope, idempotency_key)\n      );\n    "
+      },
+      {
+        "id": "foundation.0002.event-delivery-failures",
+        "pluginId": "foundation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["foundation.0001.runtime-ledger"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS event_consumer_failures (\n        consumer_id TEXT NOT NULL,\n        cursor INTEGER NOT NULL,\n        event_id TEXT NOT NULL,\n        attempts INTEGER NOT NULL,\n        status TEXT NOT NULL,\n        last_error TEXT NOT NULL,\n        first_failed_at TEXT NOT NULL,\n        last_failed_at TEXT NOT NULL,\n        PRIMARY KEY (consumer_id, cursor)\n      );\n      CREATE INDEX IF NOT EXISTS event_consumer_failures_status\n        ON event_consumer_failures(status, last_failed_at);\n    "
+      }
+    ],
+    "ui": [],
+    "entry": "@dramaip/foundation"
+  },
+  {
+    "id": "system",
+    "descriptor": {
+      "id": "system",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [{ "id": "foundation", "range": "*" }],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "provides": [],
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "system.0001.extension-platform",
+        "pluginId": "system",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["foundation.0001.runtime-ledger"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS extension_publishers (\n        publisher_id TEXT PRIMARY KEY,\n        display_name TEXT NOT NULL,\n        public_key_pem TEXT NOT NULL,\n        trust_state TEXT NOT NULL CHECK(trust_state IN ('trusted', 'revoked')),\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n\n      CREATE TABLE IF NOT EXISTS extension_registry_sources (\n        registry_id TEXT PRIMARY KEY,\n        url TEXT NOT NULL UNIQUE,\n        key_id TEXT NOT NULL,\n        root_public_key_pem TEXT NOT NULL,\n        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),\n        cached_payload_json TEXT,\n        cached_at TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n\n      CREATE TABLE IF NOT EXISTS installed_extensions (\n        plugin_id TEXT PRIMARY KEY,\n        current_revision_id TEXT,\n        state TEXT NOT NULL CHECK(state IN ('disabled', 'active', 'degraded', 'quarantined')),\n        permission_revision INTEGER NOT NULL DEFAULT 1,\n        installed_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n\n      CREATE TABLE IF NOT EXISTS extension_revisions (\n        revision_id TEXT PRIMARY KEY,\n        plugin_id TEXT NOT NULL,\n        version TEXT NOT NULL,\n        package_ref TEXT NOT NULL,\n        package_sha256 TEXT NOT NULL,\n        publisher_id TEXT NOT NULL,\n        publisher_public_key_pem TEXT NOT NULL,\n        manifest_json TEXT NOT NULL,\n        state TEXT NOT NULL CHECK(state IN ('staged', 'healthy', 'failed', 'superseded')),\n        failure TEXT,\n        created_at TEXT NOT NULL,\n        activated_at TEXT,\n        FOREIGN KEY(plugin_id) REFERENCES installed_extensions(plugin_id)\n      );\n      CREATE INDEX IF NOT EXISTS extension_revisions_plugin_created\n        ON extension_revisions(plugin_id, created_at DESC);\n\n      CREATE TABLE IF NOT EXISTS extension_grants (\n        plugin_id TEXT NOT NULL,\n        permission_revision INTEGER NOT NULL,\n        permission TEXT NOT NULL,\n        scope_json TEXT NOT NULL,\n        granted_at TEXT NOT NULL,\n        revoked_at TEXT,\n        PRIMARY KEY(plugin_id, permission_revision, permission)\n      );\n\n      CREATE TABLE IF NOT EXISTS extension_install_previews (\n        preview_id TEXT PRIMARY KEY,\n        operation TEXT NOT NULL CHECK(operation IN ('install', 'update')),\n        plugin_id TEXT NOT NULL,\n        registry_id TEXT NOT NULL,\n        package_url TEXT NOT NULL,\n        package_sha256 TEXT NOT NULL,\n        publisher_id TEXT NOT NULL,\n        publisher_public_key_pem TEXT NOT NULL,\n        manifest_json TEXT NOT NULL,\n        requested_permissions_json TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        committed_at TEXT,\n        created_at TEXT NOT NULL\n      );\n\n      CREATE TABLE IF NOT EXISTS extension_audit (\n        audit_id TEXT PRIMARY KEY,\n        plugin_id TEXT,\n        revision_id TEXT,\n        action TEXT NOT NULL,\n        outcome TEXT NOT NULL,\n        trace_id TEXT,\n        detail_json TEXT NOT NULL,\n        occurred_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS extension_audit_plugin_time\n        ON extension_audit(plugin_id, occurred_at DESC);\n\n      CREATE TABLE IF NOT EXISTS extension_documents (\n        plugin_id TEXT NOT NULL,\n        collection_name TEXT NOT NULL,\n        document_id TEXT NOT NULL,\n        document_json TEXT NOT NULL,\n        version INTEGER NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        PRIMARY KEY(plugin_id, collection_name, document_id)\n      );\n\n      CREATE TABLE IF NOT EXISTS extension_document_index_values (\n        plugin_id TEXT NOT NULL,\n        collection_name TEXT NOT NULL,\n        document_id TEXT NOT NULL,\n        index_name TEXT NOT NULL,\n        text_value TEXT,\n        number_value REAL,\n        boolean_value INTEGER,\n        PRIMARY KEY(plugin_id, collection_name, document_id, index_name),\n        FOREIGN KEY(plugin_id, collection_name, document_id)\n          REFERENCES extension_documents(plugin_id, collection_name, document_id)\n          ON DELETE CASCADE\n      );\n      CREATE INDEX IF NOT EXISTS extension_document_index_text\n        ON extension_document_index_values(plugin_id, collection_name, index_name, text_value);\n      CREATE INDEX IF NOT EXISTS extension_document_index_number\n        ON extension_document_index_values(plugin_id, collection_name, index_name, number_value);\n\n      CREATE TABLE IF NOT EXISTS extension_event_checkpoints (\n        plugin_id TEXT NOT NULL,\n        subscription_id TEXT NOT NULL,\n        cursor INTEGER NOT NULL DEFAULT 0,\n        updated_at TEXT NOT NULL,\n        PRIMARY KEY(plugin_id, subscription_id)\n      );\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "system.route.settings",
+        "pluginId": "system",
+        "kind": "route",
+        "metadata": { "path": "/settings", "title": "设置" }
+      },
+      {
+        "id": "system.navigation.settings",
+        "pluginId": "system",
+        "kind": "navigation",
+        "metadata": {
+          "section": "secondary",
+          "order": 40,
+          "label": "设置",
+          "to": "/settings"
+        }
+      },
+      {
+        "id": "system.settings.diagnostics",
+        "pluginId": "system",
+        "kind": "settings",
+        "metadata": { "section": "diagnostics", "title": "诊断与备份" }
+      },
+      {
+        "id": "system.settings.extensions",
+        "pluginId": "system",
+        "kind": "settings",
+        "metadata": {
+          "section": "extensions",
+          "title": "扩展与 Marketplace",
+          "loader": "system.settings.extensions"
+        }
+      }
+    ],
+    "entry": "@dramaip/system"
+  },
+  {
+    "id": "workspace",
+    "descriptor": {
+      "id": "workspace",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "system", "range": "*" }
+      ],
+      "provides": ["workspace.projects"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "workspace.0001.projects-and-series",
+        "pluginId": "workspace",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["foundation.0001.runtime-ledger"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS projects (\n        id TEXT PRIMARY KEY,\n        title TEXT NOT NULL,\n        short_drama_type TEXT NOT NULL,\n        target_audience TEXT,\n        target_word_count INTEGER,\n        target_episode_count INTEGER,\n        core_hook TEXT,\n        emotional_core TEXT,\n        core_selling_point TEXT,\n        synopsis TEXT NOT NULL DEFAULT '',\n        style_guide TEXT,\n        visual_style_direction TEXT,\n        genre_opportunity TEXT,\n        production_brief TEXT,\n        current_adaptation_id TEXT,\n        deleted_at TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS projects_updated_at\n        ON projects(deleted_at, updated_at DESC, id);\n      CREATE TABLE IF NOT EXISTS series (\n        id TEXT PRIMARY KEY,\n        title TEXT NOT NULL,\n        description TEXT NOT NULL DEFAULT '',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS project_series (\n        project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,\n        series_id TEXT NOT NULL REFERENCES series(id) ON DELETE RESTRICT,\n        joined_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS project_series_series\n        ON project_series(series_id, project_id);\n    "
+      },
+      {
+        "id": "workspace.0002.series-library",
+        "pluginId": "workspace",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0001.projects-and-series"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS series_story_bible (\n        id TEXT PRIMARY KEY,\n        series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS series_story_bible_series\n        ON series_story_bible(series_id, updated_at DESC);\n      CREATE TABLE IF NOT EXISTS series_story_bible_overrides (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        source_id TEXT NOT NULL REFERENCES series_story_bible(id) ON DELETE RESTRICT,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        source_version INTEGER NOT NULL,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(project_id, source_id)\n      );\n      CREATE TABLE IF NOT EXISTS series_asset_links (\n        id TEXT PRIMARY KEY,\n        series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,\n        source_asset_id TEXT NOT NULL,\n        source_version INTEGER NOT NULL,\n        target_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        target_asset_id TEXT NOT NULL,\n        mode TEXT NOT NULL CHECK(mode IN ('copy', 'fork', 'link')),\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(target_asset_id)\n      );\n      CREATE INDEX IF NOT EXISTS series_asset_links_target\n        ON series_asset_links(target_project_id, created_at DESC);\n    "
+      },
+      {
+        "id": "workspace.0003.source-imports",
+        "pluginId": "workspace",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0001.projects-and-series"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS workspace_source_imports (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        file_name TEXT NOT NULL,\n        preview_json TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS workspace_import_extractions (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        source_fingerprint TEXT NOT NULL,\n        source_title TEXT NOT NULL,\n        status TEXT NOT NULL,\n        summary TEXT NOT NULL,\n        candidates_json TEXT NOT NULL,\n        adoptions_json TEXT NOT NULL DEFAULT '[]',\n        applied_at TEXT,\n        undone_at TEXT,\n        error_message TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS workspace_import_extractions_project\n        ON workspace_import_extractions(project_id, updated_at DESC, id);\n    "
+      },
+      {
+        "id": "workspace.0004.maintenance",
+        "pluginId": "workspace",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0003.source-imports"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS workspace_backups (\n        id TEXT PRIMARY KEY,\n        file_name TEXT NOT NULL UNIQUE,\n        size INTEGER NOT NULL,\n        sha256 TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS project_package_previews (\n        id TEXT PRIMARY KEY,\n        source_name TEXT NOT NULL,\n        snapshot_json TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS project_package_previews_expiry\n        ON project_package_previews(expires_at);\n    "
+      },
+      {
+        "id": "workspace.0005.project-modes",
+        "pluginId": "workspace",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0004.maintenance"],
+        "sql": "\n      ALTER TABLE projects ADD COLUMN mode TEXT NOT NULL\n        DEFAULT 'series_longform'\n        CHECK(mode IN ('series_longform', 'single_season', 'personal_theater', 'creator_channel'));\n      ALTER TABLE projects ADD COLUMN mode_config_json TEXT NOT NULL\n        DEFAULT '{\"mode\":\"series_longform\",\"targetChapterCount\":300,\"targetSeasonCount\":5}';\n      ALTER TABLE projects ADD COLUMN lifecycle_status TEXT NOT NULL\n        DEFAULT 'ready'\n        CHECK(lifecycle_status IN ('initializing', 'ready', 'failed'));\n      ALTER TABLE projects ADD COLUMN derived_from_project_id TEXT\n        REFERENCES projects(id) ON DELETE SET NULL;\n      CREATE INDEX IF NOT EXISTS projects_mode_updated_at\n        ON projects(mode, deleted_at, updated_at DESC, id);\n      CREATE INDEX IF NOT EXISTS projects_derived_from\n        ON projects(derived_from_project_id, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS project_initialization_steps (\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        step_key TEXT NOT NULL,\n        plugin_id TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'ready', 'failed')),\n        message TEXT,\n        error_message TEXT,\n        attempts INTEGER NOT NULL DEFAULT 0,\n        updated_at TEXT NOT NULL,\n        PRIMARY KEY(project_id, step_key)\n      );\n      CREATE TABLE IF NOT EXISTS project_derivation_previews (\n        id TEXT PRIMARY KEY,\n        source_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        target_mode TEXT NOT NULL CHECK(target_mode IN ('series_longform', 'single_season', 'personal_theater', 'creator_channel')),\n        target_mode_config_json TEXT NOT NULL,\n        title TEXT NOT NULL,\n        transformation TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS project_derivation_previews_expiry\n        ON project_derivation_previews(expires_at);\n      CREATE TABLE IF NOT EXISTS project_derivations (\n        id TEXT PRIMARY KEY,\n        source_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        target_project_id TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,\n        transformation TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS workspace_project_create_idempotency (\n        idempotency_key TEXT PRIMARY KEY,\n        response_json TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "workspace.0006.projectless-source-imports",
+        "pluginId": "workspace",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0005.project-modes"],
+        "sql": "\n      CREATE TABLE workspace_source_imports_next (\n        id TEXT PRIMARY KEY,\n        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,\n        file_name TEXT NOT NULL,\n        preview_json TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      INSERT INTO workspace_source_imports_next(\n        id, project_id, file_name, preview_json, expires_at, created_at\n      )\n      SELECT id, project_id, file_name, preview_json, expires_at, created_at\n      FROM workspace_source_imports;\n      DROP TABLE workspace_source_imports;\n      ALTER TABLE workspace_source_imports_next RENAME TO workspace_source_imports;\n      CREATE INDEX workspace_source_imports_expiry\n        ON workspace_source_imports(expires_at);\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "workspace.route.home",
+        "pluginId": "workspace",
+        "kind": "route",
+        "metadata": { "path": "/", "title": "项目" }
+      },
+      {
+        "id": "workspace.route.project",
+        "pluginId": "workspace",
+        "kind": "route",
+        "metadata": { "path": "/projects/:projectId", "title": "项目工作区" }
+      },
+      {
+        "id": "workspace.route.project-tools",
+        "pluginId": "workspace",
+        "kind": "route",
+        "metadata": {
+          "path": "/projects/:projectId/tools/:toolKey?",
+          "title": "项目工具"
+        }
+      },
+      {
+        "id": "workspace.route.search",
+        "pluginId": "workspace",
+        "kind": "route",
+        "metadata": { "path": "/search", "title": "搜索" }
+      },
+      {
+        "id": "workspace.navigation.home",
+        "pluginId": "workspace",
+        "kind": "navigation",
+        "metadata": {
+          "section": "main",
+          "order": 10,
+          "label": "项目",
+          "to": "/"
+        }
+      },
+      {
+        "id": "workspace.navigation.search",
+        "pluginId": "workspace",
+        "kind": "navigation",
+        "metadata": {
+          "section": "secondary",
+          "order": 20,
+          "label": "搜索",
+          "to": "/search"
+        }
+      }
+    ],
+    "entry": "@dramaip/workspace"
+  },
+  {
+    "id": "automation",
+    "descriptor": {
+      "id": "automation",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" }
+      ],
+      "provides": [
+        "automation.tasks",
+        "automation.previews",
+        "automation.resources"
+      ],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "automation.0001.tasks-and-revisions",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0001.projects-and-series"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS automation_tasks (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL,\n        status TEXT NOT NULL,\n        title TEXT NOT NULL,\n        progress REAL NOT NULL DEFAULT 0,\n        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,\n        parent_task_id TEXT REFERENCES automation_tasks(id) ON DELETE SET NULL,\n        payload_json TEXT,\n        result_json TEXT,\n        error TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS automation_tasks_created\n        ON automation_tasks(created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS automation_revision_previews (\n        id TEXT PRIMARY KEY,\n        chapter_id TEXT NOT NULL,\n        base_version INTEGER NOT NULL,\n        proposed_content TEXT NOT NULL,\n        rationale TEXT NOT NULL,\n        status TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        committed_at TEXT\n      );\n      CREATE TABLE IF NOT EXISTS automation_idempotency (\n        scope TEXT NOT NULL,\n        idempotency_key TEXT NOT NULL,\n        request_hash TEXT NOT NULL,\n        status INTEGER NOT NULL,\n        response_json TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        PRIMARY KEY(scope, idempotency_key)\n      );\n    "
+      },
+      {
+        "id": "automation.0002.pilot-plans",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["automation.0001.tasks-and-revisions"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS automation_pilot_plans (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        chapter_ids_json TEXT NOT NULL,\n        chapter_versions_json TEXT NOT NULL,\n        episode_count INTEGER NOT NULL,\n        status TEXT NOT NULL,\n        source_confirmed INTEGER NOT NULL DEFAULT 0,\n        adaptation_id TEXT,\n        episode_ids_json TEXT NOT NULL DEFAULT '[]',\n        error_message TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS automation_pilot_plans_project\n        ON automation_pilot_plans(project_id, updated_at DESC, id);\n    "
+      },
+      {
+        "id": "automation.0003.previews-and-templates",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["automation.0002.pilot-plans"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS automation_change_previews (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        session_id TEXT,\n        run_id TEXT,\n        task_id TEXT,\n        engine_kind TEXT,\n        task_type TEXT,\n        targets_json TEXT NOT NULL,\n        rationale TEXT NOT NULL,\n        status TEXT NOT NULL,\n        content_hash TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        committed_at TEXT\n      );\n      CREATE TABLE IF NOT EXISTS automation_provider_action_previews (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        session_id TEXT,\n        run_id TEXT,\n        task_id TEXT,\n        kind TEXT NOT NULL,\n        provider_id TEXT NOT NULL,\n        model_id TEXT,\n        parameters_json TEXT NOT NULL,\n        estimated_cost REAL,\n        currency TEXT,\n        status TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        executed_at TEXT\n      );\n      CREATE TABLE IF NOT EXISTS automation_templates (\n        id TEXT PRIMARY KEY,\n        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        body TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS automation_template_runs (\n        id TEXT PRIMARY KEY,\n        template_id TEXT NOT NULL REFERENCES automation_templates(id) ON DELETE CASCADE,\n        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,\n        rendered TEXT NOT NULL,\n        variables_json TEXT NOT NULL,\n        missing_json TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      INSERT OR IGNORE INTO automation_templates(\n        id, project_id, title, body, created_at, updated_at\n      ) VALUES (\n        '00000000-0000-4000-8000-000000000301', NULL,\n        '分集诊断摘要', '项目：{{project}}\n分集：{{episode}}\n目标：{{goal}}',\n        '2026-08-20T00:00:00.000Z', '2026-08-20T00:00:00.000Z'\n      );\n    "
+      },
+      {
+        "id": "automation.0004.resources",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["automation.0003.previews-and-templates"],
+        "sql": "\n      ALTER TABLE automation_templates\n        ADD COLUMN payload_json TEXT NOT NULL DEFAULT '{}';\n      ALTER TABLE automation_templates\n        ADD COLUMN version INTEGER NOT NULL DEFAULT 0;\n      CREATE TABLE IF NOT EXISTS automation_resources (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN (\n          'project-skills', 'agent-schemes', 'inspirations'\n        )),\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS automation_resources_project_kind\n        ON automation_resources(project_id, kind, updated_at DESC, id);\n    "
+      },
+      {
+        "id": "automation.0005.resource-source-ref",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["automation.0004.resources"],
+        "sql": "\n      ALTER TABLE automation_resources ADD COLUMN source_ref TEXT;\n      CREATE UNIQUE INDEX automation_resources_source_ref\n        ON automation_resources(kind, project_id, source_ref)\n        WHERE source_ref IS NOT NULL;\n    "
+      },
+      {
+        "id": "automation.0006.task-attention",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["automation.0003.previews-and-templates"],
+        "sql": "\n      ALTER TABLE automation_tasks\n        ADD COLUMN attention_status TEXT NOT NULL DEFAULT 'open';\n      CREATE INDEX IF NOT EXISTS automation_tasks_attention\n        ON automation_tasks(attention_status, status, created_at DESC, id);\n      CREATE INDEX IF NOT EXISTS automation_change_previews_task\n        ON automation_change_previews(task_id, created_at DESC);\n      CREATE INDEX IF NOT EXISTS automation_provider_previews_task\n        ON automation_provider_action_previews(task_id, created_at DESC);\n    "
+      },
+      {
+        "id": "automation.0007.creation-workflows",
+        "pluginId": "automation",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": ["automation.0006.task-attention"],
+        "sql": "CREATE TABLE automation_creation_workflows (\n    id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n    target_id TEXT, stage TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0,\n    request_key TEXT NOT NULL UNIQUE, request_hash TEXT NOT NULL,\n    value_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL\n  );\n  CREATE INDEX automation_creation_target ON automation_creation_workflows(project_id, target_id, created_at DESC, id);\n  CREATE INDEX automation_creation_stage ON automation_creation_workflows(stage, created_at, id);"
+      }
+    ],
+    "ui": [
+      {
+        "id": "automation.route.tasks",
+        "pluginId": "automation",
+        "kind": "route",
+        "metadata": { "path": "/tasks", "title": "任务" }
+      },
+      {
+        "id": "automation.navigation.tasks",
+        "pluginId": "automation",
+        "kind": "navigation",
+        "metadata": {
+          "section": "secondary",
+          "order": 30,
+          "label": "任务",
+          "to": "/tasks"
+        }
+      },
+      {
+        "id": "automation.panel.project-tools",
+        "pluginId": "automation",
+        "kind": "panel",
+        "metadata": { "slot": "project.tools", "title": "工作流与模板" }
+      }
+    ],
+    "entry": "@dramaip/automation"
+  },
+  {
+    "id": "writing",
+    "descriptor": {
+      "id": "writing",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" },
+        { "id": "automation", "range": "*" }
+      ],
+      "provides": ["writing.chapters"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "writing.0001.chapters",
+        "pluginId": "writing",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0001.projects-and-series"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS chapters (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        order_index INTEGER NOT NULL,\n        summary TEXT NOT NULL DEFAULT '',\n        outline TEXT,\n        content TEXT NOT NULL DEFAULT '',\n        main_conflict TEXT,\n        hook TEXT,\n        highlight TEXT,\n        reversal TEXT,\n        cliffhanger TEXT,\n        short_drama_note TEXT,\n        ai_video_note TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS chapters_project_order\n        ON chapters(project_id, order_index, id);\n      CREATE TABLE IF NOT EXISTS writing_chapter_versions (\n        id TEXT PRIMARY KEY,\n        chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,\n        version_number INTEGER NOT NULL,\n        snapshot_json TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        UNIQUE(chapter_id, version_number)\n      );\n      CREATE INDEX IF NOT EXISTS writing_chapter_versions_chapter\n        ON writing_chapter_versions(chapter_id, version_number DESC);\n    "
+      },
+      {
+        "id": "writing.0002.resources",
+        "pluginId": "writing",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["writing.0001.chapters"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS writing_resources (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN ('characters', 'outlines', 'story-arcs')),\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS writing_resources_project_kind\n        ON writing_resources(project_id, kind, updated_at DESC, id);\n    "
+      },
+      {
+        "id": "writing.0003.idempotency",
+        "pluginId": "writing",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["writing.0002.resources"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS writing_idempotency (\n        scope TEXT NOT NULL,\n        idempotency_key TEXT NOT NULL,\n        response_json TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        PRIMARY KEY(scope, idempotency_key)\n      );\n    "
+      },
+      {
+        "id": "writing.0004.four-mode-content",
+        "pluginId": "writing",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": [
+          "writing.0003.idempotency",
+          "workspace.0005.project-modes"
+        ],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS writing_volumes (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        outline TEXT NOT NULL DEFAULT '',\n        order_index INTEGER NOT NULL DEFAULT 0,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS writing_volumes_project_order\n        ON writing_volumes(project_id, order_index, id);\n      ALTER TABLE chapters ADD COLUMN volume_id TEXT\n        REFERENCES writing_volumes(id) ON DELETE SET NULL;\n      CREATE INDEX IF NOT EXISTS chapters_project_volume_order\n        ON chapters(project_id, volume_id, order_index, id);\n      CREATE TABLE IF NOT EXISTS writing_creator_content (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN ('profile', 'column', 'idea', 'draft', 'variant', 'calendar')),\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT,\n        title TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('draft', 'researching', 'review_required', 'ready', 'scheduled', 'archived')),\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS writing_creator_content_project_kind_status\n        ON writing_creator_content(project_id, kind, status, id);\n    "
+      },
+      {
+        "id": "writing.0005.creation-adoption",
+        "pluginId": "writing",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": ["writing.0004.four-mode-content"],
+        "sql": "CREATE TABLE writing_creation_adoptions (workflow_id TEXT PRIMARY KEY, result_json TEXT NOT NULL, created_at TEXT NOT NULL);"
+      }
+    ],
+    "ui": [
+      {
+        "id": "writing.route.home",
+        "pluginId": "writing",
+        "kind": "route",
+        "metadata": { "path": "/write", "title": "小说写作" }
+      },
+      {
+        "id": "writing.route.quick-start",
+        "pluginId": "writing",
+        "kind": "route",
+        "metadata": { "path": "/write/new", "title": "新建小说" }
+      },
+      {
+        "id": "writing.navigation.home",
+        "pluginId": "writing",
+        "kind": "navigation",
+        "metadata": {
+          "section": "main",
+          "order": 20,
+          "label": "小说写作",
+          "to": "/write"
+        }
+      },
+      {
+        "id": "writing.editor.chapter",
+        "pluginId": "writing",
+        "kind": "editor",
+        "metadata": { "target": "chapter", "title": "章节编辑器" }
+      }
+    ],
+    "entry": "@dramaip/writing"
+  },
+  {
+    "id": "knowledge",
+    "descriptor": {
+      "id": "knowledge",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" },
+        { "id": "writing", "range": "*" }
+      ],
+      "provides": [
+        "knowledge.story-bible",
+        "knowledge.creative-intelligence",
+        "knowledge.web-research"
+      ],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "knowledge.0001.story-bible",
+        "pluginId": "knowledge",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["writing.0001.chapters"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS knowledge_story_bible_settings (\n        project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,\n        auto_suggest INTEGER NOT NULL DEFAULT 0,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS knowledge_story_bible_change_sets (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,\n        source_version INTEGER NOT NULL,\n        source_fingerprint TEXT NOT NULL,\n        status TEXT NOT NULL,\n        summary TEXT NOT NULL,\n        task_id TEXT,\n        conflict_notes_json TEXT NOT NULL DEFAULT '[]',\n        preview_json TEXT NOT NULL,\n        created_memory_ids_json TEXT NOT NULL DEFAULT '[]',\n        applied_at TEXT,\n        undone_at TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_story_bible_project\n        ON knowledge_story_bible_change_sets(project_id, updated_at DESC);\n      CREATE TABLE IF NOT EXISTS knowledge_story_bible_stale_marks (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,\n        reason TEXT NOT NULL,\n        resolved_at TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(project_id, chapter_id, resolved_at)\n      );\n      CREATE TABLE IF NOT EXISTS knowledge_chapter_memories (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL,\n        source_change_set_id TEXT REFERENCES knowledge_story_bible_change_sets(id) ON DELETE SET NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "knowledge.0002.owned-records",
+        "pluginId": "knowledge",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["knowledge.0001.story-bible"],
+        "sql": "\n      ALTER TABLE knowledge_chapter_memories\n        ADD COLUMN version INTEGER NOT NULL DEFAULT 0;\n      CREATE TABLE IF NOT EXISTS knowledge_records (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN (\n          'story', 'character-states', 'story-bible', 'story-events',\n          'foreshadowings', 'memory', 'visual-profiles', 'visual-settings',\n          'chapter-memories', 'story-bible-sidecar-preferences'\n        )),\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_records_project_kind\n        ON knowledge_records(project_id, kind, updated_at DESC, id);\n    "
+      },
+      {
+        "id": "knowledge.0003.creator-research",
+        "pluginId": "knowledge",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": [
+          "knowledge.0002.owned-records",
+          "workspace.0005.project-modes"
+        ],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS knowledge_research_topics (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        query TEXT NOT NULL,\n        risk_domain TEXT NOT NULL CHECK(risk_domain IN ('general', 'finance', 'health', 'legal')),\n        status TEXT NOT NULL CHECK(status IN ('draft', 'researching', 'ready', 'archived')),\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_research_topics_project_status\n        ON knowledge_research_topics(project_id, status, id);\n      CREATE TABLE IF NOT EXISTS knowledge_research_sources (\n        id TEXT PRIMARY KEY,\n        topic_id TEXT NOT NULL REFERENCES knowledge_research_topics(id) ON DELETE CASCADE,\n        source_type TEXT NOT NULL CHECK(source_type IN ('duckduckgo', 'gdelt', 'wikimedia', 'rss_atom', 'manual_url', 'local')),\n        title TEXT NOT NULL,\n        url TEXT,\n        excerpt TEXT,\n        published_at TEXT,\n        data_date TEXT,\n        retrieved_at TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('discovered', 'adopted', 'rejected')),\n        created_at TEXT NOT NULL,\n        UNIQUE(topic_id, url)\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_research_sources_topic_status\n        ON knowledge_research_sources(topic_id, status, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS knowledge_research_findings (\n        id TEXT PRIMARY KEY,\n        topic_id TEXT NOT NULL REFERENCES knowledge_research_topics(id) ON DELETE CASCADE,\n        statement TEXT NOT NULL,\n        kind TEXT NOT NULL CHECK(kind IN ('fact', 'quote', 'inference', 'creator_opinion')),\n        source_ids_json TEXT NOT NULL DEFAULT '[]',\n        status TEXT NOT NULL CHECK(status IN ('draft', 'supported', 'stale', 'blocked')),\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "knowledge.0004.creative-intelligence",
+        "pluginId": "knowledge",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["knowledge.0003.creator-research"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS knowledge_corpus_sources (\n        id TEXT PRIMARY KEY,\n        url TEXT,\n        domain TEXT,\n        title TEXT NOT NULL,\n        excerpt TEXT,\n        content_hash TEXT,\n        status TEXT NOT NULL CHECK(status IN ('quarantined','allowed','blocked','takedown')),\n        rights_status TEXT NOT NULL CHECK(rights_status IN ('unknown','review_required','allowed','restricted','removed')),\n        locale TEXT NOT NULL DEFAULT 'zh-CN',\n        retrieved_at TEXT NOT NULL,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE UNIQUE INDEX IF NOT EXISTS knowledge_corpus_source_url\n        ON knowledge_corpus_sources(url) WHERE url IS NOT NULL;\n      CREATE TABLE IF NOT EXISTS knowledge_corpus_items (\n        id TEXT PRIMARY KEY,\n        source_id TEXT REFERENCES knowledge_corpus_sources(id) ON DELETE SET NULL,\n        visibility TEXT NOT NULL CHECK(visibility IN ('public','private')),\n        kind TEXT NOT NULL CHECK(kind IN (\n          'meme','comic_device','dialogue_pattern','character_hook',\n          'relationship_hook','conflict','reversal','scene','world_rule',\n          'style','social_observation'\n        )),\n        title TEXT NOT NULL,\n        trigger_text TEXT NOT NULL DEFAULT '',\n        mechanism TEXT NOT NULL,\n        emotional_effect TEXT NOT NULL DEFAULT '',\n        contexts_json TEXT NOT NULL DEFAULT '[]',\n        risk_tags_json TEXT NOT NULL DEFAULT '[]',\n        tags_json TEXT NOT NULL DEFAULT '[]',\n        freshness TEXT NOT NULL CHECK(freshness IN ('emerging','stable','cooling','expired','evergreen')),\n        rights_status TEXT NOT NULL CHECK(rights_status IN ('unknown','review_required','allowed','restricted','removed')),\n        locale TEXT NOT NULL DEFAULT 'zh-CN',\n        tombstoned_at TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_corpus_visibility_freshness\n        ON knowledge_corpus_items(visibility, freshness, updated_at DESC, id);\n      CREATE TABLE IF NOT EXISTS knowledge_corpus_collections (\n        id TEXT PRIMARY KEY,\n        corpus_item_id TEXT REFERENCES knowledge_corpus_items(id) ON DELETE SET NULL,\n        title TEXT NOT NULL,\n        mechanism TEXT NOT NULL,\n        notes TEXT NOT NULL DEFAULT '',\n        tags_json TEXT NOT NULL DEFAULT '[]',\n        adopted INTEGER NOT NULL DEFAULT 0 CHECK(adopted IN (0,1)),\n        use_count INTEGER NOT NULL DEFAULT 0,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS knowledge_provenance_edges (\n        id TEXT PRIMARY KEY,\n        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,\n        from_type TEXT NOT NULL,\n        from_id TEXT NOT NULL,\n        relation TEXT NOT NULL CHECK(relation IN (\n          'collected_from','inspired_by','derived_from','generated_from','adopted_from','quoted_from'\n        )),\n        to_type TEXT NOT NULL,\n        to_id TEXT NOT NULL,\n        quote_excerpt TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        UNIQUE(from_type, from_id, relation, to_type, to_id)\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_provenance_project\n        ON knowledge_provenance_edges(project_id, created_at, id);\n    "
+      },
+      {
+        "id": "knowledge.0005.story-intelligence",
+        "pluginId": "knowledge",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["knowledge.0004.creative-intelligence"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS knowledge_causal_nodes (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        kind TEXT NOT NULL CHECK(kind IN (\n          'character','event','secret','rule','location','organization',\n          'resource','relationship','inspiration'\n        )),\n        title TEXT NOT NULL,\n        summary TEXT NOT NULL DEFAULT '',\n        source_type TEXT NOT NULL,\n        source_id TEXT NOT NULL,\n        source_version INTEGER NOT NULL DEFAULT 0,\n        confirmed INTEGER NOT NULL DEFAULT 0 CHECK(confirmed IN (0,1)),\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_causal_nodes_project\n        ON knowledge_causal_nodes(project_id, kind, created_at, id);\n      CREATE TABLE IF NOT EXISTS knowledge_causal_edges (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        from_node_id TEXT NOT NULL REFERENCES knowledge_causal_nodes(id) ON DELETE CASCADE,\n        to_node_id TEXT NOT NULL REFERENCES knowledge_causal_nodes(id) ON DELETE CASCADE,\n        relation TEXT NOT NULL CHECK(relation IN ('causes','enables','blocks','reveals','conflicts_with','depends_on')),\n        rationale TEXT NOT NULL DEFAULT '',\n        confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),\n        confirmed INTEGER NOT NULL DEFAULT 0 CHECK(confirmed IN (0,1)),\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(project_id, from_node_id, relation, to_node_id)\n      );\n      CREATE TABLE IF NOT EXISTS knowledge_audience_states (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        subject_type TEXT NOT NULL CHECK(subject_type IN ('audience','character')),\n        subject_id TEXT NOT NULL,\n        knowledge_node_id TEXT NOT NULL REFERENCES knowledge_causal_nodes(id) ON DELETE CASCADE,\n        story_order INTEGER NOT NULL,\n        state TEXT NOT NULL CHECK(state IN ('unknown','suspects','misbelieves','knows')),\n        evidence TEXT NOT NULL DEFAULT '',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(project_id, subject_type, subject_id, knowledge_node_id, story_order)\n      );\n      CREATE TABLE IF NOT EXISTS knowledge_ip_twin_snapshots (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        source_fingerprint TEXT NOT NULL,\n        snapshot_json TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS knowledge_ip_twin_project\n        ON knowledge_ip_twin_snapshots(project_id, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS knowledge_scenario_runs (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        snapshot_id TEXT NOT NULL REFERENCES knowledge_ip_twin_snapshots(id) ON DELETE CASCADE,\n        hypothesis TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('preview','committed','discarded')),\n        deterministic_findings_json TEXT NOT NULL DEFAULT '[]',\n        model_inferences_json TEXT NOT NULL DEFAULT '[]',\n        affected_node_ids_json TEXT NOT NULL DEFAULT '[]',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "knowledge.0006.creation-adoption",
+        "pluginId": "knowledge",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": ["knowledge.0005.story-intelligence"],
+        "sql": "CREATE TABLE knowledge_creation_adoptions (workflow_id TEXT PRIMARY KEY, created_at TEXT NOT NULL);"
+      }
+    ],
+    "ui": [
+      {
+        "id": "knowledge.panel.story-bible",
+        "pluginId": "knowledge",
+        "kind": "panel",
+        "metadata": { "slot": "writing.story-bible", "title": "故事圣经" }
+      },
+      {
+        "id": "knowledge.inspector.story-bible",
+        "pluginId": "knowledge",
+        "kind": "inspector",
+        "metadata": { "target": "chapter", "title": "故事圣经侧栏" }
+      }
+    ],
+    "entry": "@dramaip/knowledge"
+  },
+  {
+    "id": "agents",
+    "descriptor": {
+      "id": "agents",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "automation", "range": "*" },
+        { "id": "writing", "range": "*" },
+        { "id": "knowledge", "range": "*" }
+      ],
+      "provides": ["agents.runtime", "agents.evaluation"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "agents.0001.provider-configurations",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.2",
+        "dependsOn": ["foundation.0001.runtime-ledger"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS agent_provider_configurations (\n        id TEXT PRIMARY KEY,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL,\n        version INTEGER NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS agent_provider_configurations_updated_at\n        ON agent_provider_configurations(updated_at DESC, id);\n    "
+      },
+      {
+        "id": "agents.0002.provider-settings",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.2",
+        "dependsOn": ["agents.0001.provider-configurations"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS agent_provider_settings (\n        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n        provider_id TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "agents.0003.engine-settings",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.2",
+        "dependsOn": ["agents.0002.provider-settings"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS agent_global_settings (\n        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n        default_engine_kind TEXT NOT NULL,\n        default_model_json TEXT,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS agent_project_settings (\n        project_id TEXT PRIMARY KEY,\n        default_engine_kind TEXT NOT NULL,\n        default_model_json TEXT,\n        assistant_mode TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "agents.0004.assistant-conversations",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.2",
+        "dependsOn": ["agents.0003.engine-settings"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS agent_assistant_sessions (\n        id TEXT PRIMARY KEY,\n        engine_session_id TEXT NOT NULL,\n        engine_kind TEXT NOT NULL,\n        project_id TEXT,\n        surface TEXT NOT NULL,\n        chapter_id TEXT,\n        task_type TEXT,\n        title TEXT,\n        model_json TEXT,\n        status TEXT NOT NULL,\n        archived_at TEXT,\n        last_opened_at TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS agent_assistant_sessions_opened_at\n        ON agent_assistant_sessions(archived_at, last_opened_at DESC, id);\n      CREATE INDEX IF NOT EXISTS agent_assistant_sessions_project_id\n        ON agent_assistant_sessions(project_id, archived_at, last_opened_at DESC);\n\n      CREATE TABLE IF NOT EXISTS agent_assistant_turns (\n        id TEXT PRIMARY KEY,\n        session_id TEXT NOT NULL,\n        run_id TEXT,\n        user_message TEXT NOT NULL,\n        project_id TEXT,\n        chapter_id TEXT,\n        selection_json TEXT,\n        route_json TEXT,\n        status TEXT NOT NULL,\n        error TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS agent_assistant_turns_session_created_at\n        ON agent_assistant_turns(session_id, created_at, id);\n\n      CREATE TABLE IF NOT EXISTS agent_assistant_runs (\n        id TEXT PRIMARY KEY,\n        session_id TEXT NOT NULL,\n        task_id TEXT NOT NULL,\n        task_type TEXT NOT NULL,\n        engine_kind TEXT NOT NULL,\n        status TEXT NOT NULL,\n        model_json TEXT,\n        turn_id TEXT,\n        chapter_id TEXT,\n        error TEXT,\n        started_at TEXT,\n        completed_at TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS agent_assistant_runs_session_created_at\n        ON agent_assistant_runs(session_id, created_at, id);\n\n      CREATE TABLE IF NOT EXISTS agent_assistant_items (\n        id TEXT PRIMARY KEY,\n        run_id TEXT NOT NULL,\n        sequence INTEGER NOT NULL,\n        type TEXT NOT NULL,\n        status TEXT NOT NULL,\n        content TEXT,\n        payload_json TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(run_id, sequence)\n      );\n      CREATE INDEX IF NOT EXISTS agent_assistant_items_run_sequence\n        ON agent_assistant_items(run_id, sequence);\n    "
+      },
+      {
+        "id": "agents.0005.codex-custom-provider-settings",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.2",
+        "dependsOn": ["agents.0004.assistant-conversations"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS agent_codex_custom_provider_settings (\n        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n        provider_id TEXT NOT NULL,\n        protocol TEXT NOT NULL CHECK(protocol IN ('responses', 'chat_completions')),\n        updated_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "agents.0006.alpha3-agent-runtime-reset",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0005.codex-custom-provider-settings"],
+        "sql": "\n      DELETE FROM agent_assistant_items;\n      DELETE FROM agent_assistant_runs;\n      DELETE FROM agent_assistant_turns;\n      DELETE FROM agent_assistant_sessions;\n      UPDATE agent_global_settings SET default_engine_kind = 'pi';\n      UPDATE agent_project_settings SET default_engine_kind = 'pi';\n      DROP TABLE IF EXISTS agent_experiment_runs;\n      DROP TABLE IF EXISTS agent_experiment_groups;\n      DROP TABLE IF EXISTS agent_evaluation_reviews;\n      DROP TABLE IF EXISTS agent_evaluation_candidates;\n      DROP TABLE IF EXISTS agent_evaluations;\n      CREATE TABLE IF NOT EXISTS agent_capability_grants (\n        id TEXT PRIMARY KEY,\n        run_id TEXT NOT NULL,\n        expires_at TEXT NOT NULL,\n        consumed_at TEXT,\n        capabilities_json TEXT NOT NULL,\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS agent_capability_grants_run_id\n        ON agent_capability_grants(run_id, expires_at);\n      CREATE TABLE IF NOT EXISTS agent_evaluations (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL,\n        task_type TEXT NOT NULL,\n        prompt TEXT NOT NULL,\n        context_snapshot_json TEXT NOT NULL,\n        status TEXT NOT NULL,\n        revealed_at TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE IF NOT EXISTS agent_evaluation_candidates (\n        id TEXT PRIMARY KEY,\n        evaluation_id TEXT NOT NULL,\n        candidate TEXT NOT NULL CHECK(candidate IN ('a', 'b', 'c')),\n        engine_kind TEXT NOT NULL CHECK(engine_kind IN ('pi', 'codex', 'grok')),\n        run_id TEXT NOT NULL,\n        status TEXT NOT NULL,\n        output_json TEXT,\n        metrics_json TEXT NOT NULL,\n        UNIQUE(evaluation_id, candidate),\n        UNIQUE(evaluation_id, engine_kind)\n      );\n      CREATE TABLE IF NOT EXISTS agent_evaluation_reviews (\n        evaluation_id TEXT PRIMARY KEY,\n        preferred_candidate TEXT NOT NULL CHECK(preferred_candidate IN ('a', 'b', 'c', 'tie')),\n        accepted INTEGER NOT NULL,\n        notes TEXT,\n        created_at TEXT NOT NULL\n      );\n    "
+      },
+      {
+        "id": "agents.0007.run-recovery-state",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0006.alpha3-agent-runtime-reset"],
+        "sql": "\n      ALTER TABLE agent_assistant_runs ADD COLUMN engine_run_id TEXT;\n      ALTER TABLE agent_assistant_runs ADD COLUMN last_engine_cursor INTEGER NOT NULL DEFAULT 0;\n      ALTER TABLE agent_assistant_runs ADD COLUMN engine_generation INTEGER;\n      ALTER TABLE agent_assistant_runs ADD COLUMN checkpoint_json TEXT;\n      ALTER TABLE agent_assistant_runs ADD COLUMN recovery_attempts INTEGER NOT NULL DEFAULT 0;\n      ALTER TABLE agent_assistant_runs ADD COLUMN recovery_error TEXT;\n      UPDATE agent_assistant_runs SET status = 'completed' WHERE status = 'succeeded';\n      UPDATE agent_assistant_runs SET status = 'aborted' WHERE status = 'canceled';\n      CREATE INDEX IF NOT EXISTS agent_assistant_runs_recovery\n        ON agent_assistant_runs(status, engine_kind, updated_at);\n    "
+      },
+      {
+        "id": "agents.0008.langgraph-four-engine",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0007.run-recovery-state"],
+        "sql": "\n      ALTER TABLE agent_evaluation_candidates\n        RENAME TO agent_evaluation_candidates_three_engine;\n      CREATE TABLE agent_evaluation_candidates (\n        id TEXT PRIMARY KEY,\n        evaluation_id TEXT NOT NULL,\n        candidate TEXT NOT NULL CHECK(candidate IN ('a', 'b', 'c', 'd')),\n        engine_kind TEXT NOT NULL CHECK(engine_kind IN ('pi', 'codex', 'grok', 'langgraph')),\n        run_id TEXT NOT NULL,\n        status TEXT NOT NULL,\n        output_json TEXT,\n        metrics_json TEXT NOT NULL,\n        UNIQUE(evaluation_id, candidate),\n        UNIQUE(evaluation_id, engine_kind)\n      );\n      INSERT INTO agent_evaluation_candidates(\n        id, evaluation_id, candidate, engine_kind, run_id, status,\n        output_json, metrics_json\n      )\n      SELECT id, evaluation_id, candidate, engine_kind, run_id, status,\n             output_json, metrics_json\n      FROM agent_evaluation_candidates_three_engine;\n      DROP TABLE agent_evaluation_candidates_three_engine;\n\n      ALTER TABLE agent_evaluation_reviews\n        RENAME TO agent_evaluation_reviews_three_engine;\n      CREATE TABLE agent_evaluation_reviews (\n        evaluation_id TEXT PRIMARY KEY,\n        preferred_candidate TEXT NOT NULL CHECK(preferred_candidate IN ('a', 'b', 'c', 'd', 'tie')),\n        accepted INTEGER NOT NULL,\n        notes TEXT,\n        created_at TEXT NOT NULL\n      );\n      INSERT INTO agent_evaluation_reviews(\n        evaluation_id, preferred_candidate, accepted, notes, created_at\n      )\n      SELECT evaluation_id, preferred_candidate, accepted, notes, created_at\n      FROM agent_evaluation_reviews_three_engine;\n      DROP TABLE agent_evaluation_reviews_three_engine;\n    "
+      },
+      {
+        "id": "agents.0009.inspiration-space",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0008.langgraph-four-engine"],
+        "sql": "\n      ALTER TABLE agent_assistant_sessions ADD COLUMN creative_mode TEXT NOT NULL\n        DEFAULT 'free'\n        CHECK(creative_mode IN ('free', 'guided', 'character_interview', 'world_simulation', 'conflict_lab'));\n      ALTER TABLE agent_assistant_sessions ADD COLUMN parent_session_id TEXT\n        REFERENCES agent_assistant_sessions(id) ON DELETE SET NULL;\n      ALTER TABLE agent_assistant_sessions ADD COLUMN prompt_policy_version TEXT NOT NULL\n        DEFAULT 'inspiration.v1';\n\n      CREATE TABLE agent_inspiration_cards (\n        id TEXT PRIMARY KEY,\n        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,\n        kind TEXT NOT NULL CHECK(kind IN ('premise', 'character', 'world', 'conflict', 'scene', 'style', 'question')),\n        title TEXT NOT NULL,\n        content TEXT NOT NULL,\n        source_turn_id TEXT REFERENCES agent_assistant_turns(id) ON DELETE SET NULL,\n        adopted INTEGER NOT NULL DEFAULT 0 CHECK(adopted IN (0, 1)),\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX agent_inspiration_cards_conversation\n        ON agent_inspiration_cards(conversation_id, updated_at DESC, id);\n\n      CREATE TABLE agent_creative_memory_settings (\n        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n        enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0, 1)),\n        consented_at TEXT,\n        updated_at TEXT NOT NULL\n      );\n      INSERT INTO agent_creative_memory_settings(singleton, enabled, consented_at, updated_at)\n        VALUES (1, 0, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));\n      CREATE TABLE agent_creative_memories (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN ('preference', 'theme', 'constraint', 'avoid', 'goal')),\n        content TEXT NOT NULL,\n        confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),\n        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'disabled')),\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE agent_creative_memory_sources (\n        memory_id TEXT NOT NULL REFERENCES agent_creative_memories(id) ON DELETE CASCADE,\n        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,\n        turn_id TEXT REFERENCES agent_assistant_turns(id) ON DELETE SET NULL,\n        PRIMARY KEY(memory_id, conversation_id)\n      );\n      CREATE INDEX agent_creative_memory_sources_conversation\n        ON agent_creative_memory_sources(conversation_id, memory_id);\n\n      CREATE TABLE agent_inspiration_summaries (\n        id TEXT PRIMARY KEY,\n        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,\n        through_turn_count INTEGER NOT NULL,\n        summary TEXT NOT NULL,\n        input_tokens INTEGER NOT NULL DEFAULT 0,\n        output_tokens INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX agent_inspiration_summaries_conversation\n        ON agent_inspiration_summaries(conversation_id, through_turn_count DESC);\n      CREATE TABLE agent_inspiration_memory_jobs (\n        id TEXT PRIMARY KEY,\n        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,\n        through_turn_count INTEGER NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'completed', 'failed')),\n        reason TEXT NOT NULL CHECK(reason IN ('six_turns', 'archive', 'manual')),\n        error TEXT,\n        model TEXT,\n        input_tokens INTEGER NOT NULL DEFAULT 0,\n        output_tokens INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE UNIQUE INDEX agent_inspiration_memory_jobs_six_turn_once\n        ON agent_inspiration_memory_jobs(conversation_id, through_turn_count)\n        WHERE reason = 'six_turns';\n\n      CREATE TABLE agent_inspiration_project_previews (\n        id TEXT PRIMARY KEY,\n        conversation_id TEXT NOT NULL REFERENCES agent_assistant_sessions(id) ON DELETE CASCADE,\n        project_json TEXT NOT NULL,\n        card_ids_json TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('pending', 'project_created', 'cards_copied', 'completed', 'failed')),\n        project_id TEXT,\n        copied_count INTEGER NOT NULL DEFAULT 0,\n        error TEXT,\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX agent_inspiration_project_previews_conversation\n        ON agent_inspiration_project_previews(conversation_id, created_at DESC);\n    "
+      },
+      {
+        "id": "agents.0010.web-research-consent",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0009.inspiration-space"],
+        "sql": "\n      ALTER TABLE agent_assistant_sessions ADD COLUMN web_access_mode TEXT NOT NULL\n        DEFAULT 'auto' CHECK(web_access_mode IN ('auto', 'off'));\n      CREATE TABLE agent_web_research_settings (\n        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n        consented_at TEXT,\n        updated_at TEXT NOT NULL\n      );\n      INSERT INTO agent_web_research_settings(singleton, consented_at, updated_at)\n        VALUES (1, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));\n    "
+      },
+      {
+        "id": "agents.0011.remove-grok-build",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0010.web-research-consent"],
+        "sql": "\n      UPDATE agent_global_settings\n        SET default_engine_kind = 'pi', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE default_engine_kind = 'grok';\n      UPDATE agent_project_settings\n        SET default_engine_kind = 'pi', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE default_engine_kind = 'grok';\n\n      UPDATE agent_assistant_turns\n        SET status = 'failed', error = 'Grok Build engine was removed.',\n            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE run_id IN (\n          SELECT id FROM agent_assistant_runs\n          WHERE engine_kind = 'grok'\n            AND status IN ('created', 'queued', 'preparing', 'running', 'waiting_approval', 'committing', 'recoverable')\n        );\n      UPDATE agent_assistant_runs\n        SET status = 'interrupted', recovery_error = 'Grok Build engine was removed.',\n            completed_at = COALESCE(completed_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),\n            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE engine_kind = 'grok'\n          AND status IN ('created', 'queued', 'preparing', 'running', 'waiting_approval', 'committing', 'recoverable');\n      UPDATE agent_assistant_sessions\n        SET status = 'interrupted',\n            archived_at = COALESCE(archived_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),\n            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE engine_kind = 'grok';\n\n      ALTER TABLE agent_evaluation_candidates\n        RENAME TO agent_evaluation_candidates_four_engine;\n      CREATE TEMP TABLE agent_evaluation_candidate_remap AS\n      SELECT evaluation_id,\n             candidate AS old_candidate,\n             char(96 + ROW_NUMBER() OVER (\n               PARTITION BY evaluation_id ORDER BY candidate\n             )) AS candidate\n      FROM agent_evaluation_candidates_four_engine\n      WHERE engine_kind <> 'grok';\n      CREATE TABLE agent_evaluation_candidates (\n        id TEXT PRIMARY KEY,\n        evaluation_id TEXT NOT NULL,\n        candidate TEXT NOT NULL CHECK(candidate IN ('a', 'b', 'c')),\n        engine_kind TEXT NOT NULL CHECK(engine_kind IN ('pi', 'codex', 'langgraph')),\n        run_id TEXT NOT NULL,\n        status TEXT NOT NULL,\n        output_json TEXT,\n        metrics_json TEXT NOT NULL,\n        UNIQUE(evaluation_id, candidate),\n        UNIQUE(evaluation_id, engine_kind)\n      );\n      INSERT INTO agent_evaluation_candidates(\n        id, evaluation_id, candidate, engine_kind, run_id, status,\n        output_json, metrics_json\n      )\n      SELECT source.id, source.evaluation_id, remap.candidate,\n             source.engine_kind, source.run_id, source.status,\n             source.output_json, source.metrics_json\n      FROM agent_evaluation_candidates_four_engine source\n      JOIN agent_evaluation_candidate_remap remap\n        ON remap.evaluation_id = source.evaluation_id\n       AND remap.old_candidate = source.candidate;\n\n      ALTER TABLE agent_evaluation_reviews\n        RENAME TO agent_evaluation_reviews_four_engine;\n      CREATE TABLE agent_evaluation_reviews (\n        evaluation_id TEXT PRIMARY KEY,\n        preferred_candidate TEXT NOT NULL CHECK(preferred_candidate IN ('a', 'b', 'c', 'tie')),\n        accepted INTEGER NOT NULL,\n        notes TEXT,\n        created_at TEXT NOT NULL\n      );\n      INSERT INTO agent_evaluation_reviews(\n        evaluation_id, preferred_candidate, accepted, notes, created_at\n      )\n      SELECT review.evaluation_id,\n             CASE\n               WHEN review.preferred_candidate = 'tie' THEN 'tie'\n               ELSE remap.candidate\n             END,\n             review.accepted, review.notes, review.created_at\n      FROM agent_evaluation_reviews_four_engine review\n      LEFT JOIN agent_evaluation_candidate_remap remap\n        ON remap.evaluation_id = review.evaluation_id\n       AND remap.old_candidate = review.preferred_candidate\n      WHERE review.preferred_candidate = 'tie' OR remap.candidate IS NOT NULL;\n\n      UPDATE agent_evaluations\n        SET status = 'ready_for_review', revealed_at = NULL,\n            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE id IN (\n          SELECT review.evaluation_id\n          FROM agent_evaluation_reviews_four_engine review\n          LEFT JOIN agent_evaluation_candidate_remap remap\n            ON remap.evaluation_id = review.evaluation_id\n           AND remap.old_candidate = review.preferred_candidate\n          WHERE review.preferred_candidate <> 'tie' AND remap.candidate IS NULL\n        );\n      UPDATE agent_evaluations\n        SET status = 'failed', revealed_at = NULL,\n            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n        WHERE status IN ('queued', 'running')\n           OR NOT EXISTS (\n             SELECT 1 FROM agent_evaluation_candidates candidate\n             WHERE candidate.evaluation_id = agent_evaluations.id\n           );\n\n      DROP TABLE agent_evaluation_reviews_four_engine;\n      DROP TABLE agent_evaluation_candidates_four_engine;\n      DROP TABLE agent_evaluation_candidate_remap;\n    "
+      },
+      {
+        "id": "agents.0012.context-policies-and-snapshots",
+        "pluginId": "agents",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["agents.0011.remove-grok-build"],
+        "sql": "\n      CREATE TABLE agent_context_policy_sets (\n        project_id TEXT PRIMARY KEY,\n        version INTEGER NOT NULL DEFAULT 0,\n        updated_at TEXT NOT NULL\n      );\n      CREATE TABLE agent_context_policies (\n        project_id TEXT,\n        field_path TEXT NOT NULL,\n        mode TEXT NOT NULL CHECK(mode IN ('auto', 'always', 'never')),\n        version INTEGER NOT NULL,\n        updated_at TEXT NOT NULL,\n        PRIMARY KEY(project_id, field_path)\n      );\n      CREATE TABLE agent_context_previews (\n        id TEXT PRIMARY KEY,\n        project_id TEXT,\n        input_json TEXT NOT NULL,\n        entries_json TEXT NOT NULL,\n        token_budget INTEGER NOT NULL CHECK(token_budget > 0),\n        estimated_tokens INTEGER NOT NULL CHECK(estimated_tokens >= 0),\n        destination_json TEXT NOT NULL,\n        final_prompt TEXT NOT NULL,\n        manifest_sha256 TEXT NOT NULL CHECK(length(manifest_sha256) = 64),\n        version INTEGER NOT NULL DEFAULT 0,\n        status TEXT NOT NULL CHECK(status IN ('pending', 'frozen', 'expired')),\n        expires_at TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX agent_context_previews_project\n        ON agent_context_previews(project_id, created_at DESC, id);\n      CREATE TABLE agent_context_snapshots (\n        id TEXT PRIMARY KEY,\n        preview_id TEXT NOT NULL UNIQUE\n          REFERENCES agent_context_previews(id) ON DELETE RESTRICT,\n        project_id TEXT,\n        entries_json TEXT NOT NULL,\n        token_budget INTEGER NOT NULL CHECK(token_budget > 0),\n        estimated_tokens INTEGER NOT NULL CHECK(estimated_tokens >= 0),\n        destination_json TEXT NOT NULL,\n        final_prompt TEXT NOT NULL,\n        manifest_sha256 TEXT NOT NULL CHECK(length(manifest_sha256) = 64),\n        final_prompt_sha256 TEXT NOT NULL CHECK(length(final_prompt_sha256) = 64),\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX agent_context_snapshots_project\n        ON agent_context_snapshots(project_id, created_at DESC, id);\n      ALTER TABLE agent_assistant_runs ADD COLUMN context_snapshot_id TEXT\n        REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT;\n      CREATE INDEX agent_assistant_runs_context_snapshot\n        ON agent_assistant_runs(context_snapshot_id);\n      ALTER TABLE agent_evaluations ADD COLUMN context_snapshot_id TEXT\n        REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT;\n      CREATE INDEX agent_evaluations_context_snapshot\n        ON agent_evaluations(context_snapshot_id);\n      ALTER TABLE agent_inspiration_memory_jobs ADD COLUMN context_snapshot_id TEXT\n        REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT;\n      CREATE INDEX agent_inspiration_memory_jobs_context_snapshot\n        ON agent_inspiration_memory_jobs(context_snapshot_id);\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "agents.route.inspiration",
+        "pluginId": "agents",
+        "kind": "route",
+        "metadata": { "path": "/inspiration", "title": "灵感空间" }
+      },
+      {
+        "id": "agents.navigation.inspiration",
+        "pluginId": "agents",
+        "kind": "navigation",
+        "metadata": {
+          "section": "main",
+          "order": 15,
+          "label": "灵感空间",
+          "to": "/inspiration"
+        }
+      },
+      {
+        "id": "agents.slot.assistant",
+        "pluginId": "agents",
+        "kind": "slot",
+        "metadata": {
+          "slot": "shell.assistant",
+          "order": 10,
+          "title": "智能助手"
+        }
+      },
+      {
+        "id": "agents.settings.engines",
+        "pluginId": "agents",
+        "kind": "settings",
+        "metadata": { "section": "agent-engines", "title": "智能引擎" }
+      },
+      {
+        "id": "agents.command.new-conversation",
+        "pluginId": "agents",
+        "kind": "command",
+        "metadata": { "title": "新对话", "command": "agents.new-conversation" }
+      }
+    ],
+    "entry": "@dramaip/agents"
+  },
+  {
+    "id": "creative-quality",
+    "descriptor": {
+      "id": "creative-quality",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "automation", "range": "*" },
+        { "id": "writing", "range": "*" },
+        { "id": "knowledge", "range": "*" }
+      ],
+      "provides": ["creative-quality.records", "creative-quality.intelligence"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "creative-quality.0001.records",
+        "pluginId": "creative-quality",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["knowledge.0001.story-bible"],
+        "sql": "\n        CREATE TABLE IF NOT EXISTS creative_quality_records (\n          id TEXT PRIMARY KEY,\n          kind TEXT NOT NULL CHECK(kind IN ('quality', 'episode-analysis', 'case-study', 'diagnostic', 'acknowledgement')),\n          project_id TEXT,\n          parent_id TEXT,\n          value_json TEXT NOT NULL,\n          version INTEGER NOT NULL DEFAULT 0,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS creative_quality_kind_project\n          ON creative_quality_records(kind, project_id, created_at, id);\n        CREATE INDEX IF NOT EXISTS creative_quality_kind_parent\n          ON creative_quality_records(kind, parent_id, created_at, id);\n      "
+      },
+      {
+        "id": "creative-quality.0002.resources",
+        "pluginId": "creative-quality",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["creative-quality.0001.records"],
+        "sql": "\n        CREATE TABLE IF NOT EXISTS creative_quality_resources (\n          id TEXT PRIMARY KEY,\n          kind TEXT NOT NULL CHECK(kind IN (\n            'analysis', 'beats', 'episode-pacing-marks', 'highlights',\n            'feasibility', 'trends', 'evaluations', 'quality'\n          )),\n          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n          parent_id TEXT,\n          title TEXT NOT NULL,\n          payload_json TEXT NOT NULL DEFAULT '{}',\n          version INTEGER NOT NULL DEFAULT 0,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS creative_quality_resources_project_kind\n          ON creative_quality_resources(project_id, kind, updated_at DESC, id);\n      "
+      },
+      {
+        "id": "creative-quality.0003.intelligence",
+        "pluginId": "creative-quality",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": [
+          "creative-quality.0002.resources",
+          "knowledge.0005.story-intelligence"
+        ],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS creative_fingerprint_settings (\n        id TEXT PRIMARY KEY CHECK(id = 'local'),\n        enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),\n        consented_at TEXT,\n        avoidances_json TEXT NOT NULL DEFAULT '[]',\n        goals_json TEXT NOT NULL DEFAULT '[]',\n        version INTEGER NOT NULL DEFAULT 0,\n        updated_at TEXT NOT NULL\n      );\n      INSERT OR IGNORE INTO creative_fingerprint_settings(\n        id, enabled, avoidances_json, goals_json, version, updated_at\n      ) VALUES ('local', 0, '[]', '[]', 0, '1970-01-01T00:00:00.000Z');\n      CREATE TABLE IF NOT EXISTS creative_fingerprint_dimensions (\n        dimension_key TEXT PRIMARY KEY CHECK(dimension_key IN (\n          'humor','genre','tone','pace','conflict','reversal',\n          'emotional_intensity','visuality','novelty','production_complexity'\n        )),\n        score REAL NOT NULL DEFAULT 0.5 CHECK(score >= 0 AND score <= 1),\n        confidence REAL NOT NULL DEFAULT 0 CHECK(confidence >= 0 AND confidence <= 1),\n        frozen INTEGER NOT NULL DEFAULT 0 CHECK(frozen IN (0,1)),\n        evidence_ids_json TEXT NOT NULL DEFAULT '[]',\n        updated_at TEXT NOT NULL\n      );\n      INSERT OR IGNORE INTO creative_fingerprint_dimensions(dimension_key, updated_at)\n      VALUES\n        ('humor','1970-01-01T00:00:00.000Z'),\n        ('genre','1970-01-01T00:00:00.000Z'),\n        ('tone','1970-01-01T00:00:00.000Z'),\n        ('pace','1970-01-01T00:00:00.000Z'),\n        ('conflict','1970-01-01T00:00:00.000Z'),\n        ('reversal','1970-01-01T00:00:00.000Z'),\n        ('emotional_intensity','1970-01-01T00:00:00.000Z'),\n        ('visuality','1970-01-01T00:00:00.000Z'),\n        ('novelty','1970-01-01T00:00:00.000Z'),\n        ('production_complexity','1970-01-01T00:00:00.000Z');\n      CREATE TABLE IF NOT EXISTS creative_experiments (\n        id TEXT PRIMARY KEY,\n        origin_type TEXT NOT NULL CHECK(origin_type IN ('inspiration','corpus','project')),\n        origin_id TEXT,\n        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,\n        prompt TEXT NOT NULL,\n        strategy_version TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('draft','ready','completed','rejected')),\n        variants_json TEXT NOT NULL DEFAULT '[]',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS creative_experiments_project\n        ON creative_experiments(project_id, updated_at DESC, id);\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "creative-quality.route.workspace",
+        "pluginId": "creative-quality",
+        "kind": "route",
+        "metadata": { "path": "/create", "title": "创作工作区" }
+      },
+      {
+        "id": "creative-quality.navigation.workspace",
+        "pluginId": "creative-quality",
+        "kind": "navigation",
+        "metadata": {
+          "section": "secondary",
+          "order": 10,
+          "label": "创作分析",
+          "to": "/create"
+        }
+      },
+      {
+        "id": "creative-quality.panel.diagnostics",
+        "pluginId": "creative-quality",
+        "kind": "panel",
+        "metadata": { "slot": "creative.diagnostics", "title": "创意诊断" }
+      }
+    ],
+    "entry": "@dramaip/creative-quality"
+  },
+  {
+    "id": "production",
+    "descriptor": {
+      "id": "production",
+      "version": "3.0.0-alpha.4",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" },
+        { "id": "automation", "range": "*" },
+        { "id": "writing", "range": "*" },
+        { "id": "knowledge", "range": "*" }
+      ],
+      "provides": ["production.records"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "production.0001.records",
+        "pluginId": "production",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["workspace.0001.projects-and-series"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS production_records (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN ('adaptations', 'episodes', 'scripts', 'scenes', 'shots')),\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT REFERENCES production_records(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        order_index INTEGER NOT NULL DEFAULT 0,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS production_records_project_kind\n        ON production_records(project_id, kind, order_index, id);\n      CREATE INDEX IF NOT EXISTS production_records_parent_kind\n        ON production_records(parent_id, kind, order_index, id);\n    "
+      },
+      {
+        "id": "production.0002.seasons",
+        "pluginId": "production",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": [
+          "production.0001.records",
+          "workspace.0005.project-modes"
+        ],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS production_seasons (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        adaptation_id TEXT REFERENCES production_records(id) ON DELETE SET NULL,\n        title TEXT NOT NULL,\n        outline TEXT NOT NULL DEFAULT '',\n        source_chapter_version TEXT,\n        status TEXT NOT NULL CHECK(status IN ('draft', 'ready', 'review_required', 'archived')),\n        order_index INTEGER NOT NULL DEFAULT 0,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS production_seasons_project_order\n        ON production_seasons(project_id, order_index, id);\n      CREATE TABLE IF NOT EXISTS production_season_chapter_mappings (\n        id TEXT PRIMARY KEY,\n        season_id TEXT NOT NULL REFERENCES production_seasons(id) ON DELETE CASCADE,\n        chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,\n        chapter_version INTEGER NOT NULL,\n        created_at TEXT NOT NULL,\n        UNIQUE(season_id, chapter_id)\n      );\n      CREATE INDEX IF NOT EXISTS production_season_chapter_mappings_chapter\n        ON production_season_chapter_mappings(chapter_id, season_id);\n      INSERT OR IGNORE INTO production_seasons(\n        id, project_id, adaptation_id, title, outline, status, order_index,\n        version, created_at, updated_at\n      )\n      SELECT\n        lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||\n        lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||\n        lower(hex(randomblob(6))),\n        r.project_id,\n        r.id,\n        '第1季', '', 'ready', 0, 0, r.created_at, r.updated_at\n      FROM production_records r\n      WHERE r.kind = 'adaptations'\n        AND NOT EXISTS (\n          SELECT 1 FROM production_records earlier\n          WHERE earlier.project_id = r.project_id AND earlier.kind = 'adaptations'\n            AND (earlier.order_index < r.order_index OR (earlier.order_index = r.order_index AND earlier.id < r.id))\n        )\n        AND NOT EXISTS (\n          SELECT 1 FROM production_seasons s WHERE s.project_id = r.project_id\n        );\n    "
+      },
+      {
+        "id": "production.0003.screenplay-ast-and-script-branches",
+        "pluginId": "production",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": ["production.0002.seasons"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS screenplay_documents (\n        id TEXT PRIMARY KEY,\n        script_record_id TEXT NOT NULL UNIQUE\n          REFERENCES production_records(id) ON DELETE CASCADE,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        source_format TEXT NOT NULL\n          CHECK(source_format IN ('native','fountain','fdx','pdf')),\n        blocks_json TEXT NOT NULL,\n        loss_report_json TEXT NOT NULL,\n        legacy_payload_json TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS screenplay_documents_project\n        ON screenplay_documents(project_id, updated_at DESC, id);\n\n      CREATE TABLE IF NOT EXISTS screenplay_import_previews (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT REFERENCES production_records(id) ON DELETE CASCADE,\n        title TEXT NOT NULL,\n        source_name TEXT NOT NULL,\n        source_format TEXT NOT NULL CHECK(source_format IN ('fountain','fdx','pdf')),\n        blocks_json TEXT NOT NULL,\n        loss_report_json TEXT NOT NULL,\n        etag TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('pending','committed','discarded')),\n        created_at TEXT NOT NULL\n      );\n\n      CREATE TABLE IF NOT EXISTS script_branches (\n        id TEXT PRIMARY KEY,\n        script_record_id TEXT NOT NULL REFERENCES production_records(id) ON DELETE CASCADE,\n        owner_ref TEXT NOT NULL,\n        title TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('active','archived')),\n        base_main_version INTEGER NOT NULL,\n        head_version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS script_branches_script_owner\n        ON script_branches(script_record_id, owner_ref, status, created_at);\n\n      CREATE TABLE IF NOT EXISTS script_branch_versions (\n        id TEXT PRIMARY KEY,\n        branch_id TEXT NOT NULL REFERENCES script_branches(id) ON DELETE CASCADE,\n        version INTEGER NOT NULL,\n        blocks_json TEXT NOT NULL,\n        content_sha256 TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        UNIQUE(branch_id, version)\n      );\n\n      CREATE TABLE IF NOT EXISTS script_merge_previews (\n        id TEXT PRIMARY KEY,\n        branch_id TEXT NOT NULL REFERENCES script_branches(id) ON DELETE CASCADE,\n        base_main_version INTEGER NOT NULL,\n        current_main_version INTEGER NOT NULL,\n        branch_version INTEGER NOT NULL,\n        plan_json TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('pending','committed','expired')),\n        etag TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        committed_at TEXT\n      );\n\n      INSERT OR IGNORE INTO screenplay_documents(\n        id, script_record_id, project_id, title, source_format, blocks_json,\n        loss_report_json, legacy_payload_json, version, created_at, updated_at\n      )\n      SELECT\n        lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||\n        '4' || substr(lower(hex(randomblob(2))), 2) || '-' ||\n        substr('89ab', abs(random()) % 4 + 1, 1) ||\n        substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),\n        record.id, record.project_id, record.title, 'native',\n        json_array(json_object(\n          'id', lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||\n            '4' || substr(lower(hex(randomblob(2))), 2) || '-' ||\n            substr('89ab', abs(random()) % 4 + 1, 1) ||\n            substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),\n          'type', 'action',\n          'text', coalesce(\n            json_extract(record.payload_json, '$.content'),\n            json_extract(record.payload_json, '$.正文'),\n            record.title\n          )\n        )),\n        json_object(\n          'unsupported', json_array('legacy_unstructured_payload'),\n          'warnings', json_array('旧通用剧本记录已映射为单个 Action block；原 payload 保留只读备份。'),\n          'preserved', json_array('legacy_payload_backup')\n        ),\n        record.payload_json, 0, record.created_at, record.updated_at\n      FROM production_records record\n      WHERE record.kind = 'scripts';\n    "
+      },
+      {
+        "id": "production.0004.creation-adoption",
+        "pluginId": "production",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": ["production.0003.screenplay-ast-and-script-branches"],
+        "sql": "CREATE TABLE production_creation_adoptions (workflow_id TEXT PRIMARY KEY, result_json TEXT NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL);"
+      }
+    ],
+    "ui": [
+      {
+        "id": "production.route.workspace",
+        "pluginId": "production",
+        "kind": "route",
+        "metadata": { "path": "/adapt", "title": "改编" }
+      },
+      {
+        "id": "production.navigation.workspace",
+        "pluginId": "production",
+        "kind": "navigation",
+        "metadata": {
+          "section": "main",
+          "order": 30,
+          "label": "改编",
+          "to": "/adapt"
+        }
+      },
+      {
+        "id": "production.editor.script",
+        "pluginId": "production",
+        "kind": "editor",
+        "metadata": { "target": "script", "title": "剧本编辑器" }
+      }
+    ],
+    "entry": "@dramaip/production"
+  },
+  {
+    "id": "media",
+    "descriptor": {
+      "id": "media",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" },
+        { "id": "automation", "range": "*" },
+        { "id": "production", "range": "*" }
+      ],
+      "provides": ["media.records", "media.asset-center", "media.audio-tracks"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "media.0001.records",
+        "pluginId": "media",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["production.0001.records"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS media_records (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN (\n          'shot-stills', 'visual-assets', 'assets', 'rights', 'image',\n          'audio', 'video', 'animatics', 'renders'\n        )),\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        parent_id TEXT,\n        title TEXT NOT NULL,\n        payload_json TEXT NOT NULL DEFAULT '{}',\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS media_records_project_kind\n        ON media_records(project_id, kind, created_at, id);\n      CREATE INDEX IF NOT EXISTS media_records_parent_kind\n        ON media_records(parent_id, kind, created_at, id);\n      CREATE TABLE IF NOT EXISTS media_audio_tracks (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        episode_id TEXT NOT NULL,\n        kind TEXT NOT NULL CHECK(kind IN ('dialogue', 'narration', 'bgm', 'sfx')),\n        label TEXT NOT NULL,\n        source_fingerprint TEXT NOT NULL,\n        clips_json TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('draft', 'adopted')),\n        stale INTEGER NOT NULL DEFAULT 0,\n        stale_reason TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS media_audio_tracks_episode\n        ON media_audio_tracks(episode_id, created_at, id);\n    "
+      },
+      {
+        "id": "media.0002.voice-and-animatics",
+        "pluginId": "media",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["media.0001.records"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS media_voice_profiles (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        character_id TEXT,\n        sample_asset_id TEXT,\n        title TEXT NOT NULL,\n        provider_voice TEXT,\n        description TEXT,\n        status TEXT NOT NULL CHECK(status IN ('draft', 'adopted')),\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS media_voice_profiles_project\n        ON media_voice_profiles(project_id, updated_at DESC, id);\n      CREATE TABLE IF NOT EXISTS media_animatic_drafts (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        episode_id TEXT NOT NULL,\n        source_fingerprint TEXT NOT NULL,\n        clips_json TEXT NOT NULL,\n        annotations TEXT NOT NULL DEFAULT '',\n        status TEXT NOT NULL CHECK(status IN ('draft', 'approved', 'returned')),\n        review_note TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS media_animatic_drafts_episode\n        ON media_animatic_drafts(episode_id, updated_at DESC, id);\n    "
+      },
+      {
+        "id": "media.0003.provider-generation",
+        "pluginId": "media",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["media.0002.voice-and-animatics"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS media_video_jobs (\n        id TEXT PRIMARY KEY,\n        task_id TEXT NOT NULL,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        episode_id TEXT,\n        shot_id TEXT,\n        provider_id TEXT NOT NULL,\n        remote_job_id TEXT NOT NULL,\n        prompt TEXT NOT NULL,\n        request_json TEXT NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('queued','running','succeeded','failed','canceled')),\n        results_json TEXT NOT NULL DEFAULT '[]',\n        error TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS media_video_jobs_shot\n        ON media_video_jobs(shot_id, created_at DESC, id);\n      CREATE INDEX IF NOT EXISTS media_video_jobs_provider_status\n        ON media_video_jobs(provider_id, status, created_at, id);\n      CREATE TABLE IF NOT EXISTS media_idempotency (\n        scope TEXT NOT NULL,\n        idempotency_key TEXT NOT NULL,\n        request_json TEXT NOT NULL,\n        response_json TEXT,\n        created_at TEXT NOT NULL,\n        PRIMARY KEY(scope, idempotency_key)\n      );\n    "
+      },
+      {
+        "id": "media.0004.personal-theater-likeness",
+        "pluginId": "media",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": [
+          "media.0003.provider-generation",
+          "workspace.0005.project-modes"
+        ],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS media_likeness_subjects (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        display_name TEXT NOT NULL,\n        relationship TEXT NOT NULL CHECK(relationship IN ('self', 'adult_relative_or_friend', 'minor')),\n        age_band TEXT NOT NULL CHECK(age_band IN ('adult', 'minor_14_to_17', 'under_14')),\n        consent_status TEXT NOT NULL CHECK(consent_status IN ('missing', 'active', 'revoked', 'expired')),\n        content_restrictions TEXT,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS media_likeness_subjects_project\n        ON media_likeness_subjects(project_id, created_at, id);\n      CREATE TABLE IF NOT EXISTS media_likeness_consents (\n        id TEXT PRIMARY KEY,\n        subject_id TEXT NOT NULL REFERENCES media_likeness_subjects(id) ON DELETE CASCADE,\n        purpose_scopes_json TEXT NOT NULL,\n        valid_until TEXT NOT NULL,\n        participant_confirmed INTEGER NOT NULL,\n        guardian_confirmed INTEGER NOT NULL DEFAULT 0,\n        under14_confirmed INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        revoked_at TEXT\n      );\n      CREATE INDEX IF NOT EXISTS media_likeness_consents_subject\n        ON media_likeness_consents(subject_id, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS media_likeness_photos (\n        id TEXT PRIMARY KEY,\n        subject_id TEXT NOT NULL REFERENCES media_likeness_subjects(id) ON DELETE CASCADE,\n        media_ref TEXT NOT NULL UNIQUE,\n        sha256 TEXT NOT NULL,\n        mime_type TEXT NOT NULL CHECK(mime_type = 'image/png'),\n        width INTEGER NOT NULL,\n        height INTEGER NOT NULL,\n        size INTEGER NOT NULL,\n        status TEXT NOT NULL CHECK(status IN ('active', 'removed')),\n        created_at TEXT NOT NULL,\n        removed_at TEXT\n      );\n      CREATE INDEX IF NOT EXISTS media_likeness_photos_subject\n        ON media_likeness_photos(subject_id, status, created_at, id);\n    "
+      },
+      {
+        "id": "media.0005.artifact-archive-and-provider-jobs",
+        "pluginId": "media",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["media.0004.personal-theater-likeness"],
+        "sql": "\n      CREATE TABLE media_artifacts (\n        artifact_id TEXT PRIMARY KEY,\n        media_record_id TEXT REFERENCES media_records(id) ON DELETE SET NULL,\n        project_id TEXT NOT NULL,\n        media_ref TEXT NOT NULL UNIQUE,\n        kind TEXT NOT NULL CHECK(kind IN ('image','audio','video','subtitle','project-package')),\n        mime_type TEXT NOT NULL,\n        extension TEXT NOT NULL,\n        size_bytes INTEGER NOT NULL CHECK(size_bytes > 0),\n        sha256 TEXT NOT NULL CHECK(length(sha256) = 64),\n        width INTEGER,\n        height INTEGER,\n        duration_frames INTEGER,\n        frame_rate_numerator INTEGER,\n        frame_rate_denominator INTEGER,\n        drop_frame INTEGER,\n        status TEXT NOT NULL CHECK(status IN ('archived','quarantined','removed')),\n        created_at TEXT NOT NULL,\n        removed_at TEXT\n      );\n      CREATE INDEX media_artifacts_project_status\n        ON media_artifacts(project_id, status, created_at DESC, artifact_id);\n      ALTER TABLE media_video_jobs ADD COLUMN provider_kind TEXT\n        CHECK(provider_kind IN ('seedance','minimax_h3_cloud'));\n      ALTER TABLE media_video_jobs ADD COLUMN model_revision TEXT;\n      ALTER TABLE media_video_jobs ADD COLUMN idempotency_key TEXT;\n      ALTER TABLE media_video_jobs ADD COLUMN request_sha256 TEXT\n        CHECK(request_sha256 IS NULL OR length(request_sha256) = 64);\n      ALTER TABLE media_video_jobs ADD COLUMN remote_status TEXT NOT NULL\n        DEFAULT 'queued'\n        CHECK(remote_status IN ('queued','running','succeeded','failed','canceled'));\n      ALTER TABLE media_video_jobs ADD COLUMN archive_status TEXT NOT NULL\n        DEFAULT 'not_started'\n        CHECK(archive_status IN ('not_started','pending','archived','failed','unavailable'));\n      UPDATE media_video_jobs\n        SET remote_status = status,\n            archive_status = CASE\n              WHEN status = 'succeeded' THEN 'unavailable'\n              ELSE 'not_started'\n            END;\n      CREATE UNIQUE INDEX media_video_jobs_provider_idempotency\n        ON media_video_jobs(provider_id, idempotency_key)\n        WHERE idempotency_key IS NOT NULL;\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "media.route.workspace",
+        "pluginId": "media",
+        "kind": "route",
+        "metadata": { "path": "/produce", "title": "制作" }
+      },
+      {
+        "id": "media.navigation.workspace",
+        "pluginId": "media",
+        "kind": "navigation",
+        "metadata": {
+          "section": "main",
+          "order": 40,
+          "label": "制作",
+          "to": "/produce"
+        }
+      },
+      {
+        "id": "media.panel.asset-center",
+        "pluginId": "media",
+        "kind": "panel",
+        "metadata": { "slot": "production.assets", "title": "资产中心" }
+      }
+    ],
+    "entry": "@dramaip/media"
+  },
+  {
+    "id": "timeline",
+    "descriptor": {
+      "id": "timeline",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "production", "range": "*" },
+        { "id": "media", "range": "*" }
+      ],
+      "provides": ["timeline.canonical", "timeline.audio-assembly"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "timeline.0001.canonical",
+        "pluginId": "timeline",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["media.0001.records"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS timelines (\n        id TEXT PRIMARY KEY,\n        episode_id TEXT NOT NULL UNIQUE,\n        manifest_json TEXT NOT NULL,\n        undo_json TEXT NOT NULL DEFAULT '[]',\n        redo_json TEXT NOT NULL DEFAULT '[]'\n      );\n      CREATE UNIQUE INDEX IF NOT EXISTS timelines_episode\n        ON timelines(episode_id);\n    "
+      },
+      {
+        "id": "timeline.0002.frame-profile-renders-and-deliveries",
+        "pluginId": "timeline",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": [
+          "timeline.0001.canonical",
+          "media.0005.artifact-archive-and-provider-jobs"
+        ],
+        "sql": "\n      ALTER TABLE timelines ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1;\n      ALTER TABLE timelines ADD COLUMN migration_warnings_json TEXT NOT NULL DEFAULT '[]';\n      UPDATE timelines\n        SET migration_warnings_json = json_array(\n          '旧秒制时间线将在读取时按 round(seconds × 25) 转换；首次写入后固定为整数帧。'\n        )\n        WHERE schema_version = 1;\n\n      CREATE TABLE IF NOT EXISTS timeline_render_jobs (\n        id TEXT PRIMARY KEY,\n        timeline_id TEXT NOT NULL,\n        timeline_version INTEGER NOT NULL,\n        timeline_profile_version TEXT NOT NULL,\n        renderer_version TEXT NOT NULL,\n        sidecar_artifact_version TEXT NOT NULL,\n        idempotency_key TEXT NOT NULL,\n        status TEXT NOT NULL,\n        progress REAL NOT NULL DEFAULT 0,\n        output_media_ref TEXT,\n        output_sha256 TEXT,\n        failure_code TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL,\n        UNIQUE(timeline_id, idempotency_key)\n      );\n      CREATE INDEX IF NOT EXISTS timeline_render_jobs_timeline\n        ON timeline_render_jobs(timeline_id, created_at DESC);\n\n      CREATE TABLE IF NOT EXISTS timeline_deliveries (\n        id TEXT PRIMARY KEY,\n        episode_id TEXT NOT NULL,\n        timeline_id TEXT NOT NULL,\n        timeline_version INTEGER NOT NULL,\n        directory_grant_ref TEXT NOT NULL,\n        manifest_json TEXT NOT NULL,\n        manifest_sha256 TEXT NOT NULL,\n        status TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS timeline_deliveries_episode\n        ON timeline_deliveries(episode_id, created_at DESC);\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "timeline.editor.canonical",
+        "pluginId": "timeline",
+        "kind": "editor",
+        "metadata": { "target": "episode", "title": "多轨时间线" }
+      },
+      {
+        "id": "timeline.toolbar.commands",
+        "pluginId": "timeline",
+        "kind": "toolbar",
+        "metadata": { "slot": "timeline.toolbar", "title": "时间线命令" }
+      }
+    ],
+    "entry": "@dramaip/timeline"
+  },
+  {
+    "id": "review",
+    "descriptor": {
+      "id": "review",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "production", "range": "*" },
+        { "id": "media", "range": "*" },
+        { "id": "timeline", "range": "*" }
+      ],
+      "provides": [
+        "review.offline-packages",
+        "review.feedback",
+        "review.records"
+      ],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "review.0001.offline-packages",
+        "pluginId": "review",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["timeline.0001.canonical"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS review_packages (\n        id TEXT PRIMARY KEY,\n        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n        adaptation_id TEXT NOT NULL,\n        episode_id TEXT NOT NULL,\n        title TEXT NOT NULL,\n        manifest_json TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS review_packages_episode\n        ON review_packages(episode_id, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS review_comments (\n        id TEXT PRIMARY KEY,\n        package_id TEXT NOT NULL REFERENCES review_packages(id) ON DELETE CASCADE,\n        shot_id TEXT,\n        timecode_seconds REAL,\n        author_alias TEXT,\n        body TEXT NOT NULL,\n        resolved INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS review_comments_package\n        ON review_comments(package_id, created_at, id);\n      CREATE TABLE IF NOT EXISTS review_decisions (\n        id TEXT PRIMARY KEY,\n        package_id TEXT NOT NULL REFERENCES review_packages(id) ON DELETE CASCADE,\n        shot_id TEXT,\n        decision TEXT NOT NULL CHECK(decision IN ('approve', 'return', 'request_changes', 'note')),\n        author_alias TEXT,\n        note TEXT,\n        created_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS review_decisions_package\n        ON review_decisions(package_id, created_at, id);\n    "
+      },
+      {
+        "id": "review.0002.owned-records",
+        "pluginId": "review",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["review.0001.offline-packages"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS review_records (\n        id TEXT PRIMARY KEY,\n        kind TEXT NOT NULL CHECK(kind IN ('compliance', 'review', 'script-review', 'shot-review', 'prompt-version', 'cloud-binding', 'cloud-connection')),\n        project_id TEXT,\n        parent_id TEXT,\n        value_json TEXT NOT NULL,\n        version INTEGER NOT NULL DEFAULT 0,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL\n      );\n      CREATE INDEX IF NOT EXISTS review_records_kind_project\n        ON review_records(kind, project_id, created_at, id);\n      CREATE INDEX IF NOT EXISTS review_records_kind_parent\n        ON review_records(kind, parent_id, created_at, id);\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "review.route.workspace",
+        "pluginId": "review",
+        "kind": "route",
+        "metadata": { "path": "/review", "title": "审核交付" }
+      },
+      {
+        "id": "review.navigation.workspace",
+        "pluginId": "review",
+        "kind": "navigation",
+        "metadata": {
+          "section": "main",
+          "order": 50,
+          "label": "审核交付",
+          "to": "/review"
+        }
+      },
+      {
+        "id": "review.editor.package",
+        "pluginId": "review",
+        "kind": "editor",
+        "metadata": { "target": "review-package", "title": "审片编辑器" }
+      }
+    ],
+    "entry": "@dramaip/review"
+  },
+  {
+    "id": "delivery",
+    "descriptor": {
+      "id": "delivery",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" },
+        { "id": "production", "range": "*" },
+        { "id": "media", "range": "*" },
+        { "id": "timeline", "range": "*" },
+        { "id": "review", "range": "*" }
+      ],
+      "provides": ["delivery.records", "delivery.platform-profiles"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "delivery.0002.creation-adoption",
+        "pluginId": "delivery",
+        "version": "3.0.0-alpha.4",
+        "dependsOn": ["delivery.0001.records"],
+        "sql": "CREATE TABLE delivery_creation_adoptions (workflow_id TEXT PRIMARY KEY, created_at TEXT NOT NULL);"
+      },
+      {
+        "id": "delivery.0001.records",
+        "pluginId": "delivery",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["review.0002.owned-records"],
+        "sql": "\n        CREATE TABLE IF NOT EXISTS delivery_records (\n          id TEXT PRIMARY KEY,\n          kind TEXT NOT NULL CHECK(kind IN ('localization', 'delivery', 'delivery-variant', 'platform-archive')),\n          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n          parent_id TEXT,\n          value_json TEXT NOT NULL,\n          version INTEGER NOT NULL DEFAULT 0,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS delivery_records_kind_project\n          ON delivery_records(kind, project_id, created_at, id);\n        CREATE INDEX IF NOT EXISTS delivery_records_kind_parent\n          ON delivery_records(kind, parent_id, created_at, id);\n      "
+      }
+    ],
+    "ui": [
+      {
+        "id": "delivery.panel.platform",
+        "pluginId": "delivery",
+        "kind": "panel",
+        "metadata": { "slot": "review.delivery", "title": "平台交付" }
+      },
+      {
+        "id": "delivery.command.export",
+        "pluginId": "delivery",
+        "kind": "command",
+        "metadata": { "title": "导出交付包", "command": "delivery.export" }
+      }
+    ],
+    "entry": "@dramaip/delivery"
+  },
+  {
+    "id": "insights",
+    "descriptor": {
+      "id": "insights",
+      "version": "3.0.0-alpha.3",
+      "apiVersion": "1",
+      "requires": [
+        { "id": "foundation", "range": "*" },
+        { "id": "workspace", "range": "*" },
+        { "id": "automation", "range": "*" },
+        { "id": "review", "range": "*" }
+      ],
+      "provides": ["insights.feedback", "insights.generation-ledger"],
+      "stability": "internal",
+      "kind": "built-in",
+      "pluginApiVersion": "1",
+      "runtimeVersion": "^3.0.0",
+      "critical": false
+    },
+    "migrations": [
+      {
+        "id": "insights.0001.feedback-and-generation",
+        "pluginId": "insights",
+        "version": "3.0.0-alpha.3",
+        "dependsOn": ["review.0002.owned-records"],
+        "sql": "\n      CREATE TABLE IF NOT EXISTS insights_feedback_previews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('metrics','comments')), source_name TEXT NOT NULL, rows_json TEXT NOT NULL, warnings_json TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL);\n      CREATE TABLE IF NOT EXISTS insights_feedback_batches (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('metrics','comments')), source_name TEXT NOT NULL, row_count INTEGER NOT NULL, created_at TEXT NOT NULL);\n      CREATE INDEX IF NOT EXISTS insights_feedback_batches_project ON insights_feedback_batches(project_id, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS insights_feedback_metrics (id TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES insights_feedback_batches(id) ON DELETE CASCADE, name TEXT NOT NULL, value REAL NOT NULL, occurred_at TEXT, dimensions_json TEXT NOT NULL, created_at TEXT NOT NULL);\n      CREATE TABLE IF NOT EXISTS insights_feedback_comments (id TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES insights_feedback_batches(id) ON DELETE CASCADE, content TEXT NOT NULL, author TEXT, occurred_at TEXT, category TEXT NOT NULL, created_at TEXT NOT NULL);\n      CREATE TABLE IF NOT EXISTS insights_feedback_clusters (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, batch_id TEXT NOT NULL REFERENCES insights_feedback_batches(id) ON DELETE CASCADE, title TEXT NOT NULL, summary TEXT NOT NULL, comment_count INTEGER NOT NULL, created_at TEXT NOT NULL);\n      CREATE INDEX IF NOT EXISTS insights_feedback_clusters_project ON insights_feedback_clusters(project_id, created_at DESC, id);\n      CREATE TABLE IF NOT EXISTS insights_generation_records (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, task_id TEXT, kind TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, summary TEXT NOT NULL, actual_cost REAL, currency TEXT NOT NULL DEFAULT 'CNY', cost_note TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\n      CREATE INDEX IF NOT EXISTS insights_generation_records_project ON insights_generation_records(project_id, created_at DESC, id);\n    "
+      }
+    ],
+    "ui": [
+      {
+        "id": "insights.route.dashboard",
+        "pluginId": "insights",
+        "kind": "route",
+        "metadata": { "path": "/insights", "title": "数据洞察" }
+      },
+      {
+        "id": "insights.navigation.dashboard",
+        "pluginId": "insights",
+        "kind": "navigation",
+        "metadata": {
+          "section": "secondary",
+          "order": 60,
+          "label": "数据洞察",
+          "to": "/insights"
+        }
+      }
+    ],
+    "entry": "@dramaip/insights"
+  }
+]

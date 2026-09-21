@@ -1,4 +1,11 @@
+import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
+import { AUTOMATION_TASK_SERVICE } from "@dramaip/contracts/automation";
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
+import {
+  registerWritingCreation,
+  writingCreationMigration,
+} from "./creation.js";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   WORKSPACE_PROJECT_SERVICE,
@@ -38,7 +45,7 @@ import {
 } from "@dramaip/contracts/writing";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -1563,7 +1570,12 @@ const writingMigrations = [
   },
 ] as const;
 
-export const writingPlugin = defineFirstPartyPlugin({
+export const writingPlugin = definePlugin({
+  inject: [
+    AUTOMATION_TASK_SERVICE.id,
+    CREATION_WORKFLOW_SERVICE.id,
+    WORKSPACE_PROJECT_SERVICE.id,
+  ],
   descriptor: {
     id: "writing",
     version: "3.0.0-alpha.3",
@@ -1598,9 +1610,11 @@ export const writingPlugin = defineFirstPartyPlugin({
       metadata: { target: "chapter", title: "章节编辑器" },
     },
   ],
-  migrations: writingMigrations,
-  activate: (context) => {
-    const workspace = context.services.optional<WorkspaceProjectService>(
+  migrations: [...writingMigrations, writingCreationMigration],
+  apply: (context) => {
+    registerWritingCreation(context);
+    const workspace = optionalService<WorkspaceProjectService>(
+      context,
       WORKSPACE_PROJECT_SERVICE,
     );
     if (!workspace) throw new Error("writing requires workspace.projects.v1");
@@ -1887,17 +1901,22 @@ export const writingPlugin = defineFirstPartyPlugin({
         }),
       update: (id, patch) => updateCreatorContent(context, id, patch),
     };
-    context.effect(`service:${WRITING_CHAPTER_SERVICE}`, () =>
-      context.services.provide(WRITING_CHAPTER_SERVICE, chapterService),
+    context.effect(
+      () => provideService(context, WRITING_CHAPTER_SERVICE, chapterService),
+      `service:${WRITING_CHAPTER_SERVICE}`,
     );
-    context.effect(`service:${WRITING_RESOURCE_SERVICE}`, () =>
-      context.services.provide(WRITING_RESOURCE_SERVICE, resourceService),
+    context.effect(
+      () => provideService(context, WRITING_RESOURCE_SERVICE, resourceService),
+      `service:${WRITING_RESOURCE_SERVICE}`,
     );
-    context.effect(`service:${WRITING_VOLUME_SERVICE}`, () =>
-      context.services.provide(WRITING_VOLUME_SERVICE, volumeService),
+    context.effect(
+      () => provideService(context, WRITING_VOLUME_SERVICE, volumeService),
+      `service:${WRITING_VOLUME_SERVICE}`,
     );
-    context.effect(`service:${CREATOR_CONTENT_SERVICE}`, () =>
-      context.services.provide(CREATOR_CONTENT_SERVICE, creatorContentService),
+    context.effect(
+      () =>
+        provideService(context, CREATOR_CONTENT_SERVICE, creatorContentService),
+      `service:${CREATOR_CONTENT_SERVICE}`,
     );
     for (const route of [
       ...writingRoutes(context, workspace),
@@ -1906,6 +1925,8 @@ export const writingPlugin = defineFirstPartyPlugin({
       ...creatorContentRoutes(workspace, creatorContentService),
       ...writingAdvancedRoutes(context, chapterService),
     ])
-      context.effect(`route:${route.id}`, () => context.http.register(route));
+      context.effect(() => context.http.register(route), `route:${route.id}`);
   },
 });
+
+export default writingPlugin;

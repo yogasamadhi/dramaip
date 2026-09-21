@@ -58,7 +58,7 @@ export function NovelWritingHome() {
           <div>
             <h2 className="text-xl font-semibold">继续写作</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
-              选择一个项目后直接进入章节正文编辑器。
+              选择项目，继续 AI 生成、修订或审阅上次的候选。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -110,7 +110,7 @@ export function NovelWritingHome() {
                       ? `目标 ${project.targetWordCount} 字`
                       : "尚未设置目标字数"}
                   </span>
-                  <span className="font-medium text-rust">进入正文写作 →</span>
+                  <span className="font-medium text-rust">进入 AI 创作 →</span>
                 </div>
               </Link>
             ))}
@@ -119,7 +119,7 @@ export function NovelWritingHome() {
           <EmptyState
             className="mt-5"
             title="还没有可写作的小说项目"
-            description="先从灵感创建项目，或导入已有原著开始写作。"
+            description="提供创意或导入已有来源，由 AI 提出方案并生成小说。"
             action={
               <Button asChild variant="primary">
                 <Link to="/write/new">创建第一个小说</Link>
@@ -492,7 +492,7 @@ export function NovelQuickStart() {
                   ? "正在创建…"
                   : mode === "source"
                     ? "创建并导入原著"
-                    : "创建并开始写作"}
+                    : "创建并进入 AI 工作台"}
               </Button>
             </div>
           </>

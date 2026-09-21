@@ -26,6 +26,16 @@
     ]
   },
   {
+    "id": "automation.creation.v1",
+    "owner": "automation",
+    "major": 1,
+    "capabilities": [
+      "start",
+      "read",
+      "apply"
+    ]
+  },
+  {
     "id": "automation.previews.v1",
     "owner": "automation",
     "major": 1,
@@ -53,12 +63,30 @@
     ]
   },
   {
+    "id": "creative-quality.creation.v1",
+    "owner": "creative-quality",
+    "major": 1,
+    "capabilities": [
+      "check"
+    ]
+  },
+  {
     "id": "creative-quality.records.v1",
     "owner": "creative-quality",
     "major": 1,
     "capabilities": [
       "read",
       "write"
+    ]
+  },
+  {
+    "id": "delivery.creation.v1",
+    "owner": "delivery",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply"
     ]
   },
   {
@@ -80,11 +108,29 @@
     ]
   },
   {
+    "id": "insights.creation-feedback.v1",
+    "owner": "insights",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
     "id": "insights.generation-ledger.v1",
     "owner": "insights",
     "major": 1,
     "capabilities": [
       "record"
+    ]
+  },
+  {
+    "id": "knowledge.creation.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply"
     ]
   },
   {
@@ -145,6 +191,16 @@
     ]
   },
   {
+    "id": "production.creation.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply"
+    ]
+  },
+  {
     "id": "production.records.v1",
     "owner": "production",
     "major": 1,
@@ -160,6 +216,14 @@
     "capabilities": [
       "read",
       "write"
+    ]
+  },
+  {
+    "id": "review.creation-feedback.v1",
+    "owner": "review",
+    "major": 1,
+    "capabilities": [
+      "read"
     ]
   },
   {
@@ -198,6 +262,16 @@
       "read",
       "write",
       "restore"
+    ]
+  },
+  {
+    "id": "writing.creation.v1",
+    "owner": "writing",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply"
     ]
   },
   {

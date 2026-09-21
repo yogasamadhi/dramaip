@@ -12,9 +12,9 @@
     "dramaip": "./bin/dramaip.mjs"
   },
   "scripts": {
-    "serve": "bun src/cli.ts",
+    "serve": "bun ../../scripts/run-node.mjs ../../scripts/runtime-supervisor.mjs",
     "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test"
+    "test": "bun ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",
@@ -40,9 +40,14 @@
     "@dramaip/review": "workspace:*",
     "@dramaip/delivery": "workspace:*",
     "@dramaip/insights": "workspace:*",
-    "@hono/node-server": "2.1.1"
+    "@hono/node-server": "2.1.1",
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/runtime-adapters": "workspace:*"
   },
   "devDependencies": {
     "vitest": "4.1.9"
+  },
+  "engines": {
+    "node": "24.18.0"
   }
 }

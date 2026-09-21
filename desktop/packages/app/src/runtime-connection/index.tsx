@@ -18,6 +18,7 @@ interface RuntimeConnectionValue {
   readonly client?: StudioClient;
   readonly runtime?: RuntimeInfo;
   readonly error?: Error;
+  reconnect(): void;
 }
 
 const RuntimeConnectionContext = createContext<
@@ -28,12 +29,16 @@ export function RuntimeConnectionProvider(props: {
   readonly children: ReactNode;
 }) {
   const manager = useMemo(() => new ServerConnectionManager(), []);
-  const [value, setValue] = useState<RuntimeConnectionValue>({
-    state: manager.state,
-  });
+  const [attempt, setAttempt] = useState(0);
+  const [value, setValue] = useState<Omit<RuntimeConnectionValue, "reconnect">>(
+    {
+      state: manager.state,
+    },
+  );
 
   useEffect(() => {
     let active = true;
+    setValue({ state: manager.state });
     const unsubscribe = manager.subscribe((state) => {
       if (active) setValue((current) => ({ ...current, state }));
     });
@@ -67,10 +72,15 @@ export function RuntimeConnectionProvider(props: {
       unsubscribe();
       manager.disconnect();
     };
-  }, [manager]);
+  }, [attempt, manager]);
+
+  const contextValue = useMemo<RuntimeConnectionValue>(
+    () => ({ ...value, reconnect: () => setAttempt((current) => current + 1) }),
+    [value],
+  );
 
   return (
-    <RuntimeConnectionContext.Provider value={value}>
+    <RuntimeConnectionContext.Provider value={contextValue}>
       {props.children}
     </RuntimeConnectionContext.Provider>
   );

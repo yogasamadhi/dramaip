@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -27,7 +28,7 @@ test("导演看板支持键盘、拖拽重排、撤销和资产上下文跳转",
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作" }).click();
-  await page.getByRole("button", { name: "导演看板" }).click();
+  await openProductionStage(page, "导演看板");
   await expect(page.getByLabel("导演分镜看板")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "卡片式导演分镜看板" }),

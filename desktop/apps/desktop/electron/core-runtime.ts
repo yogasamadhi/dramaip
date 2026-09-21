@@ -7,6 +7,7 @@ type ParentPort = {
 
 interface StartCommand {
   type: "start";
+  development?: boolean;
   databasePath: string;
   profilePath: string;
   hostname: string;
@@ -60,6 +61,19 @@ async function start(command: StartCommand): Promise<void> {
   try {
     if (runtime) throw new Error("Core Runtime is already running");
     runtime = await bootRuntime({
+      development: command.development
+        ? {
+            onRestart: (reason) => {
+              parentPort!.postMessage({
+                type: "diagnostic",
+                message: `Restarting Core Runtime: ${reason.message}`,
+              });
+              setImmediate(
+                () => void runtime?.stop().finally(() => process.exit(75)),
+              );
+            },
+          }
+        : undefined,
       databasePath: command.databasePath,
       profile: loadProfile(command.profilePath),
       accessToken: command.accessToken,

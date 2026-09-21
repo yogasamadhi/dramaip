@@ -52,7 +52,7 @@ export function createMainWindow(input: {
   const dark = nativeTheme.shouldUseDarkColors;
   const nonce = issueRuntimeBootstrap(input.bootstrap);
   const window = new BrowserWindow({
-    width: 1600,
+    width: 1800,
     height: 1000,
     minWidth: 1080,
     minHeight: 700,
@@ -63,7 +63,8 @@ export function createMainWindow(input: {
     ...(process.platform === "darwin"
       ? {
           titleBarStyle: "hiddenInset" as const,
-          trafficLightPosition: { x: 16, y: 25 },
+          // Center the 14px native controls in the 48px application header.
+          trafficLightPosition: { x: 16, y: 17 },
         }
       : {
           titleBarStyle: "hidden" as const,

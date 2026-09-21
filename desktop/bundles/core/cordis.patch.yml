@@ -1,0 +1,15 @@
+# Trusted first-party Cordis Bundle group.
+- insert:
+    - id: bundle.core
+      name: cordis:group
+      group: true
+      config:
+        - id: foundation
+          name: "@dramaip/foundation"
+          config: {}
+        - id: system
+          name: "@dramaip/system"
+          config: {}
+        - id: workspace
+          name: "@dramaip/workspace"
+          config: {}

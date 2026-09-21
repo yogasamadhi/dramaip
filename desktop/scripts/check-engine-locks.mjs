@@ -259,5 +259,5 @@ if (
   throw new Error("Pi 完整源码树校验失败，vendor 冻结快照可能已变化");
 
 process.stdout.write(
-  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；LangGraph.js ${langgraph.version}。归档参考快照完整：OpenCode ${opencode.version}；DSH ${dsh.version}\n`,
+  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；LangGraph.js ${langgraph.version}。框架源码快照完整：DSH ${dsh.version}；归档参考快照完整：OpenCode ${opencode.version}\n`,
 );

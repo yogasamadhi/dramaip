@@ -21,10 +21,7 @@ import {
   MediaRecordKindSchema,
 } from "@dramaip/contracts/media";
 import type { ExtensionManifest } from "@dramaip/extension-host";
-import type {
-  TypedServiceRegistry,
-  UnitOfWork,
-} from "@dramaip/plugin-api/internal";
+import type { ServiceResolver, UnitOfWork } from "@dramaip/plugin-api/internal";
 import { assertJsonSchemaValue, jsonPathValue } from "./json-schema.js";
 
 interface GrantIdentity {
@@ -63,7 +60,7 @@ export class ExtensionCapabilityBroker {
   private readonly tokens = new Map<string, GrantIdentity>();
   private manifestResolver:
     ((pluginId: string, revision: string) => ExtensionManifest) | undefined;
-  private serviceResolver: (() => TypedServiceRegistry) | undefined;
+  private serviceResolver: (() => ServiceResolver) | undefined;
 
   constructor(
     private readonly uow: UnitOfWork,
@@ -76,7 +73,7 @@ export class ExtensionCapabilityBroker {
     this.manifestResolver = resolver;
   }
 
-  setServiceResolver(resolver: () => TypedServiceRegistry): void {
+  setServiceResolver(resolver: () => ServiceResolver): void {
     this.serviceResolver = resolver;
   }
 
@@ -351,7 +348,7 @@ export class ExtensionCapabilityBroker {
     return collection;
   }
 
-  private services(): TypedServiceRegistry {
+  private services(): ServiceResolver {
     const services = this.serviceResolver?.();
     if (!services) throw new Error("Extension domain services are unavailable");
     return services;

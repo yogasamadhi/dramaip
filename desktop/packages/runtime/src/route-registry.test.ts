@@ -58,6 +58,46 @@ describe("atomic Runtime route registry", () => {
     ).toBe(404);
   });
 
+  it("blocks new dispatch and stages contributions until a drained HMR batch commits", async () => {
+    const registry = new RuntimeRouteRegistry();
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const old = registry.register(
+      testRoute("test:hmr", "/api/v2/test/hmr", "test.hmr", async () => {
+        await blocked;
+        return new Response("old");
+      }),
+    );
+    registry.publish();
+    const originalRevision = registry.diagnostics().activeRevision;
+    const request = new Request("http://runtime.test/api/v2/test/hmr");
+    const active = registry.fetch(request);
+    let drained = false;
+    const drain = registry.beginReload().then(() => {
+      drained = true;
+    });
+    expect((await registry.fetch(request)).status).toBe(503);
+    expect(drained).toBe(false);
+    release();
+    await active;
+    await drain;
+    old();
+    registry.register(
+      testRoute(
+        "test:hmr",
+        "/api/v2/test/hmr",
+        "test.hmr",
+        () => new Response("new"),
+      ),
+    );
+    expect(registry.diagnostics().activeRevision).toBe(originalRevision);
+    registry.commitReload();
+    expect(registry.diagnostics().activeRevision).toBe(originalRevision + 1);
+    expect(await (await registry.fetch(request)).text()).toBe("new");
+  });
+
   it("drains an in-flight router while new requests use the replacement", async () => {
     const registry = new RuntimeRouteRegistry();
     let release!: () => void;

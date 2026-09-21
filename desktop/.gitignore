@@ -86,3 +86,6 @@ apps/desktop/build/codex-schemas/
 apps/desktop/build/dsh/
 apps/desktop/build/dsh-mcp-staging/
 apps/desktop/build/pi/
+
+# Reproducible Cordis and Node Runtime outputs
+/build/

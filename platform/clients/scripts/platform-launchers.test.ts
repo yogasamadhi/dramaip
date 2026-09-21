@@ -76,9 +76,20 @@ describe("platform development launcher", () => {
     const previousPassword = process.env.POSTGRES_PASSWORD;
     const previousMigrationPassword =
       process.env.DRAMAIP_MIGRATION_ROLE_PASSWORD;
+    const telemetryVariables = [
+      "DRAMAIP_DEPLOYMENT_ENVIRONMENT",
+      "DRAMAIP_SERVICE_VERSION",
+      "DRAMAIP_RELEASE_NAME",
+      "OTEL_RESOURCE_ATTRIBUTES",
+      "OTEL_TRACES_SAMPLER",
+    ] as const;
+    const previousTelemetry = Object.fromEntries(
+      telemetryVariables.map((name) => [name, process.env[name]]),
+    );
     delete process.env.POSTGRES_DB;
     delete process.env.POSTGRES_PASSWORD;
     delete process.env.DRAMAIP_MIGRATION_ROLE_PASSWORD;
+    for (const name of telemetryVariables) delete process.env[name];
     try {
       const environment = localEnvironment(true);
       expect(environment.POSTGRES_DSN).toBe(
@@ -90,6 +101,15 @@ describe("platform development launcher", () => {
       );
       expect(environment.OTEL_METRICS_EXPORTER).toBe("none");
       expect(environment.OTEL_LOGS_EXPORTER).toBe("none");
+      expect(environment.OTEL_EXPORTER_OTLP_PROTOCOL).toBe("http/protobuf");
+      expect(environment.OTEL_PROPAGATORS).toBe("tracecontext,baggage");
+      expect(environment.OTEL_TRACES_SAMPLER).toBe("always_on");
+      expect(environment.DRAMAIP_DEPLOYMENT_ENVIRONMENT).toBe("local");
+      expect(environment.DRAMAIP_SERVICE_VERSION).toBe("development");
+      expect(environment.DRAMAIP_RELEASE_NAME).toBe("host-local");
+      expect(environment.OTEL_RESOURCE_ATTRIBUTES).toBe(
+        "deployment.environment.name=local,service.version=development,service.namespace=dramaip-platform,dramaip.release=host-local",
+      );
     } finally {
       restoreEnvironment("POSTGRES_DB", previousDatabase);
       restoreEnvironment("POSTGRES_PASSWORD", previousPassword);
@@ -97,6 +117,9 @@ describe("platform development launcher", () => {
         "DRAMAIP_MIGRATION_ROLE_PASSWORD",
         previousMigrationPassword,
       );
+      for (const name of telemetryVariables) {
+        restoreEnvironment(name, previousTelemetry[name]);
+      }
     }
   });
 
@@ -144,6 +167,13 @@ describe("platform development launcher", () => {
   });
 
   test("uses only the observability Compose profile and services", () => {
+    expect(DOCKER_OBSERVABILITY_SERVICES).toEqual([
+      "prometheus",
+      "alloy",
+      "loki",
+      "tempo",
+      "grafana",
+    ]);
     const command = observabilityComposeCommand(
       "docker",
       "up",
@@ -154,6 +184,15 @@ describe("platform development launcher", () => {
     expect(command).toContain("up");
     for (const service of DOCKER_OBSERVABILITY_SERVICES) {
       expect(command).toContain(service);
+    }
+    for (const retired of [
+      "otel-collector",
+      "jaeger",
+      "filebeat",
+      "elasticsearch",
+      "kibana",
+    ]) {
+      expect(command).not.toContain(retired);
     }
   });
 });

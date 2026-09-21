@@ -1,3 +1,4 @@
+import { CreationWorkbench } from "../creation-workbench";
 import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -11,6 +12,7 @@ import {
   type CSSProperties,
   type DragEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Link } from "react-router-dom";
 import type { StudioClient } from "@dramaip/client";
@@ -46,6 +48,10 @@ import {
   type SegmentedDiffBlock,
 } from "./segmented-text-diff";
 import {
+  DocumentSaveQueue,
+  responseMatchesCurrentDraft,
+} from "./document-save-queue";
+import {
   AssistantMessageContent,
   AssistantStageSummary,
   AssistantToolActivity,
@@ -55,9 +61,9 @@ import {
 const PREFERENCES_KEY = "dramaip-novel-editor-preferences-v2";
 const DEFAULT_WORD_GOAL = 2_000;
 const WORD_GOAL_TOLERANCE = 300;
-const NOVEL_WORKSPACE_LAYOUT_VERSION = 3 as const;
-const DEFAULT_RIGHT_PANEL_WIDTH = 520;
-const MIN_RIGHT_PANEL_WIDTH = 400;
+const NOVEL_WORKSPACE_LAYOUT_VERSION = 5 as const;
+const DEFAULT_RIGHT_PANEL_WIDTH = 440;
+const MIN_RIGHT_PANEL_WIDTH = 360;
 const MAX_RIGHT_PANEL_WIDTH = 640;
 
 type SaveState = "clean" | "dirty" | "saving" | "saved" | "error" | "recovered";
@@ -70,13 +76,15 @@ interface EditorPreferences {
   typewriterMode: boolean;
 }
 
-type NovelContextTab = "writing" | "story-bible";
+type NovelContextTab = "writing" | "story-bible" | "conversations";
+type NovelWorkspaceMode = "context" | "ai";
 
 interface NovelWorkspacePreferences {
   layoutVersion: typeof NOVEL_WORKSPACE_LAYOUT_VERSION;
   rightTab: NovelContextTab;
   rightWidth: number;
   rightCollapsed: boolean;
+  mode: NovelWorkspaceMode;
 }
 
 interface ActiveRun {
@@ -98,6 +106,7 @@ interface DraftRecovery {
   title: string;
   content: string;
   updatedAt: string;
+  editingSessionId?: string;
 }
 
 const CHAPTER_DETAIL_FIELDS = [
@@ -157,7 +166,7 @@ interface AiAction {
   label: string;
   description: string;
   requiresContent?: boolean;
-  primary?: boolean;
+  instruction: string;
 }
 
 const COMMON_ACTIONS: readonly AiAction[] = [
@@ -165,28 +174,36 @@ const COMMON_ACTIONS: readonly AiAction[] = [
     taskType: "generate_chapter",
     label: "智能生成正文",
     description: "根据设定、人物与大纲直接生成完整章节",
-    primary: true,
+    instruction: "根据当前项目设定、人物与章节大纲，生成并检查完整的本章正文。",
   },
   {
     taskType: "continue_chapter",
+    instruction:
+      "续写本章：保留已有正文，承接当前结尾继续推进情节。返回包含原文和新增内容的完整本章正文。",
     label: "续写本章",
     description: "承接现有结尾继续写作",
     requiresContent: true,
   },
   {
     taskType: "rewrite_chapter",
+    instruction:
+      "改写本章：保留人物设定、关键事实与剧情目标，重新组织本章叙事和表达。返回改写后的完整本章正文。",
     label: "改写本章",
     description: "保留剧情目标并重新组织全文",
     requiresContent: true,
   },
   {
     taskType: "polish_chapter",
+    instruction:
+      "润色本章：保留情节顺序和关键事实，改善语言、对白、节奏与画面感。返回润色后的完整本章正文。",
     label: "润色本章",
     description: "提升表达、对白和画面感",
     requiresContent: true,
   },
   {
     taskType: "expand_chapter",
+    instruction:
+      "扩写本章：保留现有情节与人物动机，补充动作、环境和情绪细节。返回扩写后的完整本章正文。",
     label: "扩写本章",
     description: "补充情节、动作与情绪细节",
     requiresContent: true,
@@ -196,41 +213,57 @@ const COMMON_ACTIONS: readonly AiAction[] = [
 const ENHANCEMENT_ACTIONS: readonly AiAction[] = [
   {
     taskType: "enhance_conflict",
+    instruction:
+      "增强冲突：围绕当前人物目标，强化本章的阻力、对抗与代价，保持设定一致。返回完整本章正文。",
     label: "增强冲突",
     description: "提高对抗强度",
   },
   {
     taskType: "enhance_highlight",
+    instruction:
+      "增强爽点：强化本章高光场面与情绪回报，保留合理铺垫和人物动机。返回完整本章正文。",
     label: "增强爽点",
     description: "强化情绪回报",
   },
   {
     taskType: "enhance_hook",
+    instruction:
+      "强化钩子：优化本章开篇的信息、行动或悬念，提高吸引力并衔接后文。返回完整本章正文。",
     label: "强化钩子",
     description: "优化开篇吸引力",
   },
   {
     taskType: "enhance_reversal",
+    instruction:
+      "强化反转：根据已有伏笔设计合理的信息、关系或局势变化，避免无依据的突变。返回完整本章正文。",
     label: "强化反转",
     description: "增加有效意外",
   },
   {
     taskType: "enhance_cliffhanger",
+    instruction:
+      "强化悬念：优化本章结尾的未决问题与紧迫感，自然引出下一章。返回完整本章正文。",
     label: "强化悬念",
     description: "增强章节尾钩",
   },
   {
     taskType: "enhance_ai_drama_feel",
+    instruction:
+      "增强短剧感：压缩冗长铺垫，强化可视动作、对白与场景推进，保留小说叙事形式。返回完整本章正文。",
     label: "增强短剧感",
     description: "压缩铺垫并提高节奏",
   },
   {
     taskType: "enhance_author_style",
+    instruction:
+      "强化作者风格：参考已采用章节的叙事声音、句式与用词，统一本章表达，保留情节与事实。返回完整本章正文。",
     label: "强化作者风格",
     description: "统一叙事语言",
   },
   {
     taskType: "rewrite_as_ai_drama_novel",
+    instruction:
+      "短剧化改写：将本章改写为画面鲜明、节奏紧凑、对白推动剧情的短剧小说，保留人物和核心情节。返回完整本章正文。",
     label: "短剧化改写",
     description: "改为强画面短剧小说",
   },
@@ -278,27 +311,46 @@ function readWorkspacePreferences(
     rightTab: "writing",
     rightWidth: DEFAULT_RIGHT_PANEL_WIDTH,
     rightCollapsed: false,
+    mode: "ai",
   };
   try {
     const value = JSON.parse(
       window.localStorage.getItem(
-        `dramaip-novel-workspace-preferences-v3:${projectId}`,
-      ) ?? "null",
+        `dramaip-novel-workspace-preferences-v5:${projectId}`,
+      ) ??
+        window.localStorage.getItem(
+          `dramaip-novel-workspace-preferences-v4:${projectId}`,
+        ) ??
+        window.localStorage.getItem(
+          `dramaip-novel-workspace-preferences-v3:${projectId}`,
+        ) ??
+        "null",
     ) as Partial<NovelWorkspacePreferences> | null;
+    if (!value) return fallback;
     const migratedRightWidth = (() => {
       if (value?.layoutVersion === NOVEL_WORKSPACE_LAYOUT_VERSION)
+        return value.rightWidth ?? DEFAULT_RIGHT_PANEL_WIDTH;
+      if (value?.layoutVersion === 3)
         return value.rightWidth ?? DEFAULT_RIGHT_PANEL_WIDTH;
       if (value?.layoutVersion === 2) return (value.rightWidth ?? 480) + 40;
       return (value?.rightWidth ?? 340) + 180;
     })();
     return {
       layoutVersion: NOVEL_WORKSPACE_LAYOUT_VERSION,
-      rightTab: value?.rightTab === "story-bible" ? "story-bible" : "writing",
+      rightTab:
+        value.layoutVersion === NOVEL_WORKSPACE_LAYOUT_VERSION &&
+        (value.rightTab === "story-bible" || value.rightTab === "conversations")
+          ? value.rightTab
+          : "writing",
       rightWidth: Math.min(
         MAX_RIGHT_PANEL_WIDTH,
         Math.max(MIN_RIGHT_PANEL_WIDTH, migratedRightWidth),
       ),
-      rightCollapsed: value?.rightCollapsed === true,
+      rightCollapsed:
+        value?.layoutVersion === NOVEL_WORKSPACE_LAYOUT_VERSION &&
+        value.rightCollapsed === true,
+      mode:
+        value?.mode === "context" || value?.mode === "ai" ? value.mode : "ai",
     };
   } catch {
     return fallback;
@@ -451,7 +503,24 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
     new Set(),
   );
   const [draggingId, setDraggingId] = useState<string>();
+  const [visibleLimit, setVisibleLimit] = useState(100);
+  const directoryKey = `dramaip-novel-directory:${props.projectId}`;
+  const [directoryState, setDirectoryState] = useState({
+    key: directoryKey,
+    open: window.localStorage.getItem(directoryKey) !== "closed",
+  });
+  const directoryOpen =
+    directoryState.key === directoryKey
+      ? directoryState.open
+      : window.localStorage.getItem(directoryKey) !== "closed";
+  const setDirectoryOpen = (value: boolean | ((open: boolean) => boolean)) => {
+    const open = typeof value === "function" ? value(directoryOpen) : value;
+    setDirectoryState({ key: directoryKey, open });
+    window.localStorage.setItem(directoryKey, open ? "open" : "closed");
+  };
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const directoryToggleRef = useRef<HTMLButtonElement>(null);
+  const toggleDirectory = () => setDirectoryOpen((open) => !open);
 
   const loadWorkspace = useCallback(() => {
     void props.client.novelWorkspace
@@ -464,11 +533,17 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
 
   useEffect(loadWorkspace, [loadWorkspace, props.chapters]);
   useEffect(() => {
+    setVisibleLimit(100);
+  }, [props.projectId]);
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        setDirectoryOpen(true);
+        requestAnimationFrame(() => {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        });
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
@@ -501,7 +576,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
       ) as Record<string, NovelChapterStatus>,
     [workspace.statuses],
   );
-  const visibleChapters = useMemo(() => {
+  const filteredChapters = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return props.chapters.filter(
       (chapter) =>
@@ -510,6 +585,18 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
         chapter.summary.toLowerCase().includes(normalized),
     );
   }, [props.chapters, query]);
+  useEffect(() => setVisibleLimit(100), [query]);
+  useEffect(() => {
+    const activeIndex = filteredChapters.findIndex(
+      (chapter) => chapter.id === props.activeChapter?.id,
+    );
+    if (activeIndex >= visibleLimit)
+      setVisibleLimit(Math.ceil((activeIndex + 1) / 100) * 100);
+  }, [filteredChapters, props.activeChapter?.id, visibleLimit]);
+  const visibleChapters = useMemo(
+    () => filteredChapters.slice(0, visibleLimit),
+    [filteredChapters, visibleLimit],
+  );
   const chapterGroups = useMemo(() => {
     const candidates = workspace.storyArcs
       .map((arc) => {
@@ -587,8 +674,24 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
 
   return (
     <section className="relative flex h-full min-h-0 min-w-0 overflow-hidden rounded-xl border border-line bg-surface shadow-float">
-      <aside className="flex w-[260px] shrink-0 flex-col border-r border-line bg-page">
+      <aside
+        id="novel-chapter-directory"
+        aria-label="章节目录"
+        className={`${directoryOpen ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[224px] shrink-0 flex-col border-r border-line bg-page shadow-float xl:relative xl:z-auto xl:shadow-none`}
+      >
         <div className="space-y-3 border-b border-line p-4">
+          <div className="flex items-center justify-between text-sm font-medium">
+            卷章目录
+            <BareButton
+              aria-label="收起章节目录"
+              onClick={() => {
+                setDirectoryOpen(false);
+                directoryToggleRef.current?.focus();
+              }}
+            >
+              收起
+            </BareButton>
+          </div>
           <div className="flex items-center gap-2">
             <label className="min-w-0 flex-1">
               <span className="sr-only">搜索章节</span>
@@ -708,7 +811,11 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                         />
                         <BareButton
                           className="min-w-0 flex-1 text-left"
-                          onClick={() => props.onSelectChapter(chapter.id)}
+                          onClick={() => {
+                            props.onSelectChapter(chapter.id);
+                            if (window.innerWidth < 1280)
+                              setDirectoryOpen(false);
+                          }}
                         >
                           <span
                             className={`block truncate text-sm font-medium ${selected ? "text-rust" : "text-ink"}`}
@@ -752,6 +859,14 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
               {props.chapters.length ? "没有匹配的章节" : "新建章节开始创作"}
             </p>
           )}
+          {filteredChapters.length > visibleChapters.length ? (
+            <BareButton
+              className="mx-2 mb-3 w-[calc(100%-1rem)] rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm font-medium text-brand-strong"
+              onClick={() => setVisibleLimit((value) => value + 100)}
+            >
+              再显示 100 章
+            </BareButton>
+          ) : null}
         </div>
       </aside>
       {props.activeChapter ? (
@@ -759,6 +874,9 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
           {...props}
           chapter={props.activeChapter}
           onWorkspaceChanged={loadWorkspace}
+          directoryOpen={directoryOpen}
+          onToggleDirectory={toggleDirectory}
+          directoryToggleRef={directoryToggleRef}
         />
       ) : (
         <div className="grid min-w-0 flex-1 place-items-center text-sm text-muted">
@@ -773,6 +891,9 @@ function NovelEditor(
   props: NovelChapterWorkspaceProps & {
     chapter: Chapter;
     onWorkspaceChanged(): void;
+    directoryOpen: boolean;
+    onToggleDirectory(): void;
+    directoryToggleRef: RefObject<HTMLButtonElement | null>;
   },
 ) {
   const studioSession = useStudioSession();
@@ -783,6 +904,7 @@ function NovelEditor(
       studioSession.pendingIntent.chapterId === props.chapter.id)
       ? studioSession.pendingIntent
       : undefined;
+  const [manualEditing, setManualEditing] = useState(false);
   const [title, setTitle] = useState(props.chapter.title);
   const [content, setContent] = useState(props.chapter.content);
   const [preferences, setPreferences] = useState(readPreferences);
@@ -847,6 +969,16 @@ function NovelEditor(
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
+  const editingSessionId = useRef(crypto.randomUUID());
+  const activeChapterIdRef = useRef(props.chapter.id);
+  const versionByChapter = useRef(
+    new Map<string, number>([[props.chapter.id, props.chapter.version]]),
+  );
+  const titleRef = useRef(props.chapter.title);
+  const contentRef = useRef(props.chapter.content);
+  const editRevision = useRef(0);
+  const saveQueue = useRef(new DocumentSaveQueue());
+  const draftAtPreview = useRef(props.chapter.content);
   const serverContent = useRef(props.chapter.content);
   const serverTitle = useRef(props.chapter.title);
   const currentVersion = useRef(props.chapter.version);
@@ -862,17 +994,19 @@ function NovelEditor(
 
   useEffect(() => {
     currentVersion.current = props.chapter.version;
+    versionByChapter.current.set(props.chapter.id, props.chapter.version);
     serverContent.current = props.chapter.content;
     serverTitle.current = props.chapter.title;
   }, [props.chapter.version, props.chapter.content, props.chapter.title]);
 
   useEffect(() => {
+    activeChapterIdRef.current = props.chapter.id;
     window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
   }, [preferences]);
 
   useEffect(() => {
     window.localStorage.setItem(
-      `dramaip-novel-workspace-preferences-v3:${props.projectId}`,
+      `dramaip-novel-workspace-preferences-v5:${props.projectId}`,
       JSON.stringify(workspacePreferences),
     );
   }, [props.projectId, workspacePreferences]);
@@ -884,6 +1018,7 @@ function NovelEditor(
         ...current,
         rightTab: "writing",
         rightCollapsed: false,
+        mode: "ai",
       }));
       setDrawerOpen(true);
     };
@@ -898,9 +1033,14 @@ function NovelEditor(
   useEffect(() => {
     if (!selectedRange) return;
     setWorkspacePreferences((current) =>
-      current.rightTab === "writing"
+      current.rightTab === "writing" && current.mode === "ai"
         ? current
-        : { ...current, rightTab: "writing" },
+        : {
+            ...current,
+            rightTab: "writing",
+            rightCollapsed: false,
+            mode: "ai",
+          },
     );
   }, [selectedRange]);
 
@@ -909,7 +1049,7 @@ function NovelEditor(
       extensions: [
         StarterKit.configure({ heading: { levels: [2, 3] } }),
         Placeholder.configure({
-          placeholder: "正文可以直接编辑，也可以点击“智能写作”生成",
+          placeholder: "提出本章目标，让 AI 生成并检查候选正文。",
         }),
         Markdown.configure({
           html: false,
@@ -918,6 +1058,7 @@ function NovelEditor(
         }),
       ],
       content: props.chapter.content,
+      editable: false,
       editorProps: {
         attributes: {
           class:
@@ -928,15 +1069,12 @@ function NovelEditor(
         },
       },
       onUpdate: ({ editor }) => {
-        if (
-          activeRunRef.current &&
-          expectsNovelChange(activeRunRef.current.taskType)
-        )
-          return;
         const storage = editor.storage as {
           markdown?: { getMarkdown?: () => string };
         };
         const markdown = storage.markdown?.getMarkdown?.() ?? editor.getText();
+        contentRef.current = markdown;
+        editRevision.current += 1;
         setContent(markdown);
         setSaveState("dirty");
       },
@@ -970,6 +1108,11 @@ function NovelEditor(
   useEffect(() => {
     setTitle(props.chapter.title);
     setContent(props.chapter.content);
+    titleRef.current = props.chapter.title;
+    contentRef.current = props.chapter.content;
+    draftAtPreview.current = props.chapter.content;
+    editRevision.current += 1;
+    editingSessionId.current = crypto.randomUUID();
     setRecovery(readRecovery(props.chapter));
     setSaveState("clean");
     setSaveError(undefined);
@@ -991,33 +1134,70 @@ function NovelEditor(
     serverTitle.current = props.chapter.title;
   }, [props.chapter.id]);
 
-  const persist = useCallback(async (): Promise<Chapter> => {
+  const persist = useCallback((): Promise<Chapter> => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    const snapshot = {
+      chapterId: props.chapter.id,
+      title: titleRef.current.trim() || props.chapter.title,
+      content: contentRef.current,
+      revision: editRevision.current,
+    };
     const unchanged =
-      title.trim() === serverTitle.current && content === serverContent.current;
+      snapshot.title === serverTitle.current &&
+      snapshot.content === serverContent.current;
     if (unchanged) return props.client.chapters.get(props.chapter.id);
     setSaveState("saving");
     setSaveError(undefined);
-    try {
-      const updated = await props.onSaveChapter(
-        props.chapter.id,
-        { title: title.trim() || props.chapter.title, content },
-        currentVersion.current,
-      );
-      currentVersion.current = updated.version;
-      serverContent.current = updated.content;
-      serverTitle.current = updated.title;
-      window.localStorage.removeItem(draftKey(props.chapter.id));
-      setSaveState("saved");
-      props.onWorkspaceChanged();
-      return updated;
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      setSaveState("error");
-      setSaveError(error);
-      throw cause;
-    }
-  }, [content, props, title]);
+    const operation = saveQueue.current.enqueue(
+      snapshot.chapterId,
+      async () => {
+        const updated = await props.onSaveChapter(
+          snapshot.chapterId,
+          { title: snapshot.title, content: snapshot.content },
+          versionByChapter.current.get(snapshot.chapterId) ??
+            currentVersion.current,
+        );
+        versionByChapter.current.set(snapshot.chapterId, updated.version);
+        const stillActive = activeChapterIdRef.current === snapshot.chapterId;
+        if (stillActive) {
+          currentVersion.current = updated.version;
+          serverContent.current = updated.content;
+          serverTitle.current = updated.title;
+        }
+        const stillLatest = responseMatchesCurrentDraft({
+          snapshot: {
+            documentId: snapshot.chapterId,
+            revision: snapshot.revision,
+            title: snapshot.title,
+            content: snapshot.content,
+          },
+          activeDocumentId: activeChapterIdRef.current,
+          currentRevision: editRevision.current,
+          currentTitle: titleRef.current,
+          currentContent: contentRef.current,
+        });
+        if (stillLatest) {
+          window.localStorage.removeItem(draftKey(snapshot.chapterId));
+          setSaveState("saved");
+        } else if (stillActive) {
+          setSaveState("dirty");
+        }
+        props.onWorkspaceChanged();
+        return updated;
+      },
+    );
+    void operation.catch((cause) => {
+      if (
+        activeChapterIdRef.current === snapshot.chapterId &&
+        editRevision.current === snapshot.revision
+      ) {
+        const error = cause instanceof Error ? cause.message : String(cause);
+        setSaveState("error");
+        setSaveError(error);
+      }
+    });
+    return operation;
+  }, [props]);
 
   useEffect(() => {
     if (saveState !== "dirty") return;
@@ -1027,6 +1207,7 @@ function NovelEditor(
       title,
       content,
       updatedAt: new Date().toISOString(),
+      editingSessionId: editingSessionId.current,
     };
     window.localStorage.setItem(
       draftKey(props.chapter.id),
@@ -1079,10 +1260,8 @@ function NovelEditor(
         : undefined;
       if (pendingPreview && candidateContent) {
         setPreview(pendingPreview);
-        setPreviewView("candidate");
-        setContent(candidateContent);
-        editor?.commands.setContent(candidateContent, false);
-        editor?.setEditable(false);
+        draftAtPreview.current = contentRef.current;
+        setPreviewView("original");
       }
       const running = detail.runs.find((run) =>
         [
@@ -1109,11 +1288,6 @@ function NovelEditor(
           progress: 0,
         });
         setBusy(true);
-        if (
-          running.chapterId === props.chapter.id &&
-          expectsNovelChange(running.taskType)
-        )
-          editor?.setEditable(false);
       }
       return detail;
     },
@@ -1261,24 +1435,16 @@ function NovelEditor(
         };
         setActiveRun(next);
         if (task.status === "failed" || task.status === "canceled") {
-          if (expectsNovelChange(run.taskType)) {
-            editor?.commands.setContent(run.originalContent, false);
-            setContent(run.originalContent);
-          }
-          editor?.setEditable(true);
-          setNotice(task.error ?? "生成任务未能完成，请使用相同设置重试");
+          setNotice(
+            task.error ??
+              "生成任务未能完成；当前编辑草稿没有变化，可从原操作重试",
+          );
           setBusy(false);
         } else if (task.status === "interrupted") {
-          if (expectsNovelChange(run.taskType)) {
-            editor?.commands.setContent(run.originalContent, false);
-            setContent(run.originalContent);
-          }
-          editor?.setEditable(true);
-          setNotice("生成已中断，可以使用原引擎重试");
+          setNotice("生成已中断；当前编辑草稿已保留，可以使用原引擎继续");
           setBusy(false);
         } else if (task.status === "succeeded") {
           if (!expectsNovelChange(run.taskType)) {
-            editor?.setEditable(true);
             setBusy(false);
             setActiveRun(undefined);
             if (conversationId)
@@ -1291,11 +1457,8 @@ function NovelEditor(
           if (candidate && props.chapter.id === run.chapterId)
             void handleCompletedPreview(candidate, run);
           else if (!candidate && !preview) {
-            editor?.commands.setContent(run.originalContent, false);
-            editor?.setEditable(true);
-            setContent(run.originalContent);
             setBusy(false);
-            setNotice("模型本次没有返回可采用的正文，可使用相同设置重试");
+            setNotice("模型本次没有返回可采用的正文；当前编辑草稿已保留");
           }
         }
       }
@@ -1311,35 +1474,74 @@ function NovelEditor(
   ]);
 
   const finishRun = useCallback(() => {
-    editor?.setEditable(true);
+    if (previewView !== "candidate") editor?.setEditable(manualEditing);
     setBusy(false);
     setActiveRun(undefined);
     streamTextRef.current = "";
     setStreamText("");
-  }, [editor, setActiveRun]);
+  }, [editor, previewView, setActiveRun]);
 
   const commitPreview = useCallback(
     async (candidate: ChangePreview, editedContent?: string) => {
       setBusy(true);
       try {
-        let pending = candidate;
+        if (previewView === "candidate") {
+          const draft = contentRef.current;
+          contentRef.current = draft;
+          setContent(draft);
+          editor?.commands.setContent(draft, false);
+          editor?.setEditable(manualEditing);
+          setPreviewView("original");
+        }
+        const saved = await persist();
+        const target = candidate.targets.find(
+          (item) => item.kind === "chapter" && item.id === props.chapter.id,
+        );
+        if (!target) throw new Error("候选稿没有关联当前章节。");
+        const baseContent = activeRunRef.current?.originalContent;
         if (
-          editedContent !== undefined &&
-          editedContent !== proposedContent(candidate)
-        )
+          editedContent === undefined &&
+          (saved.version !== target.baseVersion ||
+            (baseContent !== undefined && saved.content !== baseContent))
+        ) {
+          draftAtPreview.current = saved.content;
+          contentRef.current = saved.content;
+          setContent(saved.content);
+          editor?.commands.setContent(saved.content, false);
+          setDiffOpen(true);
+          setBusy(false);
+          setNotice(
+            "生成后正文已有新修改，请在差异窗口逐段确认；你的新增内容不会被自动覆盖",
+          );
+          return false;
+        }
+        const resolvedContent =
+          editedContent ?? proposedContent(candidate) ?? "";
+        if (!resolvedContent.trim())
+          throw new Error("候选正文为空，无法采用。");
+        let pending = candidate;
+        if (saved.version !== target.baseVersion)
+          pending = await props.client.changePreviews.rebase(
+            candidate.id,
+            { baseVersion: saved.version, content: resolvedContent },
+            crypto.randomUUID(),
+          );
+        else if (resolvedContent !== proposedContent(candidate))
           pending = await props.client.changePreviews.updateContent(
             candidate.id,
             {
-              content: editedContent,
+              content: resolvedContent,
             },
           );
         await props.client.changePreviews.commit(
           pending.id,
           crypto.randomUUID(),
         );
-        const committedContent =
-          editedContent ?? proposedContent(pending) ?? "";
+        const committedContent = proposedContent(pending) ?? resolvedContent;
         if (committedContent) {
+          contentRef.current = committedContent;
+          titleRef.current = saved.title;
+          editRevision.current += 1;
           setContent(committedContent);
           serverContent.current = committedContent;
           editor?.commands.setContent(committedContent, false);
@@ -1352,12 +1554,14 @@ function NovelEditor(
         finishRun();
         await props.onReload();
         props.onWorkspaceChanged();
+        return true;
       } catch (cause) {
         setBusy(false);
         setNotice(cause instanceof Error ? cause.message : String(cause));
+        return false;
       }
     },
-    [editor, finishRun, props],
+    [editor, finishRun, persist, previewView, props],
   );
 
   const handleCompletedPreview = useCallback(
@@ -1366,17 +1570,13 @@ function NovelEditor(
       handledPreviewIds.current.add(candidate.id);
       const nextContent = proposedContent(candidate);
       if (!nextContent) {
-        editor?.commands.setContent(run.originalContent, false);
-        editor?.setEditable(true);
-        setContent(run.originalContent);
-        setNotice("模型本次没有返回正文，可使用相同设置重试");
+        setNotice("模型本次没有返回正文；当前编辑草稿已保留");
         setBusy(false);
         return;
       }
-      editor?.commands.setContent(nextContent, false);
-      setContent(nextContent);
+      draftAtPreview.current = contentRef.current;
       setPreview(candidate);
-      setPreviewView("candidate");
+      setPreviewView("original");
       const count = countCharacters(nextContent);
       const outsideGoal =
         count < Math.max(1, preferences.wordGoal - WORD_GOAL_TOLERANCE) ||
@@ -1394,9 +1594,10 @@ function NovelEditor(
         return;
       }
       setDiffOpen(false);
-      setNotice("候选正文已生成，可在正文区切换原稿并决定是否采用");
+      setNotice(
+        "候选正文已生成；你可以继续编辑当前草稿，再查看差异并决定是否采用",
+      );
       setBusy(completion.busy);
-      editor?.setEditable(false);
     },
     [commitPreview, editor, preferences.wordGoal],
   );
@@ -1410,13 +1611,16 @@ function NovelEditor(
     const requestedModel = modelId.trim() || undefined;
     const current = conversations.find((item) => item.id === conversationId);
     if (
-      current?.engineKind === engineKind &&
+      current?.chapterId === props.chapter.id &&
+      current.projectId === props.projectId &&
+      current.engineKind === engineKind &&
       (current.model?.modelId ?? undefined) === requestedModel
     )
       return current;
     const created = await props.client.assistantConversations.create({
       surface: "novel",
       projectId: props.projectId,
+      chapterId: props.chapter.id,
       engineKind,
       title: `AI 写作对话 · ${props.chapter.title}`,
       ...(requestedModel ? { model: { modelId: requestedModel } } : {}),
@@ -1445,6 +1649,7 @@ function NovelEditor(
       ...current,
       rightTab: "writing",
       rightCollapsed: false,
+      mode: "ai",
     }));
     setDrawerOpen(true);
     if (!canRun) {
@@ -1462,45 +1667,35 @@ function NovelEditor(
     handledPreviewIds.current.clear();
     try {
       const persisted = await persist();
-      const original = persisted.content;
-      const conversation = await ensureNovelConversation();
-      const userMessage =
-        (options?.prompt ?? instruction).trim() || taskTypeLabel(taskType);
-      const started = await props.client.assistantConversations.sendMessage(
-        conversation.id,
+      await props.client.creation.start(
         {
-          message: userMessage,
-          taskType,
-          chapterId: persisted.id,
-          chapterBaseVersion: persisted.version,
-          target: { wordGoal: preferences.wordGoal },
-          ...(options?.selection ? { selection: options.selection } : {}),
+          projectId: props.projectId,
+          operation: "chapter",
+          targetId: persisted.id,
+          baseVersion: persisted.version,
+          engineKind,
+          model: modelId.trim() ? { modelId: modelId.trim() } : undefined,
+          instruction: [
+            options?.prompt?.trim() ||
+              [...COMMON_ACTIONS, ...ENHANCEMENT_ACTIONS].find(
+                (action) => action.taskType === taskType,
+              )?.instruction ||
+              taskTypeLabel(taskType),
+            options?.selection
+              ? `仅修订选段，保留其他内容：${options.selection.text}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          wordGoal: preferences.wordGoal,
+          sourceIds: [],
         },
+        crypto.randomUUID(),
       );
-      if (!started.run)
-        throw new Error(
-          started.turn.route?.clarification ?? "需要补充任务上下文",
-        );
-      const run: ActiveRun = {
-        taskId: started.run.taskId,
-        runId: started.run.id,
-        chapterId: persisted.id,
-        taskType,
-        engineKind,
-        autoCommitWhenReady: false,
-        originalContent: original,
-        status: "queued",
-        progress: 0,
-      };
-      streamTextRef.current = "";
-      setStreamText("");
-      setActiveRun(run);
-      void loadConversationDetail(conversation.id).catch(() => undefined);
-      editor?.setEditable(false);
-      setNotice("正在读取设定、人物、大纲与章节上下文");
+      setBusy(false);
+      setNotice("创作已启动，可在 AI 创作中查看生成、检查与候选。");
     } catch (cause) {
       setBusy(false);
-      editor?.setEditable(true);
       setNotice(cause instanceof Error ? cause.message : String(cause));
     }
   };
@@ -1540,7 +1735,6 @@ function NovelEditor(
         status: "queued",
         progress: 0,
       });
-      if (expectsNovelChange(started.run.taskType)) editor?.setEditable(false);
       await loadConversationDetail(conversation.id);
     } catch (cause) {
       setBusy(false);
@@ -1548,11 +1742,12 @@ function NovelEditor(
     }
   };
 
-  const continueNext = async (): Promise<void> => {
+  const continueNext = async (prompt?: string): Promise<void> => {
     setWorkspacePreferences((current) => ({
       ...current,
       rightTab: "writing",
       rightCollapsed: false,
+      mode: "ai",
     }));
     setDrawerOpen(true);
     if (!content.trim()) {
@@ -1579,7 +1774,7 @@ function NovelEditor(
           sourceChapterId: persisted.id,
           engineKind,
           ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
-          ...(instruction.trim() ? { prompt: instruction.trim() } : {}),
+          ...(prompt?.trim() ? { prompt: prompt.trim() } : {}),
           wordGoal: preferences.wordGoal,
           baseVersion: persisted.version,
         },
@@ -1587,19 +1782,12 @@ function NovelEditor(
       );
       await props.onReload();
       props.onSelectChapter(result.chapter.id);
-      const run: ActiveRun = {
-        ...result.run,
-        taskType: "generate_chapter",
-        engineKind,
-        originalContent: "",
-        status: "queued",
-        progress: 0,
-      };
-      streamTextRef.current = "";
-      setStreamText("");
-      setActiveRun(run);
-      editor?.commands.setContent("", false);
-      editor?.setEditable(false);
+      setBusy(false);
+      setWorkspacePreferences((current) => ({
+        ...current,
+        rightTab: "writing",
+        rightCollapsed: false,
+      }));
       setNotice("下一章已创建，正在承接上章生成正文");
     } catch (cause) {
       setBusy(false);
@@ -1626,7 +1814,6 @@ function NovelEditor(
       const resumed = await props.client.agentSessions.resume(activeRun.runId);
       setActiveRun({ ...activeRun, status: resumed.status, error: undefined });
       setBusy(true);
-      if (activeRun.chapterId === props.chapter.id) editor?.setEditable(false);
       if (conversationId)
         void loadConversationDetail(conversationId).catch(() => undefined);
     } catch (cause) {
@@ -1636,34 +1823,42 @@ function NovelEditor(
 
   const showPreviewView = (view: "original" | "candidate"): void => {
     if (!preview) return;
+    if (view === "candidate" && previewView === "original")
+      draftAtPreview.current = contentRef.current;
     const nextContent =
       view === "original"
-        ? (activeRun?.originalContent ?? props.chapter.content)
+        ? contentRef.current
         : (proposedContent(preview) ?? "");
     setPreviewView(view);
     setContent(nextContent);
     editor?.commands.setContent(nextContent, false);
-    editor?.setEditable(false);
+    if (view === "original") {
+      contentRef.current = nextContent;
+      editor?.setEditable(manualEditing);
+    } else editor?.setEditable(false);
   };
 
   const discardCandidate = async (regenerate = false): Promise<void> => {
     if (!preview) return;
     const taskType = activeRun?.taskType;
-    const original = activeRun?.originalContent ?? props.chapter.content;
     setBusy(true);
     try {
       await props.client.changePreviews.discard(
         preview.id,
         crypto.randomUUID(),
       );
+      const original = contentRef.current;
       editor?.commands.setContent(original, false);
+      editor?.setEditable(manualEditing);
       setContent(original);
       setPreview(undefined);
       setDiffOpen(false);
       setPreviewView("candidate");
       finishRun();
       setNotice(
-        regenerate ? "已放弃候选稿，正在重新生成" : "已放弃候选稿，正文已恢复",
+        regenerate
+          ? "已放弃候选稿，正在重新生成"
+          : "已放弃候选稿，当前编辑草稿保持不变",
       );
       if (regenerate && taskType) void startRun(taskType);
     } catch (cause) {
@@ -1676,6 +1871,9 @@ function NovelEditor(
     if (!recovery) return;
     setTitle(recovery.title);
     setContent(recovery.content);
+    titleRef.current = recovery.title;
+    contentRef.current = recovery.content;
+    editRevision.current += 1;
     editor?.commands.setContent(recovery.content, false);
     setSaveState("recovered");
     setRecovery(undefined);
@@ -1798,14 +1996,25 @@ function NovelEditor(
   return (
     <>
       <article className="relative flex min-w-0 flex-1 flex-col bg-surface-raised">
-        <header className="flex min-h-[76px] flex-wrap items-center gap-3 border-b border-line bg-surface-raised/90 px-5 py-3 backdrop-blur-xl">
+        <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line bg-surface-raised px-4 py-2">
+          <BareButton
+            ref={props.directoryToggleRef}
+            aria-expanded={props.directoryOpen}
+            aria-controls="novel-chapter-directory"
+            onClick={props.onToggleDirectory}
+            className="shrink-0 rounded-md border border-line px-3 py-2 text-sm"
+          >
+            章节目录
+          </BareButton>
           <input
             className="min-w-[160px] flex-1 border-0 bg-transparent text-lg font-semibold outline-none"
             value={title}
-            disabled={Boolean(activeRun)}
             aria-label="章节标题"
             onChange={(event) => {
-              setTitle(event.target.value);
+              const value = event.target.value;
+              titleRef.current = value;
+              editRevision.current += 1;
+              setTitle(value);
               setSaveState("dirty");
             }}
           />
@@ -1823,6 +2032,8 @@ function NovelEditor(
               setWorkspacePreferences((current) => ({
                 ...current,
                 rightTab: "writing",
+                rightCollapsed: false,
+                mode: "ai",
               }));
               setDrawerOpen(true);
             }}
@@ -1841,14 +2052,32 @@ function NovelEditor(
           >
             章节要点
           </BareButton>
-          <Button variant="secondary" size="sm" onClick={openRevision}>
-            修订预览
-          </Button>
+          <details className="relative">
+            <summary className="cursor-pointer rounded-md border border-line px-3 py-2 text-sm">
+              更多操作
+            </summary>
+            <div className="absolute right-0 top-full z-40 w-48 space-y-2 rounded-md border border-line bg-surface p-3 shadow-float">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const next = !manualEditing;
+                  setManualEditing(next);
+                  editor?.setEditable(next && previewView !== "candidate");
+                }}
+              >
+                {manualEditing ? "结束微调" : "微调正文"}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={openRevision}>
+                导入修改稿
+              </Button>
+            </div>
+          </details>
           <Button
             variant="secondary"
             size="sm"
             loading={saveState === "saving"}
-            disabled={Boolean(activeRun)}
+            disabled={previewView === "candidate"}
             onClick={() => void persist()}
           >
             保存
@@ -1887,7 +2116,7 @@ function NovelEditor(
           <div className="flex flex-wrap items-center gap-2 border-b border-brand/20 bg-brand-soft/60 px-4 py-2 text-sm">
             <span className="font-medium text-brand-strong">候选稿预览</span>
             <span className="text-xs text-muted">
-              当前为只读，采用后才会保存
+              正式正文保持不变；审阅后采用或提出修改要求
             </span>
             <div className="ml-auto flex rounded-lg border border-brand/20 bg-surface-raised p-1 text-xs">
               <BareButton
@@ -1937,26 +2166,50 @@ function NovelEditor(
           </BareButton>
         )}
 
-        <EditorToolbar
-          editor={editor}
-          preferences={preferences}
-          onPreferencesChange={setPreferences}
-          selectedText={selectedRange?.text}
-          disabled={Boolean(activeRun)}
-          onPolishSelection={() => {
-            setWorkspacePreferences((current) => ({
-              ...current,
-              rightTab: "writing",
-              rightCollapsed: false,
-            }));
-            setDrawerOpen(true);
-            if (selectedRange)
-              void startRun("polish_chapter", { selection: selectedRange });
-          }}
-        />
+        <details className="shrink-0 border-b border-line px-4 py-2 text-sm text-muted">
+          <summary className="cursor-pointer">
+            阅读设置{manualEditing ? "与格式" : ""}
+          </summary>
+          <EditorToolbar
+            editor={editor}
+            preferences={preferences}
+            onPreferencesChange={setPreferences}
+            selectedText={selectedRange?.text}
+            disabled={!manualEditing || previewView === "candidate"}
+            onPolishSelection={() => {
+              setWorkspacePreferences((current) => ({
+                ...current,
+                rightTab: "writing",
+                rightCollapsed: false,
+                mode: "ai",
+              }));
+              setDrawerOpen(true);
+              if (selectedRange)
+                void startRun("polish_chapter", { selection: selectedRange });
+            }}
+          />
+        </details>
+        {selectedRange && (
+          <div className="shrink-0 border-b border-line bg-brand-soft px-4 py-2 text-sm">
+            已选中 {selectedRange.text.length} 字，可在右侧提出修改要求。
+            <BareButton
+              className="ml-3 text-brand"
+              onClick={() => {
+                setDrawerOpen(true);
+                setWorkspacePreferences((value) => ({
+                  ...value,
+                  rightTab: "writing",
+                  rightCollapsed: false,
+                }));
+              }}
+            >
+              向 AI 提出修改
+            </BareButton>
+          </div>
+        )}
         <div
           ref={scrollRef}
-          className="studio-scrollbar min-h-0 flex-1 overflow-auto bg-page"
+          className="studio-scrollbar min-h-0 flex-1 overflow-auto overscroll-contain bg-page"
         >
           <div
             className="novel-tiptap mx-auto my-8 min-h-[calc(100%-4rem)] rounded-xl border border-line bg-field shadow-card"
@@ -1985,7 +2238,7 @@ function NovelEditor(
 
         {preview && diffOpen && (
           <DiffDialog
-            before={activeRun?.originalContent ?? props.chapter.content}
+            before={draftAtPreview.current}
             after={proposedContent(preview) ?? ""}
             rationale={preview.rationale}
             busy={busy}
@@ -2008,11 +2261,9 @@ function NovelEditor(
               void props.client.changePreviews
                 .discard(lengthPreview.id, crypto.randomUUID())
                 .then(() => {
-                  editor?.commands.setContent(
-                    activeRun?.originalContent ?? "",
-                    false,
-                  );
-                  setContent(activeRun?.originalContent ?? "");
+                  editor?.commands.setContent(draftAtPreview.current, false);
+                  contentRef.current = draftAtPreview.current;
+                  setContent(draftAtPreview.current);
                   setLengthPreview(undefined);
                   setPreview(undefined);
                   finishRun();
@@ -2166,6 +2417,8 @@ function NovelEditor(
                 setWorkspacePreferences((current) => ({
                   ...current,
                   rightCollapsed: false,
+                  rightTab: "writing",
+                  mode: "ai",
                 }))
               }
             >
@@ -2178,6 +2431,7 @@ function NovelEditor(
                   ...current,
                   rightTab: "story-bible",
                   rightCollapsed: false,
+                  mode: "context",
                 }))
               }
             >
@@ -2191,8 +2445,9 @@ function NovelEditor(
           <header className="flex shrink-0 items-center gap-1 border-b border-line bg-surface-raised/90 p-2 backdrop-blur-xl">
             {(
               [
-                ["writing", "智能写作"],
-                ["story-bible", "Story Bible"],
+                ["writing", "AI 创作"],
+                ["conversations", "对话"],
+                ["story-bible", "资料"],
               ] as const
             ).map(([tab, label]) => (
               <BareButton
@@ -2202,6 +2457,8 @@ function NovelEditor(
                   setWorkspacePreferences((current) => ({
                     ...current,
                     rightTab: tab,
+                    rightCollapsed: false,
+                    mode: tab === "story-bible" ? "context" : "ai",
                   }))
                 }
               >
@@ -2251,6 +2508,7 @@ function NovelEditor(
                   setWorkspacePreferences((current) => ({
                     ...current,
                     rightCollapsed: true,
+                    mode: "ai",
                   }))
                 }
               >
@@ -2267,6 +2525,99 @@ function NovelEditor(
           </header>
           <div className="min-h-0 flex-1 overflow-hidden">
             {workspacePreferences.rightTab === "writing" ? (
+              <div className="flex h-full min-h-0 flex-col">
+                {notice && (
+                  <p
+                    role="status"
+                    className="shrink-0 rounded-md bg-surface-muted p-3 text-sm"
+                  >
+                    {notice}
+                  </p>
+                )}
+                <CreationWorkbench
+                  key={props.chapter.id}
+                  projectId={props.projectId}
+                  targetId={props.chapter.id}
+                  operation="chapter"
+                  baseVersion={props.chapter.version}
+                  wordGoal={preferences.wordGoal}
+                  selectedText={selectedRange?.text}
+                  docked
+                  disabled={busy || engines.length === 0}
+                  engineKind={engineKind}
+                  model={
+                    modelId.trim() ? { modelId: modelId.trim() } : undefined
+                  }
+                  renderQuickActions={({
+                    disabled,
+                    instruction: creationInstruction,
+                    start,
+                  }) => (
+                    <>
+                      <ChapterCreationActions
+                        hasContent={Boolean(content.trim())}
+                        selectedText={selectedRange?.text}
+                        disabled={disabled || Boolean(preview)}
+                        onRun={start}
+                        onContinueNext={() =>
+                          void continueNext(creationInstruction)
+                        }
+                      />
+                      <WritingSettings
+                        engines={engines}
+                        engineKind={engineKind}
+                        modelId={modelId}
+                        wordGoal={preferences.wordGoal}
+                        disabled={disabled}
+                        onEngineChange={setEngineKind}
+                        onModelChange={setModelId}
+                        onWordGoalChange={(wordGoal) =>
+                          setPreferences((current) => ({
+                            ...current,
+                            wordGoal,
+                          }))
+                        }
+                      />
+                    </>
+                  )}
+                  onPrepare={async () => (await persist()).version}
+                  onCandidate={(_workflow, candidate) => {
+                    if (
+                      candidate.targets.some(
+                        (target) => target.id === props.chapter.id,
+                      )
+                    ) {
+                      draftAtPreview.current = contentRef.current;
+                      setPreview(candidate);
+                      setPreviewView("candidate");
+                      editor?.commands.setContent(
+                        proposedContent(candidate) ?? "",
+                        false,
+                      );
+                      editor?.setEditable(false);
+                    }
+                  }}
+                  onDiscarded={(candidate) => {
+                    if (preview?.id !== candidate.id) return;
+                    const draft = contentRef.current;
+                    editor?.commands.setContent(draft, false);
+                    editor?.setEditable(manualEditing);
+                    setContent(draft);
+                    setPreview(undefined);
+                    setPreviewView("original");
+                    setDiffOpen(false);
+                    setLengthPreview(undefined);
+                    setNotice("已放弃候选稿，当前草稿保持不变。");
+                  }}
+                  onAdopt={(candidate) => commitPreview(candidate)}
+                  onApplied={async () => {
+                    await props.onReload();
+                    props.onWorkspaceChanged();
+                  }}
+                  onContinue={() => continueNext()}
+                />
+              </div>
+            ) : workspacePreferences.rightTab === "conversations" ? (
               <WritingPanel
                 projectId={props.projectId}
                 chapterId={props.activeChapter?.id}
@@ -2275,9 +2626,6 @@ function NovelEditor(
                 engineKind={engineKind}
                 modelId={modelId}
                 instruction={instruction}
-                hasContent={Boolean(
-                  (activeRun?.originalContent ?? content).trim(),
-                )}
                 selectedText={selectedRange?.text}
                 busy={busy}
                 activeRun={activeRun}
@@ -2287,7 +2635,6 @@ function NovelEditor(
                 archivedConversations={archivedConversations}
                 conversationId={conversationId}
                 conversationDetail={conversationDetail}
-                wordGoal={preferences.wordGoal}
                 preview={preview}
                 onEngineChange={setEngineKind}
                 onModelChange={setModelId}
@@ -2348,17 +2695,6 @@ function NovelEditor(
                   await loadConversations();
                   setConversationId(id);
                 }}
-                onWordGoalChange={(wordGoal) =>
-                  setPreferences((current) => ({ ...current, wordGoal }))
-                }
-                onRun={(taskType) => void startRun(taskType)}
-                onPolishSelection={() => {
-                  if (selectedRange)
-                    void startRun("polish_chapter", {
-                      selection: selectedRange,
-                    });
-                }}
-                onContinueNext={() => void continueNext()}
                 onInterrupt={() => void interrupt()}
                 onRetry={() => void retry()}
                 onAdoptPreview={() => {
@@ -2505,6 +2841,183 @@ function EditorToolbar(props: {
   );
 }
 
+function ChapterCreationActions(props: {
+  hasContent: boolean;
+  selectedText?: string;
+  disabled: boolean;
+  onRun(instruction: string, selectionOnly?: boolean): void;
+  onContinueNext(): void;
+}) {
+  return (
+    <div className="space-y-4" aria-label="章节创作操作">
+      <p className="text-xs leading-5 text-muted">
+        点选操作即可开始，AI
+        会结合本章与已采用资料生成、检查，完成后由你审阅采用。
+        {!props.hasContent && "先生成本章正文，再续写或强化。"}
+      </p>
+      <section aria-label="本章操作" className="space-y-2">
+        <h3 className="text-sm font-semibold">本章操作</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {COMMON_ACTIONS.filter((action) => action.requiresContent).map(
+            (action) => (
+              <BareButton
+                key={action.taskType}
+                aria-label={action.label}
+                className="rounded-lg border border-line bg-surface-raised p-3 text-left hover:border-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={props.disabled || !props.hasContent}
+                onClick={() => props.onRun(action.instruction)}
+              >
+                <span className="block text-sm font-medium">
+                  {action.label}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-muted">
+                  {action.description}
+                </span>
+              </BareButton>
+            ),
+          )}
+        </div>
+        {props.selectedText && (
+          <Button
+            className="w-full"
+            variant="secondary"
+            size="sm"
+            disabled={props.disabled}
+            onClick={() =>
+              props.onRun(
+                "润色所选：改善选段的表达、对白和画面感，保留原有情节和事实。",
+                true,
+              )
+            }
+          >
+            润色所选 · {props.selectedText.length} 字
+          </Button>
+        )}
+        <Button
+          className="w-full"
+          variant="secondary"
+          size="sm"
+          disabled={props.disabled || !props.hasContent}
+          onClick={props.onContinueNext}
+        >
+          续写下一章
+        </Button>
+      </section>
+      <section aria-label="剧情与风格强化" className="space-y-2">
+        <h3 className="text-sm font-semibold">剧情与风格强化</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {ENHANCEMENT_ACTIONS.map((action) => (
+            <BareButton
+              key={action.taskType}
+              title={action.description}
+              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-left text-xs hover:border-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={props.disabled || !props.hasContent}
+              onClick={() => props.onRun(action.instruction)}
+            >
+              {action.label}
+            </BareButton>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function WritingSettings(props: {
+  engines: AgentEngineDescriptor[];
+  engineKind: AgentEngineKind;
+  modelId: string;
+  disabled: boolean;
+  wordGoal?: number;
+  onEngineChange(value: AgentEngineKind): void;
+  onModelChange(value: string): void;
+  onWordGoalChange?(value: number): void;
+}) {
+  return (
+    <details className="rounded-xl border border-line bg-surface-raised p-4 shadow-card">
+      <summary className="cursor-pointer text-sm font-medium">
+        {props.onWordGoalChange ? "创作设置" : "对话设置"}
+      </summary>
+      <div className="mt-3 space-y-3">
+        <label className="grid gap-1 text-xs text-muted">
+          智能引擎
+          <select
+            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+            value={props.engineKind}
+            disabled={props.disabled}
+            onChange={(event) =>
+              props.onEngineChange(event.target.value as AgentEngineKind)
+            }
+          >
+            {props.engines.map((engine) => (
+              <option
+                key={engine.kind}
+                value={engine.kind}
+                disabled={engine.canRun === false}
+              >
+                {engine.name} · {engineStatusLabel(engine)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs text-muted">
+          本次模型（留空使用项目默认模型）
+          <select
+            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+            value={props.modelId}
+            disabled={props.disabled}
+            onChange={(event) => props.onModelChange(event.target.value)}
+          >
+            <option value="">使用项目默认模型</option>
+            {props.modelId &&
+              !MODEL_PROVIDER_CATALOG.some((provider) =>
+                provider.models.some((model) => model.id === props.modelId),
+              ) && (
+                <option value={props.modelId}>
+                  当前自定义模型：{props.modelId}
+                </option>
+              )}
+            {MODEL_PROVIDER_CATALOG.map((provider) => (
+              <optgroup key={provider.id} label={provider.name}>
+                {provider.models.map((model) => (
+                  <option key={`${provider.id}:${model.id}`} value={model.id}>
+                    {model.label}
+                    {model.recommended ? "（推荐）" : ""}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        {props.onWordGoalChange && (
+          <label className="grid gap-1 text-xs text-muted">
+            目标字数
+            <input
+              className="rounded-lg border border-line px-3 py-2 text-sm text-ink"
+              type="number"
+              min={300}
+              max={20_000}
+              value={props.wordGoal}
+              disabled={props.disabled}
+              onChange={(event) =>
+                props.onWordGoalChange?.(
+                  Math.min(
+                    20_000,
+                    Math.max(
+                      300,
+                      Number(event.target.value) || DEFAULT_WORD_GOAL,
+                    ),
+                  ),
+                )
+              }
+            />
+          </label>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function WritingPanel(props: {
   projectId: string;
   chapterId?: string;
@@ -2513,7 +3026,6 @@ function WritingPanel(props: {
   engineKind: AgentEngineKind;
   modelId: string;
   instruction: string;
-  hasContent: boolean;
   selectedText?: string;
   busy: boolean;
   activeRun?: ActiveRun;
@@ -2523,7 +3035,6 @@ function WritingPanel(props: {
   archivedConversations: AgentSession[];
   conversationId?: string;
   conversationDetail?: AssistantConversationDetail;
-  wordGoal: number;
   preview?: ChangePreview;
   onEngineChange(value: AgentEngineKind): void;
   onModelChange(value: string): void;
@@ -2535,10 +3046,6 @@ function WritingPanel(props: {
   onArchiveConversation(): void;
   onDeleteConversation(): void;
   onRestoreConversation(id: string): void;
-  onWordGoalChange(value: number): void;
-  onRun(value: AgentTaskType): void;
-  onPolishSelection(): void;
-  onContinueNext(): void;
   onInterrupt(): void;
   onRetry(): void;
   onAdoptPreview(): void;
@@ -2546,22 +3053,10 @@ function WritingPanel(props: {
   onRegeneratePreview(): void;
   onOpenDiff(): void;
 }) {
-  const studioSession = useStudioSession();
   const runnable = props.selectedEngine
     ? (props.selectedEngine.canRun ??
       props.selectedEngine.status === "available")
     : false;
-  const recommended = recommendedNovelActions({
-    hasContent: props.hasContent,
-    hasSelection: false,
-  });
-  const actions = recommended
-    .map((taskType) =>
-      COMMON_ACTIONS.find((action) => action.taskType === taskType),
-    )
-    .filter((action): action is AiAction => Boolean(action));
-  const settingsActionId = `novel-chapter:${actions[0]?.taskType ?? "chapter_draft"}`;
-  const returnedActionId = studioSession.pendingIntent?.actionId;
   const locked = props.busy || Boolean(props.preview);
   const assistantScroll = useAssistantAutoScroll(
     props.conversationDetail,
@@ -2571,11 +3066,11 @@ function WritingPanel(props: {
     <div
       ref={assistantScroll.scrollRef}
       className="studio-scrollbar h-full space-y-4 overflow-y-auto p-4"
-      aria-label="智能写作"
+      aria-label="章节对话"
       onScroll={assistantScroll.onScroll}
     >
       <div>
-        <p className="studio-eyebrow">章节智能协作</p>
+        <p className="studio-eyebrow">章节对话</p>
         <p className="mt-1 text-xs text-muted">
           {props.selectedEngine?.name ?? "尚未选择引擎"} ·{" "}
           {props.selectedEngine
@@ -2711,7 +3206,7 @@ function WritingPanel(props: {
             </p>
           )}
           <AiSettingsLink
-            actionId={settingsActionId}
+            actionId="novel-chapter:conversation"
             projectId={props.projectId}
             chapterId={props.chapterId}
             input={props.instruction}
@@ -2721,162 +3216,14 @@ function WritingPanel(props: {
           </AiSettingsLink>
         </div>
       )}
-      {props.selectedText && !props.preview && (
-        <BareButton
-          className="w-full rounded-xl border border-studio-dark bg-studio-dark p-4 text-left text-white shadow-card hover:border-rust hover:bg-rust disabled:opacity-40"
-          disabled={props.busy || !runnable}
-          onClick={props.onPolishSelection}
-        >
-          <span className="block text-sm font-semibold">润色所选</span>
-          <span className="mt-1 block text-xs leading-5 text-white/80">
-            只调整当前选中的 {props.selectedText.length} 个字
-          </span>
-        </BareButton>
-      )}
-      <div className="grid gap-2">
-        {actions.map((action, index) => (
-          <BareButton
-            key={action.taskType}
-            className={`rounded-xl border p-3 text-left shadow-card disabled:cursor-not-allowed disabled:opacity-40 ${returnedActionId === `novel-chapter:${action.taskType}` ? "ring-2 ring-brand ring-offset-2" : ""} ${index === 0 ? "border-studio-dark bg-studio-dark text-white hover:border-rust hover:bg-rust" : "border-line bg-surface-raised hover:border-brand"}`}
-            disabled={
-              locked ||
-              !runnable ||
-              (action.requiresContent && !props.hasContent)
-            }
-            onClick={() => {
-              if (returnedActionId === `novel-chapter:${action.taskType}`)
-                studioSession.clearPendingIntent();
-              props.onRun(action.taskType);
-            }}
-          >
-            <span className="block text-sm font-semibold">
-              {returnedActionId === `novel-chapter:${action.taskType}`
-                ? "配置已完成，确认继续"
-                : action.label}
-            </span>
-            <span
-              className={`mt-1 block text-xs leading-5 ${index === 0 ? "text-white/80" : "text-muted"}`}
-            >
-              {action.description}
-            </span>
-          </BareButton>
-        ))}
-      </div>
-      {props.hasContent && (
-        <BareButton
-          className="w-full rounded-full border border-rust bg-surface-raised px-4 py-2.5 text-sm font-medium text-rust hover:bg-brand-soft disabled:opacity-40"
-          disabled={locked || !runnable}
-          onClick={props.onContinueNext}
-        >
-          续写下一章
-        </BareButton>
-      )}
-      {props.hasContent && (
-        <details className="rounded-xl border border-line bg-surface-raised p-4 shadow-card">
-          <summary className="cursor-pointer text-sm font-medium">
-            更多强化
-          </summary>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {[
-              ...COMMON_ACTIONS.filter(
-                (action) => action.taskType === "expand_chapter",
-              ),
-              ...ENHANCEMENT_ACTIONS,
-            ].map((action) => (
-              <BareButton
-                key={action.taskType}
-                className="rounded-lg border border-line px-2 py-2 text-left text-xs hover:border-brand hover:text-brand disabled:opacity-40"
-                disabled={locked || !runnable}
-                onClick={() => props.onRun(action.taskType)}
-              >
-                <span className="block font-medium">{action.label}</span>
-                <span className="mt-0.5 block text-[11px] text-muted">
-                  {action.description}
-                </span>
-              </BareButton>
-            ))}
-          </div>
-        </details>
-      )}
-      <details className="rounded-xl border border-line bg-surface-raised p-4 shadow-card">
-        <summary className="cursor-pointer text-sm font-medium">
-          高级设置
-        </summary>
-        <div className="mt-3 space-y-3">
-          <label className="grid gap-1 text-xs text-muted">
-            智能引擎
-            <select
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
-              value={props.engineKind}
-              disabled={locked}
-              onChange={(event) =>
-                props.onEngineChange(event.target.value as AgentEngineKind)
-              }
-            >
-              {props.engines.map((engine) => (
-                <option
-                  key={engine.kind}
-                  value={engine.kind}
-                  disabled={engine.canRun === false}
-                >
-                  {engine.name} · {engineStatusLabel(engine)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs text-muted">
-            本次模型（留空使用项目默认模型）
-            <select
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
-              value={props.modelId}
-              disabled={locked}
-              onChange={(event) => props.onModelChange(event.target.value)}
-            >
-              <option value="">使用项目默认模型</option>
-              {props.modelId &&
-                !MODEL_PROVIDER_CATALOG.some((provider) =>
-                  provider.models.some((model) => model.id === props.modelId),
-                ) && (
-                  <option value={props.modelId}>
-                    当前自定义模型：{props.modelId}
-                  </option>
-                )}
-              {MODEL_PROVIDER_CATALOG.map((provider) => (
-                <optgroup key={provider.id} label={provider.name}>
-                  {provider.models.map((model) => (
-                    <option key={`${provider.id}:${model.id}`} value={model.id}>
-                      {model.label}
-                      {model.recommended ? "（推荐）" : ""}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs text-muted">
-            目标字数
-            <input
-              className="rounded-lg border border-line px-3 py-2 text-sm text-ink"
-              type="number"
-              min={300}
-              max={20_000}
-              value={props.wordGoal}
-              disabled={locked}
-              onChange={(event) =>
-                props.onWordGoalChange(
-                  Math.min(
-                    20_000,
-                    Math.max(
-                      300,
-                      Number(event.target.value) || DEFAULT_WORD_GOAL,
-                    ),
-                  ),
-                )
-              }
-            />
-          </label>
-        </div>
-      </details>
+      <WritingSettings
+        engines={props.engines}
+        engineKind={props.engineKind}
+        modelId={props.modelId}
+        disabled={locked}
+        onEngineChange={props.onEngineChange}
+        onModelChange={props.onModelChange}
+      />
       {props.activeRun && (
         <section className="rounded-xl border border-line bg-brand-soft/60 p-4">
           <div className="flex items-center justify-between gap-2 text-sm">

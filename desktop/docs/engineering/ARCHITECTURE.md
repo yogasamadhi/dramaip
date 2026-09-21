@@ -2,11 +2,15 @@
 
 > 文档类型：Descriptive Current Implementation
 >
-> 状态日期：2026-08-23
+> 状态日期：2026-09-07
 >
 > 目标规范：[DRAMAIP Client / Plugin Runtime Architecture](../../../docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)
+>
+> 产品定位：[POSITIONING.md](../../../docs/product/POSITIONING.md)
 
 本文只描述已经进入当前代码路径的事实。当前实现是完成 Level 2 进程、连接、插件和安全边界后，启用 Level 3 首版 Extension Platform；第三方 React、任意网页 UI、Node API、Raw SQLite、直连文件/网络仍未开放。
+
+这些能力服务于小说/故事母本、IP 改编、短剧剧本、连续性控制以及分镜与媒体交付；架构文档描述“如何实现”，不单独扩大产品承诺或将任一媒体 Provider 定义为产品本体。
 
 ## 进程与信任边界
 
@@ -15,7 +19,7 @@ Desktop / Web / CLI
   │ ServerConnectionManager → RuntimeTransport → @dramaip/client
   │ HTTP /api/v2 + SSE + OpenAPI
   ▼
-Independent Core Runtime（Desktop: Electron Node；Headless/Server: Bun）
+Independent Core Runtime（Desktop: Electron Node；Headless/Server: Node 24.18.0）
   ├── Effective Core Graph / Atomic RuntimeRouteRegistry
   ├── first-party Plugin Kernel / typed services / tracked effects
   ├── SQLite migration worker / events / checkpoints
@@ -41,15 +45,21 @@ Renderer 的业务代码只使用 `@dramaip/client`。Preload 仅有绑定 `webC
 Plugin → Bundle → Product Profile → Effective Core Graph Revision
 ```
 
-14 个 bounded-context 插件拥有各自 route、migration、table、event、service 与 UI contribution。Kernel 只负责 graph、lifecycle、effect、service、event、migration 和 diagnostics。`ctx.effect(label, acquire)` 记录 owner、plugin version、graph revision 和 acquiredAt；activation 失败及 dispose 都逆序清理。
+14 个 bounded-context 插件拥有各自 route、migration、table、event、service 与 UI contribution。DSH Cordis 负责原生 Context、Service、inject、Fiber 和 effect 生命周期；Kernel 负责产品图、贡献和契约校验。`ctx.effect(acquire, label)` 的 Fiber 元数据关联 owner、plugin version、graph revision 和 acquiredAt；独立 effect 按 DSH 原生并发清理，有先后依赖的资源放在一个 effect 中显式等待。旧 activate 循环、ServiceRegistry 和 EffectScope 已移除。
+
+九个 `@deepseek-ai/*` 框架包来自锁定 DSH vendor，经 prepare/install/build 生成到 `build/dsh-framework/`。保留名称、版本、导出语义和 MIT 许可证，禁止 registry 副本。插件模块与元数据分离：生成注册表提供身份、迁移和 UI 元数据，Loader 动态导入保留模块边界的 ESM 实现。
+
+空 `cordis.yml`、六个 Bundle patch 与五个 Profile patch 使用 Include 的 YAML schema 与 `applyEntryPatches` 展开。预检使用独立解析树，避免 DSH 原生 patch 的就地修改污染 Loader 输入。启动先做配置/依赖预检和迁移，再等待所有 Loader 条目及子 Fiber 稳定；pending、异步失败或缺失贡献均阻止发布。
+
+开发期启用 DSH Timer/HMR。业务重载先阻止新路由请求并等待执行中的 handler，暂存 UI/路由变更，校验后同步发布 Router、Core Graph 和诊断。模块导入或配置错误沿用 DSH 恢复；异步激活失败会恢复上一成功构建快照，supervisor 用新进程重建 Runtime。框架、启动入口、迁移和公共元数据变化走完整重启。生产关闭监听。详细实现与验证命令见 [DSH Cordis 迁移说明](DSH_CORDIS_MIGRATION.md)。
 
 agents 的 `index.ts` 与 `plugin.ts` 只做 descriptor/migration/service/route/effect 组合；原聚合实现已拆为 `internal/shared`、`providers/routes`、`sessions/routes`、`runs/task-runner`、`runs/recovery` 和 `experiments/routes`。组合入口禁止 SQL 并受行数门禁保护。
 
 第一方 HTTP route 已全部是声明式 `RouteContribution`。插件不接触 Hono app；同一 declaration 驱动 Router、OpenAPI、Catalog 和生成 Client，并声明认证、body limit、timeout、idempotency 与 concurrency policy。Router 采用 staged build 和 active reference 原子发布。
 
-数据库迁移由独占数据库的子进程执行。Headless/Server 的 Bun Worker 与 Desktop 的 Electron-run-as-Node Worker 使用同一 IPC 协议；单项 60 秒、总计 10 分钟，超时精确终止 Worker，再由新进程完成 WAL recovery 与 integrity check。现有文件数据库在迁移前做验证备份和临时副本 dry-run。
+数据库迁移由独占数据库的子进程执行。Headless/Server 的 Node Worker 与 Desktop 的 Electron-run-as-Node Worker 使用同一 IPC 协议；单项 60 秒、总计 10 分钟，超时精确终止 Worker，再由新进程完成 WAL recovery 与 integrity check。现有文件数据库在迁移前做验证备份和临时副本 dry-run。
 
-`SqliteUnitOfWork` 在业务写入和 Domain Event 同一事务提交后才触发 `afterCommit`。Domain Event 使用数字 cursor、schema/upcaster 和 durable checkpoint；Realtime Event 不使用持久 cursor。SSE 限制每订阅者 1,000 event/4 MiB，并有 heartbeat、慢消费者断开和 replay。
+持久业务事件通过 `ctx.domainEvents` 注入；Cordis 自己的 `ctx.events` 保留框架用途。`SqliteUnitOfWork` 在业务写入和 Domain Event 同一事务提交后才触发 `afterCommit`。Domain Event 使用数字 cursor、schema/upcaster 和 durable checkpoint；Realtime Event 不使用持久 cursor。SSE 限制每订阅者 1,000 event/4 MiB，并有 heartbeat、慢消费者断开和 replay。
 
 ## Client 与 Renderer
 

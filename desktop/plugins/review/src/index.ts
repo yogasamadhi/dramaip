@@ -1,3 +1,6 @@
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
+import { AUTOMATION_PREVIEW_SERVICE } from "@dramaip/contracts/automation";
+import { registerReviewCreation } from "./creation.js";
 import { createRoute } from "@hono/zod-openapi";
 import { createHash } from "node:crypto";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
@@ -36,7 +39,7 @@ import {
 } from "@dramaip/contracts/timeline";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -1526,26 +1529,43 @@ function reviewRoutes(
             "NOT_FOUND",
             "未找到审片包或剧本。",
           );
-        const value = {
-          id: crypto.randomUUID(),
+        if (
+          script.projectId !== row.project_id ||
+          script.parentId !== row.episode_id
+        )
+          return problem(
+            requestContext,
+            409,
+            "CONTEXT_MISMATCH",
+            "剧本不属于本审片包的分集。",
+          );
+        const previews = optionalService(context, AUTOMATION_PREVIEW_SERVICE);
+        if (!previews)
+          return problem(
+            requestContext,
+            409,
+            "CAPABILITY_UNAVAILABLE",
+            "候选服务未启用。",
+          );
+        const value = previews.createChange({
           projectId: row.project_id,
           targets: [
             {
-              kind: "script" as const,
+              kind: "script",
               id: script.id,
               baseVersion: script.version,
               patch: { content: input.data.proposedContent },
               displayDiff: {
                 before: String(script.payload["剧本内容"] ?? ""),
                 after: input.data.proposedContent,
+                reviewPackageId: row.id,
+                origin: "imported-revision",
               },
             },
           ],
-          rationale: "基于未解决审片意见生成的待确认剧本修订。",
-          status: "pending" as const,
-          contentHash: `${input.data.proposedContent.length}-${script.version}`,
-          createdAt: new Date().toISOString(),
-        };
+          rationale:
+            "用户导入的剧本修改稿，采用前检查版本；此记录不代表 AI 生成或问题已复检。",
+        });
         return requestContext.json(value, 201);
       },
     ),
@@ -1659,7 +1679,8 @@ const reviewMigrations = [
 ] as const;
 
 export function createReviewPlugin(host?: ReviewHostCapability) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [PRODUCTION_RECORD_SERVICE.id, TIMELINE_SERVICE.id],
     descriptor: {
       id: "review",
       version: "3.0.0-alpha.3",
@@ -1698,17 +1719,22 @@ export function createReviewPlugin(host?: ReviewHostCapability) {
       },
     ],
     migrations: reviewMigrations,
-    activate: (context) => {
-      const timeline =
-        context.services.optional<TimelineService>(TIMELINE_SERVICE);
-      const production = context.services.optional<ProductionRecordService>(
+    apply: (context) => {
+      registerReviewCreation(context);
+      const timeline = optionalService<TimelineService>(
+        context,
+        TIMELINE_SERVICE,
+      );
+      const production = optionalService<ProductionRecordService>(
+        context,
         PRODUCTION_RECORD_SERVICE,
       );
       if (!timeline || !production)
         throw new Error("review requires timeline and production services");
       const records = createRecordService(context);
-      context.effect(`service:${REVIEW_RECORD_SERVICE}`, () =>
-        context.services.provide(REVIEW_RECORD_SERVICE, records),
+      context.effect(
+        () => provideService(context, REVIEW_RECORD_SERVICE, records),
+        `service:${REVIEW_RECORD_SERVICE}`,
       );
       for (const contribution of reviewRoutes(
         context,
@@ -1717,11 +1743,26 @@ export function createReviewPlugin(host?: ReviewHostCapability) {
         records,
         host,
       ))
-        context.effect(`route:${contribution.id}`, () =>
-          context.http.register(contribution),
+        context.effect(
+          () => context.http.register(contribution),
+          `route:${contribution.id}`,
         );
     },
   });
 }
 
 export const reviewPlugin = createReviewPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "review-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createReviewPlugin(
+        ctx.pluginEnvironment.host as Parameters<typeof createReviewPlugin>[0],
+      ),
+      config,
+    );
+  },
+};

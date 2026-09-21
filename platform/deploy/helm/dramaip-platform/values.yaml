@@ -35,6 +35,72 @@ java:
     ai: { repository: ghcr.io/dramaip/dramaip-java-ai, tag: "0.1.0" }
     billing: { repository: ghcr.io/dramaip/dramaip-java-billing, tag: "0.1.0" }
 
+# Applications expose Prometheus metrics and send only traces over OTLP.
+# Logs remain structured stdout and are collected out-of-process by Alloy.
+observability:
+  enabled: false
+  otlp:
+    endpoint: ""
+    headersSecretName: ""
+    headersSecretKey: OTEL_EXPORTER_OTLP_HEADERS
+  traces:
+    sampler: always_on
+    # Required for ratio-based samplers such as parentbased_traceidratio.
+    # Leave empty for samplers that do not accept an argument.
+    samplerArg: ""
+  prometheus:
+    scrape: true
+  # Production rules are evaluated by the operator-managed Prometheus and
+  # delivered by its Alertmanager. The release launcher enables this contract
+  # only for non-temporary environments and supplies notificationRoute.
+  alerting:
+    enabled: false
+    notificationRoute: ""
+    prometheusRule:
+      labels:
+        observability.dramaip.io/rule-set: platform
+  embedded:
+    enabled: false
+    retention: 720h
+    terminationGracePeriodSeconds: 60
+    networkPolicy:
+      enabled: true
+    grafana:
+      # When empty, the chart creates and preserves a random admin password in
+      # <release>-dramaip-platform-grafana-admin. Production-like environments
+      # may instead provide an operator-managed Secret with these two keys.
+      existingAdminSecret: ""
+      adminUserKey: admin-user
+      adminPasswordKey: admin-password
+    images:
+      prometheus: prom/prometheus:v3.11.3
+      alloy: grafana/alloy:v1.19.2
+      loki: grafana/loki:3.7.3
+      tempo: grafana/tempo:3.0.2
+      grafana: grafana/grafana:12.3.8
+    storage:
+      prometheus: 5Gi
+      alloy: 1Gi
+      loki: 10Gi
+      tempo: 10Gi
+      grafana: 1Gi
+    resources:
+      prometheus:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits: { cpu: 500m, memory: 512Mi }
+      alloy:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits: { cpu: 500m, memory: 512Mi }
+      loki:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits: { cpu: "1", memory: 1Gi }
+      tempo:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits: { cpu: "1", memory: 1Gi }
+      grafana:
+        requests: { cpu: 50m, memory: 128Mi }
+        limits: { cpu: 500m, memory: 512Mi }
+
 # The browser-facing Next.js UI is deliberately separate from the Java Gateway.
 # When both are routed through the same Gateway host, leave apiBaseURL empty
 # so the emitted browser bundle calls relative /api/v1 endpoints on that origin.
@@ -196,8 +262,6 @@ devInfra:
     image: redis:8-alpine
   rabbitmq:
     image: rabbitmq:4.3-management-alpine
-  otel:
-    image: otel/opentelemetry-collector-contrib:0.155.0
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     clientImage: minio/mc:RELEASE.2025-04-16T18-13-26Z

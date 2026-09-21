@@ -1,3 +1,4 @@
+import { serviceResolver } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import {
   LocalModelRuntimeKindSchema,
@@ -9,7 +10,7 @@ import type {
 } from "@dramaip/desktop-host";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type RouteContribution,
 } from "@dramaip/plugin-api/internal";
 import { z } from "zod";
@@ -278,7 +279,7 @@ export function createSystemPlugin(
   host?: DesktopHostClient,
   extensionPlatform?: ExtensionPlatform,
 ) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
     descriptor: {
       id: "system",
       version: "3.0.0-alpha.3",
@@ -322,19 +323,20 @@ export function createSystemPlugin(
       },
     ],
     migrations: extensionPlatformMigrations,
-    activate: (context) => {
+    apply: (context) => {
       const platform =
         extensionPlatform ?? new ExtensionPlatform(context.uow, host);
-      platform.broker.setServiceResolver(() => context.services);
+      platform.broker.setServiceResolver(() => serviceResolver(context));
       for (const route of hostRoutes(host))
-        context.effect(`route:${route.id}`, () => context.http.register(route));
+        context.effect(() => context.http.register(route), `route:${route.id}`);
       for (const route of extensionPlatformRoutes(platform))
-        context.effect(`route:${route.id}`, () => context.http.register(route));
+        context.effect(() => context.http.register(route), `route:${route.id}`);
       // Lightweight Host-facade embeddings intentionally provide only HTTP.
       // Extension event consumers require the complete Runtime data/event pair.
-      if (context.uow && context.events)
-        context.effect("extensions:domain-event-consumers", () =>
-          platform.attachEventRuntime(context.events),
+      if (context.uow && context.domainEvents)
+        context.effect(
+          () => platform.attachEventRuntime(context.domainEvents),
+          "extensions:domain-event-consumers",
         );
       return undefined;
     },
@@ -342,3 +344,20 @@ export function createSystemPlugin(
 }
 
 export const systemPlugin = createSystemPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "system-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createSystemPlugin(
+        ctx.pluginEnvironment.host as Parameters<typeof createSystemPlugin>[0],
+        ctx.pluginEnvironment.extensionPlatform as Parameters<
+          typeof createSystemPlugin
+        >[1],
+      ),
+      config,
+    );
+  },
+};

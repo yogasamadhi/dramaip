@@ -1,3 +1,4 @@
+import { creationReference } from "@dramaip/contracts/creation";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -345,6 +346,20 @@ export function researchService(
   context: PluginContext,
 ): KnowledgeResearchService {
   return {
+    references: (projectId) =>
+      context.uow.execute((tx) =>
+        tx
+          .all<SourceRow>(
+            "SELECT s.* FROM knowledge_research_sources s JOIN knowledge_research_topics t ON t.id=s.topic_id WHERE t.project_id = ? AND s.status = 'adopted' ORDER BY s.created_at DESC LIMIT 100",
+            projectId,
+          )
+          .map((row) =>
+            creationReference("knowledge", {
+              ...source(row),
+              version: Date.parse(row.created_at),
+            }),
+          ),
+      ),
     listTopics: (projectId, options) => listTopics(context, projectId, options),
   };
 }

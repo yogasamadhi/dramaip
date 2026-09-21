@@ -982,6 +982,13 @@ function SmartCreationPreparation(props: { testedProviderId?: string }) {
 
 export function SettingsPage() {
   const [testedProviderId, setTestedProviderId] = useState<string>();
+  const sections = [
+    ["settings-ai", "AI 连接"],
+    ["settings-appearance", "外观与编辑"],
+    ["settings-data", "数据与备份"],
+    ["settings-extensions", "扩展"],
+    ["settings-advanced", "高级诊断"],
+  ] as const;
   return (
     <div className="space-y-5">
       <WorkspaceIntro
@@ -990,30 +997,59 @@ export function SettingsPage() {
         description="先配置模型服务商，再管理智能引擎、备份、诊断和外部连接。"
         badge="安全配置"
       />
-      <SmartCreationPreparation testedProviderId={testedProviderId} />
-      <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
-        <div className="mb-4">
-          <p className="studio-eyebrow">外观</p>
-          <h2 className="mt-1 text-xl font-semibold">界面主题</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            主题仅保存在本机，并与应用栏中的外观菜单保持同步。
-          </p>
-        </div>
-        <ThemeSettings />
-      </section>
-      <ProviderSettingsPanel
-        onProviderSaved={() => setTestedProviderId(undefined)}
-        onProviderTested={setTestedProviderId}
-        onProviderActivated={setTestedProviderId}
-      />
-      <AgentEngineSettingsPanel />
-      <Suspense fallback={<LoadingState label="正在加载扩展管理…" />}>
-        <ExtensionMarketplace />
-        <DeclarativeExtensionUi slot="settings.extensions" />
-      </Suspense>
-      <BackupPanel />
-      <DiagnosticPanel />
-      <GenerationLedgerPanel />
+      <nav
+        className="sticky top-2 z-10 flex flex-wrap gap-1 rounded-lg border border-line bg-surface/95 p-1.5 shadow-control backdrop-blur"
+        aria-label="设置分类"
+      >
+        {sections.map(([id, label]) => (
+          <BareButton
+            key={id}
+            className="rounded-md px-3 py-2 text-sm font-medium text-muted hover:bg-surface-muted hover:text-ink"
+            onClick={() =>
+              document.getElementById(id)?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+          >
+            {label}
+          </BareButton>
+        ))}
+      </nav>
+      <div id="settings-ai" className="scroll-mt-16 space-y-5">
+        <SmartCreationPreparation testedProviderId={testedProviderId} />
+        <ProviderSettingsPanel
+          onProviderSaved={() => setTestedProviderId(undefined)}
+          onProviderTested={setTestedProviderId}
+          onProviderActivated={setTestedProviderId}
+        />
+        <AgentEngineSettingsPanel />
+      </div>
+      <div id="settings-appearance" className="scroll-mt-16">
+        <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
+          <div className="mb-4">
+            <p className="studio-eyebrow">外观与编辑</p>
+            <h2 className="mt-1 text-xl font-semibold">界面主题</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              主题仅保存在本机，并与应用栏中的外观菜单保持同步。
+            </p>
+          </div>
+          <ThemeSettings />
+        </section>
+      </div>
+      <div id="settings-data" className="scroll-mt-16">
+        <BackupPanel />
+      </div>
+      <div id="settings-extensions" className="scroll-mt-16 space-y-5">
+        <Suspense fallback={<LoadingState label="正在加载扩展管理…" />}>
+          <ExtensionMarketplace />
+          <DeclarativeExtensionUi slot="settings.extensions" />
+        </Suspense>
+      </div>
+      <div id="settings-advanced" className="scroll-mt-16 space-y-5">
+        <GenerationLedgerPanel />
+        <DiagnosticPanel />
+      </div>
     </div>
   );
 }

@@ -1,0 +1,201 @@
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// OTLP traces are the only telemetry signal accepted from applications.
+// Metrics remain pull-based and logs remain stdout/file based to prevent duplicates.
+otelcol.receiver.otlp "applications" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.transform.sanitize_traces.input]
+  }
+}
+
+// Remove raw URLs and any attribute whose key represents credentials, prompt
+// content, request/response bodies, or a user identifier before a span can
+// leave the collection boundary. Route templates remain available through
+// `http.route`, so traces stay useful without retaining raw token-bearing URLs.
+otelcol.processor.transform "sanitize_traces" {
+  error_mode = "propagate"
+
+  trace_statements {
+    context = "resource"
+    statements = [
+      `delete_matching_keys(attributes, "(?i).*(authorization|cookie|prompt|password|passwd|secret|api[._-]?key|apikey|credential|private[._-]?key|token|request[._-]?body|response[._-]?body|user[._-]?id|userid|enduser[._-]?id|actor[._-]?id|owner[._-]?id).*")`,
+    ]
+  }
+
+  trace_statements {
+    context = "span"
+    statements = [
+      `delete_key(attributes, "url.full")`,
+      `delete_key(attributes, "url.query")`,
+      `delete_key(attributes, "url.path")`,
+      `delete_key(attributes, "http.url")`,
+      `delete_key(attributes, "http.target")`,
+      `delete_key(attributes, "http.request.uri")`,
+      `delete_key(attributes, "client.address")`,
+      `delete_key(attributes, "network.peer.address")`,
+      `delete_key(attributes, "http.client_ip")`,
+      `delete_key(attributes, "user_agent.original")`,
+      `delete_key(attributes, "http.user_agent")`,
+      `delete_key(attributes, "error.message")`,
+      `delete_matching_keys(attributes, "(?i).*(authorization|cookie|prompt|password|passwd|secret|api[._-]?key|apikey|credential|private[._-]?key|token|request[._-]?body|response[._-]?body|user[._-]?id|userid|enduser[._-]?id|actor[._-]?id|owner[._-]?id).*")`,
+      `set(name, attributes["http.route"]) where attributes["http.route"] != nil`,
+      `set(status.message, "")`,
+    ]
+  }
+
+  trace_statements {
+    context = "spanevent"
+    statements = [
+      `delete_key(attributes, "exception.message")`,
+      `delete_key(attributes, "exception.stacktrace")`,
+      `delete_matching_keys(attributes, "(?i).*(authorization|cookie|prompt|password|passwd|secret|api[._-]?key|apikey|credential|private[._-]?key|token|request[._-]?body|response[._-]?body|user[._-]?id|userid|enduser[._-]?id|actor[._-]?id|owner[._-]?id).*")`,
+    ]
+  }
+
+  output {
+    traces = [otelcol.processor.memory_limiter.traces.input]
+  }
+}
+
+otelcol.processor.memory_limiter "traces" {
+  check_interval = "1s"
+  limit          = "192MiB"
+  spike_limit    = "64MiB"
+
+  output {
+    traces = [otelcol.processor.batch.traces.input]
+  }
+}
+
+otelcol.processor.batch "traces" {
+  timeout         = "5s"
+  send_batch_size = 1024
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// Discover only services from this Compose project. The compose service label is
+// retained for infrastructure logs and is replaced by the Java JSON `service`
+// field when that field is present.
+discovery.docker "dramaip" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+discovery.relabel "dramaip" {
+  targets = discovery.docker.dramaip.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = sys.env("DRAMAIP_COMPOSE_PROJECT_NAME")
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    replacement  = "local"
+    target_label = "environment"
+  }
+}
+
+loki.source.docker "dramaip" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.dramaip.output
+  labels     = { source = "docker" }
+  forward_to = [loki.process.dramaip.receiver]
+}
+
+// Host-mode Java launchers write one NDJSON file per service under this mount.
+local.file_match "host_java" {
+  path_targets = [{
+    __path__     = sys.env("DRAMAIP_HOST_LOG_GLOB"),
+    environment  = "local",
+    service_name = "host-java",
+    source       = "host-file",
+  }]
+}
+
+loki.source.file "host_java" {
+  targets                 = local.file_match.host_java.targets
+  forward_to              = [loki.process.dramaip.receiver]
+  tail_from_end           = true
+  on_positions_file_error = "restart_from_end"
+}
+
+loki.process "dramaip" {
+  // Drop a complete entry when a known sensitive field or Bearer credential is
+  // present rather than retaining a partially redacted JSON document. This is
+  // defense in depth; producers remain responsible for safe log construction.
+  stage.drop {
+    expression          = "(?i)(\\\"(?:[^\\\"\\r\\n]*[-_.])?(?:authorization(?:[-_.]?header)?|cookie|set[-_.]?cookie|prompt|password|passwd|secret|secret[-_.]?key|secretaccesskey|api[-_.]?key|apikey|credentials?|private[-_.]?key|privatekey|clientsecret|access[-_.]?key|accesskey|request[-_.]?body|response[-_.]?body|user[-_.]?id|userid|enduser[-_.]?id|actor[-_.]?id|owner[-_.]?id|principal[-_.]?id|account[-_.]?id|token|pin)\\\"\\s*:|(?:^|[\\s,;])(?:[a-z0-9._-]*[-_.])?(?:authorization(?:[-_.]?header)?|cookie|set[-_.]?cookie|prompt|password|passwd|secret|secret[-_.]?key|secretaccesskey|api[-_.]?key|apikey|credentials?|private[-_.]?key|privatekey|clientsecret|access[-_.]?key|accesskey|request[-_.]?body|response[-_.]?body|user[-_.]?id|userid|enduser[-_.]?id|actor[-_.]?id|owner[-_.]?id|principal[-_.]?id|account[-_.]?id|token|pin)\\s*[=:]|bearer\\s+[a-z0-9._~+/=-]+)"
+    drop_counter_reason = "sensitive_content"
+  }
+
+  stage.json {
+    expressions = {
+      java_service = "service",
+      level        = "level",
+      operation    = "operation",
+      request_id   = "request_id",
+      span_id      = "span_id",
+      trace_id     = "trace_id",
+    }
+  }
+
+  // `service_name` is the only application-derived index label. Correlation
+  // identifiers stay in structured metadata to avoid unbounded Loki streams.
+  stage.labels {
+    values = {
+      service_name = "java_service",
+    }
+  }
+
+  stage.structured_metadata {
+    values = {
+      operation  = "operation",
+      request_id = "request_id",
+      span_id    = "span_id",
+      trace_id   = "trace_id",
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

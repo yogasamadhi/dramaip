@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -312,26 +313,33 @@ function projectInput(
 
 function services(context: PluginContext) {
   return {
-    chapters: context.services.optional<WritingChapterService>(
+    chapters: optionalService<WritingChapterService>(
+      context,
       WRITING_CHAPTER_SERVICE,
     ),
-    writing: context.services.optional<WritingResourceService>(
+    writing: optionalService<WritingResourceService>(
+      context,
       WRITING_RESOURCE_SERVICE,
     ),
-    production: context.services.optional<ProductionRecordService>(
+    production: optionalService<ProductionRecordService>(
+      context,
       PRODUCTION_RECORD_SERVICE,
     ),
-    media: context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE),
-    creative: context.services.optional<CreativeQualityRecordService>(
+    media: optionalService<MediaRecordService>(context, MEDIA_RECORD_SERVICE),
+    creative: optionalService<CreativeQualityRecordService>(
+      context,
       CREATIVE_QUALITY_SERVICE,
     ),
-    review: context.services.optional<ReviewRecordService>(
+    review: optionalService<ReviewRecordService>(
+      context,
       REVIEW_RECORD_SERVICE,
     ),
-    delivery: context.services.optional<DeliveryRecordService>(
+    delivery: optionalService<DeliveryRecordService>(
+      context,
       DELIVERY_RECORD_SERVICE,
     ),
-    automation: context.services.optional<AutomationResourceService>(
+    automation: optionalService<AutomationResourceService>(
+      context,
       AUTOMATION_RESOURCE_SERVICE,
     ),
   };
@@ -410,19 +418,24 @@ function buildPackage(
   if (!values.chapters || !values.writing)
     throw new Error("writing suite is unavailable");
   const resources: ProjectPackage["resources"] = [];
-  const volumes = context.services.optional<WritingVolumeService>(
+  const volumes = optionalService<WritingVolumeService>(
+    context,
     WRITING_VOLUME_SERVICE,
   );
-  const seasons = context.services.optional<ProductionSeasonService>(
+  const seasons = optionalService<ProductionSeasonService>(
+    context,
     PRODUCTION_SEASON_SERVICE,
   );
-  const creatorContent = context.services.optional<CreatorContentService>(
+  const creatorContent = optionalService<CreatorContentService>(
+    context,
     CREATOR_CONTENT_SERVICE,
   );
-  const research = context.services.optional<KnowledgeResearchService>(
+  const research = optionalService<KnowledgeResearchService>(
+    context,
     KNOWLEDGE_RESEARCH_SERVICE,
   );
-  const creativeKnowledge = context.services.optional<CreativeKnowledgeService>(
+  const creativeKnowledge = optionalService<CreativeKnowledgeService>(
+    context,
     CREATIVE_KNOWLEDGE_SERVICE,
   );
   for (const kind of writingKinds)
@@ -748,10 +761,10 @@ export function workspaceMaintenanceRoutes(
         status: 201,
       }),
       (requestContext) => {
-        const maintenance =
-          context.services.optional<DatabaseMaintenanceService>(
-            FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
-          );
+        const maintenance = optionalService<DatabaseMaintenanceService>(
+          context,
+          FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
+        );
         if (!maintenance)
           return problem(
             requestContext,
@@ -821,10 +834,10 @@ export function workspaceMaintenanceRoutes(
         );
         if (!row)
           return problem(requestContext, 404, "NOT_FOUND", "未找到备份。");
-        const maintenance =
-          context.services.optional<DatabaseMaintenanceService>(
-            FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
-          );
+        const maintenance = optionalService<DatabaseMaintenanceService>(
+          context,
+          FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
+        );
         if (!maintenance)
           return problem(
             requestContext,
@@ -1021,7 +1034,8 @@ export function workspaceMaintenanceRoutes(
           );
         if (Date.parse(row.expires_at) <= Date.now())
           return problem(requestContext, 409, "CONFLICT", "项目包预览已过期。");
-        const writing = context.services.optional<WritingChapterService>(
+        const writing = optionalService<WritingChapterService>(
+          context,
           WRITING_CHAPTER_SERVICE,
         );
         if (!writing)
@@ -1034,14 +1048,16 @@ export function workspaceMaintenanceRoutes(
           ...(input.data.title ? { title: input.data.title } : {}),
         });
         const volumeIds = new Map<string, string>();
-        const volumeService = context.services.optional<WritingVolumeService>(
+        const volumeService = optionalService<WritingVolumeService>(
+          context,
           WRITING_VOLUME_SERVICE,
         );
-        const seasonService =
-          context.services.optional<ProductionSeasonService>(
-            PRODUCTION_SEASON_SERVICE,
-          );
-        const creatorService = context.services.optional<CreatorContentService>(
+        const seasonService = optionalService<ProductionSeasonService>(
+          context,
+          PRODUCTION_SEASON_SERVICE,
+        );
+        const creatorService = optionalService<CreatorContentService>(
+          context,
           CREATOR_CONTENT_SERVICE,
         );
         for (const raw of snapshot.structure?.volumes ?? []) {
@@ -1102,10 +1118,10 @@ export function workspaceMaintenanceRoutes(
             payload: value.data.payload,
           });
         }
-        const creativeKnowledge =
-          context.services.optional<CreativeKnowledgeService>(
-            CREATIVE_KNOWLEDGE_SERVICE,
-          );
+        const creativeKnowledge = optionalService<CreativeKnowledgeService>(
+          context,
+          CREATIVE_KNOWLEDGE_SERVICE,
+        );
         const resourcesCreated =
           importResources(context, project.id, snapshot) +
           (snapshot.creativeIntelligence && creativeKnowledge

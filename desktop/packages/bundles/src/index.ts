@@ -1,3 +1,12 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { load } from "js-yaml";
+import {
+  applyEntryPatches,
+  entryListSchema,
+  type PatchOptions,
+} from "@deepseek-ai/cordis-plugin-include";
+import type { EntryOptions } from "@deepseek-ai/cordis-plugin-loader";
 import type { JsonValue } from "@dramaip/contracts";
 
 export interface BundleDefinition {
@@ -8,27 +17,75 @@ export interface BundleDefinition {
     | "agents-suite"
     | "production-suite"
     | "analytics-suite";
+  readonly patch: URL;
   readonly plugins: readonly string[];
   readonly requires?: readonly BundleDefinition["id"][];
   readonly defaults?: Readonly<Record<string, JsonValue>>;
 }
 
+const bundle = (
+  id: BundleDefinition["id"],
+  requires: BundleDefinition["id"][] = [],
+): BundleDefinition => {
+  const patch = new URL(
+    `../../../bundles/${id}/cordis.patch.yml`,
+    import.meta.url,
+  );
+  return {
+    id,
+    requires,
+    patch,
+    get plugins() {
+      return flattenEntries(
+        applyEntryPatches([], readPatches(patch), warn),
+      ).map((entry) => entry.id);
+    },
+  };
+};
 export const builtInBundles: readonly BundleDefinition[] = Object.freeze([
-  { id: "core", plugins: ["foundation", "system", "workspace"] },
-  { id: "automation-suite", plugins: ["automation"], requires: ["core"] },
-  {
-    id: "writing-suite",
-    plugins: ["writing", "knowledge", "creative-quality"],
-    requires: ["core"],
-  },
-  { id: "agents-suite", plugins: ["agents"], requires: ["core"] },
-  {
-    id: "production-suite",
-    plugins: ["production", "media", "timeline", "review", "delivery"],
-    requires: ["core", "writing-suite"],
-  },
-  { id: "analytics-suite", plugins: ["insights"], requires: ["core"] },
+  bundle("core"),
+  bundle("automation-suite", ["core"]),
+  bundle("writing-suite", ["core"]),
+  bundle("agents-suite", ["core"]),
+  bundle("production-suite", ["core", "writing-suite"]),
+  bundle("analytics-suite", ["core"]),
 ]);
+function warn(message: string, ...args: unknown[]) {
+  console.warn(message, ...args);
+}
+export function readPatches(path: URL): PatchOptions[] {
+  const result: unknown = load(readFileSync(path, "utf8"), {
+    schema: entryListSchema,
+  });
+  if (
+    !Array.isArray(result) ||
+    result.some(
+      (item) => !item || typeof item !== "object" || Array.isArray(item),
+    )
+  )
+    throw new BundleProfileError(`invalid patch list: ${fileURLToPath(path)}`);
+  return result;
+}
+export function flattenEntries(
+  entries: readonly EntryOptions[],
+): EntryOptions[] {
+  const result: EntryOptions[] = [];
+  for (const entry of entries) {
+    if (entry.disabled) continue;
+    if (entry.group) {
+      if (entry.name !== "cordis:group" || !Array.isArray(entry.config))
+        throw new BundleProfileError(`invalid first-party group: ${entry.id}`);
+      result.push(...flattenEntries(entry.config));
+    } else result.push(entry);
+  }
+  return result;
+}
+export interface CordisAssembly {
+  readonly root: string;
+  readonly patches: PatchOptions[];
+  readonly files: readonly string[];
+  readonly entries: EntryOptions[];
+}
 
 export type ProfileName = "studio" | "server" | "safe" | "test" | "e2e";
 
@@ -42,6 +99,7 @@ export interface EffectiveRuntimeGraph {
   readonly profile: ProfileName;
   readonly bundles: readonly BundleDefinition["id"][];
   readonly plugins: readonly { id: string; config?: JsonValue }[];
+  readonly assembly: CordisAssembly;
 }
 
 export class BundleProfileError extends Error {
@@ -78,20 +136,49 @@ export function resolveEffectiveGraph(
     bundles.push(id);
   };
   for (const id of profile.bundles) visit(id, []);
-  const plugins: { id: string; config?: JsonValue }[] = [];
-  const pluginIds = new Set<string>();
-  for (const id of bundles) {
-    const bundle = byId.get(id)!;
-    for (const plugin of bundle.plugins) {
-      if (pluginIds.has(plugin))
-        throw new BundleProfileError(
-          `plugin appears in more than one effective bundle: ${plugin}`,
-        );
-      pluginIds.add(plugin);
-      plugins.push({ id: plugin, config: bundle.defaults?.[plugin] });
-    }
-  }
-  return { profile: profile.name, bundles, plugins };
+  const root = new URL("../../../cordis.yml", import.meta.url);
+  const rootEntries: unknown = load(readFileSync(root, "utf8"), {
+    schema: entryListSchema,
+  });
+  if (!Array.isArray(rootEntries) || rootEntries.length)
+    throw new BundleProfileError("Cordis root must be an empty entry list");
+  const profilePatch = new URL(
+    `../../../profiles/${profile.name}/cordis.patch.yml`,
+    import.meta.url,
+  );
+  const files = [
+    root,
+    ...bundles.map((id) => byId.get(id)!.patch),
+    profilePatch,
+  ];
+  const patches = files.slice(1).flatMap(readPatches);
+  // Native Include mutates inserted entries. Parse a separate preflight tree so
+  // Loader receives the original patch layers, including YAML expression values.
+  const entries = applyEntryPatches(
+    [],
+    files.slice(1).flatMap(readPatches),
+    warn,
+  );
+  const plugins = flattenEntries(entries).map((entry) => {
+    if (!entry.id || entry.name !== `@dramaip/${entry.id}`)
+      throw new BundleProfileError(
+        `invalid first-party module entry: ${entry.id}`,
+      );
+    return { id: entry.id, config: entry.config as JsonValue };
+  });
+  if (new Set(plugins.map((entry) => entry.id)).size !== plugins.length)
+    throw new BundleProfileError("duplicate plugin in effective patch tree");
+  return {
+    profile: profile.name,
+    bundles,
+    plugins,
+    assembly: {
+      root: root.href,
+      patches,
+      entries,
+      files: files.map((file) => fileURLToPath(file)),
+    },
+  };
 }
 
 export function parseProfileDefinition(text: string): ProfileDefinition {

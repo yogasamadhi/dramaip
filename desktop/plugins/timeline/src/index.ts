@@ -1,3 +1,4 @@
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -34,7 +35,7 @@ import {
 } from "@dramaip/contracts/timeline";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -1750,7 +1751,7 @@ function timelineRoutes(
           requestContext.req.header("Last-Event-ID") ??
           "0";
         const cursor = /^\d+$/u.test(rawCursor) ? Number(rawCursor) : 0;
-        const events = context.events
+        const events = context.domainEvents
           .replay(cursor, 500)
           .filter(
             (event) =>
@@ -2012,7 +2013,12 @@ const timelineMigrations = [
 ] as const;
 
 export function createTimelinePlugin(host?: DesktopHostClient) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [
+      MEDIA_AUDIO_TRACK_SERVICE.id,
+      MEDIA_RECORD_SERVICE.id,
+      PRODUCTION_RECORD_SERVICE.id,
+    ],
     descriptor: {
       id: "timeline",
       version: "3.0.0-alpha.3",
@@ -2036,13 +2042,17 @@ export function createTimelinePlugin(host?: DesktopHostClient) {
       },
     ],
     migrations: timelineMigrations,
-    activate: (context) => {
-      const production = context.services.optional<ProductionRecordService>(
+    apply: (context) => {
+      const production = optionalService<ProductionRecordService>(
+        context,
         PRODUCTION_RECORD_SERVICE,
       );
-      const media =
-        context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
-      const audioTracks = context.services.optional<MediaAudioTrackService>(
+      const media = optionalService<MediaRecordService>(
+        context,
+        MEDIA_RECORD_SERVICE,
+      );
+      const audioTracks = optionalService<MediaAudioTrackService>(
+        context,
         MEDIA_AUDIO_TRACK_SERVICE,
       );
       if (!production || !media || !audioTracks)
@@ -2058,8 +2068,9 @@ export function createTimelinePlugin(host?: DesktopHostClient) {
           new Date().toISOString(),
         ),
       );
-      context.effect(`service:${TIMELINE_SERVICE}`, () =>
-        context.services.provide(TIMELINE_SERVICE, service),
+      context.effect(
+        () => provideService(context, TIMELINE_SERVICE, service),
+        `service:${TIMELINE_SERVICE}`,
       );
       for (const contribution of timelineRoutes(
         context,
@@ -2068,11 +2079,28 @@ export function createTimelinePlugin(host?: DesktopHostClient) {
         audioTracks,
         host,
       ))
-        context.effect(`route:${contribution.id}`, () =>
-          context.http.register(contribution),
+        context.effect(
+          () => context.http.register(contribution),
+          `route:${contribution.id}`,
         );
     },
   });
 }
 
 export const timelinePlugin = createTimelinePlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "timeline-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createTimelinePlugin(
+        ctx.pluginEnvironment.host as Parameters<
+          typeof createTimelinePlugin
+        >[0],
+      ),
+      config,
+    );
+  },
+};

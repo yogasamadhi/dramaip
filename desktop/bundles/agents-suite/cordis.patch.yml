@@ -1,0 +1,9 @@
+# Trusted first-party Cordis Bundle group.
+- insert:
+    - id: bundle.agents-suite
+      name: cordis:group
+      group: true
+      config:
+        - id: agents
+          name: "@dramaip/agents"
+          config: {}

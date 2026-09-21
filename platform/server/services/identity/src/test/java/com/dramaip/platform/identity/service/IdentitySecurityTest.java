@@ -7,10 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.observability.DramaipTelemetry;
+import com.dramaip.platform.common.observability.OutboxObservability;
 import com.dramaip.platform.common.web.BusinessException;
 import com.dramaip.platform.identity.IdentityJwtProperties;
-import com.dramaip.platform.identity.WebSessionCookies;
 import com.dramaip.platform.identity.WebSessionProperties;
+import com.dramaip.platform.identity.WebSessionCookies;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import java.util.List;
@@ -22,7 +25,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 class IdentitySecurityTest {
     @Test
     void registrationAndDesktopExchangeRejectMalformedInputBeforeDatabaseAccess() {
-        AuthService service = new AuthService(mock(JdbcTemplate.class), mock(TokenService.class));
+        AuthService service = new AuthService(mock(JdbcTemplate.class), mock(TokenService.class), outbox());
 
         assertEquals("IDENTITY_INVALID_EMAIL", assertThrows(
                 BusinessException.class,
@@ -42,6 +45,10 @@ class IdentitySecurityTest {
         ).code());
         service.revoke("");
         service.revoke(null);
+    }
+
+    private OutboxObservability outbox() {
+        return new OutboxObservability(mock(DramaipMetrics.class), new DramaipTelemetry("test", "test"));
     }
 
     @Test

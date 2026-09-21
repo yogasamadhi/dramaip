@@ -1,3 +1,10 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
+import {
+  CREATION_WORKFLOW_SERVICE,
+  creationOperationForTask,
+} from "@dramaip/contracts/creation";
+import { WRITING_CHAPTER_SERVICE } from "@dramaip/contracts/writing";
+import { PRODUCTION_RECORD_SERVICE } from "@dramaip/contracts/production";
 import {
   type AgentContextService,
   type AgentEngineKind,
@@ -26,7 +33,7 @@ import {
   text,
 } from "../providers/routes.js";
 import { queueInspirationMemoryJob } from "../inspiration/routes.js";
-import { taskPrompt } from "../task-catalog.js";
+import { taskPrompt, AGENT_TASK_CATALOG } from "../task-catalog.js";
 export interface AssistantSessionRow {
   id: string;
   engine_session_id: string;
@@ -589,6 +596,19 @@ export function assistantConversationRoutes(
               "VALIDATION_ERROR",
               "灵感空间会话不能绑定项目。",
             );
+          if (chapterId) {
+            const chapter = optionalService(
+              pluginContext,
+              WRITING_CHAPTER_SERVICE,
+            )?.get(chapterId);
+            if (!chapter || chapter.projectId !== projectId)
+              return problem(
+                context,
+                409,
+                "CONTEXT_MISMATCH",
+                "章节不属于所选项目。",
+              );
+          }
           const kind = isAgentEngineKind(body.engineKind)
             ? body.engineKind
             : globalAgentSettings(pluginContext).defaultEngineKind;
@@ -758,6 +778,32 @@ export function assistantConversationRoutes(
             changePreviews: [],
             providerActionPreviews: [],
           }));
+          const workflows = optionalService(
+            pluginContext,
+            CREATION_WORKFLOW_SERVICE,
+          );
+          detail.turns = detail.turns.map((turn) => {
+            const route = turn.route as { workflowId?: string } | undefined;
+            const flow = route?.workflowId
+              ? workflows?.get(route.workflowId)
+              : undefined;
+            return flow
+              ? {
+                  ...turn,
+                  status: ["awaiting-review", "applied", "discarded"].includes(
+                    flow.stage,
+                  )
+                    ? "succeeded"
+                    : flow.stage === "failed" || flow.stage === "interrupted"
+                      ? "failed"
+                      : flow.stage === "canceled"
+                        ? "canceled"
+                        : "running",
+                  error: flow.error,
+                  updatedAt: flow.updatedAt,
+                }
+              : turn;
+          });
           return context.json(detail);
         }),
     },
@@ -979,6 +1025,175 @@ export function assistantConversationRoutes(
             const taskType =
               (isRecord(body) ? assistantTaskType(body.taskType) : undefined) ??
               "chat_project";
+            const requestedChapterId = isRecord(body)
+              ? text(body.chapterId)
+              : undefined;
+            if (
+              requestedChapterId &&
+              session.chapter_id &&
+              requestedChapterId !== session.chapter_id
+            )
+              return problem(
+                context,
+                409,
+                "CONTEXT_MISMATCH",
+                "消息目标与当前章节对话不一致，请打开目标章节的对话。",
+              );
+            const target =
+              isRecord(body) && isRecord(body.target) ? body.target : {};
+            const operation = creationOperationForTask(taskType);
+            if (operation) {
+              if (!session.project_id)
+                return problem(
+                  context,
+                  409,
+                  "CONTEXT_REQUIRED",
+                  "请先选择并明确绑定项目，再生成内容。",
+                );
+              const workflowService = optionalService(
+                pluginContext,
+                CREATION_WORKFLOW_SERVICE,
+              );
+              if (!workflowService)
+                return problem(
+                  context,
+                  409,
+                  "CAPABILITY_UNAVAILABLE",
+                  "创作工作流未启用。",
+                );
+              const targetId =
+                requestedChapterId ?? session.chapter_id ?? text(target.id);
+              const chapter =
+                targetId && operation === "chapter"
+                  ? optionalService(
+                      pluginContext,
+                      WRITING_CHAPTER_SERVICE,
+                    )?.get(targetId)
+                  : undefined;
+              const production =
+                targetId && operation !== "chapter"
+                  ? optionalService(
+                      pluginContext,
+                      PRODUCTION_RECORD_SERVICE,
+                    )?.get(targetId)
+                  : undefined;
+              if (
+                operation === "chapter" &&
+                (!chapter || chapter.projectId !== session.project_id)
+              )
+                return problem(
+                  context,
+                  409,
+                  "CONTEXT_REQUIRED",
+                  "请选择当前项目的目标章节。全局对话不会猜测要改写哪一章。",
+                );
+              if (production && production.projectId !== session.project_id)
+                return problem(
+                  context,
+                  409,
+                  "CONTEXT_MISMATCH",
+                  "当前内容不属于会话项目。",
+                );
+              const baseVersion =
+                isRecord(body) && typeof body.chapterBaseVersion === "number"
+                  ? body.chapterBaseVersion
+                  : typeof target.baseVersion === "number"
+                    ? target.baseVersion
+                    : (chapter?.version ?? production?.version);
+              try {
+                const workflow = workflowService.start(
+                  {
+                    projectId: session.project_id,
+                    operation,
+                    targetId,
+                    baseVersion,
+                    conversationId: session.id,
+                    instruction:
+                      message +
+                      (isRecord(body) && body.selection
+                        ? `\n修改选段：${JSON.stringify(body.selection)}`
+                        : ""),
+                    engineKind: session.engine_kind as AgentEngineKind,
+                    model: modelSelection(jsonValue(session.model_json))
+                      ? { ...modelSelection(jsonValue(session.model_json)) }
+                      : undefined,
+                    wordGoal:
+                      typeof target.wordGoal === "number"
+                        ? target.wordGoal
+                        : undefined,
+                    sourceIds: [],
+                  },
+                  context.req.header("Idempotency-Key") ?? crypto.randomUUID(),
+                );
+                const turn = pluginContext.uow.execute((tx) => {
+                  const previous = tx.get<AssistantTurnRow>(
+                    "SELECT * FROM agent_assistant_turns WHERE session_id = ? AND json_extract(route_json, '$.workflowId') = ?",
+                    session.id,
+                    workflow.id,
+                  );
+                  if (previous) return assistantTurn(previous);
+                  const id = crypto.randomUUID(),
+                    now = new Date().toISOString();
+                  tx.run(
+                    "INSERT INTO agent_assistant_turns(id,session_id,run_id,user_message,project_id,chapter_id,selection_json,route_json,status,error,created_at,updated_at) VALUES (?, ?, NULL, ?, ?, ?, NULL, ?, 'queued', NULL, ?, ?)",
+                    id,
+                    session.id,
+                    message,
+                    session.project_id,
+                    chapter?.id ?? null,
+                    JSON.stringify({
+                      kind: "task",
+                      taskType,
+                      workflowId: workflow.id,
+                      confidence: 1,
+                      source: "deterministic",
+                      explanation: "生成、检查和候选由持久创作工作流处理。",
+                    }),
+                    now,
+                    now,
+                  );
+                  tx.append({
+                    type: "agents.assistant-turn-started.v1",
+                    pluginId: "agents",
+                    aggregateType: "assistant-turn",
+                    aggregateId: id,
+                    aggregateVersion: 1,
+                    payload: {
+                      sessionId: session.id,
+                      turnId: id,
+                      workflowId: workflow.id,
+                    },
+                  });
+                  return assistantTurn(
+                    tx.get<AssistantTurnRow>(
+                      "SELECT * FROM agent_assistant_turns WHERE id = ?",
+                      id,
+                    )!,
+                  );
+                });
+                return context.json({
+                  conversation: assistantSession(session),
+                  turn,
+                });
+              } catch (error) {
+                return problem(
+                  context,
+                  409,
+                  "CREATION_REJECTED",
+                  error instanceof Error ? error.message : "创作未启动。",
+                );
+              }
+            }
+            if (
+              AGENT_TASK_CATALOG.find((task) => task.id === taskType)
+                ?.writePolicy === "change-preview"
+            )
+              return problem(
+                context,
+                409,
+                "CONTEXT_REQUIRED",
+                "请进入对应内容工作台选择操作对象；此内容任务不能作为普通聊天执行。",
+              );
             const route = {
               kind: "chat",
               taskType,
@@ -1248,7 +1463,7 @@ export function assistantConversationRoutes(
                     now,
                   };
                 });
-                pluginContext.events.publishLive({
+                pluginContext.domainEvents.publishLive({
                   type:
                     emitted.status === "started"
                       ? "agents.assistant-item-started.v1"
@@ -1304,7 +1519,7 @@ export function assistantConversationRoutes(
                   );
                   return { itemId: streamedItemId, now, started: false };
                 });
-                pluginContext.events.publishLive({
+                pluginContext.domainEvents.publishLive({
                   type: emitted.started
                     ? "agents.assistant-item-started.v1"
                     : "agents.assistant-item-delta.v1",
@@ -1444,7 +1659,7 @@ export function assistantConversationRoutes(
                   });
                   return { itemId, now };
                 });
-                pluginContext.events.publishLive({
+                pluginContext.domainEvents.publishLive({
                   type: "agents.assistant-item-completed.v1",
                   payload: {
                     sessionId: session.id,
@@ -1455,7 +1670,7 @@ export function assistantConversationRoutes(
                     occurredAt: completed.now,
                   },
                 });
-                pluginContext.events.publishLive({
+                pluginContext.domainEvents.publishLive({
                   type: "agents.assistant-run-completed.v1",
                   payload: { sessionId: session.id, runId: started.runId },
                 });
@@ -1509,7 +1724,7 @@ export function assistantConversationRoutes(
                   return { now };
                 });
                 if (streamedItemId)
-                  pluginContext.events.publishLive({
+                  pluginContext.domainEvents.publishLive({
                     type: "agents.assistant-item-failed.v1",
                     payload: {
                       sessionId: session.id,
@@ -1520,7 +1735,7 @@ export function assistantConversationRoutes(
                       occurredAt: failed.now,
                     },
                   });
-                pluginContext.events.publishLive({
+                pluginContext.domainEvents.publishLive({
                   type: "agents.assistant-run-failed.v1",
                   payload: { sessionId: session.id, runId: started.runId },
                 });
@@ -1755,6 +1970,38 @@ export function typedAgentSessionRoutes(
           );
           if (!response.ok) return response;
           const started = (await response.json()) as unknown;
+          const turn =
+            isRecord(started) && isRecord(started.turn)
+              ? started.turn
+              : undefined;
+          const route = turn && isRecord(turn.route) ? turn.route : undefined;
+          if (route && typeof route.workflowId === "string") {
+            const service = optionalService(
+              pluginContext,
+              CREATION_WORKFLOW_SERVICE,
+            );
+            if (!service)
+              return problem(
+                context,
+                409,
+                "CAPABILITY_UNAVAILABLE",
+                "创作工作流未启用。",
+              );
+            const flow = await service.launch(route.workflowId);
+            if (!flow.runId || !flow.sessionId)
+              return problem(
+                context,
+                409,
+                "ENGINE_UNAVAILABLE",
+                flow.error ?? "创作运行尚未建立，可从任务中心恢复。",
+              );
+            return context.json({
+              taskId: flow.taskId,
+              sessionId: flow.sessionId,
+              runId: flow.runId,
+              workflowId: flow.id,
+            });
+          }
           const run =
             isRecord(started) && isRecord(started.run)
               ? started.run
@@ -1831,7 +2078,9 @@ export function typedAgentSessionRoutes(
           const isForRun = (event: { payload: unknown }): boolean =>
             isRecord(event.payload) && event.payload.runId === runId;
           return streamSSE(context as unknown as Context, async (stream) => {
-            for (const event of pluginContext.events.replay(afterCursor)) {
+            for (const event of pluginContext.domainEvents.replay(
+              afterCursor,
+            )) {
               if (!isForRun(event)) continue;
               await stream.writeSSE({
                 event: event.type,
@@ -1840,7 +2089,7 @@ export function typedAgentSessionRoutes(
               });
             }
             await new Promise<void>((resolve) => {
-              const unsubscribe = pluginContext.events.subscribeLive(
+              const unsubscribe = pluginContext.domainEvents.subscribeLive(
                 (event) => {
                   if (!isForRun(event)) return;
                   void stream.writeSSE({
@@ -1901,7 +2150,7 @@ export function typedAgentSessionRoutes(
                 payload: { sessionId: session.id, runId: run.id },
               });
             });
-            pluginContext.events.publishLive({
+            pluginContext.domainEvents.publishLive({
               type: "agents.run-steered.v1",
               payload: {
                 sessionId: session.id,

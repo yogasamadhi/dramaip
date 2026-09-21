@@ -14,6 +14,17 @@ Bundled runtime components:
   are recorded in
   `apps/desktop/build/third-party-notices/LangGraph-and-AI-SDK-NOTICES.md`.
 
+- DSH 0.1.0-rc.5 supplies nine MIT-licensed framework packages from the pinned
+  `vendor/deepseek-harness/vendor` source tree:
+  `@deepseek-ai/cordis` 4.0.1, `@deepseek-ai/cosmokit` 1.8.2,
+  `@deepseek-ai/schemastery` 3.18.1, `@deepseek-ai/cordis-plugin-loader` 1.0.2,
+  `@deepseek-ai/cordis-plugin-include` 1.0.6, `@deepseek-ai/cordis-plugin-group` 1.0.1,
+  `@deepseek-ai/cordis-plugin-timer` 1.1.3, `@deepseek-ai/cordis-plugin-hmr` 1.0.16,
+  and `@deepseek-ai/cordis-plugin-logger-console` 1.0.1.
+  Each unmodified source license is included at `runtime/framework/<package>/LICENSE`
+  in the packaged application resources. Desktop's build manifests are generated
+  separately; the vendor snapshot is not modified.
+
 Reference-only vendor snapshots under `vendor/` are not automatically bundled.
 Their own license files remain authoritative for those sources.
 

@@ -8,6 +8,7 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
   accessSync,
+  chmodSync,
   closeSync,
   constants,
   existsSync,
@@ -51,11 +52,6 @@ const HOST_PROMETHEUS_CONFIG = join(
   OBSERVABILITY_COMPOSE_DIRECTORY,
   "prometheus",
   "prometheus-host.yml",
-);
-const HOST_FILEBEAT_CONFIG = join(
-  OBSERVABILITY_COMPOSE_DIRECTORY,
-  "filebeat",
-  "filebeat-host.yml",
 );
 export const HOST_PROMETHEUS_TARGETS = join(
   LOCAL_LOG_DIRECTORY,
@@ -148,11 +144,9 @@ const DOCKER_JAVA_SERVICES = [
 ] as const;
 export const DOCKER_OBSERVABILITY_SERVICES = [
   "prometheus",
-  "otel-collector",
-  "jaeger",
-  "elasticsearch",
-  "kibana",
-  "filebeat",
+  "alloy",
+  "loki",
+  "tempo",
   "grafana",
 ] as const;
 
@@ -602,31 +596,40 @@ async function startObservability(
   includeGateway: boolean,
 ): Promise<void> {
   writeHostPrometheusTargets(serviceNames, includeGateway);
+  const configuredDataRoot = process.env.DRAMAIP_COMPOSE_DATA_ROOT;
+  const dataRoot = configuredDataRoot
+    ? isAbsolute(configuredDataRoot)
+      ? configuredDataRoot
+      : resolve(OBSERVABILITY_COMPOSE_DIRECTORY, configuredDataRoot)
+    : join(OBSERVABILITY_COMPOSE_DIRECTORY, "docker-data");
+  for (const name of ["prometheus", "alloy", "loki", "tempo", "grafana"]) {
+    const directory = join(dataRoot, name);
+    mkdirSync(directory, { recursive: true });
+    chmodSync(directory, 0o777);
+  }
   const environment = {
     ...process.env,
     DRAMAIP_PROMETHEUS_CONFIG: HOST_PROMETHEUS_CONFIG,
-    DRAMAIP_FILEBEAT_CONFIG: HOST_FILEBEAT_CONFIG,
     DRAMAIP_HOST_LOG_DIR: LOCAL_LOG_DIRECTORY,
     DRAMAIP_PROMETHEUS_TARGETS_DIR: HOST_PROMETHEUS_TARGETS,
   };
-  info(
-    "Starting Prometheus, Collector, Jaeger, Elasticsearch, Kibana, Filebeat and Grafana...",
-  );
+  info("Starting Prometheus, Alloy, Loki, Tempo and Grafana...");
   await runChecked(
     observabilityComposeCommand(
       docker,
       "up",
       "-d",
+      "--remove-orphans",
       ...DOCKER_OBSERVABILITY_SERVICES,
     ),
     SCRIPT_DIRECTORY,
     environment,
   );
   await waitForHttp("Prometheus", "http://127.0.0.1:9090/-/ready", 90_000);
-  await waitForTcp("OpenTelemetry Collector", 4318, 90_000);
-  await waitForHttp("Jaeger", "http://127.0.0.1:16686/", 90_000);
-  await waitForHttp("Elasticsearch", "http://127.0.0.1:9200/", 120_000);
-  await waitForHttp("Kibana", "http://127.0.0.1:5601/api/status", 180_000);
+  await waitForHttp("Alloy", "http://127.0.0.1:12345/-/ready", 90_000);
+  await waitForTcp("Alloy OTLP HTTP", 4318, 90_000);
+  await waitForHttp("Loki", "http://127.0.0.1:3100/ready", 90_000);
+  await waitForHttp("Tempo", "http://127.0.0.1:3200/ready", 90_000);
   await waitForHttp("Grafana", "http://127.0.0.1:3000/api/health", 120_000);
   ok("local observability stack is ready");
 }
@@ -731,13 +734,22 @@ export function localEnvironment(observability = false): NodeJS.ProcessEnv {
   });
   if (observability) {
     Object.assign(environment, {
+      DRAMAIP_DEPLOYMENT_ENVIRONMENT:
+        environment.DRAMAIP_DEPLOYMENT_ENVIRONMENT ?? "local",
+      DRAMAIP_SERVICE_VERSION:
+        environment.DRAMAIP_SERVICE_VERSION ?? "development",
+      DRAMAIP_RELEASE_NAME: environment.DRAMAIP_RELEASE_NAME ?? "host-local",
+      OTEL_RESOURCE_ATTRIBUTES:
+        environment.OTEL_RESOURCE_ATTRIBUTES ??
+        "deployment.environment.name=local,service.version=development,service.namespace=dramaip-platform,dramaip.release=host-local",
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:4318",
       OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf",
       OTEL_TRACES_EXPORTER: "otlp",
       OTEL_METRICS_EXPORTER: "none",
       OTEL_LOGS_EXPORTER: "none",
       OTEL_PROPAGATORS: "tracecontext,baggage",
-      OTEL_TRACES_SAMPLER: "always_on",
+      OTEL_TRACES_SAMPLER:
+        environment.OTEL_TRACES_SAMPLER ?? "always_on",
       OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST: "",
       OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST: "",
       OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED: "true",
@@ -1215,7 +1227,7 @@ async function watchJavaProcesses(
   );
   if (observability) {
     process.stdout.write(
-      "Observability: Prometheus http://127.0.0.1:9090 · Jaeger http://127.0.0.1:16686 · Grafana http://127.0.0.1:3000\n",
+      "Observability: Prometheus http://127.0.0.1:9090 · Alloy http://127.0.0.1:12345 · Loki http://127.0.0.1:3100 · Tempo http://127.0.0.1:3200 · Grafana http://127.0.0.1:3000\n",
     );
   }
   process.stdout.write(

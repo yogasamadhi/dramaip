@@ -156,6 +156,7 @@ export const SeasonPageSchema = z.object({
   nextCursor: z.string().optional(),
 });
 export type Season = z.infer<typeof SeasonSchema>;
+export type SeasonPage = z.infer<typeof SeasonPageSchema>;
 export type SeasonChapterMapping = z.infer<typeof SeasonChapterMappingSchema>;
 
 export const PRODUCTION_SEASON_SERVICE =
@@ -244,6 +245,31 @@ export const ProductionGraphSchema = z.object({
     adoptedStills: z.number().int().nonnegative(),
   }),
 });
+
+export const ProjectProgressSchema = z.object({
+  projectId: z.string().uuid(),
+  scope: z.object({
+    kind: z.enum(["project", "episodes"]),
+    episodeIds: z.array(z.string().uuid()),
+  }),
+  sourceVersion: z.number().int().nonnegative(),
+  completion: z.number().min(0).max(1),
+  steps: z.array(
+    z.object({
+      id: z.enum(["source", "script", "scenes", "shots", "assets", "review"]),
+      label: z.string(),
+      current: z.number().int().nonnegative(),
+      required: z.number().int().nonnegative(),
+      complete: z.boolean(),
+      target: z.string(),
+    }),
+  ),
+  blockers: z.array(
+    z.object({ code: z.string(), message: z.string(), target: z.string() }),
+  ),
+  nextAction: z.object({ label: z.string(), target: z.string() }),
+});
+export type ProjectProgress = z.infer<typeof ProjectProgressSchema>;
 
 export const ProductionImpactInputSchema = z.object({
   projectId: z.string().uuid(),

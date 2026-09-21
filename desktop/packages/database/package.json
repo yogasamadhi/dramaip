@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test && bun src/migration-worker.integration.ts"
+    "test": "bun ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src && bun ../../scripts/run-node.mjs --import tsx src/migration-worker.integration.ts"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

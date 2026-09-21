@@ -26,6 +26,7 @@ function fakeHost(): DesktopHostClient {
       );
     },
     async *engineStream() {
+      yield { type: "activity" as const, activity: "thinking" as const };
       yield { type: "content.delta" as const, delta: "你好" };
       yield { type: "result" as const, result: { text: "你好" } };
     },
@@ -52,13 +53,14 @@ describe("Host AgentRuntime adapter", () => {
     const events = [];
     for await (const event of runtime.subscribe(run)) events.push(event);
     expect(events).toMatchObject([
-      { cursor: 1, type: "content.delta", delta: "你好" },
-      { cursor: 2, type: "result" },
+      { cursor: 1, type: "activity", activity: "thinking" },
+      { cursor: 2, type: "content.delta", delta: "你好" },
+      { cursor: 3, type: "result" },
     ]);
     const replay = [];
-    for await (const event of runtime.subscribe(run, { cursor: 1 }))
+    for await (const event of runtime.subscribe(run, { cursor: 2 }))
       replay.push(event);
-    expect(replay).toMatchObject([{ cursor: 2, type: "result" }]);
+    expect(replay).toMatchObject([{ cursor: 3, type: "result" }]);
   });
 
   it("reports an unsupported external benchmark operation rather than falling back", async () => {

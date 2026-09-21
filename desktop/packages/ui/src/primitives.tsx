@@ -389,7 +389,7 @@ export function PageHeader(props: {
   return (
     <header
       className={cn(
-        "flex min-h-28 flex-wrap items-end justify-between gap-5 rounded-xl border border-line bg-surface px-6 py-5 shadow-card",
+        "flex min-h-20 flex-wrap items-center justify-between gap-4 border-b border-line px-1 pb-4",
         props.className,
       )}
     >
@@ -399,11 +399,11 @@ export function PageHeader(props: {
             {props.eyebrow}
           </p>
         ) : null}
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-[1.75rem]">
+        <h1 className="mt-1 text-xl font-semibold tracking-tight text-ink sm:text-2xl">
           {props.title}
         </h1>
         {props.description ? (
-          <p className="mt-1.5 text-sm leading-6 text-muted">
+          <p className="mt-1 text-sm leading-5 text-muted">
             {props.description}
           </p>
         ) : null}

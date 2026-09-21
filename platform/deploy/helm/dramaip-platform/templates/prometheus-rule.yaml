@@ -1,0 +1,34 @@
+{{- if .Values.observability.alerting.enabled -}}
+{{- if not .Values.observability.enabled -}}
+{{- fail "observability.alerting.enabled=true requires observability.enabled=true" -}}
+{{- end -}}
+{{- if .Values.observability.embedded.enabled -}}
+{{- fail "observability.alerting.enabled=true is for the external Prometheus/Alertmanager contract and cannot be combined with observability.embedded.enabled=true" -}}
+{{- end -}}
+{{- $notificationRoute := required "observability.alerting.notificationRoute is required when production alerting is enabled" .Values.observability.alerting.notificationRoute -}}
+{{- $ruleSpec := .Files.Get "files/prometheus/alerts.yml" | fromYaml -}}
+{{- range $group := $ruleSpec.groups -}}
+  {{- range $rule := $group.rules -}}
+    {{- $labels := default (dict) $rule.labels -}}
+    {{- $_ := set $labels "team" "dramaip-platform" -}}
+    {{- $_ := set $labels "notification_route" $notificationRoute -}}
+    {{- $_ := set $labels "dramaip_release" $.Release.Name -}}
+    {{- $_ := set $rule "labels" $labels -}}
+  {{- end -}}
+{{- end -}}
+{{- $metadataLabels := deepCopy .Values.observability.alerting.prometheusRule.labels -}}
+{{- $standardLabels := include "dramaip-platform.labels" . | fromYaml -}}
+{{- range $key, $value := $standardLabels -}}
+  {{- $_ := set $metadataLabels $key $value -}}
+{{- end -}}
+{{- $_ := set $metadataLabels "app.kubernetes.io/component" "observability-alert-rules" -}}
+{{- $_ := set $metadataLabels "observability.dramaip.io/rule-set" "platform" -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-alerts
+  labels:
+    {{- toYaml $metadataLabels | nindent 4 }}
+spec:
+  {{- toYaml $ruleSpec | nindent 2 }}
+{{- end -}}

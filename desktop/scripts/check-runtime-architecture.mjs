@@ -27,8 +27,13 @@ if (manifest.engines?.node)
   throw new Error("Desktop workspace must not declare a system Node engine");
 if (manifest.engines?.bun !== "1.4.0")
   throw new Error("Desktop workspace must pin Bun 1.4.0 exactly");
-if (manifest.devDependencies?.tsx || manifest.dependencies?.tsx)
-  throw new Error("Desktop workspace must use Bun directly instead of tsx");
+const runtimeManifest = JSON.parse(
+  await readFile(join(root, "packages/runtime/package.json"), "utf8"),
+);
+if (runtimeManifest.engines?.node !== "24.18.0")
+  throw new Error("Standalone Core Runtime must pin Node 24.18.0");
+if (!(manifest.workspaces ?? []).includes("build/dsh-framework/*"))
+  throw new Error("DSH framework source workspace is required");
 for (const [name, script] of Object.entries(manifest.scripts ?? {})) {
   if (
     typeof script === "string" &&
@@ -97,10 +102,6 @@ for (const directory of activeSourceRoots) {
   for (const path of await files(directory)) {
     if (!/\.(?:[cm]?[jt]sx?|json|ya?ml)$/u.test(path)) continue;
     const source = await readFile(path, "utf8");
-    if (/^#![^\n]*\bnode\b/u.test(source))
-      throw new Error(
-        `Active desktop source must use a Bun shebang: ${path.replace(root, "")}`,
-      );
     if (path.endsWith("package.json")) {
       const packageManifest = JSON.parse(source);
       for (const [name, script] of Object.entries(
@@ -129,32 +130,8 @@ for (const directory of activeSourceRoots) {
       /(?:^|[^A-Za-z0-9])\/api\/v1(?:\/|["'])/u,
       "Active source must not expose the legacy HTTP API",
     );
-    await assertAbsent(
-      path,
-      /Bun\.which\(["']node["']\)|\bMINIMUM_NODE\b|\bNodeRuntimeAdapter\b|\bDRAMAIP_RUNTIME_KIND\b|--runtime(?:\s|["'])|runtimeKind\s*\?\?\s*["']node["']/u,
-      "Active desktop source must not depend on a system or selectable Node runtime",
-    );
   }
 }
-
-const launcherPath = join(root, "..", "run-desktop.ts");
-for (const expression of [
-  /Bun\.which\(["']node["']\)/u,
-  /\bMINIMUM_NODE\b/u,
-  /Node\.js 版本/u,
-])
-  await assertAbsent(
-    launcherPath,
-    expression,
-    "Desktop launcher must not require system Node",
-  );
-const ciPath = join(root, "..", ".gitlab-ci.yml");
-for (const expression of [/\bDESKTOP_NODE_VERSION\b/u, /\/opt\/dramaip-node/u])
-  await assertAbsent(
-    ciPath,
-    expression,
-    "Desktop CI must not install system Node",
-  );
 
 async function assertAbsent(path, expression, message) {
   const source = await readFile(path, "utf8");
@@ -235,11 +212,6 @@ for (const path of pluginFiles) {
     path,
     /from\s+["']@dramaip\/plugin-api["']/u,
     "First-party implementations must import the explicit internal Plugin API",
-  );
-  await assertAbsent(
-    path,
-    /@deepseek-ai\/cordis/u,
-    "Cordis must not escape the Kernel boundary",
   );
   const source = await readFile(path, "utf8");
   const relativeParts = path.replace(root, "").split(/[\\/]/u).filter(Boolean);

@@ -88,7 +88,7 @@ export const PluginDescriptorSchema = z.object({
 
 export type PluginDescriptor = z.infer<typeof PluginDescriptorSchema>;
 
-export const RuntimeKindSchema = z.enum(["electron-node", "bun"]);
+export const RuntimeKindSchema = z.enum(["electron-node", "node", "bun"]);
 export type RuntimeKind = z.infer<typeof RuntimeKindSchema>;
 
 export const RuntimeModeSchema = z.enum(["desktop", "server", "headless"]);
@@ -203,6 +203,32 @@ export const AGENT_TASK_RUNNER_SERVICE =
     degradable: true,
   });
 export interface AgentTaskRunnerService {
+  configuration?(projectId: string): {
+    engineKind: AgentEngineKind;
+    model?: Record<string, unknown>;
+  };
+  prepareCreation?(input: {
+    projectId: string;
+    conversationId?: string;
+    chapterId?: string;
+    engineKind: AgentEngineKind;
+    model?: Record<string, unknown>;
+    prompt: string;
+    references: import("./agent-context.js").AgentContextReference[];
+  }): {
+    model: Record<string, unknown>;
+    snapshot: import("./agent-context.js").AgentContextSnapshot;
+  };
+  get?(id: string):
+    | {
+        status: string;
+        content?: string;
+        error?: string;
+        contextSnapshotId?: string;
+        sessionId: string;
+      }
+    | undefined;
+  cancel?(id: string): Promise<void>;
   start(input: {
     projectId: string;
     chapterId?: string;
@@ -212,6 +238,10 @@ export interface AgentTaskRunnerService {
     prompt: string;
     model?: Record<string, unknown>;
     selection?: unknown;
+    runId?: string;
+    managed?: boolean;
+    contextSnapshotId?: string;
+    deriveContext?: boolean;
   }): Promise<{
     taskId: string;
     sessionId: string;

@@ -36,7 +36,7 @@ test("审核交付页明确展示可选云审片的最小上传与安全连接�
   await page
     .getByRole("combobox", { name: "分集" })
     .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page.getByRole("button", { name: "审片", exact: true }).click();
+  await page.getByRole("button", { name: "预览与修订", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "可选云审片" })).toBeVisible();
   await expect(page.getByText(/仅上传下方明确选择的媒体/)).toBeVisible();

@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -228,7 +229,8 @@ const seriesLibrarySchema = z.object({
 export function seriesRoutes(
   context: PluginContext,
 ): readonly RouteContribution[] {
-  const workspace = context.services.optional<WorkspaceProjectService>(
+  const workspace = optionalService<WorkspaceProjectService>(
+    context,
     WORKSPACE_PROJECT_SERVICE,
   );
   if (!workspace) throw new Error("series requires workspace.projects.v1");

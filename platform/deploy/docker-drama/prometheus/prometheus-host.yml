@@ -26,10 +26,14 @@ scrape_configs:
     static_configs:
       - targets: ["host.docker.internal:15692"]
 
-  - job_name: jaeger
+  - job_name: alloy
     static_configs:
-      - targets: ["jaeger:8888"]
+      - targets: ["alloy:12345"]
 
-  - job_name: otel-collector
+  - job_name: loki
     static_configs:
-      - targets: ["otel-collector:8888"]
+      - targets: ["loki:3100"]
+
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:3200"]

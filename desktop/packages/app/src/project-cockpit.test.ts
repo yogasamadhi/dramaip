@@ -9,6 +9,7 @@ import { deriveProjectCockpit } from "./project-cockpit";
 const project = {
   id: "project-1",
   title: "驾驶舱项目",
+  mode: "single_season",
   shortDramaType: "悬疑",
 } as Project;
 const graph = (
@@ -37,6 +38,43 @@ const graph = (
     ...coverage,
   },
 });
+
+test("系列长篇默认继续母本，显式建立改编后才推进试制", () => {
+  const longform = { ...project, mode: "series_longform" } as Project;
+  const result = deriveProjectCockpit({
+    project: longform,
+    chapters: [chapter],
+    graph: { ...graph({}), projectId: longform.id },
+    tasks: [],
+  });
+  expect(result.primaryAction.label).toBe("继续 AI 创作");
+  expect(result.primaryAction.to).toBe(`/projects/${longform.id}`);
+});
+
+test("主动取消进入历史，局部采用静帧不会显示整体完成", () => {
+  const partial = deriveProjectCockpit({
+    project,
+    chapters: [chapter],
+    graph: graph(
+      {
+        episodes: 1,
+        scripts: 1,
+        scenes: 1,
+        shots: 12,
+        assets: 1,
+        stills: 12,
+        adoptedStills: 1,
+      },
+      ["adaptations", "episodes", "scripts", "scenes", "shots"],
+    ),
+    tasks: [
+      { projectId: project.id, status: "canceled", title: "主动取消" } as Task,
+    ],
+  });
+  expect(partial.status).toBe("needs-human");
+  expect(partial.primaryAction.label).toBe("继续确认静帧");
+  expect(partial.blockers[0]).toContain("1/12");
+});
 const chapter = { id: "chapter-1", projectId: project.id } as never;
 
 test("驾驶舱为每个真实阶段只派生一个不可跳过的主要下一步", () => {
@@ -46,7 +84,7 @@ test("驾驶舱为每个真实阶段只派生一个不可跳过的主要下一�
     graph: graph({}),
     tasks: [],
   });
-  expect(empty.primaryAction.label).toBe("导入已授权原著");
+  expect(empty.primaryAction.label).toBe("完善 AI 创作方案");
   expect(empty.status).toBe("needs-input");
 
   const needsAdaptation = deriveProjectCockpit({
@@ -55,7 +93,7 @@ test("驾驶舱为每个真实阶段只派生一个不可跳过的主要下一�
     graph: graph({}),
     tasks: [],
   });
-  expect(needsAdaptation.primaryAction.label).toBe("创建改编方案");
+  expect(needsAdaptation.primaryAction.label).toBe("AI 生成改编方案");
   expect(needsAdaptation.primaryAction.to).toContain("stage=adaptations");
 
   const needsStill = deriveProjectCockpit({

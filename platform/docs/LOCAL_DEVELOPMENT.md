@@ -11,19 +11,7 @@
 
 ## 启动
 
-Windows PowerShell：
-
-```powershell
-python .\run-platform.py
-```
-
-macOS：
-
-```bash
-python3 run-platform.py
-```
-
-仅在本机 JDK 中调试 Java 服务、并把 PostgreSQL/Redis/RabbitMQ/MinIO/Nacos MySQL/Nacos/Seata 留在 Docker 时，使用：
+在仓库根目录使用当前的 Bun 启动器。它只在本机 JDK 中运行 Java 服务，并把 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos MySQL、Nacos 和 Seata 留在 Docker：
 
 ```powershell
 bun run .\run-platform-dev.ts
@@ -42,7 +30,7 @@ make platform-e2e
 make platform-down
 ```
 
-CI 使用 Maven 阶段已经产出的可执行 JAR，并以随机宿主端口隔离并发任务：
+CI 使用 Maven 阶段已经产出的可执行 JAR，并以随机宿主端口隔离并发任务。该目标会同时启动完整观测栈，先执行业务 E2E，再执行 metrics/logs/traces 关联及敏感 canary 门禁：
 
 ```bash
 make platform-ci-e2e
@@ -72,10 +60,11 @@ docker compose -f deploy/docker-drama/docker-compose.yaml --profile java down
 Java profile 包含 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos MySQL、Nacos、Seata、migration Job、Gateway 和七个 Java 业务服务。Nacos 使用本机已有的 `mysql:8` 镜像，数据保存在 `deploy/docker-drama/docker-data/nacos-mysql`；首次启动会从同版本 Nacos 镜像导出的官方 schema 自动建表。默认数据库和账户为 `nacos_config` / `nacos` / `nacos`，可分别通过 `NACOS_MYSQL_DATABASE`、`NACOS_MYSQL_USER`、`NACOS_MYSQL_PASSWORD`、`NACOS_MYSQL_ROOT_PASSWORD` 覆盖；这些 MySQL 初始化变量只会在空数据目录的首次启动时生效。可观测性栈按需额外启动：
 
 ```bash
-docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile observability up -d
+./deploy/docker-drama/scripts/init-data-dirs.sh
+docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile observability up -d --remove-orphans
 ```
 
-推荐使用已封装的观测入口。它会在 Java 镜像中启用 OTel Java Agent（traces 走 OTLP HTTP，metrics 仍由 Micrometer/Prometheus 抓取，日志仍由 Filebeat 采集），并保留普通 `make platform-up` 不挂 Agent 的行为：
+推荐使用已封装的观测入口。它会在 Java 镜像中启用 OTel Java Agent：trace 通过 OTLP HTTP 发给 Alloy，metrics 仍由 Micrometer 暴露并由 Prometheus 拉取，结构化 stdout 由 Alloy 写入 Loki；普通 `make platform-up` 仍不挂 Agent：
 
 ```bash
 cd platform
@@ -92,7 +81,11 @@ bun run run-platform-dev.ts --obs --services creation,quota
 bun run run-platform-dev.ts --obs --services creation --no-gateway --smoke
 ```
 
-`--obs` 会先启动 Prometheus、Collector、Jaeger、Elasticsearch、Kibana、Filebeat 与 Grafana，再以 `127.0.0.1:4318` 作为 OTLP 地址运行 migration 和选中的 Java 进程。Prometheus 的 file-SD 文件仅列出实际启动的 `host.docker.internal:8080–8087`，所以子集调试不会产生伪 TargetDown。`--skip-package --obs` 要求 `server/target/observability/opentelemetry-javaagent.jar` 已由一次 Maven package 生成。Ctrl+C 仍只停止本机 Java；使用 `make platform-observability-down` 停止观测容器。
+`--obs` 会先启动 Prometheus、Alloy、Loki、Tempo 与 Grafana，再以 `127.0.0.1:4318` 作为 OTLP 地址运行 migration 和选中的 Java 进程。Alloy 额外读取 `server/target/local-dev/*.log` 的 NDJSON；Prometheus 的 file-SD 文件只列出实际启动的 `host.docker.internal:8080–8087`，所以子集调试不会产生伪 Java `TargetDown`。`--skip-package --obs` 要求 `server/target/observability/opentelemetry-javaagent.jar` 已由一次 Maven package 生成。Ctrl+C 仍只停止本机 Java；使用 `make platform-observability-down` 停止观测容器。
+
+本地 Compose 的 trace sampler 固定为 `always_on`。宿主机 `--obs` 默认同样使用 `always_on`，可为采样实验同时设置 `OTEL_TRACES_SAMPLER=traceidratio`（或 `parentbased_traceidratio`）和 `OTEL_TRACES_SAMPLER_ARG=0`–`1`；非 ratio sampler 不应设置参数。宿主机默认 resource 属性为 `deployment.environment.name=local`、`service.version=development`、`service.namespace=dramaip-platform`、`dramaip.release=host-local`，`service.name` 由各进程设置。resource/span 属性不得加入用户、正文、Prompt、凭据、业务主键或其他高基数值。
+
+这里的 Grafana `dramaip`/`dramaip` 仅是 loopback 本地 Compose 开发凭据，不是 Helm 内置栈或生产凭据。Helm 内置栈使用 Kubernetes Secret、ClusterIP 和可选 ingress-only NetworkPolicy；持久化 `hostPath` 还是需要固定节点的单节点开发存储。完整 sampler、资源预算、Secret、网络、敏感遥测、异步/Outbox/RabbitMQ Trace 和外部告警契约见[可观测性 runbook](./OBSERVABILITY.md)。
 
 ## 本地地址
 
@@ -106,10 +99,10 @@ bun run run-platform-dev.ts --obs --services creation --no-gateway --smoke
 | Nacos gRPC（本机 Java 开发） | `localhost:9848` |
 | RabbitMQ 管理台 | `http://localhost:15672` |
 | MinIO Console | `http://localhost:9001` |
-| Elasticsearch（启用 observability profile 后） | `http://localhost:9200` |
-| Kibana（启用 observability profile 后） | `http://localhost:5601` |
 | Prometheus（启用 observability profile 后） | `http://localhost:9090` |
-| Jaeger（启用 observability profile 后） | `http://localhost:16686` |
+| Alloy（启用 observability profile 后） | `http://localhost:12345`；OTLP `4317/4318` |
+| Loki（启用 observability profile 后） | `http://localhost:3100` |
+| Tempo（启用 observability profile 后） | `http://localhost:3200` |
 | Grafana（启用 observability profile 后） | `http://localhost:3000`（`dramaip` / `dramaip`） |
 
 ## 验证
@@ -124,11 +117,11 @@ node scripts/java-platform-e2e.mjs
 
 `java-platform-e2e.mjs` 经 Gateway 执行完整阻塞旅程：健康和契约拒绝、注册、套餐与模拟支付、订阅与额度、草稿创建/查询/删除，以及刷新令牌轮换、重放拒绝和吊销。脚本不连接真实 AI 供应商；所有业务响应同时校验 `Result<T>`、`requestId` 和 `traceId`。
 
-观测 smoke 会向公开登录端点发送固定 `traceparent` 和无效 JSON，不会创建用户或订单；它验证 Gateway→identity trace、响应/REST trace ID、Prometheus Java target 以及 Elasticsearch 的结构化访问日志一致。告警、指标契约和排障应通过 Prometheus、Grafana、Jaeger 与 Elasticsearch 的本地界面，以及[本地观测 runbook](./OBSERVABILITY.md)核验。
+观测 smoke 会向公开登录端点发送固定 `traceparent` 和无效 JSON，不会创建用户或订单；它验证 Gateway→identity trace 可由 Tempo 查询、响应/REST trace ID 一致、Prometheus Java target 健康，以及同一 `trace_id`/`request_id` 的 structured metadata 可由 Loki 查询且未成为索引标签。`make platform-observability-smoke` 还会短暂启动仅属于 `observability-test` profile 的日志 canary：干净 witness 必须进入 Loki，而分别只包含合成 Authorization、Cookie、password、secret、API/private key、credential、token、Prompt、请求正文或用户标识的记录必须被 Alloy 整条拒绝。测试还会直接向 Alloy 发送一条携带这些敏感属性的 OTLP Trace，确认 collector 过滤器本身生效，而不是仅依赖应用自动埋点不采集。canary 不是实际凭据，测试不会输出它的值。告警、指标契约和排障入口见[可观测性 runbook](./OBSERVABILITY.md)。
 
 ## 常见问题
 
-- 端口被占用：检查 `5432`、`5672`、`6379`、`8080`、`8848`、`8091`、`9000`、`9001`、`15672`。Windows 可使用 `netstat -ano -p TCP`，macOS 可使用 `lsof -nP -iTCP -sTCP:LISTEN`。
+- 端口被占用：除业务端口外，观测模式还需检查 `3000`、`3100`、`3200`、`4317`、`4318`、`9090`、`12345`。Windows 可使用 `netstat -ano -p TCP`，macOS 可使用 `lsof -nP -iTCP -sTCP:LISTEN`。
 - Docker daemon 不可用：先启动 Docker Desktop，再执行启动器。
 - Gateway 未就绪：执行 `docker compose -f deploy/docker-drama/docker-compose.yaml --profile java logs java-gateway identity java-migration`。
 - 首次构建较慢：Docker 需要下载与当前 CPU 架构匹配的基础镜像；后续构建会复用本机缓存。

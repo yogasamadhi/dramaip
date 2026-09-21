@@ -63,6 +63,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   "agents.provider-deleted.v1": {
     owner: "agents",
   },
+  "agents.run-canceled.v1": {
+    owner: "agents",
+  },
   "agents.run-completed.v1": {
     owner: "agents",
   },
@@ -99,6 +102,15 @@ export const DOMAIN_EVENT_MANIFEST = {
   "automation.change-preview-created.v1": {
     owner: "automation",
   },
+  "automation.change-preview-rebased.v1": {
+    owner: "automation",
+  },
+  "automation.creation-created.v1": {
+    owner: "automation",
+  },
+  "automation.creation-updated.v1": {
+    owner: "automation",
+  },
   "automation.provider-action-preview-created.v1": {
     owner: "automation",
   },
@@ -111,8 +123,14 @@ export const DOMAIN_EVENT_MANIFEST = {
   "automation.task-created.v1": {
     owner: "automation",
   },
+  "automation.task-updated.v1": {
+    owner: "automation",
+  },
   "automation.template-run-created.v1": {
     owner: "automation",
+  },
+  "delivery.creation-adopted.v1": {
+    owner: "delivery",
   },
   "insights.feedback-clustered.v1": {
     owner: "insights",
@@ -125,6 +143,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   },
   "insights.generation-updated.v1": {
     owner: "insights",
+  },
+  "knowledge.creation-adopted.v1": {
+    owner: "knowledge",
   },
   "knowledge.story-bible-settings-updated.v1": {
     owner: "knowledge",
@@ -164,6 +185,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   },
   "media.voice-profile-created.v1": {
     owner: "media",
+  },
+  "production.creation-adopted.v1": {
+    owner: "production",
   },
   "production.screenplay-imported.v1": {
     owner: "production",
@@ -207,7 +231,13 @@ export const DOMAIN_EVENT_MANIFEST = {
   "workspace.project-package-previewed.v1": {
     owner: "workspace",
   },
+  "writing.chapter-updated.v1": {
+    owner: "writing",
+  },
   "writing.chapters-reordered.v1": {
+    owner: "writing",
+  },
+  "writing.creation-adopted.v1": {
     owner: "writing",
   },
   "writing.volume-created.v1": {

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -38,7 +39,7 @@ test("静帧 Gate 未通过时桌面端不会发出视频提交", async () => {
   await page
     .getByRole("combobox", { name: "分镜" })
     .selectOption({ label: "镜头 1：门缝中的雨夜" });
-  await page.getByRole("button", { name: "视频制作" }).click();
+  await openProductionStage(page, "视频制作");
   await expect(
     page.getByRole("heading", { name: "视频生成与候选采用" }),
   ).toBeVisible();

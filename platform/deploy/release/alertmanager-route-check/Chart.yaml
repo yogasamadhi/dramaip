@@ -1,0 +1,5 @@
+apiVersion: v2
+name: dramaip-alertmanager-route-check
+description: Read-only structural validation for the DramaIP Alertmanager route contract
+type: application
+version: 0.1.0

@@ -2,9 +2,9 @@
 
 > 文档类型：Normative Level Profile
 >
-> 架构版本：2.0
+> 架构版本：2.1
 >
-> 更新时间：2026-08-23
+> 更新时间：2026-09-10
 >
 > 适用对象：目标单一、边界清晰、小团队维护的桌面产品
 >
@@ -32,6 +32,8 @@ Core Runtime
 ```
 
 Level 1 不是“把所有代码放进 Electron”，也不是简化掉独立 Runtime。它只是不引入 Plugin Kernel、Bundle、Profile、动态 Graph 和第三方扩展。
+
+本文是通用小型产品选择，不描述当前 DramaIP 的插件实现。DramaIP 已采用 Level 2 第一方 Cordis 架构并启用 Level 3 Extension Platform；其 DSH Loader、配置 patch 和开发 HMR 不应反向成为 Level 1 的必需依赖。
 
 ---
 
@@ -143,6 +145,8 @@ acquire / release
 
 测试 teardown 后长期资源数量必须归零。
 
+有顺序依赖的资源必须明确等待释放完成；互不依赖的资源可以并发回收。开发时可通过 supervisor 重启整个 Runtime，无需为模块引入 Cordis Fiber 或插件 HMR。
+
 ---
 
 # 6. 数据、任务与事件
@@ -243,6 +247,8 @@ UI Contributions
 ```
 
 不改变共享基线中的进程和 HTTP 边界。
+
+如采用 DramaIP 的 Level 2 实施方案，第一方插件直接使用原生 Cordis `Context / Service / inject / effect / Fiber`，由 Loader 装载；服务契约和 Client API 保持框架中立。具体来源和工具链见 [DramaIP 产品规范](./DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)。
 
 ---
 

@@ -1,0 +1,787 @@
+{{- if and .Values.observability.embedded.enabled (not .Values.observability.enabled) -}}
+{{- fail "observability.embedded.enabled=true requires observability.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.observability.embedded.enabled (not .Values.devInfra.enabled) -}}
+{{- fail "observability.embedded.enabled=true requires devInfra.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.observability.enabled (not .Values.observability.embedded.enabled) (not .Values.observability.otlp.endpoint) -}}
+{{- fail "observability.otlp.endpoint is required when external observability is enabled" -}}
+{{- end -}}
+{{- if and .Values.observability.otlp.headersSecretName (not .Values.observability.otlp.headersSecretKey) -}}
+{{- fail "observability.otlp.headersSecretKey is required when headersSecretName is set" -}}
+{{- end -}}
+{{- if and .Values.observability.embedded.enabled .Values.observability.otlp.headersSecretName -}}
+{{- fail "observability.otlp.headersSecretName is only valid with external observability" -}}
+{{- end -}}
+{{- if and .Values.observability.embedded.enabled (eq .Values.observability.embedded.grafana.adminUserKey .Values.observability.embedded.grafana.adminPasswordKey) -}}
+{{- fail "observability.embedded.grafana admin user and password keys must differ" -}}
+{{- end -}}
+{{- if .Values.observability.embedded.enabled -}}
+{{- $fullname := include "dramaip-platform.fullname" . -}}
+{{- $persistent := .Values.devInfra.persistence.enabled -}}
+{{- $hostPathBase := .Values.devInfra.persistence.hostPathBase -}}
+{{- $grafanaAdminSecret := default (printf "%s-grafana-admin" $fullname) .Values.observability.embedded.grafana.existingAdminSecret -}}
+{{- $configChecksum := printf "%s:%s:%s" .Chart.Version (toJson .Values.observability) (toJson .Values.devInfra.persistence) | sha256sum -}}
+{{- $alertsChecksum := .Files.Get "files/prometheus/alerts.yml" | sha256sum -}}
+{{- $dashboardChecksum := .Files.Get "files/grafana/platform-reliability.json" | sha256sum -}}
+{{- if not .Values.observability.embedded.grafana.existingAdminSecret }}
+{{- $grafanaPassword := randAlphaNum 32 -}}
+{{- with (lookup "v1" "Secret" .Release.Namespace $grafanaAdminSecret) }}
+{{- if and .data (hasKey .data $.Values.observability.embedded.grafana.adminPasswordKey) }}
+{{- $grafanaPassword = (index .data $.Values.observability.embedded.grafana.adminPasswordKey | b64dec) -}}
+{{- end }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $grafanaAdminSecret }}
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-grafana
+type: Opaque
+stringData:
+  {{ .Values.observability.embedded.grafana.adminUserKey | quote }}: admin
+  {{ .Values.observability.embedded.grafana.adminPasswordKey | quote }}: {{ $grafanaPassword | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-alloy
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-alloy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-alloy
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-alloy
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-alloy
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-alloy
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}-alloy
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-alloy
+---
+{{- if .Values.observability.embedded.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-observability
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - observability-prometheus
+          - observability-alloy
+          - observability-loki
+          - observability-tempo
+          - observability-grafana
+  policyTypes: [Ingress]
+  ingress:
+    # Embedded endpoints are reachable only from Pods in this namespace that
+    # belong to the same Helm release. kubectl port-forward remains the
+    # operator access path documented in NOTES.txt.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+---
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-observability
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    rule_files:
+      - /etc/prometheus/rules/alerts.yml
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+      - job_name: java-gateway
+        metrics_path: /actuator/prometheus
+        static_configs:
+          - targets: ["{{ $fullname }}-java-gateway:8080"]
+      - job_name: java-services
+        metrics_path: /actuator/prometheus
+        static_configs:
+          - targets:
+              - "{{ $fullname }}-java-identity:8080"
+              - "{{ $fullname }}-java-notification:8080"
+              - "{{ $fullname }}-java-reporting:8080"
+              - "{{ $fullname }}-java-creation:8080"
+              - "{{ $fullname }}-java-quota:8080"
+              - "{{ $fullname }}-java-ai:8080"
+              - "{{ $fullname }}-java-billing:8080"
+      - job_name: rabbitmq
+        static_configs:
+          - targets: ["rabbitmq:15692"]
+      - job_name: alloy
+        static_configs:
+          - targets: ["{{ $fullname }}-alloy:12345"]
+      - job_name: loki
+        static_configs:
+          - targets: ["{{ $fullname }}-loki:3100"]
+      - job_name: tempo
+        static_configs:
+          - targets: ["{{ $fullname }}-tempo:3200"]
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    otelcol.receiver.otlp "applications" {
+      grpc { endpoint = "0.0.0.0:4317" }
+      http { endpoint = "0.0.0.0:4318" }
+      output { traces = [otelcol.processor.transform.sanitize_traces.input] }
+    }
+
+    // Defense in depth: application instrumentation must not export secrets or
+    // user content, and Alloy removes known sensitive attributes before Tempo.
+    otelcol.processor.transform "sanitize_traces" {
+      error_mode = "propagate"
+      trace_statements {
+        context = "resource"
+        statements = [
+          `delete_matching_keys(attributes, "(?i).*(authorization|cookie|prompt|password|passwd|secret|api[._-]?key|apikey|credential|private[._-]?key|token|request[._-]?body|response[._-]?body|user[._-]?id|userid|enduser[._-]?id|actor[._-]?id|owner[._-]?id).*")`,
+        ]
+      }
+      trace_statements {
+        context = "span"
+        statements = [
+          `delete_key(attributes, "url.full")`,
+          `delete_key(attributes, "url.query")`,
+          `delete_key(attributes, "url.path")`,
+          `delete_key(attributes, "http.url")`,
+          `delete_key(attributes, "http.target")`,
+          `delete_key(attributes, "http.request.uri")`,
+          `delete_key(attributes, "client.address")`,
+          `delete_key(attributes, "network.peer.address")`,
+          `delete_key(attributes, "http.client_ip")`,
+          `delete_key(attributes, "user_agent.original")`,
+          `delete_key(attributes, "http.user_agent")`,
+          `delete_key(attributes, "error.message")`,
+          `delete_matching_keys(attributes, "(?i).*(authorization|cookie|prompt|password|passwd|secret|api[._-]?key|apikey|credential|private[._-]?key|token|request[._-]?body|response[._-]?body|user[._-]?id|userid|enduser[._-]?id|actor[._-]?id|owner[._-]?id).*")`,
+          `set(name, attributes["http.route"]) where attributes["http.route"] != nil`,
+          `set(status.message, "")`,
+        ]
+      }
+      trace_statements {
+        context = "spanevent"
+        statements = [
+          `delete_key(attributes, "exception.message")`,
+          `delete_key(attributes, "exception.stacktrace")`,
+          `delete_matching_keys(attributes, "(?i).*(authorization|cookie|prompt|password|passwd|secret|api[._-]?key|apikey|credential|private[._-]?key|token|request[._-]?body|response[._-]?body|user[._-]?id|userid|enduser[._-]?id|actor[._-]?id|owner[._-]?id).*")`,
+        ]
+      }
+      output { traces = [otelcol.processor.memory_limiter.traces.input] }
+    }
+
+    otelcol.processor.memory_limiter "traces" {
+      check_interval = "1s"
+      limit          = "192MiB"
+      spike_limit    = "64MiB"
+      output { traces = [otelcol.processor.batch.traces.input] }
+    }
+
+    otelcol.processor.batch "traces" {
+      timeout         = "5s"
+      send_batch_size = 1024
+      output { traces = [otelcol.exporter.otlp.tempo.input] }
+    }
+
+    otelcol.exporter.otlp "tempo" {
+      client {
+        endpoint = "{{ $fullname }}-tempo:4317"
+        tls { insecure = true }
+      }
+    }
+
+    discovery.kubernetes "release_pods" {
+      role = "pod"
+      namespaces { names = [sys.env("POD_NAMESPACE")] }
+      selectors {
+        role  = "pod"
+        label = "app.kubernetes.io/instance={{ .Release.Name }}"
+      }
+    }
+
+    discovery.relabel "release_pods" {
+      targets = discovery.kubernetes.release_pods.targets
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+        target_label  = "service_name"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+    }
+
+    loki.source.kubernetes "release_pods" {
+      targets    = discovery.relabel.release_pods.output
+      forward_to = [loki.process.dramaip.receiver]
+    }
+
+    loki.process "dramaip" {
+      // Drop the complete record rather than attempt partial redaction. This
+      // also covers non-JSON infrastructure logs and accidental Bearer tokens.
+      stage.drop {
+        expression          = "(?i)(\\\"(?:[^\\\"\\r\\n]*[-_.])?(?:authorization(?:[-_.]?header)?|cookie|set[-_.]?cookie|prompt|password|passwd|secret|secret[-_.]?key|secretaccesskey|api[-_.]?key|apikey|credentials?|private[-_.]?key|privatekey|clientsecret|access[-_.]?key|accesskey|request[-_.]?body|response[-_.]?body|user[-_.]?id|userid|enduser[-_.]?id|actor[-_.]?id|owner[-_.]?id|principal[-_.]?id|account[-_.]?id|token|pin)\\\"\\s*:|(?:^|[\\s,;])(?:[a-z0-9._-]*[-_.])?(?:authorization(?:[-_.]?header)?|cookie|set[-_.]?cookie|prompt|password|passwd|secret|secret[-_.]?key|secretaccesskey|api[-_.]?key|apikey|credentials?|private[-_.]?key|privatekey|clientsecret|access[-_.]?key|accesskey|request[-_.]?body|response[-_.]?body|user[-_.]?id|userid|enduser[-_.]?id|actor[-_.]?id|owner[-_.]?id|principal[-_.]?id|account[-_.]?id|token|pin)\\s*[=:]|bearer\\s+[a-z0-9._~+/=-]+)"
+        drop_counter_reason = "sensitive_content"
+      }
+      stage.json {
+        expressions = {
+          java_service = "service",
+          operation    = "operation",
+          request_id   = "request_id",
+          span_id      = "span_id",
+          trace_id     = "trace_id",
+        }
+      }
+      stage.labels { values = { service_name = "java_service" } }
+      stage.structured_metadata {
+        values = {
+          operation  = "operation",
+          request_id = "request_id",
+          span_id    = "span_id",
+          trace_id   = "trace_id",
+        }
+      }
+      forward_to = [loki.write.embedded.receiver]
+    }
+
+    loki.write "embedded" {
+      endpoint { url = "http://{{ $fullname }}-loki:3100/loki/api/v1/push" }
+    }
+  loki.yml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+    common:
+      path_prefix: /var/lib/loki
+      replication_factor: 1
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore: { store: inmemory }
+      storage:
+        filesystem:
+          chunks_directory: /var/lib/loki/chunks
+          rules_directory: /var/lib/loki/rules
+    ingester:
+      wal:
+        # Embedded environments have bounded volumes; retain WAL protection
+        # without inheriting the overly conservative 90% node-volume cutoff.
+        disk_full_threshold: 0.98
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index: { prefix: index_, period: 24h }
+    limits_config:
+      allow_structured_metadata: true
+      retention_period: {{ .Values.observability.embedded.retention }}
+    compactor:
+      working_directory: /var/lib/loki/compactor
+      compaction_interval: 10m
+      retention_enabled: true
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 20
+      delete_request_store: filesystem
+    analytics: { reporting_enabled: false }
+  tempo.yml: |
+    stream_over_http_enabled: true
+    server:
+      http_listen_port: 3200
+      log_level: info
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc: { endpoint: 0.0.0.0:4317 }
+            http: { endpoint: 0.0.0.0:4318 }
+    backend_scheduler:
+      provider:
+        compaction:
+          compaction:
+            block_retention: {{ .Values.observability.embedded.retention }}
+    backend_worker:
+      compaction:
+        block_retention: {{ .Values.observability.embedded.retention }}
+    storage:
+      trace:
+        backend: local
+        wal: { path: /var/lib/tempo/wal }
+        local: { path: /var/lib/tempo/blocks }
+    usage_report: { reporting_enabled: false }
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: DramaIP Prometheus
+        uid: dramaip-prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ $fullname }}-prometheus:9090
+        isDefault: true
+      - name: DramaIP Loki
+        uid: dramaip-loki
+        type: loki
+        access: proxy
+        url: http://{{ $fullname }}-loki:3100
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"trace_id"\s*:\s*"([0-9a-fA-F]{32})"'
+              datasourceUid: dramaip-tempo
+              url: '${__value.raw}'
+              urlDisplayLabel: View trace
+      - name: DramaIP Tempo
+        uid: dramaip-tempo
+        type: tempo
+        access: proxy
+        url: http://{{ $fullname }}-tempo:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: dramaip-loki
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            tags:
+              - { key: service.name, value: service_name }
+            filterByTraceID: true
+            filterBySpanID: false
+          tracesToMetrics:
+            datasourceUid: dramaip-prometheus
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            tags:
+              - { key: service.name, value: service }
+            queries:
+              - name: Request rate
+                query: 'sum(rate(dramaip_requests_total{$__tags}[5m]))'
+              - name: Error rate
+                query: 'sum(rate(dramaip_requests_total{$__tags,outcome="error"}[5m]))'
+  dashboard-provider.yml: |
+    apiVersion: 1
+    providers:
+      - name: DramaIP
+        orgId: 1
+        folder: DramaIP
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-prometheus-alerts
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-prometheus
+data:
+  alerts.yml: |
+{{ .Files.Get "files/prometheus/alerts.yml" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-grafana
+data:
+  platform-reliability.json: |
+{{ .Files.Get "files/grafana/platform-reliability.json" | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-prometheus
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-prometheus
+spec:
+  type: ClusterIP
+  ports: [{ name: http, port: 9090, targetPort: http }]
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: observability-prometheus
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-prometheus
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-prometheus
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: observability-prometheus }
+  template:
+    metadata:
+      annotations:
+        checksum/observability-config: {{ $configChecksum }}
+        checksum/prometheus-alerts: {{ $alertsChecksum }}
+      labels:
+        app.kubernetes.io/name: {{ include "dramaip-platform.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: observability-prometheus
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.observability.embedded.terminationGracePeriodSeconds }}
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch }
+      {{- include "dramaip-platform.observabilityDataPermissions" . | nindent 6 }}
+      {{- include "dramaip-platform.observabilityScheduling" . | nindent 6 }}
+      containers:
+        - name: prometheus
+          image: {{ .Values.observability.embedded.images.prometheus | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=15d"]
+          ports: [{ name: http, containerPort: 9090 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          startupProbe: { httpGet: { path: /-/ready, port: http }, periodSeconds: 2, failureThreshold: 30 }
+          readinessProbe: { httpGet: { path: /-/ready, port: http }, periodSeconds: 10, failureThreshold: 3 }
+          livenessProbe: { httpGet: { path: /-/healthy, port: http }, periodSeconds: 20, failureThreshold: 3 }
+          resources:
+            {{- toYaml .Values.observability.embedded.resources.prometheus | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus/prometheus.yml, subPath: prometheus.yml, readOnly: true }
+            - { name: alerts, mountPath: /etc/prometheus/rules, readOnly: true }
+            - { name: data, mountPath: /prometheus }
+      volumes:
+        - { name: config, configMap: { name: {{ $fullname }}-observability } }
+        - { name: alerts, configMap: { name: {{ $fullname }}-prometheus-alerts } }
+        - name: data
+          {{- if $persistent }}
+          hostPath: { path: {{ printf "%s/observability/prometheus" $hostPathBase | quote }}, type: DirectoryOrCreate }
+          {{- else }}
+          emptyDir: { sizeLimit: {{ .Values.observability.embedded.storage.prometheus | quote }} }
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-alloy
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-alloy
+spec:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 12345, targetPort: http }
+    - { name: otlp-grpc, port: 4317, targetPort: otlp-grpc }
+    - { name: otlp-http, port: 4318, targetPort: otlp-http }
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: observability-alloy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-alloy
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-alloy
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: observability-alloy }
+  template:
+    metadata:
+      annotations:
+        checksum/observability-config: {{ $configChecksum }}
+      labels:
+        app.kubernetes.io/name: {{ include "dramaip-platform.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: observability-alloy
+    spec:
+      serviceAccountName: {{ $fullname }}-alloy
+      terminationGracePeriodSeconds: {{ .Values.observability.embedded.terminationGracePeriodSeconds }}
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch }
+      {{- include "dramaip-platform.observabilityDataPermissions" . | nindent 6 }}
+      {{- include "dramaip-platform.observabilityScheduling" . | nindent 6 }}
+      containers:
+        - name: alloy
+          image: {{ .Values.observability.embedded.images.alloy | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+          env:
+            - name: POD_NAMESPACE
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+          ports:
+            - { name: http, containerPort: 12345 }
+            - { name: otlp-grpc, containerPort: 4317 }
+            - { name: otlp-http, containerPort: 4318 }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          startupProbe: { httpGet: { path: /-/ready, port: http }, periodSeconds: 2, failureThreshold: 30 }
+          readinessProbe: { httpGet: { path: /-/ready, port: http }, periodSeconds: 10, failureThreshold: 3 }
+          livenessProbe: { httpGet: { path: /-/ready, port: http }, periodSeconds: 20, failureThreshold: 3 }
+          resources:
+            {{- toYaml .Values.observability.embedded.resources.alloy | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/alloy/config.alloy, subPath: config.alloy, readOnly: true }
+            - { name: data, mountPath: /var/lib/alloy/data }
+      volumes:
+        - { name: config, configMap: { name: {{ $fullname }}-observability } }
+        - name: data
+          {{- if $persistent }}
+          hostPath: { path: {{ printf "%s/observability/alloy" $hostPathBase | quote }}, type: DirectoryOrCreate }
+          {{- else }}
+          emptyDir: { sizeLimit: {{ .Values.observability.embedded.storage.alloy | quote }} }
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-loki
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-loki
+spec:
+  type: ClusterIP
+  ports: [{ name: http, port: 3100, targetPort: http }]
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: observability-loki
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-loki
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-loki
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: observability-loki }
+  template:
+    metadata:
+      annotations:
+        checksum/observability-config: {{ $configChecksum }}
+      labels:
+        app.kubernetes.io/name: {{ include "dramaip-platform.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: observability-loki
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.observability.embedded.terminationGracePeriodSeconds }}
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch }
+      {{- include "dramaip-platform.observabilityDataPermissions" . | nindent 6 }}
+      {{- include "dramaip-platform.observabilityScheduling" . | nindent 6 }}
+      containers:
+        - name: loki
+          image: {{ .Values.observability.embedded.images.loki | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-config.file=/etc/loki/config.yaml"]
+          ports: [{ name: http, containerPort: 3100 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          startupProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 2, failureThreshold: 45 }
+          readinessProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 10, failureThreshold: 3 }
+          livenessProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 20, failureThreshold: 3 }
+          resources:
+            {{- toYaml .Values.observability.embedded.resources.loki | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/loki/config.yaml, subPath: loki.yml, readOnly: true }
+            - { name: data, mountPath: /var/lib/loki }
+      volumes:
+        - { name: config, configMap: { name: {{ $fullname }}-observability } }
+        - name: data
+          {{- if $persistent }}
+          hostPath: { path: {{ printf "%s/observability/loki" $hostPathBase | quote }}, type: DirectoryOrCreate }
+          {{- else }}
+          emptyDir: { sizeLimit: {{ .Values.observability.embedded.storage.loki | quote }} }
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-tempo
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-tempo
+spec:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 3200, targetPort: http }
+    - { name: otlp-grpc, port: 4317, targetPort: otlp-grpc }
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: observability-tempo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-tempo
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-tempo
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: observability-tempo }
+  template:
+    metadata:
+      annotations:
+        checksum/observability-config: {{ $configChecksum }}
+      labels:
+        app.kubernetes.io/name: {{ include "dramaip-platform.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: observability-tempo
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.observability.embedded.terminationGracePeriodSeconds }}
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch }
+      {{- include "dramaip-platform.observabilityDataPermissions" . | nindent 6 }}
+      {{- include "dramaip-platform.observabilityScheduling" . | nindent 6 }}
+      containers:
+        - name: tempo
+          image: {{ .Values.observability.embedded.images.tempo | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-target=all", "-config.file=/etc/tempo/config.yaml"]
+          ports:
+            - { name: http, containerPort: 3200 }
+            - { name: otlp-grpc, containerPort: 4317 }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          startupProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 2, failureThreshold: 45 }
+          readinessProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 10, failureThreshold: 3 }
+          livenessProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 20, failureThreshold: 3 }
+          resources:
+            {{- toYaml .Values.observability.embedded.resources.tempo | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/tempo/config.yaml, subPath: tempo.yml, readOnly: true }
+            - { name: data, mountPath: /var/lib/tempo }
+            - { name: data, mountPath: /var/tempo }
+      volumes:
+        - { name: config, configMap: { name: {{ $fullname }}-observability } }
+        - name: data
+          {{- if $persistent }}
+          hostPath: { path: {{ printf "%s/observability/tempo" $hostPathBase | quote }}, type: DirectoryOrCreate }
+          {{- else }}
+          emptyDir: { sizeLimit: {{ .Values.observability.embedded.storage.tempo | quote }} }
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-grafana
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-grafana
+spec:
+  type: ClusterIP
+  ports: [{ name: http, port: 3000, targetPort: http }]
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: observability-grafana
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-grafana
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability-grafana
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: observability-grafana }
+  template:
+    metadata:
+      annotations:
+        checksum/observability-config: {{ $configChecksum }}
+        checksum/grafana-dashboard: {{ $dashboardChecksum }}
+      labels:
+        app.kubernetes.io/name: {{ include "dramaip-platform.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: observability-grafana
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.observability.embedded.terminationGracePeriodSeconds }}
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch }
+      {{- include "dramaip-platform.observabilityDataPermissions" . | nindent 6 }}
+      {{- include "dramaip-platform.observabilityScheduling" . | nindent 6 }}
+      containers:
+        - name: grafana
+          image: {{ .Values.observability.embedded.images.grafana | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "false" }
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $grafanaAdminSecret | quote }}
+                  key: {{ .Values.observability.embedded.grafana.adminUserKey | quote }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $grafanaAdminSecret | quote }}
+                  key: {{ .Values.observability.embedded.grafana.adminPasswordKey | quote }}
+          ports: [{ name: http, containerPort: 3000 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          startupProbe: { httpGet: { path: /api/health, port: http }, periodSeconds: 2, failureThreshold: 45 }
+          readinessProbe: { httpGet: { path: /api/health, port: http }, periodSeconds: 10, failureThreshold: 3 }
+          livenessProbe: { httpGet: { path: /api/health, port: http }, periodSeconds: 20, failureThreshold: 3 }
+          resources:
+            {{- toYaml .Values.observability.embedded.resources.grafana | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/grafana/provisioning/datasources/dramaip.yml, subPath: datasources.yml, readOnly: true }
+            - { name: config, mountPath: /etc/grafana/provisioning/dashboards/dramaip.yml, subPath: dashboard-provider.yml, readOnly: true }
+            - { name: dashboard, mountPath: /var/lib/grafana/dashboards, readOnly: true }
+            - { name: data, mountPath: /var/lib/grafana }
+      volumes:
+        - { name: config, configMap: { name: {{ $fullname }}-observability } }
+        - { name: dashboard, configMap: { name: {{ $fullname }}-grafana-dashboard } }
+        - name: data
+          {{- if $persistent }}
+          hostPath: { path: {{ printf "%s/observability/grafana" $hostPathBase | quote }}, type: DirectoryOrCreate }
+          {{- else }}
+          emptyDir: { sizeLimit: {{ .Values.observability.embedded.storage.grafana | quote }} }
+          {{- end }}
+{{- end }}

@@ -10,11 +10,21 @@ export const TaskStatusSchema = z.enum([
   "canceled",
   "interrupted",
 ]);
+export const TaskAttentionStatusSchema = z.enum(["open", "acknowledged"]);
+export const TaskResultStatusSchema = z.enum([
+  "none",
+  "pending",
+  "applied",
+  "discarded",
+  "conflicted",
+]);
 
 export const TaskSchema = z.object({
   id: z.string().uuid(),
   kind: z.string(),
   status: TaskStatusSchema,
+  attentionStatus: TaskAttentionStatusSchema,
+  resultStatus: TaskResultStatusSchema,
   title: z.string(),
   progress: z.number().nonnegative(),
   projectId: z.string().uuid().optional(),
@@ -26,6 +36,26 @@ export const TaskSchema = z.object({
   error: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+});
+
+export const TaskWorklistCategorySchema = z.enum([
+  "pending-result",
+  "running",
+  "attention",
+  "history",
+]);
+export const TaskWorklistResponseSchema = z.object({
+  items: z.array(TaskSchema),
+  counts: z.object({
+    pendingResult: z.number().int().nonnegative(),
+    running: z.number().int().nonnegative(),
+    attention: z.number().int().nonnegative(),
+    history: z.number().int().nonnegative(),
+  }),
+  nextCursor: z.string().optional(),
+});
+export const TaskAttentionInputSchema = z.object({
+  status: TaskAttentionStatusSchema,
 });
 
 export const TaskInputSchema = z.object({
@@ -57,6 +87,8 @@ export const RevisionInputSchema = z.object({
 });
 
 export type Task = z.infer<typeof TaskSchema>;
+export type TaskWorklistCategory = z.infer<typeof TaskWorklistCategorySchema>;
+export type TaskWorklistResponse = z.infer<typeof TaskWorklistResponseSchema>;
 export type TaskInput = z.infer<typeof TaskInputSchema>;
 export type RevisionPreview = z.infer<typeof RevisionPreviewSchema>;
 
@@ -73,6 +105,7 @@ export interface AutomationTaskService {
     kind: string;
     title: string;
     projectId?: string;
+    parentTaskId?: string;
     result?: unknown;
   }): Task;
   update(
@@ -80,6 +113,7 @@ export interface AutomationTaskService {
     patch: {
       status?: z.infer<typeof TaskStatusSchema>;
       progress?: number;
+      attentionStatus?: z.infer<typeof TaskAttentionStatusSchema>;
       result?: unknown;
       error?: string;
     },
@@ -120,6 +154,7 @@ export interface AutomationResourceService {
 }
 
 export const ChangeTargetKindSchema = z.enum([
+  "creation",
   "project",
   "chapter",
   "character",
@@ -153,6 +188,27 @@ export const ChangePreviewSchema = z.object({
   committedAt: z.string().datetime().optional(),
 });
 export const ChangePreviewContentInputSchema = z.object({
+  content: z.string().min(1),
+});
+export const ChapterPreviewMergeSchema = z.object({
+  previewId: z.string().uuid(),
+  chapterId: z.string().uuid(),
+  currentVersion: z.number().int().nonnegative(),
+  segments: z.array(
+    z.object({
+      id: z.string(),
+      base: z.string(),
+      current: z.string(),
+      candidate: z.string(),
+      conflict: z.boolean(),
+      content: z.string(),
+    }),
+  ),
+});
+export type ChapterPreviewMerge = z.infer<typeof ChapterPreviewMergeSchema>;
+
+export const ChangePreviewRebaseInputSchema = z.object({
+  baseVersion: z.number().int().nonnegative(),
   content: z.string().min(1),
 });
 export type ChangePreview = z.infer<typeof ChangePreviewSchema>;

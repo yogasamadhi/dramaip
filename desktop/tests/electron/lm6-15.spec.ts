@@ -3,7 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
-import { openProjectTool, openStoryBible } from "./project-tools";
+import {
+  openProductionStage,
+  openProjectTool,
+  openStoryBible,
+} from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -47,7 +51,7 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   await sources.nth(2).check();
   await pilot.getByRole("combobox", { name: "试制集数" }).selectOption("3");
   await pilot.getByRole("button", { name: "建立试制计划" }).click();
-  await pilot.getByRole("button", { name: "确认来源并创建试制分集" }).click();
+  await pilot.getByRole("button", { name: "确认来源并生成首集" }).click();
   await expect(pilot).toContainText("3 集试制");
   await expect(pilot.getByRole("link", { name: "前往唯一待办" })).toBeVisible();
 
@@ -56,15 +60,15 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   const sidecar = page.getByLabel("Story Bible 侧栏");
   await sidecar.getByLabel("搜索 Story Bible").fill("林晚");
   await expect(sidecar).toContainText("林晚");
-  const auxiliary = page.getByLabel("章节辅助栏");
+  const auxiliary = page.getByLabel("章节辅助栏", { exact: true });
   await auxiliary.getByRole("button", { name: "折叠" }).focus();
   await page.keyboard.press("Enter");
-  await expect(
-    auxiliary.getByRole("button", { name: "故事圣经" }),
-  ).toBeVisible();
+  await expect(sidecar).toBeHidden();
   await expect(
     page.getByRole("button", { name: "保存", exact: true }),
   ).toBeVisible();
+  await openStoryBible(page);
+  await expect(sidecar).toBeVisible();
 
   await page.getByRole("link", { name: "制作", exact: true }).click();
   await page
@@ -82,10 +86,10 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   await page
     .getByRole("combobox", { name: "分镜" })
     .selectOption({ label: "镜头 1：门缝中的雨夜" });
-  await page.getByRole("button", { name: "导演看板" }).click();
+  await openProductionStage(page, "导演看板");
   await expect(page.getByLabel("导演分镜看板")).toBeVisible();
   await expect(page.getByLabel("静帧预览：静帧已采用")).toBeVisible();
-  await page.getByRole("button", { name: "视频制作" }).click();
+  await openProductionStage(page, "视频制作");
   await expect(page.getByText("静帧优先预检")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "提交视频生成" }),

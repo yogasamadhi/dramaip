@@ -1,3 +1,6 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
+import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
+import { AGENT_TASK_RUNNER_SERVICE } from "@dramaip/contracts";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -212,7 +215,9 @@ function toPlan(
     ...(row.adaptation_id ? { adaptationId: row.adaptation_id } : {}),
     episodeIds,
     coverage,
-    ...(blocker ? { blocker } : {}),
+    ...(row.error_message || blocker
+      ? { blocker: row.error_message || blocker }
+      : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -264,10 +269,12 @@ export function pilotRoutes(
   context: PluginContext,
 ): readonly RouteContribution[] {
   const getServices = () => ({
-    writing: context.services.optional<WritingChapterService>(
+    writing: optionalService<WritingChapterService>(
+      context,
       WRITING_CHAPTER_SERVICE,
     ),
-    production: context.services.optional<ProductionRecordService>(
+    production: optionalService<ProductionRecordService>(
+      context,
       PRODUCTION_RECORD_SERVICE,
     ),
   });
@@ -525,7 +532,64 @@ export function pilotRoutes(
               id,
             ),
           );
+          try {
+            const workflowService = optionalService(
+              context,
+              CREATION_WORKFLOW_SERVICE,
+            );
+            const config = optionalService(
+              context,
+              AGENT_TASK_RUNNER_SERVICE,
+            )?.configuration?.(row.project_id);
+            if (!workflowService || !config)
+              throw new Error("AI 创作服务尚未就绪。");
+            const episode = production.get(episodeIds[0]!);
+            if (!episode) throw new Error("试制目标分集不存在。");
+            workflowService.start(
+              {
+                projectId: row.project_id,
+                operation: "episode",
+                targetId: episode.id,
+                baseVersion: episode.version,
+                engineKind: config.engineKind,
+                model: config.model,
+                sourceIds: parseIds(row.chapter_ids_json),
+                instruction: `根据已确认的试制来源与 ${row.episode_count} 集范围规划，生成并检查第 1 集的完整剧本、场景与分镜。后续集数等待用户采用后明确继续。`,
+              },
+              `pilot:${row.id}:${episode.id}`,
+            );
+          } catch (error) {
+            context.uow.execute((tx) =>
+              tx.run(
+                "UPDATE automation_pilot_plans SET error_message = ?, updated_at = ? WHERE id = ?",
+                `来源已保存，AI 生成未启动：${error instanceof Error ? error.message : "请检查 AI 连接。"}`,
+                now,
+                id,
+              ),
+            );
+          }
         } else if (input.data.action === "cancel") {
+          const workflows = optionalService(context, CREATION_WORKFLOW_SERVICE);
+          const running = context.uow.execute((tx) =>
+            tx.all<{ id: string }>(
+              "SELECT id FROM automation_creation_workflows WHERE request_key LIKE ? AND stage IN ('preparing','generating','checking','revising','rechecking')",
+              `pilot:${row.id}:%`,
+            ),
+          );
+          for (const flow of running) {
+            if (!workflows)
+              return problem(
+                requestContext,
+                409,
+                "CAPABILITY_UNAVAILABLE",
+                "创作执行器未启用，无法取消试制。",
+              );
+            await workflows.action(
+              flow.id,
+              "cancel",
+              `pilot-cancel:${row.id}:${flow.id}`,
+            );
+          }
           context.uow.execute((transaction) =>
             transaction.run(
               "UPDATE automation_pilot_plans SET status = 'canceled', updated_at = ? WHERE id = ?",

@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import {
   type AgentEngineKind,
   type ConfiguredProvider,
@@ -609,7 +610,7 @@ export async function restoreSavedAgentConfiguration(
       restoring = false;
     }
   };
-  pluginContext.effect("host-generation-configuration-reconciler", () => {
+  pluginContext.effect(() => {
     const timer = setInterval(
       () => void reconcile().catch(() => undefined),
       2_000,
@@ -618,7 +619,7 @@ export async function restoreSavedAgentConfiguration(
       disposed = true;
       clearInterval(timer);
     };
-  });
+  }, "host-generation-configuration-reconciler");
   await reconcile();
 }
 
@@ -716,10 +717,10 @@ export function providerRoutes(
       bind: (routes) =>
         routes.get("/api/v2/projects/:id/agent-settings", (context) => {
           const projectId = context.req.param("id");
-          const workspace =
-            pluginContext.services.optional<WorkspaceProjectService>(
-              WORKSPACE_PROJECT_SERVICE,
-            );
+          const workspace = optionalService<WorkspaceProjectService>(
+            pluginContext,
+            WORKSPACE_PROJECT_SERVICE,
+          );
           return workspace?.get(projectId)
             ? context.json(projectAgentSettings(pluginContext, projectId))
             : problem(context, 404, "NOT_FOUND", "项目不存在。");
@@ -731,10 +732,10 @@ export function providerRoutes(
       bind: (routes) =>
         routes.put("/api/v2/projects/:id/agent-settings", async (context) => {
           const projectId = context.req.param("id");
-          const workspace =
-            pluginContext.services.optional<WorkspaceProjectService>(
-              WORKSPACE_PROJECT_SERVICE,
-            );
+          const workspace = optionalService<WorkspaceProjectService>(
+            pluginContext,
+            WORKSPACE_PROJECT_SERVICE,
+          );
           if (!workspace?.get(projectId))
             return problem(context, 404, "NOT_FOUND", "项目不存在。");
           const body = await context.req.json().catch(() => undefined);

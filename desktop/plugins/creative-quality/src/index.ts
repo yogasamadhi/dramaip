@@ -1,3 +1,6 @@
+import { CREATIVE_KNOWLEDGE_SERVICE } from "@dramaip/contracts";
+import { provideService } from "@dramaip/plugin-api/internal";
+import { registerCreationQuality } from "./creation.js";
 import { createHash } from "node:crypto";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
@@ -13,7 +16,7 @@ import {
 } from "@dramaip/contracts/creative-quality";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -807,7 +810,8 @@ function resourceRoutes(context: PluginContext): RouteContribution[] {
   return definitions;
 }
 
-export const creativeQualityPlugin = defineFirstPartyPlugin({
+export const creativeQualityPlugin = definePlugin({
+  inject: [CREATIVE_KNOWLEDGE_SERVICE.id],
   descriptor: {
     id: "creative-quality",
     version: "3.0.0-alpha.3",
@@ -890,18 +894,23 @@ export const creativeQualityPlugin = defineFirstPartyPlugin({
     },
     ...creativeIntelligenceQualityMigrations,
   ],
-  activate: (context) => {
+  apply: (context) => {
+    registerCreationQuality(context);
     const records = makeService(context);
-    context.effect(`service:${CREATIVE_QUALITY_SERVICE}`, () =>
-      context.services.provide(CREATIVE_QUALITY_SERVICE, records),
+    context.effect(
+      () => provideService(context, CREATIVE_QUALITY_SERVICE, records),
+      `service:${CREATIVE_QUALITY_SERVICE}`,
     );
     for (const contribution of [
       ...routes(records),
       ...resourceRoutes(context),
       ...creativeIntelligenceQualityRoutes(context),
     ])
-      context.effect(`route:${contribution.id}`, () =>
-        context.http.register(contribution),
+      context.effect(
+        () => context.http.register(contribution),
+        `route:${contribution.id}`,
       );
   },
 });
+
+export default creativeQualityPlugin;

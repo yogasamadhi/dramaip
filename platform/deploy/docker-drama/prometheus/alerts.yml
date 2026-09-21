@@ -2,7 +2,7 @@ groups:
   - name: dramaip-platform-reliability
     rules:
       - alert: DramaipTargetDown
-        expr: up{job=~"java-gateway|java-services|rabbitmq|otel-collector"} == 0
+        expr: up{job=~"java-gateway|java-services|rabbitmq|alloy|loki|tempo"} == 0
         for: 2m
         labels:
           severity: critical
@@ -62,7 +62,7 @@ groups:
           runbook: "docs/OBSERVABILITY.md#rabbitmq-backlog"
 
       - alert: DramaipDatabasePoolSaturated
-        expr: (sum by (service) (dramaip_db_connections{state="in_use"}) / dramaip_db_max_open_connections) > 0.8 and dramaip_db_max_open_connections > 0
+        expr: (sum by (service) (dramaip_db_connections{state="in_use"}) / sum by (service) (dramaip_db_max_open_connections)) > 0.8 and on (service) sum by (service) (dramaip_db_max_open_connections) > 0
         for: 5m
         labels:
           severity: warning
@@ -110,3 +110,105 @@ groups:
         annotations:
           summary: "Aggregated DramaIP errors exceed threshold"
           runbook: "docs/OBSERVABILITY.md#error-aggregation"
+
+  - name: dramaip-observability-pipeline
+    rules:
+      - alert: DramaipAlloyTraceExportFailures
+        expr: sum(increase(otelcol_exporter_send_failed_spans_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          area: observability
+        annotations:
+          summary: "Alloy failed to export traces to Tempo"
+          runbook: "docs/OBSERVABILITY.md#alloy-trace-export-failures"
+
+      - alert: DramaipAlloyTraceQueueSaturated
+        expr: sum(otelcol_exporter_queue_size) / clamp_min(sum(otelcol_exporter_queue_capacity), 1) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          area: observability
+        annotations:
+          summary: "Alloy trace exporter queue exceeds 80% capacity"
+          runbook: "docs/OBSERVABILITY.md#alloy-trace-queue"
+
+      - alert: DramaipAlloyLogWriteDrops
+        expr: sum(increase(loki_write_dropped_entries_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          area: observability
+        annotations:
+          summary: "Alloy permanently dropped log entries"
+          runbook: "docs/OBSERVABILITY.md#alloy-log-write-drops"
+
+      - alert: DramaipAlloyLogWriteRetriesHigh
+        expr: sum(increase(loki_write_batch_retries_total[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+          area: observability
+        annotations:
+          summary: "Alloy is repeatedly retrying Loki writes"
+          runbook: "docs/OBSERVABILITY.md#alloy-log-write-retries"
+
+      - alert: DramaipSensitiveLogRejected
+        expr: sum by (reason) (increase(loki_process_dropped_lines_total{reason="sensitive_content"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: security
+        annotations:
+          summary: "Alloy rejected a log entry containing sensitive content"
+          runbook: "docs/OBSERVABILITY.md#sensitive-log-rejected"
+
+      - alert: DramaipLokiDiscardingLogs
+        expr: sum by (reason) (increase(loki_discarded_samples_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: observability
+        annotations:
+          summary: "Loki discarded incoming log entries"
+          runbook: "docs/OBSERVABILITY.md#loki-discards"
+
+      - alert: DramaipLokiWalCorruption
+        expr: sum(increase(loki_ingester_wal_corruptions_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          area: observability
+        annotations:
+          summary: "Loki detected WAL corruption"
+          runbook: "docs/OBSERVABILITY.md#loki-wal-corruption"
+
+      - alert: DramaipLokiWalDiskPressure
+        expr: max(loki_ingester_wal_disk_usage_percent) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          area: observability
+        annotations:
+          summary: "Loki WAL filesystem usage exceeds 90%"
+          runbook: "docs/OBSERVABILITY.md#loki-wal-disk-pressure"
+
+      - alert: DramaipLokiWalWriteFailures
+        expr: sum(increase(loki_ingester_wal_disk_full_failures_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          area: observability
+        annotations:
+          summary: "Loki rejected or failed WAL writes because the disk is full"
+          runbook: "docs/OBSERVABILITY.md#loki-wal-write-failures"
+
+      - alert: DramaipTempoDiscardingSpans
+        expr: sum by (reason) (increase(tempo_discarded_spans_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: observability
+        annotations:
+          summary: "Tempo discarded incoming spans"
+          runbook: "docs/OBSERVABILITY.md#tempo-discards"

@@ -105,7 +105,7 @@ describe("migration compatibility", () => {
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'test_forward_state'",
           )
           .get(),
-      ).toBeNull();
+      ).toBeUndefined();
       backup.close();
     } finally {
       database.close();
@@ -146,7 +146,7 @@ describe("migration compatibility", () => {
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugin_migrations'",
           )
           .get(),
-      ).toBeNull();
+      ).toBeUndefined();
     } finally {
       database.close();
       removeTemporaryDirectory(directory);

@@ -1,2 +1,2 @@
-#!/usr/bin/env bun
-await import("../src/cli.ts");
+#!/usr/bin/env node
+await import("../../../build/runtime/packages/runtime/src/cli.js");

@@ -16,6 +16,7 @@
     "@dramaip/plugin-api": "workspace:*",
     "@xmldom/xmldom": "0.8.13",
     "@hono/zod-openapi": "1.6.0",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "@deepseek-ai/cordis": "workspace:*"
   }
 }

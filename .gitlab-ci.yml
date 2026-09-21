@@ -103,6 +103,7 @@ platform_clients:
     - bun run build:admin
     - cd ..
     - make web-route-smoke
+    - make observability-config-smoke
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -135,7 +136,7 @@ platform_e2e:
   after_script:
     - export COMPOSE_PROJECT_NAME="dramaip-ci-${CI_PIPELINE_ID}-${CI_JOB_ID}"
     - cd platform
-    - if [ "$CI_JOB_STATUS" != "success" ]; then docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile e2e logs --no-color > ../platform-e2e-compose.log 2>&1 || true; fi
+    - if [ "$CI_JOB_STATUS" != "success" ]; then docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile e2e --profile observability --profile observability-test logs --no-color > ../platform-e2e-compose.log 2>&1 || true; fi
     - make platform-ci-down || true
   artifacts:
     when: always
@@ -166,11 +167,21 @@ desktop_linux:
       apt-get update
       apt-get install -y --no-install-recommends ca-certificates curl git xz-utils python3 build-essential xvfb libgtk-3-0 libnss3 libasound2 libgbm1
       test "$(bun --version)" = "1.4.0"
-      mkdir -p "${CI_PROJECT_DIR}/.ci-deny-node"
-      ln -sf /bin/false "${CI_PROJECT_DIR}/.ci-deny-node/node"
-      export PATH="${CI_PROJECT_DIR}/.ci-deny-node:${PATH}"
+      DESKTOP_NODE_VERSION=24.18.0
+      case "$(uname -m)" in x86_64) desktop_node_arch=x64 ;; aarch64) desktop_node_arch=arm64 ;; *) exit 1 ;; esac
+      desktop_node_archive="node-v${DESKTOP_NODE_VERSION}-linux-${desktop_node_arch}.tar.xz"
+      curl -fsSLO "https://nodejs.org/dist/v${DESKTOP_NODE_VERSION}/${desktop_node_archive}"
+      curl -fsSLO "https://nodejs.org/dist/v${DESKTOP_NODE_VERSION}/SHASUMS256.txt"
+      grep " ${desktop_node_archive}$" SHASUMS256.txt | sha256sum -c -
+      tar -xJf "${desktop_node_archive}" -C /opt
+      export PATH="/opt/node-v${DESKTOP_NODE_VERSION}-linux-${desktop_node_arch}/bin:${PATH}"
+      test "$(node --version)" = "v24.18.0"
+      git submodule update --init
       cd desktop
+      bun run prepare:framework
       bun ci
+      bun run build:framework
+      bun run check:framework
       export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG:-${CI_COMMIT_SHA}}"
   script:
     - bun run lint
@@ -183,9 +194,12 @@ desktop_linux:
     - bun run check:engine-locks
     - bun run check:provider-catalog
     - bun run check:extension-packages
-    - bun run check:renderer-chunks
     - bun run check:timeline-exports
     - bun run build
+    - bun run check:renderer-chunks
+    - bun run test:runtime:watch
+    - bun run test:runtime:hmr
+    - xvfb-run -a bun run test:runtime:hmr:electron
     - xvfb-run -a bun scripts/run-electron-playwright.ts test
     - bun run package
     - bun run release:metadata
@@ -204,9 +218,14 @@ desktop_macos_release:
     - macos
     - private
   before_script:
+    - git submodule update --init
     - cd desktop
     - test "$(bun --version)" = "1.4.0"
+    - test "$(node --version)" = "v24.18.0"
+    - bun run prepare:framework
     - bun ci
+    - bun run build:framework
+    - bun run check:framework
     - export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG}"
   script:
     - bun run lint
@@ -218,9 +237,12 @@ desktop_macos_release:
     - bun run check:engine-locks
     - bun run check:provider-catalog
     - bun run check:extension-packages
-    - bun run check:renderer-chunks
     - bun run check:timeline-exports
     - bun run test:e2e
+    - bun run check:renderer-chunks
+    - bun run test:runtime:watch
+    - bun run test:runtime:hmr
+    - bun run test:runtime:hmr:electron
     - bun run package
     - bun run release:metadata
   artifacts:
@@ -237,9 +259,14 @@ desktop_windows_release:
     - windows
     - private
   before_script:
+    - git submodule update --init
     - Set-Location desktop
     - if ((bun --version) -ne "1.4.0") { throw "Desktop requires Bun 1.4.0 exactly" }
+    - if ((node --version) -ne "v24.18.0") { throw "Core Runtime requires Node 24.18.0 exactly" }
+    - bun run prepare:framework
     - bun ci
+    - bun run build:framework
+    - bun run check:framework
     - $env:DRAMAIP_UPDATE_URL = "$env:CI_SERVER_URL/api/v4/projects/$env:CI_PROJECT_ID/packages/generic/dramaip-desktop/$env:CI_COMMIT_TAG"
   script:
     - bun run lint
@@ -251,9 +278,12 @@ desktop_windows_release:
     - bun run check:engine-locks
     - bun run check:provider-catalog
     - bun run check:extension-packages
-    - bun run check:renderer-chunks
     - bun run check:timeline-exports
     - bun run test:e2e
+    - bun run check:renderer-chunks
+    - bun run test:runtime:watch
+    - bun run test:runtime:hmr
+    - bun run test:runtime:hmr:electron
     - bun run package
     - bun run release:metadata
   artifacts:

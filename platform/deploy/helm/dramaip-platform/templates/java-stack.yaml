@@ -26,6 +26,10 @@ metadata:
 spec:
   backoffLimit: {{ .Values.migrations.backoffLimit }}
   template:
+    metadata:
+      labels:
+        {{- include "dramaip-platform.labels" . | nindent 8 }}
+        app.kubernetes.io/component: java-migration
     spec:
       restartPolicy: Never
       containers:
@@ -37,6 +41,33 @@ spec:
             - { name: POSTGRES_USER, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" . }}, key: POSTGRES_USER } } }
             - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" . }}, key: POSTGRES_PASSWORD } } }
             - { name: DB_ROLE_BOOTSTRAP, value: {{ .Values.migrations.bootstrapRuntimeRoles | quote }} }
+          {{- if .Values.observability.enabled }}
+            - { name: OTEL_JAVAAGENT_OPTS, value: "-javaagent:/app/observability/opentelemetry-javaagent.jar" }
+            - { name: OTEL_SERVICE_NAME, value: migration }
+            - { name: DRAMAIP_DEPLOYMENT_ENVIRONMENT, value: {{ .Release.Namespace | quote }} }
+            - { name: DRAMAIP_SERVICE_VERSION, value: {{ .Values.java.images.migration.tag | quote }} }
+            - { name: DRAMAIP_RELEASE_NAME, value: {{ .Release.Name | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ include "dramaip-platform.observabilityEndpoint" . | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_PROTOCOL, value: http/protobuf }
+            - { name: OTEL_TRACES_EXPORTER, value: otlp }
+            - { name: OTEL_METRICS_EXPORTER, value: none }
+            - { name: OTEL_LOGS_EXPORTER, value: none }
+            - { name: OTEL_PROPAGATORS, value: "tracecontext,baggage" }
+            - { name: OTEL_TRACES_SAMPLER, value: {{ .Values.observability.traces.sampler | quote }} }
+          {{- if .Values.observability.traces.samplerArg }}
+            - { name: OTEL_TRACES_SAMPLER_ARG, value: {{ .Values.observability.traces.samplerArg | quote }} }
+          {{- end }}
+            - { name: OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST, value: "" }
+            - { name: OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST, value: "" }
+            - { name: OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED, value: "true" }
+          {{- if .Values.observability.otlp.headersSecretName }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.observability.otlp.headersSecretName | quote }}
+                  key: {{ .Values.observability.otlp.headersSecretKey | quote }}
+          {{- end }}
+          {{- end }}
 ---
 {{- end }}
 {{- range $index, $service := $services }}
@@ -58,6 +89,17 @@ spec:
       app.kubernetes.io/component: java-{{ $service.name }}
   template:
     metadata:
+      {{- if or (and $.Values.observability.enabled $.Values.observability.prometheus.scrape) $.Values.podAnnotations }}
+      annotations:
+        {{- if and $.Values.observability.enabled $.Values.observability.prometheus.scrape }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
+        {{- end }}
+        {{- with $.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
       labels:
         {{- include "dramaip-platform.labels" $ | nindent 8 }}
         app.kubernetes.io/component: java-{{ $service.name }}
@@ -80,6 +122,33 @@ spec:
             - { name: JWT_ENABLED, value: {{ $.Values.java.jwtEnabled | quote }} }
             - { name: JWT_JWK_SET_URI, value: {{ printf "http://%s-java-identity:8080/.well-known/jwks.json" (include "dramaip-platform.fullname" $) | quote }} }
             - { name: DRAMAIP_INTERNAL_TOKEN, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" $ }}, key: DRAMAIP_INTERNAL_TOKEN } } }
+          {{- if $.Values.observability.enabled }}
+            - { name: OTEL_JAVAAGENT_OPTS, value: "-javaagent:/app/observability/opentelemetry-javaagent.jar" }
+            - { name: OTEL_SERVICE_NAME, value: {{ $service.name | quote }} }
+            - { name: DRAMAIP_DEPLOYMENT_ENVIRONMENT, value: {{ $.Release.Namespace | quote }} }
+            - { name: DRAMAIP_SERVICE_VERSION, value: {{ (index $.Values.java.images $service.key).tag | quote }} }
+            - { name: DRAMAIP_RELEASE_NAME, value: {{ $.Release.Name | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ include "dramaip-platform.observabilityEndpoint" $ | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_PROTOCOL, value: http/protobuf }
+            - { name: OTEL_TRACES_EXPORTER, value: otlp }
+            - { name: OTEL_METRICS_EXPORTER, value: none }
+            - { name: OTEL_LOGS_EXPORTER, value: none }
+            - { name: OTEL_PROPAGATORS, value: "tracecontext,baggage" }
+            - { name: OTEL_TRACES_SAMPLER, value: {{ $.Values.observability.traces.sampler | quote }} }
+          {{- if $.Values.observability.traces.samplerArg }}
+            - { name: OTEL_TRACES_SAMPLER_ARG, value: {{ $.Values.observability.traces.samplerArg | quote }} }
+          {{- end }}
+            - { name: OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST, value: "" }
+            - { name: OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST, value: "" }
+            - { name: OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED, value: "true" }
+          {{- if $.Values.observability.otlp.headersSecretName }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.observability.otlp.headersSecretName | quote }}
+                  key: {{ $.Values.observability.otlp.headersSecretKey | quote }}
+          {{- end }}
+          {{- end }}
           {{- if eq $service.name "creation" }}
             - { name: REVIEW_S3_ENDPOINT, value: {{ $.Values.review.objectStore.endpoint | quote }} }
             - { name: REVIEW_S3_REGION, value: {{ $.Values.review.objectStore.region | quote }} }

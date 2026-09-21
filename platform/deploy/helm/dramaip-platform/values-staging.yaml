@@ -33,8 +33,13 @@ config:
     host: rabbitmq.staging.internal
     port: "5671"
     vhost: /dramaip
-  otel:
-    endpoint: https://otel-collector.staging.internal:4318
+
+observability:
+  enabled: true
+  otlp:
+    endpoint: https://alloy.staging.internal:4318
+  embedded:
+    enabled: false
 
 secret:
   existingSecret: dramaip-staging-runtime

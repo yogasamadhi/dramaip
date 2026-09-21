@@ -1,6 +1,6 @@
 /**
- * The only Node/Bun SQLite seam. Repositories consume this structural surface,
- * never `node:sqlite` or `bun:sqlite` directly.
+ * The Node SQLite boundary. Repositories consume this structural surface,
+ * never `node:sqlite` directly.
  */
 import { createRequire } from "node:module";
 export interface SqliteStatement {
@@ -22,31 +22,19 @@ type SqliteConstructor = new (
 ) => SqliteDatabase;
 
 const taskRequire = createRequire(import.meta.url);
-const sqliteModule = taskRequire(
-  process.versions.bun ? "bun:sqlite" : "node:sqlite",
-) as {
-  Database?: SqliteConstructor;
-  DatabaseSync?: SqliteConstructor;
-};
-
-const resolvedConstructor = sqliteModule.DatabaseSync ?? sqliteModule.Database;
-if (!resolvedConstructor)
-  throw new Error("SQLite runtime adapter is unavailable");
-const DatabaseConstructor: SqliteConstructor = resolvedConstructor;
-
 export function createSqlite(
   path: string,
   options: { readOnly?: boolean } = {},
 ): SqliteDatabase {
-  const database = process.versions.bun
-    ? new DatabaseConstructor(path, {
-        readonly: options.readOnly ?? false,
-        create: !options.readOnly,
-      })
-    : new DatabaseConstructor(path, {
-        readOnly: options.readOnly ?? false,
-        enableForeignKeyConstraints: true,
-      });
+  if (process.versions.bun)
+    throw new Error("Core SQLite requires Node 24.18.0 or Electron Node");
+  const { DatabaseSync } = taskRequire("node:sqlite") as {
+    DatabaseSync: SqliteConstructor;
+  };
+  const database = new DatabaseSync(path, {
+    readOnly: options.readOnly ?? false,
+    enableForeignKeyConstraints: true,
+  });
   const statements = new Set<SqliteStatement>();
   let closed = false;
   return {

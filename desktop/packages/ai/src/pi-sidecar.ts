@@ -38,6 +38,7 @@ type ParentPort = {
 };
 
 type PiRuntimeEvent =
+  | { type: "activity"; activity: "thinking" }
   | { type: "content.delta"; delta: string }
   | {
       type: "tool";

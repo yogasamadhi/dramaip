@@ -194,6 +194,9 @@ spec:
     - name: management
       port: 15672
       targetPort: management
+    - name: metrics
+      port: 15692
+      targetPort: metrics
   selector:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: dev-rabbitmq
@@ -237,6 +240,8 @@ spec:
               containerPort: 5672
             - name: management
               containerPort: 15672
+            - name: metrics
+              containerPort: 15692
           env:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
@@ -382,94 +387,4 @@ spec:
                 secretKeyRef:
                   name: {{ include "dramaip-platform.secretName" . }}
                   key: REVIEW_S3_SECRET_KEY
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-otel-config
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: dev-otel
-data:
-  config.yaml: |
-    receivers:
-      otlp:
-        protocols:
-          http:
-            endpoint: 0.0.0.0:4318
-    exporters:
-      debug: {}
-    service:
-      pipelines:
-        traces:
-          receivers: [otlp]
-          exporters: [debug]
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: otel-collector
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: dev-otel
-spec:
-  ports:
-    - name: otlp-http
-      port: 4318
-      targetPort: otlp-http
-  selector:
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/component: dev-otel
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-otel
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: dev-otel
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: dev-otel
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: dev-otel
-    spec:
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      containers:
-        - name: otel
-          image: {{ .Values.devInfra.otel.image | quote }}
-          args:
-            - --config=/etc/otelcol/config.yaml
-          ports:
-            - name: otlp-http
-              containerPort: 4318
-          readinessProbe:
-            tcpSocket:
-              port: otlp-http
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          volumeMounts:
-            - name: config
-              mountPath: /etc/otelcol
-      volumes:
-        - name: config
-          configMap:
-            name: {{ include "dramaip-platform.fullname" . }}-otel-config
 {{- end }}

@@ -46,10 +46,23 @@ export type CreationDraftV1 = {
   updatedAt: string;
 };
 
-export type ActiveProjectStateV1 = {
-  schemaVersion: 1;
+export type ProjectWorkspaceContextV2 = {
+  route: string;
+  workArea: "overview" | "story" | "adapt" | "produce" | "review" | "tools";
+  chapterId?: string;
+  adaptationId?: string;
+  episodeId?: string;
+  scriptId?: string;
+  sceneId?: string;
+  shotId?: string;
+  updatedAt: string;
+};
+
+export type ActiveProjectStateV2 = {
+  schemaVersion: 2;
   projectId?: string;
   lastRouteByProject: Record<string, string>;
+  contextByProject: Record<string, ProjectWorkspaceContextV2>;
   updatedAt: string;
 };
 
@@ -124,21 +137,71 @@ export function parseCreationDraft(
 
 export function parseActiveProjectState(
   value: string | null,
-): ActiveProjectStateV1 | undefined {
+): ActiveProjectStateV2 | undefined {
   if (!value) return undefined;
   try {
     const parsed: unknown = JSON.parse(value);
     if (
       !isRecord(parsed) ||
-      parsed.schemaVersion !== 1 ||
+      ![1, 2].includes(Number(parsed.schemaVersion)) ||
       !isRecord(parsed.lastRouteByProject) ||
       typeof parsed.updatedAt !== "string"
     )
       return undefined;
-    return parsed as ActiveProjectStateV1;
+    if (parsed.schemaVersion === 1)
+      return {
+        schemaVersion: 2,
+        ...(typeof parsed.projectId === "string"
+          ? { projectId: parsed.projectId }
+          : {}),
+        lastRouteByProject: parsed.lastRouteByProject as Record<string, string>,
+        contextByProject: {},
+        updatedAt: parsed.updatedAt as string,
+      };
+    if (!isRecord(parsed.contextByProject)) return undefined;
+    return parsed as ActiveProjectStateV2;
   } catch {
     return undefined;
   }
+}
+
+export function workspaceContextFromRoute(input: {
+  pathname: string;
+  search: string;
+}): ProjectWorkspaceContextV2 | undefined {
+  const projectId = projectIdFromLocation(input);
+  if (!projectId) return undefined;
+  const route = safeLocalRoute(`${input.pathname}${input.search}`);
+  if (!route) return undefined;
+  const params = new URLSearchParams(input.search);
+  const workArea: ProjectWorkspaceContextV2["workArea"] =
+    input.pathname.startsWith("/adapt")
+      ? "adapt"
+      : input.pathname.startsWith("/produce")
+        ? "produce"
+        : input.pathname.startsWith("/review")
+          ? "review"
+          : input.pathname.includes("/tools/")
+            ? "tools"
+            : input.pathname.startsWith("/projects/") ||
+                input.pathname.startsWith("/write")
+              ? "story"
+              : "overview";
+  const optional = (key: string): string | undefined =>
+    params.get(key) || undefined;
+  return {
+    route,
+    workArea,
+    ...(optional("chapterId") ? { chapterId: optional("chapterId") } : {}),
+    ...(optional("adaptationId")
+      ? { adaptationId: optional("adaptationId") }
+      : {}),
+    ...(optional("episodeId") ? { episodeId: optional("episodeId") } : {}),
+    ...(optional("scriptId") ? { scriptId: optional("scriptId") } : {}),
+    ...(optional("sceneId") ? { sceneId: optional("sceneId") } : {}),
+    ...(optional("shotId") ? { shotId: optional("shotId") } : {}),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export function safeLocalRoute(value: string | undefined): string | undefined {
@@ -244,6 +307,7 @@ type StudioSessionValue = {
   selectProject(projectId: string): void;
   rememberProjectRoute(projectId: string, route: string): void;
   lastProjectRoute(projectId: string): string | undefined;
+  projectContext(projectId: string): ProjectWorkspaceContextV2 | undefined;
   creationDraft?: CreationDraftV1;
   saveCreationDraft(draft: CreationDraftV1, preserveAttempt?: boolean): void;
   clearCreationDraft(): void;
@@ -258,13 +322,14 @@ const StudioSessionContext = createContext<StudioSessionValue | undefined>(
   undefined,
 );
 
-function initialActiveProjectState(): ActiveProjectStateV1 {
+function initialActiveProjectState(): ActiveProjectStateV2 {
   return (
     parseActiveProjectState(
       window.localStorage.getItem(ACTIVE_PROJECT_KEY),
     ) ?? {
-      schemaVersion: 1,
+      schemaVersion: 2,
       lastRouteByProject: {},
+      contextByProject: {},
       updatedAt: new Date().toISOString(),
     }
   );
@@ -381,16 +446,22 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
 
   useEffect(() => {
     if (!routeProjectId || routeProjectId !== activeProjectId) return;
-    const route = safeLocalRoute(`${location.pathname}${location.search}`);
-    if (!route || route === "/") return;
+    const context = workspaceContextFromRoute(location);
+    const route = context?.route;
+    if (!context || !route || route === "/") return;
     setActiveState((current) =>
-      current.lastRouteByProject[routeProjectId] === route
+      current.lastRouteByProject[routeProjectId] === route &&
+      current.contextByProject[routeProjectId]?.route === route
         ? current
         : {
             ...current,
             lastRouteByProject: {
               ...current.lastRouteByProject,
               [routeProjectId]: route,
+            },
+            contextByProject: {
+              ...current.contextByProject,
+              [routeProjectId]: context,
             },
             updatedAt: new Date().toISOString(),
           },
@@ -428,6 +499,9 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
       },
       lastProjectRoute(projectId) {
         return safeLocalRoute(activeState.lastRouteByProject[projectId]);
+      },
+      projectContext(projectId) {
+        return activeState.contextByProject[projectId];
       },
       creationDraft,
       saveCreationDraft(draft, preserveAttempt = false) {
@@ -470,6 +544,7 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
       activeProjectId,
       activeProjectNotice,
       activeState.lastRouteByProject,
+      activeState.contextByProject,
       creationDraft,
       pendingIntent,
       projects,

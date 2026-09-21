@@ -71,16 +71,91 @@ if [[ "$action" == "apply" ]]; then
     postgres_host="${DRAMAIP_POSTGRES_HOST:-postgres}"
     ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:-api.staging.internal}"
     web_origin="${DRAMAIP_WEB_ORIGIN:-https://app.staging.internal}"
+    [[ -z "${DRAMAIP_OTEL_HEADERS_SECRET_NAME:-}" && -z "${DRAMAIP_OTEL_HEADERS_SECRET_KEY:-}" ]] || {
+      echo "OTLP headers are external-observability settings and cannot be used by temporary embedded staging" >&2
+      exit 2
+    }
+    observability_overrides=()
   else
     postgres_host="${DRAMAIP_POSTGRES_HOST:?DRAMAIP_POSTGRES_HOST is required for apply}"
     ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:?DRAMAIP_PUBLIC_INGRESS_HOST is required for apply}"
     web_origin="${DRAMAIP_WEB_ORIGIN:?DRAMAIP_WEB_ORIGIN is required for apply}"
+    otel_endpoint="${DRAMAIP_OTEL_ENDPOINT:?DRAMAIP_OTEL_ENDPOINT is required for non-temporary apply}"
+    otel_authority="${otel_endpoint#*://}"
+    otel_authority="${otel_authority%%[/?#]*}"
+    otel_host_pattern='[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?'
+    otel_authority_valid=0
+    otel_port=""
+    if [[ "$otel_authority" =~ ^${otel_host_pattern}(\.${otel_host_pattern})*(:[0-9]{1,5})?$ ]]; then
+      otel_authority_valid=1
+      if [[ "$otel_authority" == *:* ]]; then
+        otel_port="${otel_authority##*:}"
+      fi
+    elif [[ "$otel_authority" =~ ^\[([0-9A-Fa-f]{0,4}:){1,7}[0-9A-Fa-f]{0,4}\](:[0-9]{1,5})?$ ]]; then
+      otel_authority_valid=1
+      if [[ "${otel_authority#*]}" == :* ]]; then
+        otel_port="${otel_authority##*:}"
+      fi
+    fi
+    if [[ -n "$otel_port" ]] && { [[ ! "$otel_port" =~ ^[1-9][0-9]{0,4}$ ]] || ((10#$otel_port > 65535)); }; then
+      otel_authority_valid=0
+    fi
+    if [[ ! "$otel_endpoint" =~ ^https?://[^[:space:]]+$ \
+      || "$otel_authority" == *"@"* \
+      || "$otel_authority_valid" != "1" ]]; then
+      # Never include the rejected endpoint in diagnostics: URL userinfo may
+      # contain a credential even though that form is explicitly forbidden.
+      echo "DRAMAIP_OTEL_ENDPOINT must be an absolute HTTP(S) URL with a valid host and optional port, without whitespace or credentials" >&2
+      exit 2
+    fi
+    unset otel_authority otel_authority_valid otel_host_pattern otel_port
+    alert_notification_route="${DRAMAIP_ALERT_NOTIFICATION_ROUTE:?DRAMAIP_ALERT_NOTIFICATION_ROUTE is required for non-temporary apply}"
+    [[ "$alert_notification_route" =~ ^[A-Za-z0-9_.:-]+$ ]] || {
+      echo "DRAMAIP_ALERT_NOTIFICATION_ROUTE must contain only letters, digits, dot, underscore, colon, or hyphen" >&2
+      exit 2
+    }
+    observability_overrides=(
+      --set "observability.enabled=true"
+      --set "observability.embedded.enabled=false"
+      --set-string "observability.otlp.endpoint=$otel_endpoint"
+      --set "observability.alerting.enabled=true"
+      --set-string "observability.alerting.notificationRoute=$alert_notification_route"
+    )
   fi
 
   required_secrets=("$runtime_secret" "$image_pull_secret" "$ingress_tls_secret")
+  otel_headers_secret="${DRAMAIP_OTEL_HEADERS_SECRET_NAME:-}"
+  otel_headers_key="${DRAMAIP_OTEL_HEADERS_SECRET_KEY:-OTEL_EXPORTER_OTLP_HEADERS}"
+  if [[ -n "$otel_headers_secret" ]]; then
+    [[ "$otel_headers_key" =~ ^[A-Za-z0-9._-]+$ ]] || {
+      echo "DRAMAIP_OTEL_HEADERS_SECRET_KEY is not a valid Kubernetes Secret key" >&2
+      exit 2
+    }
+    required_secrets+=("$otel_headers_secret")
+    observability_overrides+=(
+      --set-string "observability.otlp.headersSecretName=$otel_headers_secret"
+      --set-string "observability.otlp.headersSecretKey=$otel_headers_key"
+    )
+  elif [[ -n "${DRAMAIP_OTEL_HEADERS_SECRET_KEY:-}" ]]; then
+    echo "DRAMAIP_OTEL_HEADERS_SECRET_KEY requires DRAMAIP_OTEL_HEADERS_SECRET_NAME" >&2
+    exit 2
+  fi
   for secret in "${required_secrets[@]}"; do
     "${kubectl_cmd[@]}" -n "$namespace" get secret "$secret" >/dev/null
   done
+  if [[ "$temporary_staging" != "1" ]]; then
+    # The business chart publishes rules only. Evaluation and notification are
+    # owned by the external Prometheus Operator and Alertmanager platform.
+    "${kubectl_cmd[@]}" get customresourcedefinition prometheusrules.monitoring.coreos.com >/dev/null
+  fi
+  if [[ -n "$otel_headers_secret" ]]; then
+    otel_headers_value="$("${kubectl_cmd[@]}" -n "$namespace" get secret "$otel_headers_secret" -o "jsonpath={.data['$otel_headers_key']}")"
+    [[ -n "$otel_headers_value" ]] || {
+      echo "OTLP headers Secret $otel_headers_secret does not contain non-empty key $otel_headers_key" >&2
+      exit 2
+    }
+    unset otel_headers_value
+  fi
 
   image_overrides=(
     --set-string "secret.existingSecret=$runtime_secret"
@@ -97,6 +172,7 @@ if [[ "$action" == "apply" ]]; then
     --set-string "kong.plugins.cors.origins[0]=$web_origin"
     --set "java.enabled=true"
     --set-string "java.postgresDsn=jdbc:postgresql://$postgres_host:5432/dramaip?sslmode=require"
+    "${observability_overrides[@]}"
   )
   image_count=0
   while IFS='|' read -r key name kind target; do
@@ -124,6 +200,13 @@ if [[ "$action" == "apply" ]]; then
   else
     "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --atomic --wait-for-jobs --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
     "${kubectl_cmd[@]}" -n "$namespace" rollout status deployment --timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}" -l app.kubernetes.io/instance="$release"
+  fi
+  if [[ "$temporary_staging" != "1" ]]; then
+    alert_rule_count="$("${kubectl_cmd[@]}" -n "$namespace" get prometheusrules.monitoring.coreos.com -l "app.kubernetes.io/instance=$release,app.kubernetes.io/component=observability-alert-rules" --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+    [[ "$alert_rule_count" == "1" ]] || {
+      echo "expected one external PrometheusRule for $release; found $alert_rule_count" >&2
+      exit 1
+    }
   fi
 elif [[ "$action" == "rollback" ]]; then
   revision="${3:?rollback requires an audited Helm revision}"

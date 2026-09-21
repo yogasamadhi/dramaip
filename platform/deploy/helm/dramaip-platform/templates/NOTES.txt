@@ -10,3 +10,26 @@ Metrics:
   /actuator/prometheus
 
 Ingress is {{ ternary "enabled" "disabled" .Values.ingress.enabled }}.
+{{- if .Values.observability.embedded.enabled }}
+
+The embedded observability services are ClusterIP-only. Open local tunnels with:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "dramaip-platform.fullname" . }}-grafana 3000:3000
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "dramaip-platform.fullname" . }}-prometheus 9090:9090
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "dramaip-platform.fullname" . }}-loki 3100:3100
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "dramaip-platform.fullname" . }}-tempo 3200:3200
+
+Grafana anonymous access is disabled. Retrieve the configured administrator name
+and password from Secret {{ default (printf "%s-grafana-admin" (include "dramaip-platform.fullname" .)) .Values.observability.embedded.grafana.existingAdminSecret }} using your approved Secret-access workflow.
+{{- if .Values.devInfra.persistence.enabled }}
+
+The embedded data paths use hostPath below
+{{ .Values.devInfra.persistence.hostPathBase }}/observability. The chart prepares
+the leaf-directory owner, but a multi-node cluster must use nodeSelector/affinity
+to pin this single-node development storage to the intended node.
+{{- end }}
+{{- else if .Values.observability.enabled }}
+
+Application traces are sent to the externally managed Alloy endpoint. Pod logs
+remain structured stdout and metrics are exposed at /actuator/prometheus.
+{{- end }}

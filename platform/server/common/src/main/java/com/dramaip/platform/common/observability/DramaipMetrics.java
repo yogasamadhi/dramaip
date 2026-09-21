@@ -38,6 +38,13 @@ public final class DramaipMetrics {
                 .register(registry).increment();
     }
 
+    public void workflow(String workflow, String outcome) {
+        Counter.builder("dramaip.workflow.events")
+                .tags("service", service, "workflow", bounded(workflow, "unknown"),
+                        "outcome", bounded(outcome, "failed"))
+                .register(registry).increment();
+    }
+
     public void paymentConfirmation(String outcome) {
         paymentCounter(outcome).increment();
     }

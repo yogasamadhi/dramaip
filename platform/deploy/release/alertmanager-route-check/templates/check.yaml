@@ -1,0 +1,47 @@
+{{- define "dramaip-alertmanager-route-check.walk" -}}
+{{- $route := .route -}}
+{{- $target := .target -}}
+{{- $receivers := .receivers -}}
+{{- $receiver := default .receiver $route.receiver -}}
+{{- $matched := false -}}
+{{- with $route.match -}}
+  {{- if eq (toString (index . "notification_route")) $target -}}
+    {{- $matched = true -}}
+  {{- end -}}
+{{- end -}}
+{{- $quotedTarget := regexQuoteMeta $target -}}
+{{- $matcherPattern := printf `^notification_route[[:space:]]*=[[:space:]]*("%s"|'%s'|%s)$` $quotedTarget $quotedTarget $quotedTarget -}}
+{{- range (default (list) $route.matchers) -}}
+  {{- if and (kindIs "string" .) (regexMatch $matcherPattern .) -}}
+    {{- $matched = true -}}
+  {{- end -}}
+{{- end -}}
+{{- if and $matched (hasKey $receivers (toString $receiver)) -}}MATCH{{- end -}}
+{{- range (default (list) $route.routes) -}}
+  {{- include "dramaip-alertmanager-route-check.walk" (dict "route" . "target" $target "receiver" $receiver "receivers" $receivers) -}}
+{{- end -}}
+{{- end -}}
+
+{{- $rawConfig := required "Alertmanager configuration is required" .Values.alertmanagerConfig -}}
+{{- $target := required "notificationRoute is required" .Values.notificationRoute -}}
+{{- $config := fromYaml $rawConfig -}}
+{{- if hasKey $config "Error" -}}
+  {{- fail "Alertmanager configuration is not valid YAML" -}}
+{{- end -}}
+{{- $route := required "Alertmanager configuration has no root route" $config.route -}}
+{{- $receivers := dict -}}
+{{- range (default (list) $config.receivers) -}}
+  {{- if and (hasKey . "name") (ne (toString .name) "") -}}
+    {{- $_ := set $receivers (toString .name) true -}}
+  {{- end -}}
+{{- end -}}
+{{- $result := include "dramaip-alertmanager-route-check.walk" (dict "route" $route "target" $target "receiver" "" "receivers" $receivers) -}}
+{{- if not (contains "MATCH" $result) -}}
+  {{- fail "Alertmanager configuration has no matching notification route with a receiver" -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dramaip-alertmanager-route-check
+data:
+  validated: "true"

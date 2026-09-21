@@ -1,3 +1,4 @@
+import { restoreRuntimeArtifact } from "@dramaip/runtime-adapters/artifact-recovery";
 import {
   app,
   BrowserWindow,
@@ -12,7 +13,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { JsonValue } from "@dramaip/contracts";
 import {
   createDesktopHost,
@@ -43,6 +44,10 @@ import { RenderSupervisor } from "./host/render-supervisor";
 import { safeHttpRequest } from "./host/safe-http-transport";
 import { extractSafeWebPage } from "./host/web-page-content";
 import { EngineEventChannel } from "./engines/engine-event-channel";
+import {
+  EngineRequestDeadline,
+  publicEngineErrorMessage,
+} from "./engines/engine-request-deadline";
 import {
   ManagedComponentState,
   RestartBudget,
@@ -199,13 +204,26 @@ const engineHostRequests = new Map<
   {
     resolve(value: unknown): void;
     reject(error: Error): void;
-    timeout: ReturnType<typeof setTimeout>;
+    deadline: EngineRequestDeadline;
+    engine: string;
+    runId?: string;
   }
 >();
 const engineHostStreams = new Map<string, EngineEventChannel>();
 let shuttingDown = false;
 
 function sidecarPath(name: string): string {
+  if (name === "core-runtime" || name === "migration-worker") {
+    const base = app.isPackaged
+      ? join(process.resourcesPath, "runtime")
+      : join(desktopRuntimeRoot(), "..", "..", "build", "runtime");
+    return join(
+      base,
+      name === "core-runtime"
+        ? "core-runtime.js"
+        : "packages/runtime/src/migration-worker-process.js",
+    );
+  }
   return join(__dirname, `${name}.js`);
 }
 
@@ -354,6 +372,10 @@ function spawnSidecar(
     const restarting = component.snapshot().status === "degraded";
     const generation = component.beginStart(restarting);
     const child = utilityProcess.fork(sidecarPath(name), [], {
+      execArgv:
+        name === "core-runtime" && !app.isPackaged
+          ? ["--expose-internals"]
+          : [],
       serviceName: `DramaIP ${name}`,
       stdio: "pipe",
     });
@@ -468,9 +490,17 @@ function spawnSidecar(
         };
         component.ready({ configured: true, authenticated: true });
         restartBudgets.get(name)?.markStable();
-        child.once("exit", () => {
+        child.once("exit", (code) => {
           if (!shuttingDown && !intentionallyStoppedSidecars.delete(child))
-            void restartSidecar(managed);
+            void (async () => {
+              if (!app.isPackaged && code !== 75)
+                await restoreRuntimeArtifact(
+                  dirname(sidecarPath("core-runtime")),
+                );
+              await restartSidecar(managed, !app.isPackaged && code === 75);
+            })().catch((error) =>
+              console.error("Core Runtime recovery failed", error),
+            );
         });
         return finish(managed);
       }
@@ -497,7 +527,7 @@ function spawnSidecar(
         const pendingHostRequest = engineHostRequests.get(message.requestId);
         if (pendingHostRequest) {
           engineHostRequests.delete(message.requestId);
-          clearTimeout(pendingHostRequest.timeout);
+          pendingHostRequest.deadline.dispose();
           if (message.error)
             pendingHostRequest.reject(new Error(message.error));
           else pendingHostRequest.resolve(message.result);
@@ -509,6 +539,12 @@ function spawnSidecar(
         ["codex-engine", "pi-engine", "langgraph-engine"].includes(name) &&
         message.type === "event"
       ) {
+        for (const request of engineHostRequests.values())
+          if (
+            `${request.engine}-engine` === name &&
+            request.runId === message.runId
+          )
+            request.deadline.touch();
         const stream = engineHostStreams.get(message.runId);
         const event = hostEngineStreamEvent(message.event);
         if (stream && event) {
@@ -537,7 +573,7 @@ function spawnSidecar(
 function failPendingEngineWork(message: string): void {
   for (const [requestId, pending] of engineHostRequests) {
     engineHostRequests.delete(requestId);
-    clearTimeout(pending.timeout);
+    pending.deadline.dispose();
     pending.reject(new Error(message));
   }
   for (const [requestId, pending] of engineConfigurationRequests) {
@@ -959,9 +995,12 @@ async function readWebPage(input: { url: string; maxCharacters: number }) {
   };
 }
 
-async function restartSidecar(previous: ManagedProcess): Promise<void> {
+async function restartSidecar(
+  previous: ManagedProcess,
+  planned = false,
+): Promise<void> {
   const budget = restartBudgets.get(previous.name);
-  const delay = budget?.nextDelay();
+  const delay = planned ? 0 : budget?.nextDelay();
   if (delay === undefined) {
     console.error(`${previous.name} exceeded restart limit`);
     return;
@@ -989,6 +1028,8 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
     }
   } catch (error) {
     console.error(`Failed to restart ${previous.name}`, error);
+    if (previous.name === "core-runtime" && !app.isPackaged)
+      await restoreRuntimeArtifact(dirname(sidecarPath("core-runtime")));
     await restartSidecar(previous);
   }
 }
@@ -1209,6 +1250,8 @@ function webToolDetail(value: Record<string, unknown>): JsonValue | undefined {
 function hostEngineStreamEvent(
   value: Record<string, unknown>,
 ): HostEngineStreamEvent | undefined {
+  if (value.type === "activity" && value.activity === "thinking")
+    return { type: "activity", activity: "thinking" };
   if (value.type === "content.delta" && typeof value.delta === "string")
     return { type: "content.delta", delta: value.delta };
   if (
@@ -1258,26 +1301,36 @@ async function requestManagedEngine(
 ): Promise<unknown> {
   const requestId = randomUUID();
   return new Promise<unknown>((resolvePromise, reject) => {
-    // Creating a session and reading health/auth are control-plane operations,
-    // while a model turn can legitimately take longer to produce its first
-    // token.  Do not turn a live Codex (or other vendor) run into a false
-    // failure after the generic control-plane timeout.
-    const timeoutMs = ["run", "stream"].includes(operation) ? 120_000 : 20_000;
-    const timeout = setTimeout(() => {
+    const running = ["run", "stream"].includes(operation);
+    const deadline = new EngineRequestDeadline(running, (error) => {
       engineHostRequests.delete(requestId);
-      reject(new Error(`${engine} ${operation} timed out`));
-    }, timeoutMs);
+      if (running)
+        void requestManagedEngine(engine, managed, "interrupt", payload).catch(
+          () => undefined,
+        );
+      reject(error);
+    });
     engineHostRequests.set(requestId, {
       resolve: resolvePromise,
       reject,
-      timeout,
+      deadline,
+      engine,
+      ...(running && typeof payload.runId === "string"
+        ? { runId: payload.runId }
+        : {}),
     });
-    managed.child.postMessage({
-      type: "request",
-      requestId,
-      operation,
-      payload,
-    });
+    try {
+      managed.child.postMessage({
+        type: "request",
+        requestId,
+        operation,
+        payload,
+      });
+    } catch (error) {
+      engineHostRequests.delete(requestId);
+      deadline.dispose();
+      reject(error);
+    }
   });
 }
 
@@ -1564,10 +1617,10 @@ async function* runHostEngineStream(
   signal.addEventListener("abort", interrupt, { once: true });
   void requestManagedEngine(engine, managed, sidecarOperation, payload)
     .then((result) => channel.finish({ type: "result", result }))
-    .catch(() =>
+    .catch((error) =>
       channel.finish({
         type: "error",
-        message: "智能引擎调用失败，请检查模型配置和引擎状态后重试。",
+        message: publicEngineErrorMessage(error),
       }),
     );
   try {
@@ -2062,6 +2115,7 @@ async function initialize(): Promise<Ready> {
       accessToken: runtimeToken,
       databasePath: join(app.getPath("userData"), "dramaip.db"),
       profilePath: runtimeProfilePath("studio"),
+      development: !app.isPackaged,
       migrationWorkerEntry: sidecarPath("migration-worker"),
       allowedOrigins: [
         RENDERER_ORIGIN,

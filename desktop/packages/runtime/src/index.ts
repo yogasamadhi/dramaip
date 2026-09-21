@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import { RuntimeDevelopment } from "./development.js";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -43,7 +45,7 @@ import {
   PersistentEventRuntime,
 } from "@dramaip/events";
 import { createRuntimeHttp } from "@dramaip/http";
-import { ExtensionPlatform } from "@dramaip/system";
+import { ExtensionPlatform } from "@dramaip/system/extension-platform";
 import {
   bootKernel,
   validatePluginGraph,
@@ -69,13 +71,14 @@ export {
 } from "./plugin-registry.js";
 
 export interface RuntimeConfig {
+  development?: { onRestart(reason: Error): void };
   databasePath: string;
   profile: PluginProfile;
   accessToken?: string;
   allowedOrigins?: readonly string[];
   engineMcpTokens?: readonly string[];
   host?: HostClientOptions;
-  runtimeKind: RuntimeKind;
+  runtimeKind: Exclude<RuntimeKind, "bun">;
   mode?: RuntimeMode;
   runtimeGeneration?: number;
   destructiveCutover?: Omit<DestructiveCutoverOptions, "databasePath">;
@@ -85,7 +88,7 @@ export interface RuntimeConfig {
   };
   backupDirectory?: string;
   migrationWorker?: {
-    runtimeKind: RuntimeKind;
+    runtimeKind: Exclude<RuntimeKind, "bun">;
     executable: string;
     entry: string;
     execArgv?: readonly string[];
@@ -212,21 +215,42 @@ function profileFromGraph(graph: EffectiveRuntimeGraph): PluginProfile {
     name: graph.profile,
     bundles: graph.bundles,
     plugins: graph.plugins,
+    assembly: graph.assembly,
   };
 }
 
-export function loadProfile(path: string): PluginProfile {
-  return parseProfile(readFileSync(path, "utf8"));
+export function loadProfile(path: string | URL): PluginProfile {
+  const profile = parseProfile(readFileSync(path, "utf8"));
+  return {
+    ...profile,
+    assembly: profile.assembly
+      ? {
+          ...profile.assembly,
+          files: [
+            ...profile.assembly.files,
+            typeof path === "string" ? resolve(path) : fileURLToPath(path),
+          ],
+        }
+      : undefined,
+  };
 }
 
 export async function bootRuntime(
   config: RuntimeConfig,
 ): Promise<RuntimeHandle> {
   const runtimeKind = config.runtimeKind;
+  if (process.versions.bun || process.versions.node !== "24.18.0")
+    throw new Error(
+      "Core Runtime requires Node 24.18.0 (standalone or Electron embedded)",
+    );
+  if (Boolean(process.versions.electron) !== (runtimeKind === "electron-node"))
+    throw new Error(
+      `Runtime kind ${runtimeKind} does not match the executing process`,
+    );
   const mode = config.mode ?? (config.host ? "desktop" : "headless");
   if (
     (mode === "desktop" && runtimeKind !== "electron-node") ||
-    (mode !== "desktop" && runtimeKind !== "bun")
+    (runtimeKind !== "electron-node" && runtimeKind !== "node")
   )
     throw new Error(`Runtime kind ${runtimeKind} is invalid for ${mode} mode`);
   const host = config.host ? new DesktopHostClient(config.host) : undefined;
@@ -294,7 +318,7 @@ export async function bootRuntime(
   const runtimeId = randomUUID();
   const runtimeGeneration = config.runtimeGeneration ?? 1;
   const startedAt = new Date().toISOString();
-  const graphBuilder = new EffectiveGraphBuilder({
+  let graphBuilder = new EffectiveGraphBuilder({
     profile: config.profile.name,
     bundles: config.profile.bundles,
     plugins: order.map((id) => ({
@@ -313,7 +337,10 @@ export async function bootRuntime(
       localEngines: Boolean(host),
     },
   });
-  const graphRevision = graphBuilder.revision;
+  let graphRevision = graphBuilder.revision;
+  let development: RuntimeDevelopment | undefined;
+  const kernelDiagnostics = () =>
+    development?.kernelDiagnostics() ?? kernel?.diagnostics();
   const runtimeInfo = async (): Promise<RuntimeInfo> => {
     const engineKinds: readonly AgentEngineKind[] = [
       "pi",
@@ -346,7 +373,7 @@ export async function bootRuntime(
       profile: config.profile.name,
       bundles: [...config.profile.bundles],
       plugins: (
-        kernel?.diagnostics().plugins ??
+        kernelDiagnostics()?.plugins ??
         order.map((id) => ({ id, status: "active" as const }))
       ).map((plugin) => ({
         ...plugin,
@@ -493,25 +520,41 @@ export async function bootRuntime(
         runtimeId,
         runtimeGeneration,
         graphRevision,
-        graphBuild: graphBuilder.diagnostics(),
+        graphBuild: { ...graphBuilder.diagnostics(), revision: graphRevision },
+        hmr: development?.diagnostics() ?? { enabled: false },
         startedAt,
         profile: config.profile.name,
         plugins:
-          kernel?.diagnostics().plugins ??
+          kernelDiagnostics()?.plugins ??
           order.map((id) => ({ id, status: "active" })),
         migrations: listAppliedMigrations(database.sqlite),
         migrationRun,
         eventConsumers: events.diagnostics(),
         extensionGraph: extensionPlatform.diagnostics(),
         router: http.registry.diagnostics(),
-        effects: kernel?.diagnostics().effects ?? [],
-        services: kernel?.diagnostics().services ?? [],
+        effects: kernelDiagnostics()?.effects ?? [],
+        services: kernelDiagnostics()?.services ?? [],
         host: hostHealth,
         engines,
         bridgeRouteCount: 0,
       };
     },
   });
+  if (config.development)
+    development = new RuntimeDevelopment({
+      base: fileURLToPath(new URL("../../../", import.meta.url)),
+      registry: http.registry,
+      kernel: () => {
+        if (!kernel)
+          throw new Error("Runtime has not published its initial graph");
+        return kernel;
+      },
+      publish: (moduleRevision) => {
+        graphRevision = moduleRevision;
+        kernel!.setGraphRevision(graphRevision);
+      },
+      restart: config.development.onRestart,
+    });
   try {
     await graphBuilder.build<{ kernel?: RunningKernel }>({
       migrationPreflight: () => undefined,
@@ -521,7 +564,34 @@ export async function bootRuntime(
           graphRevision,
           profile: config.profile,
           plugins,
-          context: { http: http.registry, events, uow: database.uow },
+          context: {
+            http: http.registry,
+            domainEvents: events,
+            uow: database.uow,
+          },
+          environment: {
+            host,
+            maintenance: database.maintenance(backupDirectory),
+            extensionPlatform,
+          },
+          hmr: development
+            ? {
+                base: new URL("../../../", import.meta.url).href,
+                root: ["plugins", "packages", "framework", "core-runtime.js"],
+                run: (task) => development!.run(task),
+                rejectConfig: (reason) => development!.rejectConfig(reason),
+                restart: (reason) => development!.restart(reason),
+                recompose: () =>
+                  loadProfile(
+                    fileURLToPath(
+                      new URL(
+                        `../../../profiles/${config.profile.name}.json`,
+                        import.meta.url,
+                      ),
+                    ),
+                  ),
+              }
+            : undefined,
         });
       },
       validate: (staged) => {
@@ -550,7 +620,9 @@ export async function bootRuntime(
       },
       dispose: async (staged) => staged.kernel?.dispose(),
     });
+    await development?.ready();
   } catch (error) {
+    await kernel?.dispose();
     events.dispose();
     database.close();
     cutover?.fail(error);
@@ -576,7 +648,7 @@ export async function bootRuntime(
         mode,
         profile: config.profile.name,
         bundles: [...config.profile.bundles],
-        plugins: kernel!.diagnostics().plugins.map((plugin) => ({
+        plugins: kernelDiagnostics()!.plugins.map((plugin) => ({
           ...plugin,
           version: plugins.get(plugin.id)!.descriptor.version,
           kind: plugins.get(plugin.id)!.descriptor.kind,

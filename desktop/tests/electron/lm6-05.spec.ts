@@ -48,9 +48,9 @@ test("原著路径可建立并恢复一集试制计划", async () => {
   await expect(page.getByLabel("试制向导")).toBeVisible();
   await page.getByRole("button", { name: "建立试制计划" }).click();
   await expect(
-    page.getByRole("button", { name: "确认来源并创建试制分集" }),
+    page.getByRole("button", { name: "确认来源并生成首集" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "确认来源并创建试制分集" }).click();
+  await page.getByRole("button", { name: "确认来源并生成首集" }).click();
   await expect(
     page.getByText("当前阶段：采用试制剧本", { exact: true }),
   ).toBeVisible();

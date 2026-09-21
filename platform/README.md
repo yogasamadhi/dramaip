@@ -2,7 +2,9 @@
 
 > **尽作者之意，成万象之作**
 
-尽意 DramaIP 的闭源云端平台工作区，包含 Web、Mobile、Admin、部署资产和后端服务。完整产品定位是“本地优先的 AI IP 创作工作台”；Platform 提供账号、灵感空间、可选云服务与运营能力，Desktop 仍是本地优先的主要创作环境。
+尽意 DramaIP 当前定位是“面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台”，长期愿景是成为创作者拥有的本地优先 IP 操作系统。完整口径见[产品定位](../docs/product/POSITIONING.md)。
+
+本目录是闭源云端平台工作区，包含 Web、Mobile、Admin、部署资产和后端服务。Platform 提供无项目灵感入口、账号、订阅、可选协作与审片、公共创意语料治理和运营能力；Desktop 仍是故事母本、小说、剧本、分镜、版本与来源的本地权威创作环境。Platform 不把私人正文或未采用对话自动同步为云端权威内容。
 
 后端使用 JDK 21 的 Java / Spring Cloud Alibaba 运行时。
 
@@ -40,7 +42,7 @@ make platform-down
 
 客户端依赖与 Web/Admin 工具链固定为 Bun 1.4.0；Mobile 的 Expo 运行时仍需 Node.js。手动运行命令见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
 
-本地可观测性（Prometheus、Jaeger、Elastic Stack、Grafana）使用 `make platform-observability-up`；宿主机 Java 调试使用 `bun run run-platform-dev.ts --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
+本地可观测性使用 Prometheus、OpenTelemetry Java Agent、Alloy、Loki、Tempo 和 Grafana：Compose Java 使用 `make platform-observability-up`，宿主机 Java 调试使用 `bun run run-platform-dev.ts --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)和[可观测性 runbook](docs/OBSERVABILITY.md)。
 
 CI/CD 验证、构建、扫描和发布九个 Java 镜像与一个 Web 镜像。发布前先运行 `deploy/release/preflight.sh`；经审批后使用 `deploy/release/helm-release.sh <staging|production> <apply|rollback>`。`deploy/release/check-manifest.sh` 是镜像清单的唯一校验入口。
 

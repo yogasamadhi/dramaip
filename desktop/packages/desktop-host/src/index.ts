@@ -412,6 +412,7 @@ export interface HostExtensionNetworkRequest {
  * serializable projection over its private Host HTTP connection.
  */
 export type HostEngineStreamEvent =
+  | { type: "activity"; activity: "thinking" }
   | { type: "content.delta"; delta: string }
   | {
       type: "tool";
@@ -1184,6 +1185,7 @@ function isHostEngineStreamEvent(
 ): value is HostEngineStreamEvent {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const event = value as Record<string, unknown>;
+  if (event.type === "activity") return event.activity === "thinking";
   if (event.type === "content.delta") return typeof event.delta === "string";
   if (event.type === "result") return "result" in event;
   if (event.type === "error") return typeof event.message === "string";
@@ -2126,40 +2128,46 @@ export function createHostAgentRuntime(
         for await (const event of host.engineStream(kind, payload)) {
           const cursor = record.events.length + 1;
           const mapped: AgentRuntimeEvent =
-            event.type === "content.delta"
-              ? { cursor, type: "content.delta", delta: event.delta }
-              : event.type === "tool"
-                ? {
-                    cursor,
-                    type: "tool",
-                    status: event.status,
-                    tool: event.tool,
-                    ...(event.itemId ? { itemId: event.itemId } : {}),
-                    ...(event.detail !== undefined
-                      ? { detail: event.detail }
-                      : {}),
-                  }
-                : event.type === "usage"
+            event.type === "activity"
+              ? { cursor, type: "activity", activity: event.activity }
+              : event.type === "content.delta"
+                ? { cursor, type: "content.delta", delta: event.delta }
+                : event.type === "tool"
                   ? {
                       cursor,
-                      type: "usage",
-                      usage: {
-                        inputTokens: event.inputTokens,
-                        outputTokens: event.outputTokens,
-                        cachedTokens: event.cachedTokens,
-                        estimatedCost: event.estimatedCost,
-                        currency: event.currency,
-                      },
+                      type: "tool",
+                      status: event.status,
+                      tool: event.tool,
+                      ...(event.itemId ? { itemId: event.itemId } : {}),
+                      ...(event.detail !== undefined
+                        ? { detail: event.detail }
+                        : {}),
                     }
-                  : event.type === "result"
-                    ? { cursor, type: "result", result: event.result as never }
-                    : {
+                  : event.type === "usage"
+                    ? {
                         cursor,
-                        type: "error",
-                        code: "PROVIDER_REJECTED",
-                        message: event.message,
-                        retryable: false,
-                      };
+                        type: "usage",
+                        usage: {
+                          inputTokens: event.inputTokens,
+                          outputTokens: event.outputTokens,
+                          cachedTokens: event.cachedTokens,
+                          estimatedCost: event.estimatedCost,
+                          currency: event.currency,
+                        },
+                      }
+                    : event.type === "result"
+                      ? {
+                          cursor,
+                          type: "result",
+                          result: event.result as never,
+                        }
+                      : {
+                          cursor,
+                          type: "error",
+                          code: "PROVIDER_REJECTED",
+                          message: event.message,
+                          retryable: false,
+                        };
           record.events.push(mapped);
           if (mapped.cursor > after) yield mapped;
         }

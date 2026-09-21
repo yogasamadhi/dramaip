@@ -1,3 +1,7 @@
+import {
+  CreationWorkbench,
+  CreationRecordWorkbench,
+} from "../creation-workbench";
 import type { DomainEntity } from "@dramaip/contracts/product";
 import { BareButton, confirmDialog } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -230,7 +234,7 @@ export function AdaptationWorkspace() {
       <WorkspaceIntro
         eyebrow="改编生产链路"
         title="从故事到分镜"
-        description="依次建立改编项目、分集、剧本、场景和分镜，下级资料始终明确归属到上级条目。"
+        description="确认来源与本集目标，AI 规划并生成剧本、场景和分镜，检查后以整集候选审阅采用。"
         badge="结构化改编"
       />
       <section className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-5">
@@ -403,6 +407,44 @@ export function AdaptationWorkspace() {
           </label>
         )}
       </section>
+      {projectId && (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,480px)]">
+          <div className="rounded-lg border border-line p-5 text-sm leading-7">
+            <h2 className="mb-2 font-semibold">本集创作</h2>
+            <p>
+              AI
+              根据已采用正文与创作方向生成一集。确认候选时会一起采用剧本、场景和分镜；媒体提交在制作页进行预检与确认。
+            </p>
+            <p className="mt-3 text-muted">
+              已有内容可从下方目录查看，或选择剧本提出修订要求。
+            </p>
+          </div>
+          {stage === "scripts" && scriptId ? (
+            <CreationRecordWorkbench
+              projectId={projectId}
+              targetId={scriptId}
+              domain="scripts"
+              operation="script-revision"
+            />
+          ) : stage === "shots" && shotId ? (
+            <CreationRecordWorkbench
+              projectId={projectId}
+              targetId={shotId}
+              domain="shots"
+              operation="shot-prompt"
+            />
+          ) : episodeId || adaptationId ? (
+            <CreationRecordWorkbench
+              projectId={projectId}
+              targetId={episodeId || adaptationId}
+              domain={episodeId ? "episodes" : "adaptations"}
+              operation="episode"
+            />
+          ) : (
+            <CreationWorkbench projectId={projectId} operation="episode" />
+          )}
+        </div>
+      )}
       <StageNavigation
         label="改编阶段"
         items={stageItems}
@@ -447,7 +489,10 @@ export function AdaptationWorkspace() {
           />
           {stage === "scripts" && scriptId && (
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-              <ScriptReviewPanel scriptId={scriptId} />
+              <div className="space-y-4">
+                <ScreenplayReader scriptId={scriptId} />
+                <ScriptReviewPanel scriptId={scriptId} />
+              </div>
               {selectedScript && (
                 <StoryBibleSidecar
                   projectId={projectId}
@@ -465,14 +510,17 @@ export function AdaptationWorkspace() {
             </div>
           )}
           {stage === "shots" && shotId && <ShotReviewPanel shotId={shotId} />}
-          <PluginResourceWorkspace
-            owner="production"
-            title="改编生产"
-            domains={[stage]}
-            projectId={projectId}
-            parentId={parentId}
-            parentRequired={parentRequired}
-          />
+          <details className="rounded-lg border border-line p-4">
+            <summary className="cursor-pointer text-sm">资料管理与导入</summary>
+            <PluginResourceWorkspace
+              owner="production"
+              title="改编生产"
+              domains={[stage]}
+              projectId={projectId}
+              parentId={parentId}
+              parentRequired={parentRequired}
+            />
+          </details>
         </>
       )}
     </section>
@@ -1372,5 +1420,35 @@ export function ReviewFindings(props: {
         </ul>
       </div>
     </div>
+  );
+}
+
+function ScreenplayReader(props: { scriptId: string }) {
+  const client = useStudio();
+  const { data, error } = useQuery({
+    queryKey: ["screenplay", props.scriptId],
+    queryFn: () => client.screenplays.get(props.scriptId),
+  });
+  return (
+    <article className="max-h-[600px] overflow-auto overscroll-contain rounded-lg border border-line bg-surface p-6">
+      <h2 className="mb-4 font-semibold">{data?.title ?? "本集剧本"}</h2>
+      {error && <p className="text-sm text-danger">{message(error)}</p>}
+      {data?.blocks.map((block) => (
+        <div
+          key={block.id}
+          className={
+            block.type === "scene_heading"
+              ? "mb-3 mt-6 border-b border-line pb-2 font-semibold"
+              : block.type === "character"
+                ? "mt-4 text-center font-medium"
+                : block.type === "dialogue"
+                  ? "mx-auto max-w-md whitespace-pre-wrap text-sm leading-7"
+                  : "my-2 whitespace-pre-wrap text-sm leading-7"
+          }
+        >
+          {"text" in block ? block.text : <hr />}
+        </div>
+      ))}
+    </article>
   );
 }

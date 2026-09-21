@@ -1,26 +1,43 @@
-import { describe, expect, it } from "vitest";
+import { Context } from "@deepseek-ai/cordis";
+import { afterEach, describe, expect, it } from "vitest";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { createSystemPlugin } from "./index.js";
-import type {
-  PluginContext,
-  RouteContribution,
-} from "@dramaip/plugin-api/internal";
+import type { RouteContribution } from "@dramaip/plugin-api/internal";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
+
+const contexts: Context[] = [];
+afterEach(async () => {
+  for (const ctx of contexts.splice(0)) await ctx.fiber.dispose();
+});
 
 async function installSystemRoutes(
   host?: DesktopHostClient,
 ): Promise<OpenAPIHono> {
   const routes: RouteContribution[] = [];
   const plugin = createSystemPlugin(host);
-  await plugin.activate({
+  const ctx = new Context();
+  contexts.push(ctx);
+  for (const [key, value] of Object.entries({
+    "dramaip.plugin.foundation": true,
+    domainEvents: { subscribeDomain: () => () => undefined },
+    uow: {
+      execute: (work: (tx: unknown) => unknown) =>
+        work({ all: () => [], get: () => undefined, run: () => undefined }),
+    },
+    ui: { register: () => () => undefined },
+    diagnostics: (): object => ({}),
+    profile: "test",
+    graphRevision: "test",
+    capability: (): undefined => undefined,
     http: {
       register(route: RouteContribution) {
         routes.push(route);
         return () => undefined;
       },
     },
-    effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
-  } as unknown as PluginContext);
+  }))
+    ctx.provide(key, value);
+  await ctx.plugin(plugin, {}).await();
   const app = new OpenAPIHono();
   for (const route of routes) {
     const register = app.openapi as unknown as (

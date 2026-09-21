@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -42,7 +43,7 @@ test("canonical timeline 提供已验证 NLE 交付及受控的媒体重链接�
   await page
     .getByRole("combobox", { name: "分镜" })
     .selectOption({ label: "镜头 1：门缝中的雨夜" });
-  await page.getByRole("button", { name: "多轨时间线" }).click();
+  await openProductionStage(page, "多轨时间线");
 
   const editor = page.getByLabel("多轨时间线编辑器");
   const delivery = editor.getByLabel("已验证 NLE 交付");

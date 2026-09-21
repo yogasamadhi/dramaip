@@ -36,21 +36,21 @@ test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与�
   await expect(
     page.getByRole("button", { name: "保存", exact: true }),
   ).toBeVisible();
+  await page.getByText("更多操作", { exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "修订预览", exact: true }),
+    page.getByRole("button", { name: "导入修改稿", exact: true }),
   ).toBeVisible();
+  await page.getByText("更多操作", { exact: true }).click();
   await expect(sidecar.getByLabel("搜索 Story Bible")).toBeVisible();
 
-  const auxiliary = page.getByLabel("章节辅助栏");
+  const auxiliary = page.getByLabel("章节辅助栏", { exact: true });
   await auxiliary.getByRole("button", { name: "折叠", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await expect(
-    auxiliary.getByRole("button", { name: "故事圣经" }),
-  ).toBeVisible();
+  await expect(sidecar).toBeHidden();
   await expect(
     page.getByRole("button", { name: "保存", exact: true }),
   ).toBeVisible();
-  await auxiliary.getByRole("button", { name: "故事圣经" }).click();
+  await openStoryBible(page);
   await expect(sidecar).toBeVisible();
 
   await sidecar.getByRole("button", { name: "生成变更草案" }).click();

@@ -1,12 +1,18 @@
+import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
+import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
 import { createRoute } from "@hono/zod-openapi";
 import {
   RevisionInputSchema,
   RevisionPreviewSchema,
   AUTOMATION_TASK_SERVICE,
   AUTOMATION_RESOURCE_SERVICE,
+  TaskAttentionInputSchema,
   TaskInputSchema,
   TaskRetryInputSchema,
   TaskSchema,
+  TaskWorklistCategorySchema,
+  TaskWorklistResponseSchema,
   type RevisionPreview,
   type AutomationTaskService,
   type Task,
@@ -18,13 +24,14 @@ import {
 } from "@dramaip/contracts/writing";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 import { pilotMigrations, pilotRoutes } from "./pilot.js";
+import { creationMigrations, creationRuntime } from "./creation.js";
 import {
   automationPreviewMigrations,
   automationPreviewRuntime,
@@ -44,11 +51,13 @@ interface TaskRow {
   progress: number;
   project_id: string | null;
   parent_task_id: string | null;
+  attention_status: Task["attentionStatus"];
   payload_json: string | null;
   result_json: string | null;
   error: string | null;
   created_at: string;
   updated_at: string;
+  result_status?: string | null;
 }
 
 interface RevisionRow {
@@ -73,6 +82,7 @@ interface RouteContext {
     param(name: string): string;
     header(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
+    query(name: string): string | undefined;
   };
   json(value: unknown, status?: number): Response;
 }
@@ -85,6 +95,7 @@ function declaration(input: {
   operationId: string;
   body?: ZodType;
   params?: ZodType;
+  query?: ZodType;
   response: ZodType;
   status?: 200 | 201;
 }): unknown {
@@ -94,10 +105,11 @@ function declaration(input: {
     path: input.path,
     operationId: input.operationId,
     tags: [input.operationId.split(".")[0]],
-    ...(input.body || input.params
+    ...(input.body || input.params || input.query
       ? {
           request: {
             ...(input.params ? { params: input.params } : {}),
+            ...(input.query ? { query: input.query } : {}),
             ...(input.body
               ? {
                   body: {
@@ -185,6 +197,8 @@ function task(row: TaskRow): Task {
     id: row.id,
     kind: row.kind,
     status: row.status,
+    attentionStatus: row.attention_status ?? "open",
+    resultStatus: normalizeResultStatus(row.result_status),
     title: row.title,
     progress: row.progress,
     ...(row.project_id ? { projectId: row.project_id } : {}),
@@ -200,12 +214,101 @@ function task(row: TaskRow): Task {
   };
 }
 
+function normalizeResultStatus(
+  value: string | null | undefined,
+): Task["resultStatus"] {
+  if (value === "pending" || value === "discarded" || value === "conflicted")
+    return value;
+  if (value === "committed" || value === "executed" || value === "applied")
+    return "applied";
+  return "none";
+}
+
+const TASKS_WITH_RESULT_STATUS = `
+  SELECT task.*,
+    COALESCE(
+      (SELECT provider.status
+         FROM automation_provider_action_previews provider
+        WHERE provider.task_id = task.id
+           OR provider.id = json_extract(task.result_json, '$.providerActionPreviewId')
+        ORDER BY provider.created_at DESC LIMIT 1),
+      (SELECT preview.status
+         FROM automation_change_previews preview
+        WHERE preview.task_id = task.id
+        ORDER BY preview.created_at DESC LIMIT 1)
+    ) AS result_status
+  FROM automation_tasks task`;
+
+function taskWithResultStatus(
+  transaction: UnitOfWorkTransaction,
+  row: TaskRow,
+): Task {
+  const change = transaction.get<{ status: string }>(
+    "SELECT status FROM automation_change_previews WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+    row.id,
+  );
+  const provider = transaction.get<{ status: string }>(
+    `SELECT status FROM automation_provider_action_previews
+      WHERE task_id = ?
+         OR id = json_extract(?, '$.providerActionPreviewId')
+      ORDER BY created_at DESC LIMIT 1`,
+    row.id,
+    row.result_json,
+  );
+  const value = task({
+    ...row,
+    result_status: provider?.status ?? change?.status,
+  });
+  if (
+    !value.result ||
+    typeof value.result !== "object" ||
+    Array.isArray(value.result)
+  )
+    return value;
+  const result = value.result as Record<string, unknown>;
+  const changePreview = result.changePreview;
+  const providerActionPreview = result.providerActionPreview;
+  return {
+    ...value,
+    result: {
+      ...result,
+      ...(change && changePreview && typeof changePreview === "object"
+        ? { changePreview: { ...changePreview, status: change.status } }
+        : {}),
+      ...(provider &&
+      providerActionPreview &&
+      typeof providerActionPreview === "object"
+        ? {
+            providerActionPreview: {
+              ...providerActionPreview,
+              status: provider.status,
+            },
+          }
+        : {}),
+    },
+  };
+}
+
+function taskCategory(
+  value: Task,
+): "pending-result" | "running" | "attention" | "history" {
+  if (value.resultStatus === "pending") return "pending-result";
+  if (value.status === "queued" || value.status === "running") return "running";
+  if (
+    (value.status === "failed" || value.status === "interrupted") &&
+    value.attentionStatus === "open"
+  )
+    return "attention";
+  return "history";
+}
+
 function createRecordedTask(
   context: PluginContext,
   input: {
     kind: string;
     title: string;
     projectId?: string;
+    parentTaskId?: string;
     status: "running" | "succeeded" | "failed";
     result?: unknown;
     error?: string;
@@ -218,13 +321,14 @@ function createRecordedTask(
       `INSERT INTO automation_tasks(
         id, kind, status, title, progress, project_id, parent_task_id,
         payload_json, result_json, error, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
       id,
       input.kind,
       input.status,
       input.title,
       input.status === "succeeded" ? 1 : 0,
       input.projectId ?? null,
+      input.parentTaskId ?? null,
       input.result === undefined ? null : JSON.stringify(input.result),
       input.error ?? null,
       now,
@@ -317,6 +421,12 @@ function recordReplay(
 
 function taskRoutes(context: PluginContext): readonly RouteContribution[] {
   const idParams = z.object({ id: z.string().uuid() });
+  const worklistQuery = z.object({
+    projectId: z.string().uuid().optional(),
+    category: TaskWorklistCategorySchema.default("pending-result"),
+    cursor: z.string().max(200).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  });
   return [
     contribute(
       {
@@ -337,11 +447,85 @@ function taskRoutes(context: PluginContext): readonly RouteContribution[] {
           context.uow.execute((transaction) =>
             transaction
               .all<TaskRow>(
-                "SELECT * FROM automation_tasks ORDER BY created_at DESC",
+                `${TASKS_WITH_RESULT_STATUS} ORDER BY task.created_at DESC`,
               )
               .map(task),
           ),
         ),
+    ),
+    contribute(
+      {
+        id: "automation:task-worklist",
+        pluginId: "automation",
+        method: "get",
+        path: "/api/v2/task-worklist",
+        operationId: "tasks.worklist",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/task-worklist",
+        operationId: "tasks.worklist",
+        query: worklistQuery,
+        response: TaskWorklistResponseSchema,
+      }),
+      (requestContext) => {
+        const parsed = worklistQuery.safeParse({
+          projectId: requestContext.req.query("projectId"),
+          category: requestContext.req.query("category"),
+          cursor: requestContext.req.query("cursor"),
+          limit: requestContext.req.query("limit"),
+        });
+        if (!parsed.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "任务筛选参数无效。",
+          );
+        const response = context.uow.execute((transaction) => {
+          const all = transaction
+            .all<TaskRow>(
+              parsed.data.projectId
+                ? `${TASKS_WITH_RESULT_STATUS} WHERE task.project_id = ? ORDER BY task.created_at DESC, task.id DESC`
+                : `${TASKS_WITH_RESULT_STATUS} ORDER BY task.created_at DESC, task.id DESC`,
+              ...(parsed.data.projectId ? [parsed.data.projectId] : []),
+            )
+            .map(task);
+          const counts = {
+            pendingResult: all.filter(
+              (item) => taskCategory(item) === "pending-result",
+            ).length,
+            running: all.filter((item) => taskCategory(item) === "running")
+              .length,
+            attention: all.filter((item) => taskCategory(item) === "attention")
+              .length,
+            history: all.filter((item) => taskCategory(item) === "history")
+              .length,
+          };
+          const categorized = all.filter(
+            (item) => taskCategory(item) === parsed.data.category,
+          );
+          const start = parsed.data.cursor
+            ? Math.max(
+                0,
+                categorized.findIndex(
+                  (item) =>
+                    `${item.createdAt}|${item.id}` === parsed.data.cursor,
+                ) + 1,
+              )
+            : 0;
+          const items = categorized.slice(start, start + parsed.data.limit);
+          const hasMore = start + items.length < categorized.length;
+          return {
+            items,
+            counts,
+            ...(hasMore && items.length
+              ? { nextCursor: `${items.at(-1)!.createdAt}|${items.at(-1)!.id}` }
+              : {}),
+          };
+        });
+        return requestContext.json(response);
+      },
     ),
     contribute(
       {
@@ -384,10 +568,68 @@ function taskRoutes(context: PluginContext): readonly RouteContribution[] {
         );
       },
     ),
+    contribute(
+      {
+        id: "automation:task-attention",
+        pluginId: "automation",
+        method: "post",
+        path: "/api/v2/tasks/{id}/attention",
+        operationId: "tasks.setAttention",
+      },
+      declaration({
+        method: "post",
+        path: "/api/v2/tasks/{id}/attention",
+        operationId: "tasks.setAttention",
+        params: idParams,
+        body: TaskAttentionInputSchema,
+        response: TaskSchema,
+      }),
+      async (requestContext) => {
+        const input = TaskAttentionInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        if (!input.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "提醒状态无效。",
+          );
+        const value = context.uow.execute((transaction) => {
+          const current = transaction.get<TaskRow>(
+            "SELECT * FROM automation_tasks WHERE id = ?",
+            requestContext.req.param("id"),
+          );
+          if (!current) return undefined;
+          transaction.run(
+            "UPDATE automation_tasks SET attention_status = ?, updated_at = ? WHERE id = ?",
+            input.data.status,
+            new Date().toISOString(),
+            current.id,
+          );
+          const updated = taskWithResultStatus(
+            transaction,
+            transaction.get<TaskRow>(
+              "SELECT * FROM automation_tasks WHERE id = ?",
+              current.id,
+            )!,
+          );
+          append(transaction, "task", "attention-updated", updated);
+          return updated;
+        });
+        return value
+          ? requestContext.json(value)
+          : problem(requestContext, 404, "NOT_FOUND", "未找到任务。");
+      },
+    ),
     ...(
       [
         ["cancel", z.object({}), "tasks.cancel"],
-        ["retry", TaskRetryInputSchema, "tasks.retry"],
+        [
+          "retry",
+          TaskRetryInputSchema.or(z.object({}).strict()),
+          "tasks.retry",
+        ],
       ] as const
     ).map(([action, body, operationId]): RouteContribution =>
       contribute(
@@ -407,6 +649,51 @@ function taskRoutes(context: PluginContext): readonly RouteContribution[] {
           response: TaskSchema,
         }),
         async (requestContext) => {
+          const currentTask = context.uow.execute((tx) =>
+            tx.get<TaskRow>(
+              "SELECT * FROM automation_tasks WHERE id = ?",
+              requestContext.req.param("id"),
+            ),
+          );
+          const workflowId = currentTask?.result_json
+            ? (
+                JSON.parse(currentTask.result_json) as {
+                  creationWorkflowId?: string;
+                }
+              ).creationWorkflowId
+            : undefined;
+          if (workflowId) {
+            try {
+              const service = optionalService(
+                context,
+                CREATION_WORKFLOW_SERVICE,
+              );
+              if (!service) throw new Error("创作工作流未启用。");
+              const value = await service.action(
+                workflowId,
+                action,
+                requestContext.req.header("Idempotency-Key") ??
+                  (action === "cancel" ? `cancel:${workflowId}` : ""),
+              );
+              const result = context.uow.execute((tx) =>
+                taskWithResultStatus(
+                  tx,
+                  tx.get<TaskRow>(
+                    "SELECT * FROM automation_tasks WHERE id = ?",
+                    value.taskId,
+                  )!,
+                ),
+              );
+              return requestContext.json(result);
+            } catch (error) {
+              return problem(
+                requestContext,
+                409,
+                "CONFLICT",
+                error instanceof Error ? error.message : "创作操作未完成。",
+              );
+            }
+          }
           if (action === "retry") {
             const parsed = TaskRetryInputSchema.safeParse(
               await requestContext.req.json(),
@@ -420,44 +707,23 @@ function taskRoutes(context: PluginContext): readonly RouteContribution[] {
               );
           }
           const id = requestContext.req.param("id");
-          const result = context.uow.execute((transaction) => {
+          const exists = context.uow.execute((transaction) => {
             const current = transaction.get<TaskRow>(
               "SELECT * FROM automation_tasks WHERE id = ?",
               id,
             );
-            if (!current) return { state: "missing" as const };
-            const allowed =
-              action === "cancel"
-                ? ["queued", "running"]
-                : ["failed", "canceled", "interrupted"];
-            if (!allowed.includes(current.status))
-              return { state: "conflict" as const };
-            const nextStatus = action === "cancel" ? "canceled" : "queued";
-            transaction.run(
-              "UPDATE automation_tasks SET status = ?, progress = 0, error = NULL, updated_at = ? WHERE id = ?",
-              nextStatus,
-              new Date().toISOString(),
-              id,
-            );
-            const value = task(
-              transaction.get<TaskRow>(
-                "SELECT * FROM automation_tasks WHERE id = ?",
-                id,
-              )!,
-            );
-            append(transaction, "task", action, value);
-            return { state: "updated" as const, value };
+            return Boolean(current);
           });
-          if (result.state === "missing")
+          if (!exists)
             return problem(requestContext, 404, "NOT_FOUND", "未找到任务。");
-          if (result.state === "conflict")
-            return problem(
-              requestContext,
-              409,
-              "CONFLICT",
-              action === "cancel" ? "任务无法取消。" : "任务无法重试。",
-            );
-          return requestContext.json(result.value);
+          return problem(
+            requestContext,
+            409,
+            "TASK_OWNER_ACTION_REQUIRED",
+            action === "cancel"
+              ? "请返回任务所属业务操作执行取消；任务中心不会只修改本地状态。"
+              : "请返回任务所属业务操作重新预检并提交；任务中心不会伪造重试。",
+          );
         },
       ),
     ),
@@ -502,7 +768,8 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
             "VALIDATION_ERROR",
             "修订预览参数或 Idempotency-Key 无效。",
           );
-        const writing = context.services.optional<WritingChapterService>(
+        const writing = optionalService<WritingChapterService>(
+          context,
           WRITING_CHAPTER_SERVICE,
         );
         if (!writing)
@@ -636,7 +903,8 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
           if (current.status !== "pending")
             return problem(requestContext, 409, "CONFLICT", "修订预览已处理。");
           if (action === "commit") {
-            const writing = context.services.optional<WritingChapterService>(
+            const writing = optionalService<WritingChapterService>(
+              context,
               WRITING_CHAPTER_SERVICE,
             );
             if (!writing)
@@ -750,9 +1018,26 @@ const automationMigrations = [
   ...pilotMigrations,
   ...automationPreviewMigrations,
   ...automationResourceMigrations,
+  {
+    id: "automation.0006.task-attention",
+    pluginId: "automation",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["automation.0003.previews-and-templates"],
+    sql: `
+      ALTER TABLE automation_tasks
+        ADD COLUMN attention_status TEXT NOT NULL DEFAULT 'open';
+      CREATE INDEX IF NOT EXISTS automation_tasks_attention
+        ON automation_tasks(attention_status, status, created_at DESC, id);
+      CREATE INDEX IF NOT EXISTS automation_change_previews_task
+        ON automation_change_previews(task_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS automation_provider_previews_task
+        ON automation_provider_action_previews(task_id, created_at DESC);
+    `,
+  },
 ] as const;
 
-export const automationPlugin = defineFirstPartyPlugin({
+export const automationPlugin = definePlugin({
+  inject: [WORKSPACE_PROJECT_SERVICE.id],
   descriptor: {
     id: "automation",
     version: "3.0.0-alpha.3",
@@ -790,8 +1075,8 @@ export const automationPlugin = defineFirstPartyPlugin({
       metadata: { slot: "project.tools", title: "工作流与模板" },
     },
   ],
-  migrations: automationMigrations,
-  activate: (context) => {
+  migrations: [...automationMigrations, ...creationMigrations],
+  apply: (context) => {
     const taskService: AutomationTaskService = {
       start: (input) =>
         createRecordedTask(context, { ...input, status: "running" }),
@@ -804,9 +1089,11 @@ export const automationPlugin = defineFirstPartyPlugin({
           if (!current) return undefined;
           transaction.run(
             `UPDATE automation_tasks SET status = ?, progress = ?,
-             result_json = ?, error = ?, updated_at = ? WHERE id = ?`,
+             attention_status = ?, result_json = ?, error = ?, updated_at = ?
+             WHERE id = ?`,
             patch.status ?? current.status,
             patch.progress ?? current.progress,
+            patch.attentionStatus ?? current.attention_status,
             patch.result === undefined
               ? current.result_json
               : JSON.stringify(patch.result),
@@ -828,21 +1115,28 @@ export const automationPlugin = defineFirstPartyPlugin({
       fail: (input) =>
         createRecordedTask(context, { ...input, status: "failed" }),
     };
-    context.effect(`service:${AUTOMATION_TASK_SERVICE}`, () =>
-      context.services.provide(AUTOMATION_TASK_SERVICE, taskService),
+    context.effect(
+      () => provideService(context, AUTOMATION_TASK_SERVICE, taskService),
+      `service:${AUTOMATION_TASK_SERVICE}`,
     );
     const previewRuntime = automationPreviewRuntime(context);
-    context.effect(`service:${AUTOMATION_PREVIEW_SERVICE}`, () =>
-      context.services.provide(
-        AUTOMATION_PREVIEW_SERVICE,
-        previewRuntime.service,
-      ),
+    context.effect(
+      () =>
+        provideService(
+          context,
+          AUTOMATION_PREVIEW_SERVICE,
+          previewRuntime.service,
+        ),
+      `service:${AUTOMATION_PREVIEW_SERVICE}`,
     );
     const resourceService = automationResourceService(context);
-    context.effect(`service:${AUTOMATION_RESOURCE_SERVICE}`, () =>
-      context.services.provide(AUTOMATION_RESOURCE_SERVICE, resourceService),
+    context.effect(
+      () =>
+        provideService(context, AUTOMATION_RESOURCE_SERVICE, resourceService),
+      `service:${AUTOMATION_RESOURCE_SERVICE}`,
     );
     const routes = [
+      ...creationRuntime(context).routes,
       ...taskRoutes(context),
       ...revisionRoutes(context),
       ...pilotRoutes(context),
@@ -850,6 +1144,8 @@ export const automationPlugin = defineFirstPartyPlugin({
       ...automationResourceRoutes(context),
     ];
     for (const route of routes)
-      context.effect(`route:${route.id}`, () => context.http.register(route));
+      context.effect(() => context.http.register(route), `route:${route.id}`);
   },
 });
+
+export default automationPlugin;

@@ -24,7 +24,11 @@
     "turbo": "2.10.10",
     "typescript": "^5.9.3",
     "vitest": "4.1.9",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "@types/js-yaml": "^4.0.9",
+    "@types/babel__code-frame": "7.27.0",
+    "@types/picomatch": "3.0.2",
+    "tsx": "4.22.4"
   },
   "catalog": {
     "effect": "4.0.0-beta.83",
@@ -44,7 +48,7 @@
   "private": true,
   "scripts": {
     "dev": "bun ../run-desktop.ts",
-    "build": "bun run --filter @dramaip/desktop build",
+    "build": "bun run build:framework && bun run plugins:generate && bun run --filter @dramaip/desktop build",
     "preview": "bun run --filter @dramaip/desktop preview",
     "package": "bun run --filter @dramaip/desktop package",
     "release:metadata": "bun run scripts/generate-release-metadata.mjs",
@@ -55,21 +59,20 @@
     "test:unit": "bun test --cwd apps/desktop/electron && bun test --cwd packages/app && bun run test:runtime && bun run test:conformance",
     "test": "bun run typecheck && bun run test:unit",
     "test:e2e": "bun run build && bun scripts/run-electron-playwright.ts test",
-    "serve": "bun run --filter @dramaip/runtime serve",
-    "test:runtime:bun": "bun test --cwd packages/ai src/codex-mcp-bridge.test.ts src/codex-sidecar.test.ts && bun test packages/ai/src/langgraph-engine.test.ts packages/ai/src/langgraph-sidecar.test.ts packages/bundles/src/index.test.ts packages/server-connection/src/index.test.ts packages/kernel/src/index.test.ts packages/database/src/cutover.test.ts packages/database/src/migration-worker.test.ts packages/desktop-host/src/agent-runtime.test.ts packages/desktop-host/src/server.test.ts packages/ui-runtime/src/index.test.ts packages/runtime/src/effective-graph.test.ts packages/runtime/src/event-runtime.test.ts packages/runtime/src/http-security.test.ts packages/runtime/src/route-registry.test.ts packages/runtime/src/providers.test.ts packages/runtime/src/workspace-writing.test.ts plugins/production/src/screenplay-codec.test.ts plugins/production/src/draft-merge.test.ts plugins/system/src/index.test.ts && bun packages/database/src/migration-worker.integration.ts",
-    "test:runtime": "bun run test:runtime:bun",
-    "test:plugin-api-conformance": "bun test packages/runtime/src/plugin-api-conformance.test.ts",
-    "test:engine-conformance": "bun test packages/desktop-host/src/engine-conformance.test.ts",
-    "test:extension-host-conformance": "bun test packages/extension-host/src/conformance.test.ts",
-    "test:extension-security": "bun test packages/extension-host/src/security.test.ts",
-    "test:marketplace": "bun test plugins/system/src/extensions/marketplace.test.ts",
+    "serve": "bun run build:runtime && bun scripts/run-node.mjs scripts/runtime-supervisor.mjs",
+    "test:runtime": "bun run test:adapters && bun run test:runtime:node",
+    "test:plugin-api-conformance": "bun scripts/run-node.mjs --expose-internals node_modules/vitest/vitest.mjs run --maxWorkers=1 packages/runtime/src/plugin-api-conformance.test.ts",
+    "test:engine-conformance": "bun scripts/run-node.mjs --expose-internals node_modules/vitest/vitest.mjs run --maxWorkers=1 packages/desktop-host/src/engine-conformance.test.ts",
+    "test:extension-host-conformance": "bun scripts/run-node.mjs --expose-internals node_modules/vitest/vitest.mjs run --maxWorkers=1 packages/extension-host/src/conformance.test.ts",
+    "test:extension-security": "bun scripts/run-node.mjs --expose-internals node_modules/vitest/vitest.mjs run --maxWorkers=1 packages/extension-host/src/security.test.ts",
+    "test:marketplace": "bun scripts/run-node.mjs --expose-internals node_modules/vitest/vitest.mjs run --maxWorkers=1 plugins/system/src/extensions/marketplace.test.ts",
     "test:conformance": "bun run test:plugin-api-conformance && bun run test:engine-conformance && bun run test:extension-host-conformance && bun run test:extension-security && bun run test:marketplace",
-    "format": "bun --bun run prettier --write README.md package.json playwright.config.ts tests/electron tsconfig.base.json apps/desktop/electron-builder.yml apps/desktop/electron.vite.config.ts apps/desktop/electron apps/desktop/scripts apps/desktop/tsconfig*.json packages plugins profiles scripts/check-runtime-architecture.mjs",
-    "format:check": "bun --bun run prettier --check README.md package.json playwright.config.ts tests/electron tsconfig.base.json apps/desktop/electron-builder.yml apps/desktop/electron.vite.config.ts apps/desktop/electron apps/desktop/scripts apps/desktop/tsconfig*.json packages plugins profiles scripts/check-runtime-architecture.mjs",
+    "format": "bun --bun run prettier --write README.md package.json playwright.config.ts tests/electron tsconfig.base.json apps/desktop/electron-builder.yml apps/desktop/electron.vite.config.ts apps/desktop/electron apps/desktop/scripts apps/desktop/tsconfig*.json packages plugins profiles bundles cordis.yml scripts/check-runtime-architecture.mjs scripts/{build-dsh-framework,build-runtime,check-dsh-framework,dev-desktop,dsh-framework,prepare-dsh-framework,run-node,runtime-supervisor,test-runtime-hmr,test-runtime-build-watch}.mjs scripts/{first-party-sources,generate-plugin-manifests,generate-architecture-catalogs}.ts",
+    "format:check": "bun --bun run prettier --check README.md package.json playwright.config.ts tests/electron tsconfig.base.json apps/desktop/electron-builder.yml apps/desktop/electron.vite.config.ts apps/desktop/electron apps/desktop/scripts apps/desktop/tsconfig*.json packages plugins profiles bundles cordis.yml scripts/check-runtime-architecture.mjs scripts/{build-dsh-framework,build-runtime,check-dsh-framework,dev-desktop,dsh-framework,prepare-dsh-framework,run-node,runtime-supervisor,test-runtime-hmr,test-runtime-build-watch}.mjs scripts/{first-party-sources,generate-plugin-manifests,generate-architecture-catalogs}.ts",
     "check:generated": "bun run --filter @dramaip/client check:generated",
     "check:engine-locks": "bun scripts/check-engine-locks.mjs",
     "check:provider-catalog": "bun scripts/check-provider-catalog.mjs",
-    "architecture:generate": "bun scripts/generate-architecture-catalogs.ts",
+    "architecture:generate": "bun run plugins:generate && bun scripts/run-node.mjs --import tsx scripts/generate-architecture-catalogs.ts",
     "extension:pack": "bun scripts/extension-pack.ts",
     "extension:verify": "bun scripts/extension-verify.ts",
     "extension:registry:build": "bun scripts/extension-registry-build.ts",
@@ -80,7 +83,19 @@
     "migration:generate": "bun scripts/generate-functional-migration-matrix.mjs",
     "check:migration": "bun scripts/generate-functional-migration-matrix.mjs --check",
     "check:migration:complete": "bun scripts/generate-functional-migration-matrix.mjs --check --complete",
-    "check:architecture": "bun scripts/generate-architecture-catalogs.ts --check && bun scripts/check-runtime-architecture.mjs"
+    "check:architecture": "bun run check:plugins && bun scripts/run-node.mjs --import tsx scripts/generate-architecture-catalogs.ts --check && bun scripts/check-runtime-architecture.mjs",
+    "prepare:framework": "bun scripts/prepare-dsh-framework.mjs",
+    "build:framework": "bun scripts/build-dsh-framework.mjs",
+    "check:framework": "bun scripts/prepare-dsh-framework.mjs --check && bun scripts/check-dsh-framework.mjs",
+    "build:runtime": "bun scripts/build-runtime.mjs",
+    "plugins:generate": "bun scripts/generate-plugin-manifests.ts",
+    "check:plugins": "bun scripts/generate-plugin-manifests.ts --check",
+    "test:runtime:watch": "bun scripts/test-runtime-build-watch.mjs",
+    "test:runtime:hmr": "bun run build:runtime && bun scripts/run-node.mjs scripts/test-runtime-hmr.mjs",
+    "dev:runtime": "bun scripts/dev-desktop.mjs --runtime",
+    "test:adapters": "bun test --cwd packages/ai src/codex-mcp-bridge.test.ts src/codex-sidecar.test.ts && bun test packages/ai/src/langgraph-engine.test.ts packages/ai/src/langgraph-sidecar.test.ts",
+    "test:runtime:node": "bun scripts/run-node.mjs --expose-internals node_modules/vitest/vitest.mjs run --maxWorkers=1 packages/bundles/src/index.test.ts packages/server-connection/src/index.test.ts packages/kernel/src/index.test.ts packages/database/src/cutover.test.ts packages/database/src/migration-worker.test.ts packages/desktop-host/src/agent-runtime.test.ts packages/desktop-host/src/server.test.ts packages/ui-runtime/src/index.test.ts packages/runtime/src/effective-graph.test.ts packages/runtime/src/event-runtime.test.ts packages/runtime/src/http-security.test.ts packages/runtime/src/route-registry.test.ts packages/runtime/src/providers.test.ts packages/runtime/src/workspace-writing.test.ts plugins/production/src/screenplay-codec.test.ts plugins/production/src/draft-merge.test.ts plugins/writing/src/text-merge.test.ts plugins/system/src/index.test.ts && bun scripts/run-node.mjs --import tsx packages/database/src/migration-worker.integration.ts",
+    "test:runtime:hmr:electron": "bun run build:runtime && bun scripts/run-node.mjs scripts/test-runtime-hmr.mjs --electron"
   },
   "trustedDependencies": [
     "electron",
@@ -107,6 +122,7 @@
     "packages/agent-runtime",
     "packages/ui-runtime",
     "packages/extension-host",
-    "plugins/*"
+    "plugins/*",
+    "build/dsh-framework/*"
   ]
 }

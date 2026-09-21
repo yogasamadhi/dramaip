@@ -2,9 +2,9 @@
 
 > 文档类型：Normative Level Profile
 >
-> 架构版本：2.0
+> 架构版本：2.1
 >
-> 更新时间：2026-08-23
+> 更新时间：2026-09-10
 >
 > 适用对象：多业务域、多团队、长期维护，但不加载第三方代码的专业桌面软件
 >
@@ -115,6 +115,8 @@ enterprise
 
 Profile 是官方发布的产品形态，不是用户扩展集合。
 
+以上名称是通用示例。DramaIP 固定使用 `studio/server/safe/test/e2e` 五个 Profile，未定义 `enterprise`。其 Profile JSON 选择 Bundle，空根 `cordis.yml`、Bundle 和 Profile 的 `cordis.patch.yml` 由 DSH Include 按原生覆盖规则展开；插件列表从展开结果得到。配置只接受受信任第一方装配，不能用它装载用户提供的代码。
+
 ---
 
 # 4. Minimal Kernel
@@ -134,7 +136,9 @@ diagnostics
 
 Kernel 不负责具体业务域，也不应成为跨插件万能 Service Locator。
 
-Cordis 或类似 microkernel 可以作为私有 composition root，但属于实现选择，不是架构公共契约。插件不得依赖其私有 Context，未来替换 Kernel 实现不应破坏插件 Contract。
+通用 Level 2 不限定具体 microkernel；第一方实现可以直接使用选定框架的 Context 和生命周期 API。框架类型不得越过 Client、公开 Plugin API 或 Agent Runtime 等公共契约边界。
+
+DramaIP 采用锁定 DSH Cordis 的 `Context / Service / inject / effect / Fiber`，第一方使用 `@dramaip/plugin-api/internal`，由 Loader/Include/Group 动态装配。Cordis 拥有服务实例、依赖激活和清理；Kernel 保留 owner、major、capability 校验、迁移协调和贡献原子发布，不另建 `ServiceRegistry`、`EffectScope` 或顺序 `activate(context)` 启动循环。
 
 ---
 
@@ -165,30 +169,34 @@ missing required capability
 
 业务跨域协作优先通过 Service 或 Event。确需跨域查询时，只能通过 owner 提供的只读 projection contract，不能直接访问其他插件 Repository。
 
+注册元数据与插件实现分离：构建期从插件声明生成身份、版本、模块入口、迁移和 contribution 清单；Runtime 静态读取元数据做图预检，再由 Loader 动态导入 ESM。图预检顺序不代替生命周期调度，实际激活由 Cordis `inject` 中的服务可用性决定。
+
 ---
 
 # 6. Typed Services
 
-Service Registry 应使用有约束的 API：
+服务访问应使用有类型和归属约束的 API。DramaIP 在原生 Cordis 上提供：
 
 ```ts
-ctx.services.provide<T>(contract, implementation);
-ctx.services.require<T>(contract);
-ctx.services.optional<T>(contract);
+provideService(ctx, contract, implementation);
+requireService(ctx, contract);
+optionalService(ctx, contract);
 ```
 
 Contract 至少描述：
 
 ```text
 id
-version
+major
 capabilities
 input / output type
 error type
 owner
 ```
 
-`require()` 缺失在 Graph 激活阶段失败；`optional()` 只用于真正可降级或环境相关能力。禁止字符串随意取任意对象的全局 Service Locator。
+必需服务通过 `inject` 声明；`requireService()` 在激活时验证并读取实例，`optionalService()` 只用于契约明确声明可降级的能力。服务 ID、owner、major 和 capability 在发布图前校验，重复提供、错误 owner、版本不匹配或缺失依赖均失败。这些 helper 不持有另一套服务实例。
+
+HTTP、UnitOfWork、持久事件和 UI contribution 作为基础服务注入。持久业务事件使用 `ctx.domainEvents`，保留 Cordis 的 `ctx.events` 供框架使用。
 
 ---
 
@@ -204,20 +212,20 @@ contract versions
 configuration fingerprint
 ```
 
-标准启动流程：
+采用 DramaIP 原生 Cordis 装配时，标准启动流程为：
 
 ```text
 Resolve
 → Validate
 → Migrate
-→ Stage Routes / Services / Events / UI
-→ Activate Plugins
+→ Loader / Include / Group Load and Stage Contributions
+→ Await Enabled Entries and Child Fibers
 → Validate Effective OpenAPI and Graph
 → Atomic Publish Revision
 → Ready
 ```
 
-任何阶段失败都必须撤销本次 staging，不得暴露半激活 Runtime。
+任何阶段失败都必须撤销本次 staging，不得暴露半激活 Runtime。等待生命周期稳定后，所有启用条目、子 Fiber、必需服务与 contributions 必须完整；pending 不是成功启动。
 
 Level 2 默认允许采用更简单、更安全的生产策略：
 
@@ -226,7 +234,9 @@ first-party graph is immutable after boot
 profile change requires Runtime restart
 ```
 
-只有存在真实需求时才开放运行期 reload。
+开发 HMR 与生产策略分别定义。DramaIP 默认启用 DSH Timer/HMR：暂停业务请求并排空已有 handler，暂存路由/UI，执行原生重载和依赖重建，图校验后同步发布 Router、Core Graph 与诊断。期间允许结构化 `RUNTIME_RELOADING` 响应。
+
+导入或配置失败沿用 DSH 恢复；异步激活失败或恢复后不完整则从上一成功代码/配置构建快照重启。框架、启动入口、共享契约、插件公共元数据、迁移或 Profile 成员变化走完整 Runtime 重启。恢复不回滚业务数据库，也不自动重放业务写入。生产关闭第一方文件监听。
 
 ---
 
@@ -234,15 +244,15 @@ profile change requires Runtime restart
 
 每个长期副作用必须有 owner、plugin version、graph revision 和 label。
 
-推荐 acquisition API：
+以 DSH Cordis 为例，acquisition API 为：
 
 ```ts
-await ctx.effect("route:workspace.projects", () => ctx.http.register(route));
+await ctx.effect(() => ctx.http.register(route), "route:workspace.projects");
 
-await ctx.effect("timer:automation.scheduler", () => {
+await ctx.effect(() => {
   const timer = setInterval(tick, interval);
   return () => clearInterval(timer);
-});
+}, "timer:automation.scheduler");
 ```
 
 平台负责 acquire 和登记，避免插件先创建资源、后登记 cleanup 时发生泄漏。
@@ -250,9 +260,10 @@ await ctx.effect("timer:automation.scheduler", () => {
 要求：
 
 - activation 失败清理当前 revision；
-- 同一 owner 逆序释放；
+- 遵循 DSH 原生并发清理；有顺序依赖的资源放入一个 effect，显式 await 每个释放步骤；
+- 重复 dispose 幂等，单个清理异常不阻止其他独立资源回收；
 - unload/restart 清理所有长期资源；
-- diagnostics 可列出活跃 effect；
+- diagnostics 从真实 Fiber/effect 元数据列出活跃 effect，并关联 owner/version/revision；
 - 测试结束 effect 数量归零；
 - 禁止未登记 timer、listener、watcher、stream、worker 和 child process。
 
@@ -273,14 +284,20 @@ await ctx.effect("timer:automation.scheduler", () => {
 ```text
 Active Router A
      │
+gate requests and drain active handlers
+     │
+stage contributions through native plugin reload
+     │
 build and validate Router B
      │
-atomic swap
+atomic publish Router / Graph / UI / diagnostics
      ▼
-dispose Router A effects
+resume requests with Router B
 ```
 
 不得依赖修改 Hono、Express 或其他框架的私有路由表实现卸载。
+
+DramaIP 的原生插件清理发生在重载批次中，不能要求卸载旧插件后旧 handler 仍继续使用已释放服务。请求暂停覆盖这一窗口；失败图不发布，由恢复或完整重启重新建立可服务状态。
 
 ---
 
@@ -389,6 +406,10 @@ domain event replay
 optional capability degradation
 effective OpenAPI
 UI contribution resolution
+native inject delay / service withdrawal / dependency restart
+module and configuration HMR / repeated file events
+failed reload recovery / no duplicate routes, consumers, timers or watchers
+detached Runtime artifact and framework source provenance
 ```
 
 故障测试必须覆盖 critical/optional plugin 失败、迁移 checksum 错误、Graph staging 失败和 Runtime 重启。
@@ -403,7 +424,7 @@ UI contribution resolution
 4. MUST 使用 Plugin → Bundle → Profile → Graph Revision。
 5. MUST 验证插件依赖 DAG。
 6. MUST 禁止跨插件实现 import。
-7. MUST 跟踪并逆序释放全部长期 effect。
+7. MUST 跟踪全部长期 effect，遵循原生清理语义并显式表达资源释放依赖。
 8. MUST 原子发布有效 Graph，不能暴露半激活状态。
 9. MUST 为表、迁移、路由和事件声明唯一 owner。
 10. MUST 区分 Domain Event 与 Realtime Event。

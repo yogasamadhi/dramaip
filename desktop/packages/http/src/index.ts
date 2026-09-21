@@ -156,6 +156,40 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
   };
   private readonly draining = new Set<typeof this.active>();
   private published = false;
+  private reloading = false;
+  private readonly handlerTasks = new Set<Promise<Response>>();
+
+  /** Freeze dispatch before Cordis tears down any plugin resources. */
+  async beginReload(timeoutMs = 30_000): Promise<void> {
+    if (this.reloading) throw new Error("A Runtime reload is already active");
+    this.reloading = true;
+    this.published = false;
+    const deadline = Date.now() + timeoutMs;
+    while (this.active.inFlight || this.handlerTasks.size) {
+      if (Date.now() >= deadline)
+        throw new Error("Runtime reload could not drain active requests");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  prepareReload(): () => void {
+    const candidate = this.buildRouter();
+    // Materialize OpenAPI too: invalid declarations must fail before publication.
+    candidate.router.getOpenAPI31Document({
+      openapi: "3.1.0",
+      info: { title: "Runtime candidate", version: "1" },
+    });
+    return () => {
+      this.active = candidate;
+      this.published = true;
+      this.reloading = false;
+    };
+  }
+
+  commitReload(): void {
+    this.prepareReload()();
+    this.reloading = false;
+  }
 
   register(contribution: RouteContribution): Cleanup {
     if (this.contributions.has(contribution.id))
@@ -184,6 +218,12 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
   }
 
   async fetch(request: Request): Promise<Response> {
+    if (this.reloading)
+      return routePolicyProblem(
+        503,
+        "RUNTIME_RELOADING",
+        "Runtime plugins are reloading; retry when the graph is ready",
+      );
     const snapshot = this.active;
     snapshot.inFlight += 1;
     try {
@@ -239,11 +279,18 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
       );
       timeout.unref?.();
       let response: Response;
+      const handler = Promise.resolve(
+        snapshot.router.fetch(
+          new Request(request, { signal: controller.signal }),
+        ),
+      );
+      this.handlerTasks.add(handler);
+      void handler
+        .finally(() => this.handlerTasks.delete(handler))
+        .catch(() => undefined);
       try {
         response = await Promise.race([
-          snapshot.router.fetch(
-            new Request(request, { signal: controller.signal }),
-          ),
+          handler,
           new Promise<Response>((resolve) => {
             controller.signal.addEventListener(
               "abort",
@@ -285,11 +332,13 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
   }
 
   diagnostics(): {
+    reloading: boolean;
     activeRevision: number;
     activeInFlight: number;
     draining: readonly { revision: number; inFlight: number }[];
   } {
     return {
+      reloading: this.reloading,
       activeRevision: this.active.revision,
       activeInFlight: this.active.inFlight,
       draining: [...this.draining].map((entry) => ({
@@ -299,7 +348,7 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
     };
   }
 
-  private rebuild(): void {
+  private buildRouter(): typeof this.active {
     const router = new OpenAPIHono();
     for (const contribution of this.contributions.values()) {
       const register = router.openapi as unknown as (
@@ -308,13 +357,17 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
       ) => void;
       register.call(router, contribution.declaration, contribution.handler);
     }
-    const previous = this.active;
-    this.active = {
+    return {
       router,
-      revision: previous.revision + 1,
+      revision: this.active.revision + 1,
       inFlight: 0,
       contributions: [...this.contributions.values()],
     };
+  }
+
+  private rebuild(): void {
+    const previous = this.active;
+    this.active = this.buildRouter();
     if (previous.inFlight > 0) {
       this.draining.add(previous);
       setTimeout(() => this.draining.delete(previous), 30_000).unref?.();

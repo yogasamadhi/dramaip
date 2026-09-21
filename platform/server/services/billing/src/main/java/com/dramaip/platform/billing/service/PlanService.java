@@ -2,7 +2,9 @@ package com.dramaip.platform.billing.service;
 
 import com.dramaip.platform.billing.client.QuotaProvisionClient;
 import com.dramaip.platform.billing.client.QuotaRefundClient;
+import com.dramaip.platform.common.observability.OutboxObservability;
 import com.dramaip.platform.common.web.BusinessException;
+import com.dramaip.platform.common.web.RequestContext;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -22,13 +24,16 @@ public class PlanService {
     private final QuotaRefundClient refunds;
     private final String internalToken;
     private final PaymentProviderRegistry paymentProviders;
+    private final OutboxObservability outbox;
     public PlanService(JdbcTemplate jdbc, QuotaProvisionClient quota, QuotaRefundClient refunds,
-            @Value("${dramaip.internal.token:}") String internalToken, PaymentProviderRegistry paymentProviders) {
+            @Value("${dramaip.internal.token:}") String internalToken, PaymentProviderRegistry paymentProviders,
+            OutboxObservability outbox) {
         this.jdbc = jdbc;
         this.quota = quota;
         this.refunds = refunds;
         this.internalToken = internalToken;
         this.paymentProviders = paymentProviders;
+        this.outbox = outbox;
     }
 
     public List<Plan> listPlans() {
@@ -68,11 +73,12 @@ public class PlanService {
                 rs -> rs.next() ? order(rs) : null, userId, request.idempotencyKey());
         if (persisted == null) throw new BusinessException("BILLING_ORDER_CREATE_FAILED", "order could not be persisted", HttpStatus.CONFLICT);
         if (!id.equals(persisted.id())) return persisted;
-        jdbc.update("""
-                insert into billing.outbox_events(id, aggregate_type, aggregate_id, event_type, payload)
-                values (?::uuid, 'order', ?::uuid, 'billing.checkout.created', jsonb_build_object('orderId', ?, 'userId', ?, 'amountMinor', ?))
-                on conflict do nothing
-                """, UUID.randomUUID().toString(), persisted.id(), persisted.id(), userId, plan.amountMinor());
+        outbox.stage("billing", "billing.checkout.created", () -> jdbc.update("""
+                    insert into billing.outbox_events(id, aggregate_type, aggregate_id, event_type, payload, trace_id)
+                    values (?::uuid, 'order', ?::uuid, 'billing.checkout.created', jsonb_build_object('orderId', ?, 'userId', ?, 'amountMinor', ?), ?)
+                    on conflict do nothing
+                    """, UUID.randomUUID().toString(), persisted.id(), persisted.id(), userId, plan.amountMinor(),
+                    RequestContext.traceId()));
         return persisted;
     }
 
@@ -142,10 +148,11 @@ public class PlanService {
                 from billing.plans plan where plan.id = ?::uuid
                 on conflict (subscription_id, period_start) do nothing
                 """, UUID.randomUUID().toString(), subscriptionId, userId, orderId, timestamp(now), timestamp(end), order.planId());
-        jdbc.update("""
-                insert into billing.outbox_events(id, aggregate_type, aggregate_id, event_type, payload)
-                values (?::uuid, 'billing.payment', ?::uuid, 'payment.succeeded.v1', jsonb_build_object('paymentId', ?, 'orderId', ?, 'subscriptionId', ?))
-                """, UUID.randomUUID().toString(), paymentId, paymentId, orderId, subscriptionId);
+        outbox.stage("billing", "payment.succeeded.v1", () -> jdbc.update("""
+                    insert into billing.outbox_events(id, aggregate_type, aggregate_id, event_type, payload, trace_id)
+                    values (?::uuid, 'billing.payment', ?::uuid, 'payment.succeeded.v1', jsonb_build_object('paymentId', ?, 'orderId', ?, 'subscriptionId', ?), ?)
+                    """, UUID.randomUUID().toString(), paymentId, paymentId, orderId, subscriptionId,
+                    RequestContext.traceId()));
         Plan plan = jdbc.query("select id::text, code, name, billing_period, cast(round(price * 100) as bigint), currency, monthly_token_quota, max_rpm, max_context_tokens, model_level, purchase_mode, entitlements::text from billing.plans where id = ?::uuid", rs -> rs.next() ? new Plan(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getLong(5), rs.getString(6), rs.getLong(7), rs.getInt(8), rs.getLong(9), rs.getString(10), rs.getString(11), rs.getString(12)) : null, order.planId());
         if (plan == null) throw new BusinessException("BILLING_PLAN_NOT_FOUND", "order plan not found", HttpStatus.CONFLICT);
         try {
@@ -271,6 +278,7 @@ public class PlanService {
     private static String orderSelect(String where) { return "select id::text, plan_id::text, plan_code, status, provider, cast(round(amount * 100) as bigint), currency, created_at, paid_at, coalesce(payment_url, ''), payment_expires_at, coalesce(subscription_id::text, '') from billing.orders " + where; }
     private static Order order(java.sql.ResultSet rs) throws java.sql.SQLException { return new Order(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getLong(6), rs.getString(7), instant(rs, 8), instant(rs, 9), rs.getString(10), instant(rs, 11), rs.getString(12)); }
     private static Payment payment(java.sql.ResultSet rs) throws java.sql.SQLException { return new Payment(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getLong(5), rs.getString(6), instant(rs, 7)); }
+
     private static Refund refund(java.sql.ResultSet rs) throws java.sql.SQLException { return new Refund(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), instant(rs, 6)); }
     private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException {
         var timestamp = rs.getTimestamp(index);

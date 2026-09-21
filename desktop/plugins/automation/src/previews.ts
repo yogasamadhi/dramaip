@@ -1,8 +1,15 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
+  CREATION_WORKFLOW_SERVICE,
+  CREATION_WRITING_SERVICE,
+} from "@dramaip/contracts/creation";
+import {
   ChangePreviewContentInputSchema,
+  ChangePreviewRebaseInputSchema,
   ChangePreviewSchema,
+  ChapterPreviewMergeSchema,
   EpisodeWorkflowInputSchema,
   EpisodeWorkflowResultSchema,
   ProviderActionPreviewSchema,
@@ -105,6 +112,7 @@ interface TaskRow {
   progress: number;
   project_id: string | null;
   parent_task_id: string | null;
+  attention_status: Task["attentionStatus"];
   result_json: string | null;
   error: string | null;
   created_at: string;
@@ -251,6 +259,8 @@ function task(row: TaskRow): Task {
     id: row.id,
     kind: row.kind,
     status: row.status,
+    attentionStatus: row.attention_status ?? "open",
+    resultStatus: "none",
     title: row.title,
     progress: row.progress,
     ...(row.project_id ? { projectId: row.project_id } : {}),
@@ -412,16 +422,50 @@ function applyChange(
   context: PluginContext,
   preview: ChangePreview,
 ): "conflict" | "unsupported" | "updated" {
-  const workspace = context.services.optional<WorkspaceProjectService>(
+  const creationChapter =
+    preview.targets.length === 1 && preview.targets[0]?.kind === "chapter"
+      ? preview.targets[0]
+      : undefined;
+  const creationId =
+    creationChapter &&
+    typeof creationChapter.displayDiff === "object" &&
+    creationChapter.displayDiff !== null
+      ? (creationChapter.displayDiff as { creationWorkflowId?: string })
+          .creationWorkflowId
+      : undefined;
+  if (
+    creationId &&
+    creationChapter &&
+    typeof creationChapter.patch.content === "string"
+  )
+    return (
+      optionalService(context, CREATION_WORKFLOW_SERVICE)?.apply(creationId, {
+        previewId: preview.id,
+        id: creationChapter.id,
+        version: creationChapter.baseVersion,
+        content: creationChapter.patch.content,
+      }) ?? "unsupported"
+    );
+  if (preview.targets.length === 1 && preview.targets[0]?.kind === "creation")
+    return (
+      optionalService(context, CREATION_WORKFLOW_SERVICE)?.apply(
+        preview.targets[0].id,
+      ) ?? "unsupported"
+    );
+  const workspace = optionalService<WorkspaceProjectService>(
+    context,
     WORKSPACE_PROJECT_SERVICE,
   );
-  const chapters = context.services.optional<WritingChapterService>(
+  const chapters = optionalService<WritingChapterService>(
+    context,
     WRITING_CHAPTER_SERVICE,
   );
-  const writing = context.services.optional<WritingResourceService>(
+  const writing = optionalService<WritingResourceService>(
+    context,
     WRITING_RESOURCE_SERVICE,
   );
-  const production = context.services.optional<ProductionRecordService>(
+  const production = optionalService<ProductionRecordService>(
+    context,
     PRODUCTION_RECORD_SERVICE,
   );
   if (!workspace || !chapters || !writing || !production) return "unsupported";
@@ -507,7 +551,8 @@ function workflow(
   context: PluginContext,
   input: z.infer<typeof EpisodeWorkflowInputSchema>,
 ) {
-  const production = context.services.optional<ProductionRecordService>(
+  const production = optionalService<ProductionRecordService>(
+    context,
     PRODUCTION_RECORD_SERVICE,
   );
   const episode = production?.get(input.episodeId);
@@ -518,15 +563,20 @@ function workflow(
     episode.projectId !== input.projectId
   )
     return undefined;
-  const media =
-    context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
-  const creative = context.services.optional<CreativeQualityRecordService>(
+  const media = optionalService<MediaRecordService>(
+    context,
+    MEDIA_RECORD_SERVICE,
+  );
+  const creative = optionalService<CreativeQualityRecordService>(
+    context,
     CREATIVE_QUALITY_SERVICE,
   );
-  const review = context.services.optional<ReviewRecordService>(
+  const review = optionalService<ReviewRecordService>(
+    context,
     REVIEW_RECORD_SERVICE,
   );
-  const delivery = context.services.optional<DeliveryRecordService>(
+  const delivery = optionalService<DeliveryRecordService>(
+    context,
     DELIVERY_RECORD_SERVICE,
   );
   const scripts = production.list("scripts", { parentId: episode.id });
@@ -734,6 +784,70 @@ export function automationPreviewRuntime(context: PluginContext): {
     ),
     route(
       {
+        id: "automation:change-preview-merge",
+        pluginId: "automation",
+        method: "get",
+        path: "/api/v2/change-previews/{id}/merge",
+        operationId: "change-previews.merge",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/change-previews/{id}/merge",
+        operationId: "change-previews.merge",
+        params: idParams,
+        response: ChapterPreviewMergeSchema,
+      }),
+      (requestContext) => {
+        const row = context.uow.execute((tx) =>
+          tx.get<ChangeRow>(
+            "SELECT * FROM automation_change_previews WHERE id = ?",
+            requestContext.req.param("id"),
+          ),
+        );
+        const target = row
+          ? change(row).targets.find((item) => item.kind === "chapter")
+          : undefined;
+        const chapter = target
+          ? optionalService(context, WRITING_CHAPTER_SERVICE)?.get(target.id)
+          : undefined;
+        const merge = optionalService(
+          context,
+          CREATION_WRITING_SERVICE,
+        )?.mergeText;
+        if (!row || !target || !chapter || !merge)
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "章节候选或合并服务不可用。",
+          );
+        const diff =
+          typeof target.displayDiff === "object" && target.displayDiff !== null
+            ? (target.displayDiff as { before?: string })
+            : {};
+        const base =
+          typeof diff.before === "string"
+            ? diff.before
+            : target.baseVersion === chapter.version
+              ? chapter.content
+              : undefined;
+        if (base === undefined || typeof target.patch.content !== "string")
+          return problem(
+            requestContext,
+            409,
+            "SOURCE_UNAVAILABLE",
+            "旧候选没有基准正文，请在差异窗口明确选择最终内容。",
+          );
+        return requestContext.json({
+          previewId: row.id,
+          chapterId: chapter.id,
+          currentVersion: chapter.version,
+          segments: merge(base, chapter.content, target.patch.content),
+        });
+      },
+    ),
+    route(
+      {
         id: "automation:change-preview-content",
         pluginId: "automation",
         method: "put",
@@ -809,6 +923,185 @@ export function automationPreviewRuntime(context: PluginContext): {
             );
       },
     ),
+    route(
+      {
+        id: "automation:change-preview-rebase",
+        pluginId: "automation",
+        method: "post",
+        path: "/api/v2/change-previews/{id}/rebase",
+        operationId: "change-previews.rebase",
+      },
+      declaration({
+        method: "post",
+        path: "/api/v2/change-previews/{id}/rebase",
+        operationId: "change-previews.rebase",
+        params: idParams,
+        body: ChangePreviewRebaseInputSchema,
+        response: ChangePreviewSchema,
+        status: 201,
+      }),
+      async (requestContext) => {
+        const input = ChangePreviewRebaseInputSchema.safeParse(
+          await requestContext.req.json(),
+        );
+        const key = idempotencyKey(requestContext);
+        if (!input.success || !key)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "候选稿合并参数或 Idempotency-Key 无效。",
+          );
+        const sourceId = requestContext.req.param("id");
+        const requestHash = stableHash(input.data);
+        const replay = context.uow.execute((transaction) =>
+          transaction.get<{ request_hash: string; response_json: string }>(
+            "SELECT request_hash, response_json FROM automation_idempotency WHERE scope = ? AND idempotency_key = ?",
+            `change-previews.rebase:${sourceId}`,
+            key,
+          ),
+        );
+        if (replay) {
+          if (replay.request_hash !== requestHash)
+            return problem(
+              requestContext,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "同一 Idempotency-Key 已用于不同的候选稿合并。",
+            );
+          return requestContext.json(JSON.parse(replay.response_json), 201);
+        }
+        const chapters = optionalService<WritingChapterService>(
+          context,
+          WRITING_CHAPTER_SERVICE,
+        );
+        if (!chapters)
+          return problem(
+            requestContext,
+            503,
+            "CAPABILITY_UNAVAILABLE",
+            "章节服务尚未就绪。",
+          );
+        const source = context.uow.execute((transaction) =>
+          transaction.get<ChangeRow>(
+            "SELECT * FROM automation_change_previews WHERE id = ?",
+            sourceId,
+          ),
+        );
+        if (!source || !["pending", "conflicted"].includes(source.status))
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "原候选稿不存在或已应用。",
+          );
+        const targets = ChangePreviewSchema.shape.targets.parse(
+          JSON.parse(source.targets_json),
+        );
+        const chapter = targets.find((target) => target.kind === "chapter");
+        if (!chapter)
+          return problem(
+            requestContext,
+            409,
+            "UNSUPPORTED_OPERATION",
+            "该候选稿不包含可合并的章节正文。",
+          );
+        const current = chapters.get(chapter.id);
+        if (!current)
+          return problem(requestContext, 404, "NOT_FOUND", "章节已被删除。");
+        if (current.version !== input.data.baseVersion)
+          return problem(
+            requestContext,
+            409,
+            "VERSION_CONFLICT",
+            "章节在合并期间再次变化，请重新比较当前正文。",
+          );
+        const value = context.uow.execute((transaction) => {
+          const latest = transaction.get<ChangeRow>(
+            "SELECT * FROM automation_change_previews WHERE id = ?",
+            source.id,
+          );
+          if (!latest || !["pending", "conflicted"].includes(latest.status))
+            return { state: "conflict" as const };
+          chapter.baseVersion = current.version;
+          chapter.patch = {
+            ...chapter.patch,
+            content: input.data.content,
+          };
+          chapter.displayDiff = {
+            ...(typeof chapter.displayDiff === "object" &&
+            chapter.displayDiff !== null
+              ? chapter.displayDiff
+              : {}),
+            current: current.content,
+            candidate: input.data.content,
+            sourcePreviewId: source.id,
+          };
+          const id = crypto.randomUUID();
+          const createdAt = new Date().toISOString();
+          transaction.run(
+            "UPDATE automation_change_previews SET status = 'conflicted' WHERE id = ?",
+            source.id,
+          );
+          transaction.run(
+            `INSERT INTO automation_change_previews(
+              id, project_id, session_id, run_id, task_id, engine_kind,
+              task_type, targets_json, rationale, status, content_hash,
+              created_at, committed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL)`,
+            id,
+            source.project_id,
+            source.session_id,
+            source.run_id,
+            source.task_id,
+            source.engine_kind,
+            source.task_type,
+            JSON.stringify(targets),
+            `${source.rationale}\n已基于当前章节 v${current.version} 重新建立候选稿，来源预览 ${source.id}。`,
+            stableHash(targets),
+            createdAt,
+          );
+          const rebased = change(
+            transaction.get<ChangeRow>(
+              "SELECT * FROM automation_change_previews WHERE id = ?",
+              id,
+            )!,
+          );
+          transaction.append({
+            type: "automation.change-preview-rebased.v1",
+            pluginId: "automation",
+            aggregateType: "change-preview",
+            aggregateId: id,
+            aggregateVersion: 0,
+            payload: {
+              id,
+              sourcePreviewId: source.id,
+              baseVersion: current.version,
+              contentHash: rebased.contentHash,
+            },
+          });
+          transaction.run(
+            `INSERT INTO automation_idempotency(
+              scope, idempotency_key, request_hash, status, response_json, created_at
+            ) VALUES (?, ?, ?, 201, ?, ?)`,
+            `change-previews.rebase:${sourceId}`,
+            key,
+            requestHash,
+            JSON.stringify(rebased),
+            createdAt,
+          );
+          return { state: "created" as const, value: rebased };
+        });
+        if (value.state === "created")
+          return requestContext.json(value.value, 201);
+        return problem(
+          requestContext,
+          409,
+          "CONFLICT",
+          "候选稿已处理，无法再次合并。",
+        );
+      },
+    ),
     ...[
       {
         action: "commit" as const,
@@ -860,6 +1153,11 @@ export function automationPreviewRuntime(context: PluginContext): {
               "变更预览不存在。",
             );
           const current = change(row);
+          if (
+            (action === "commit" && current.status === "committed") ||
+            (action === "discard" && current.status === "discarded")
+          )
+            return requestContext.json(current);
           if (current.status !== "pending")
             return problem(requestContext, 409, "CONFLICT", "变更预览已处理。");
           if (action === "commit") {
@@ -1020,10 +1318,10 @@ export function automationPreviewRuntime(context: PluginContext): {
             });
             return requestContext.json(updated);
           }
-          const executor =
-            context.services.optional<ProviderActionExecutorService>(
-              PROVIDER_ACTION_EXECUTOR_SERVICE,
-            );
+          const executor = optionalService<ProviderActionExecutorService>(
+            context,
+            PROVIDER_ACTION_EXECUTOR_SERVICE,
+          );
           if (!executor)
             return problem(
               requestContext,
@@ -1035,12 +1333,6 @@ export function automationPreviewRuntime(context: PluginContext): {
             const accepted = executor.execute(current);
             const created = context.uow.execute((transaction) => {
               const at = new Date().toISOString();
-              transaction.run(
-                "UPDATE automation_provider_action_previews SET status = 'executed', executed_at = ?, task_id = ? WHERE id = ?",
-                at,
-                accepted.taskId,
-                current.id,
-              );
               const value = createTask(transaction, {
                 kind: `provider.${current.kind}`,
                 title: "已确认的厂商任务",
@@ -1052,6 +1344,12 @@ export function automationPreviewRuntime(context: PluginContext): {
                   providerTaskId: accepted.taskId,
                 },
               });
+              transaction.run(
+                "UPDATE automation_provider_action_previews SET status = 'executed', executed_at = ?, task_id = ? WHERE id = ?",
+                at,
+                value.id,
+                current.id,
+              );
               transaction.append({
                 type: "automation.provider-action-preview-executed.v1",
                 pluginId: "automation",

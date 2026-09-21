@@ -90,6 +90,22 @@ const llmServer = createServer(async (request, response) => {
     return;
   }
   const body = await requestBody(request);
+  if (
+    body.model !== "deepseek-v4-flash" ||
+    body.thinking?.type !== "disabled"
+  ) {
+    response
+      .writeHead(400)
+      .end(
+        JSON.stringify({
+          error: {
+            message:
+              "Pi must explicitly disable DeepSeek V4 thinking when configured off",
+          },
+        }),
+      );
+    return;
+  }
   exposedToolNames = Array.isArray(body.tools)
     ? body.tools.map((tool) => tool.function?.name).filter(Boolean)
     : [];
@@ -105,6 +121,9 @@ const llmServer = createServer(async (request, response) => {
     model: "dramaip-pi-test",
   };
   if (llmCalls === 1) {
+    response.write(
+      `data: ${JSON.stringify({ ...common, choices: [{ index: 0, delta: { role: "assistant", reasoning_content: "private-analysis-must-not-be-forwarded" }, finish_reason: null }] })}\n\n`,
+    );
     response.write(
       `data: ${JSON.stringify({ ...common, choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: "call-context", type: "function", function: { name: "get_context", arguments: "{}" } }] }, finish_reason: null }] })}\n\n`,
     );
@@ -136,7 +155,7 @@ try {
     sessionId: "dramaip-pi-runtime-verifier",
     provider: {
       providerKind: "openai",
-      model: "dramaip-pi-test",
+      model: "deepseek-v4-flash",
       baseUrl: `http://127.0.0.1:${llmPort}/v1`,
       secret: providerToken,
     },
@@ -147,6 +166,14 @@ try {
     throw new Error(`Pi Runtime 输出不匹配：${result.text}`);
   if (!events.some((event) => event.type === "content.delta"))
     throw new Error("Pi Runtime 未产生文本增量事件");
+  if (
+    !events.some(
+      (event) => event.type === "activity" && event.activity === "thinking",
+    )
+  )
+    throw new Error("Pi Runtime 未产生模型分析状态");
+  if (JSON.stringify(events).includes("private-analysis-must-not-be-forwarded"))
+    throw new Error("Pi Runtime 泄漏了原始分析文本");
   if (!events.some((event) => event.type === "usage"))
     throw new Error("Pi Runtime 未产生用量事件");
   if (

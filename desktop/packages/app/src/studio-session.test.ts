@@ -3,11 +3,13 @@ import type { Project } from "@dramaip/contracts/product";
 import {
   contextualNavigationTarget,
   createCreationDraft,
+  parseActiveProjectState,
   parseCreationDraft,
   parsePendingNavigationIntent,
   projectIdFromLocation,
   resolveActiveProjectId,
   safeLocalRoute,
+  workspaceContextFromRoute,
 } from "./studio-session";
 
 const projects = [
@@ -29,6 +31,29 @@ test("当前项目优先使用路由，其次明确选择，最后最近更新",
   expect(resolveActiveProjectId({ projects, storedProjectId: "missing" })).toBe(
     "recent",
   );
+});
+
+test("旧项目位置记忆可升级，并按项目保存对象层级", () => {
+  const upgraded = parseActiveProjectState(
+    JSON.stringify({
+      schemaVersion: 1,
+      projectId: "p1",
+      lastRouteByProject: { p1: "/projects/p1" },
+      updatedAt: "2026-09-05T00:00:00.000Z",
+    }),
+  );
+  expect(upgraded?.schemaVersion).toBe(2);
+  expect(upgraded?.contextByProject).toEqual({});
+  expect(
+    workspaceContextFromRoute({
+      pathname: "/produce",
+      search: "?projectId=p1&episodeId=e1&shotId=s8",
+    }),
+  ).toMatchObject({
+    workArea: "produce",
+    episodeId: "e1",
+    shotId: "s8",
+  });
 });
 
 test("项目上下文可从查询参数和项目路径读取", () => {

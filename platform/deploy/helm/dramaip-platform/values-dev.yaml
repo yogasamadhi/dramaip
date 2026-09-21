@@ -16,6 +16,11 @@ java:
     ai: { repository: dramaip-java-ai, tag: dev }
     billing: { repository: dramaip-java-billing, tag: dev }
 
+observability:
+  enabled: true
+  embedded:
+    enabled: true
+
 review:
   objectStore:
     allowInsecure: true

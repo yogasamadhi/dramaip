@@ -2,9 +2,9 @@
 
 > 文档类型：Normative Baseline
 >
-> 架构版本：2.0
+> 架构版本：2.1
 >
-> 更新时间：2026-08-23
+> 更新时间：2026-09-10
 >
 > 适用范围：Level 1 / Level 2 / Level 3 桌面架构
 >
@@ -97,7 +97,7 @@ Arbitrary absolute filesystem path
 
 ## 3.3 Core Runtime
 
-Core Runtime 是独立服务进程，可以使用 Bun 与 Electron Node 共同支持的 Node-compatible API，但不得依赖系统 Node 才能启动。它必须：
+Core Runtime 是独立服务进程，使用 Node API，通过 Adapter 收敛执行环境差异。桌面分发由 Electron 内嵌 Node 承载，不要求用户另装系统 Node；Headless/Server 则使用独立 Node。它必须：
 
 ```text
 不 import Electron
@@ -279,15 +279,17 @@ Engine supervision
 
 # 9. Runtime 兼容基线
 
-Bun 1.4.0 是安装、开发、构建、测试、生成、打包以及 Headless/Server Runtime 的唯一工具链和执行环境。Desktop Runtime 由 Electron `utilityProcess` 承载并使用 Electron 内嵌 Node；不得要求或探测系统 Node。
+DramaIP 的执行基线如下：Bun 1.4.0 用于依赖管理和构建；Headless/Server Core Runtime、迁移 Worker 和 Runtime 测试使用 Node 24.18.0；Desktop Core Runtime 由 Electron `utilityProcess` 承载并使用 Electron 内嵌 Node。版本固定是 DramaIP 的工具链约束，不由 Level 数字决定。
 
 ```text
-Headless / Server = Bun 1.4.0
+Headless / Server = Node 24.18.0
 Desktop Runtime   = Electron embedded Node
-System Node       = forbidden dependency
+Build / install   = Bun 1.4.0
 ```
 
-Runtime-specific API 必须收敛在 Adapter 中。`node:*`、`@types/node` 和其他 Node-compatible 接口不等于系统 Node 依赖；Desktop 以外不得据此启动 Node executable。
+Runtime-specific API 必须收敛在 Adapter 中。DramaIP 独立 Node 经 `desktop/scripts/run-node.mjs` 校验版本，业务插件不自行判断执行环境。新实例仅报告 `node` 或 `electron-node`，启动请求不接受 `bun`；响应 schema 中的 `bun` 只用于解析旧实例。
+
+插件框架不是三个 Level 的共同前置条件。Level 1 使用普通模块；DramaIP 的第一方插件采用锁定 DSH Cordis 源码，开发 HMR 必须显式传入 `--expose-internals` 并校验内部 Loader。生产关闭 HMR 文件监听，发布产物包含完整 Runtime 模块、配置和依赖，不依赖源码目录或外部 workspace 链接。
 
 ---
 
@@ -354,6 +356,8 @@ configured / authenticated
 - 崩溃立即结束相关 stream 和 pending request。
 - shutdown 先停止接收新工作，再停止 Engine/Runtime，最后停止 Host。
 - 所有 listener、timer、watcher、stream、worker、child process 都必须有 supervisor 或确定性 cleanup owner。
+
+资源回收顺序由真实依赖决定，不要求所有独立资源全局串行逆序释放。Level 1 使用显式 cleanup owner；采用 DSH Cordis 的第一方插件使用原生 `ctx.effect(acquire, label)` 和自动跟踪的注册 API，独立 effect 并发清理，需要先后顺序的资源放在同一个 effect 中逐步等待。
 
 ---
 

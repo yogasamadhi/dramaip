@@ -6,6 +6,7 @@ import type { UiContributionMetadata } from "@dramaip/contracts";
 import { contributionsOfKind } from "@dramaip/ui-runtime";
 import {
   ConfirmProvider,
+  Button,
   InlineNotice,
   LoadingState,
   ThemeProvider,
@@ -121,7 +122,7 @@ export function AppRoot() {
 }
 
 function AppBootstrap() {
-  const { client, runtime, state, error } = useRuntimeConnection();
+  const { client, runtime, state, error, reconnect } = useRuntimeConnection();
   if (state === "incompatible")
     return (
       <InlineNotice tone="danger" className="m-6">
@@ -130,9 +131,25 @@ function AppBootstrap() {
     );
   if (error)
     return (
-      <InlineNotice tone="danger" className="m-6">
-        Runtime 连接失败：{error.message}
-      </InlineNotice>
+      <main className="grid min-h-screen place-items-center bg-canvas p-6">
+        <div className="w-full max-w-xl space-y-4 rounded-xl border border-danger/25 bg-surface p-6 shadow-card">
+          <InlineNotice tone="danger">
+            本地创作服务暂时无法连接。当前编辑草稿仍保存在本机。
+          </InlineNotice>
+          <p className="text-sm leading-6 text-muted">{error.message}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={reconnect}>
+              重新连接
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => window.location.reload()}
+            >
+              重新启动界面
+            </Button>
+          </div>
+        </div>
+      </main>
     );
   if (!client || !runtime)
     return (

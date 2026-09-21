@@ -1,6 +1,9 @@
 package com.dramaip.platform.ai.service;
 
+import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.observability.DramaipTelemetry;
 import com.dramaip.platform.common.web.BusinessException;
+import com.dramaip.platform.common.web.CorrelationContextSnapshot;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +18,8 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,6 +28,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 public class InspirationService {
+    private static final Logger LOG = LoggerFactory.getLogger(InspirationService.class);
     private static final List<String> MODES = List.of("free", "guided", "character_interview", "world_simulation", "conflict_lab");
     private static final List<String> CARD_KINDS = List.of("premise", "character", "world", "conflict", "scene", "style", "question");
     private static final List<String> MEMORY_KINDS = List.of("preference", "theme", "constraint", "avoid", "goal");
@@ -40,12 +46,17 @@ public class InspirationService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final ChatService chats;
+    private final DramaipMetrics metrics;
+    private final DramaipTelemetry telemetry;
     private final ExecutorService runs = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
 
-    public InspirationService(JdbcTemplate jdbc, ObjectMapper json, ChatService chats) {
+    public InspirationService(JdbcTemplate jdbc, ObjectMapper json, ChatService chats,
+            DramaipMetrics metrics, DramaipTelemetry telemetry) {
         this.jdbc = jdbc;
         this.json = json;
         this.chats = chats;
+        this.metrics = metrics;
+        this.telemetry = telemetry;
     }
 
     public Page<Conversation> conversations(String userId, boolean archived, String cursor, int limit) {
@@ -190,34 +201,49 @@ public class InspirationService {
                 """, messageId, conversationId, userId, runId, content, idempotencyKey);
         event(conversationId, runId, "started", Map.of("messageId", messageId, "policyVersion", POLICY_VERSION));
         jdbc.update("update ai_gateway.inspiration_conversations set updated_at = now() where id = ?::uuid", conversationId);
-        runs.execute(() -> completeRun(userId, conversation, runId, idempotencyKey, model, maxTokens));
+        runs.execute(CorrelationContextSnapshot.capture().wrap(
+                () -> completeRun(userId, conversation, runId, idempotencyKey, model, maxTokens)));
         return new MessageStart(messageId, runId, "running");
     }
 
     private void completeRun(String userId, Conversation conversation, String runId, String idempotencyKey, String model,
             int maxTokens) {
         String responseId = UUID.randomUUID().toString();
-        try {
-            List<ChatService.Message> context = buildContext(userId, conversation);
-            String requestKey = "inspiration:" + conversation.id() + ":" + idempotencyKey;
-            Consumer<String> delta = value -> event(conversation.id(), runId, "delta", Map.of("messageId", responseId, "delta", value));
-            ChatService.Chat reply = chats.streamTo(userId, requestKey, model, context, maxTokens, delta);
-            jdbc.update("""
-                    insert into ai_gateway.inspiration_messages(
-                        id, conversation_id, user_id, run_id, role, content, status, prompt_tokens, completion_tokens)
-                    values (?::uuid, ?::uuid, ?::uuid, ?::uuid, 'assistant', ?, 'completed', ?, ?)
-                    """, responseId, conversation.id(), userId, runId, reply.content(), reply.promptTokens(), reply.completionTokens());
-            jdbc.update("""
-                    update ai_gateway.inspiration_conversations
-                    set complete_turns = complete_turns + 1, updated_at = now() where id = ?::uuid
-                    """, conversation.id());
-            event(conversation.id(), runId, "completed", Map.of("messageId", responseId,
-                    "promptTokens", reply.promptTokens(), "completionTokens", reply.completionTokens()));
-            Integer turns = jdbc.queryForObject("select complete_turns from ai_gateway.inspiration_conversations where id = ?::uuid",
-                    Integer.class, conversation.id());
-            if (turns != null && turns % 6 == 0) queueMemoryJob(userId, conversation.id(), "six_turns", false);
-        } catch (RuntimeException exception) {
-            event(conversation.id(), runId, "failed", Map.of("code", safeCode(exception)));
+        try (DramaipTelemetry.Operation operation = telemetry.start("ai.inspiration.run")) {
+            try {
+                List<ChatService.Message> context = buildContext(userId, conversation);
+                String requestKey = "inspiration:" + conversation.id() + ":" + idempotencyKey;
+                Consumer<String> delta = value -> event(conversation.id(), runId, "delta",
+                        Map.of("messageId", responseId, "delta", value));
+                ChatService.Chat reply = chats.streamTo(userId, requestKey, model, context, maxTokens, delta);
+                jdbc.update("""
+                        insert into ai_gateway.inspiration_messages(
+                            id, conversation_id, user_id, run_id, role, content, status, prompt_tokens, completion_tokens)
+                        values (?::uuid, ?::uuid, ?::uuid, ?::uuid, 'assistant', ?, 'completed', ?, ?)
+                        """, responseId, conversation.id(), userId, runId, reply.content(), reply.promptTokens(), reply.completionTokens());
+                jdbc.update("""
+                        update ai_gateway.inspiration_conversations
+                        set complete_turns = complete_turns + 1, updated_at = now() where id = ?::uuid
+                        """, conversation.id());
+                event(conversation.id(), runId, "completed", Map.of("messageId", responseId,
+                        "promptTokens", reply.promptTokens(), "completionTokens", reply.completionTokens()));
+                Integer turns = jdbc.queryForObject(
+                        "select complete_turns from ai_gateway.inspiration_conversations where id = ?::uuid",
+                        Integer.class, conversation.id());
+                if (turns != null && turns % 6 == 0) queueMemoryJob(userId, conversation.id(), "six_turns", false);
+                operation.succeeded();
+                metrics.workflow("inspiration_run", "succeeded");
+                LOG.atInfo().addKeyValue("operation", "inspiration_run").addKeyValue("outcome", "succeeded")
+                        .log("Inspiration run completed");
+            } catch (RuntimeException exception) {
+                String failure = exception instanceof BusinessException ? "business" : "internal";
+                operation.failed(failure);
+                metrics.workflow("inspiration_run", "failed");
+                metrics.error(failure, "inspiration_run");
+                LOG.atWarn().addKeyValue("operation", "inspiration_run").addKeyValue("outcome", "failed")
+                        .addKeyValue("failure_class", failure).log("Inspiration run failed");
+                event(conversation.id(), runId, "failed", Map.of("code", safeCode(exception)));
+            }
         }
     }
 
@@ -255,7 +281,7 @@ public class InspirationService {
     public SseEmitter events(String userId, String conversationId, long afterSequence) {
         conversation(userId, conversationId);
         SseEmitter emitter = new SseEmitter(30_000L);
-        runs.execute(() -> {
+        runs.execute(CorrelationContextSnapshot.capture().wrap(() -> {
             try {
                 List<RunEvent> events = jdbc.query("""
                         select sequence, run_id::text, event_type, payload::text, created_at
@@ -270,7 +296,7 @@ public class InspirationService {
             } catch (IOException exception) {
                 emitter.completeWithError(exception);
             }
-        });
+        }));
         return emitter;
     }
 

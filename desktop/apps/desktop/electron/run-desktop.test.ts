@@ -9,7 +9,7 @@ import {
 } from "../../../../run-desktop";
 
 describe("desktop launcher toolchain", () => {
-  test("requires Bun 1.4.0 exactly and has no system Node fallback", () => {
+  test("requires Bun 1.4.0 exactly for Desktop tooling", () => {
     expect(assertBunVersion(REQUIRED_BUN_VERSION)).toBe("1.4.0");
     expect(() => assertBunVersion("1.3.14")).toThrow(/恰好为 1\.4\.0/u);
     expect(() => assertBunVersion("1.4.1")).toThrow(/恰好为 1\.4\.0/u);
@@ -32,14 +32,14 @@ describe("desktop launcher engine runtimes", () => {
 });
 
 describe("desktop launcher vendor sources", () => {
-  test("initializes only active engine sources", () => {
+  test("initializes active engines and the pinned DSH framework source", () => {
     const commonPaths = vendorSubmoduleSpecs().map(
       (submodule) => submodule.path,
     );
 
     expect(commonPaths).toContain("desktop/vendor/codex-rust");
     expect(commonPaths).toContain("desktop/vendor/pi");
-    expect(commonPaths).not.toContain("desktop/vendor/deepseek-harness");
+    expect(commonPaths).toContain("desktop/vendor/deepseek-harness");
     expect(commonPaths).not.toContain("desktop/vendor/opencode");
     expect(commonPaths).not.toContain("desktop/vendor/grok-build");
   });
@@ -60,6 +60,9 @@ describe("desktop launcher vendor sources", () => {
         workspace.startsWith("vendor/"),
       ),
     ).toBe(false);
-    expect(kernelManifest.dependencies["@deepseek-ai/cordis"]).toBe("4.0.1");
+    expect(desktopManifest.workspaces).toContain("build/dsh-framework/*");
+    expect(kernelManifest.dependencies["@deepseek-ai/cordis"]).toBe(
+      "workspace:*",
+    );
   });
 });

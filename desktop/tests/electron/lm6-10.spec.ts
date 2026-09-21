@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -28,13 +29,17 @@ test("示例项目在统一资产中心展示筛选、状态和版本比较入�
   await page.getByRole("button", { name: "先看看示例" }).click();
   await expect(page.getByRole("link", { name: "雨夜归来" })).toBeVisible();
   await page.getByRole("link", { name: "制作" }).click();
-  await page.getByRole("button", { name: "资产中心" }).click();
+  await openProductionStage(page, "资产中心");
   await expect(page.getByRole("region", { name: "资产中心" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "统一资产中心" }),
   ).toBeVisible();
   await expect(page.getByRole("group", { name: "资产类型筛选" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "角色" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "音色" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "角色", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "音色", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "加入比较" })).toBeVisible();
 });

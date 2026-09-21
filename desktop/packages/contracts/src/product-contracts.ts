@@ -374,10 +374,23 @@ export const TaskStatus = Schema.Union([
 ]);
 export type TaskStatus =
   "queued" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
+export const TaskAttentionStatus = Schema.Literals(["open", "acknowledged"]);
+export type TaskAttentionStatus = "open" | "acknowledged";
+export const TaskResultStatus = Schema.Literals([
+  "none",
+  "pending",
+  "applied",
+  "discarded",
+  "conflicted",
+]);
+export type TaskResultStatus =
+  "none" | "pending" | "applied" | "discarded" | "conflicted";
 export const Task = Schema.Struct({
   id: Id,
   kind: Schema.String,
   status: TaskStatus,
+  attentionStatus: TaskAttentionStatus,
+  resultStatus: TaskResultStatus,
   title: Schema.String,
   progress: Schema.Number,
   projectId: Schema.optionalKey(Id),
@@ -394,6 +407,8 @@ export interface Task {
   id: Id;
   kind: string;
   status: TaskStatus;
+  attentionStatus: TaskAttentionStatus;
+  resultStatus: TaskResultStatus;
   title: string;
   progress: number;
   projectId?: Id;
@@ -405,6 +420,18 @@ export interface Task {
   error?: string;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
+}
+export type TaskWorklistCategory =
+  "pending-result" | "running" | "attention" | "history";
+export interface TaskWorklistResponse {
+  items: Task[];
+  counts: {
+    pendingResult: number;
+    running: number;
+    attention: number;
+    history: number;
+  };
+  nextCursor?: string;
 }
 export const TaskInput = Schema.Struct({
   kind: RequiredText,
@@ -806,6 +833,7 @@ export type AssistantTurnStatus =
 export const AssistantIntentKind = Schema.Literals(["chat", "task", "clarify"]);
 export type AssistantIntentKind = "chat" | "task" | "clarify";
 export const AssistantIntentRoute = Schema.Struct({
+  workflowId: Schema.optionalKey(Id),
   kind: AssistantIntentKind,
   taskType: Schema.optionalKey(AgentTaskType),
   confidence: Schema.Number,
@@ -814,6 +842,7 @@ export const AssistantIntentRoute = Schema.Struct({
   clarification: Schema.optionalKey(Schema.String),
 });
 export interface AssistantIntentRoute {
+  workflowId?: Id;
   kind: AssistantIntentKind;
   taskType?: AgentTaskType;
   confidence: number;
@@ -4133,6 +4162,22 @@ export interface ProductionGraph {
     adoptedStills: number;
   };
 }
+export interface ProjectProgress {
+  projectId: Id;
+  scope: { kind: "project" | "episodes"; episodeIds: Id[] };
+  sourceVersion: number;
+  completion: number;
+  steps: Array<{
+    id: "source" | "script" | "scenes" | "shots" | "assets" | "review";
+    label: string;
+    current: number;
+    required: number;
+    complete: boolean;
+    target: string;
+  }>;
+  blockers: Array<{ code: string; message: string; target: string }>;
+  nextAction: { label: string; target: string };
+}
 
 export const ProductionImpactInput = Schema.Struct({
   projectId: Id,
@@ -4485,6 +4530,7 @@ export interface RevisionInput {
 }
 
 export const ChangeTargetKind = Schema.Literals([
+  "creation",
   "project",
   "chapter",
   "character",
@@ -4496,6 +4542,7 @@ export const ChangeTargetKind = Schema.Literals([
   "shot",
 ]);
 export type ChangeTargetKind =
+  | "creation"
   | "project"
   | "chapter"
   | "character"
@@ -4563,6 +4610,10 @@ export const ChangePreviewContentInput = Schema.Struct({
   content: Schema.String,
 });
 export interface ChangePreviewContentInput {
+  content: string;
+}
+export interface ChangePreviewRebaseInput {
+  baseVersion: number;
   content: string;
 }
 

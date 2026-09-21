@@ -1,3 +1,4 @@
+import { CreationRecordWorkbench } from "../creation-workbench";
 import type {
   ChangePreview,
   CloudReviewPublishPreview,
@@ -14,7 +15,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   StageNavigation,
   WorkspaceIntro,
-  domainLabel,
   type WorkspaceStageItem,
   message,
   productStatusLabel,
@@ -109,10 +109,17 @@ export function ReviewDeliveryWorkspace() {
   const reviewStageIds = [
     "quality",
     "compliance",
-    "localization",
     "review",
+    "localization",
     "delivery",
   ] as const;
+  const reviewStageLabels: Record<(typeof reviewStageIds)[number], string> = {
+    quality: "问题与阻塞",
+    compliance: "合规复检",
+    review: "预览与修订",
+    localization: "字幕与本地化",
+    delivery: "导出与发布",
+  };
   const recommendedStage =
     requestedStage &&
     reviewStageIds.includes(requestedStage as (typeof reviewStageIds)[number])
@@ -120,7 +127,7 @@ export function ReviewDeliveryWorkspace() {
       : "quality";
   const stageItems: WorkspaceStageItem[] = reviewStageIds.map((id) => ({
     id,
-    label: domainLabel(id),
+    label: reviewStageLabels[id],
     availability:
       projectId && adaptationId && episodeId ? "available" : "blocked",
     recommended: recommendedStage === id,
@@ -478,6 +485,20 @@ export function PlatformDeliveryPanel(props: {
     assets.find((asset) => asset.id === id)?.title ?? "未引用";
   return (
     <section className="space-y-4 rounded-xl border border-line bg-surface p-4">
+      <div className="grid gap-4 xl:grid-cols-2">
+        <CreationRecordWorkbench
+          projectId={props.projectId}
+          targetId={props.episodeId}
+          domain="episodes"
+          operation="delivery-copy"
+        />
+        <CreationRecordWorkbench
+          projectId={props.projectId}
+          targetId={props.episodeId}
+          domain="episodes"
+          operation="localization"
+        />
+      </div>
       <div>
         <p className="text-sm text-muted">平台交付</p>
         <h2 className="mt-1 text-lg font-semibold">
@@ -1790,7 +1811,7 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
               item.decision === "return" || item.decision === "request_changes",
           )) && (
           <section className="rounded-xl border border-brand/30 bg-brand-soft/30 p-3">
-            <h3 className="font-medium">从审片反馈创建修订预览</h3>
+            <h3 className="font-medium">AI 根据审片意见返修</h3>
             <p className="mt-1 text-sm text-muted">
               未解决意见以及“退回 /
               需要修改”决定会作为上下文写入预览；确认应用前不会改写正式剧本。
@@ -1813,30 +1834,46 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
                   ))}
                 </select>
               </label>
-              <label className="grid gap-1 text-sm">
-                修订草案
-                <textarea
-                  className="min-h-36 rounded-lg border border-line bg-surface px-3 py-2"
-                  value={reviewRevisionContent}
-                  onChange={(event) =>
-                    setReviewRevisionContent(event.target.value)
-                  }
-                  placeholder="基于审片反馈填写拟采用的剧本内容"
+              {selectedReviewPackage && reviewRevisionScriptId && (
+                <CreationRecordWorkbench
+                  projectId={selectedReviewPackage.projectId}
+                  targetId={reviewRevisionScriptId}
+                  domain="scripts"
+                  operation="script-revision"
+                  reviewPackageId={packageId}
+                  defaultInstruction="分析尚未解决的审片意见，定位相关场景，生成局部修订后的完整剧本并复检原问题。"
+                  onApplied={refresh}
                 />
-              </label>
-              <BareButton
-                className="w-fit rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
-                disabled={
-                  Boolean(working) ||
-                  !reviewRevisionScriptId ||
-                  !reviewRevisionContent.trim()
-                }
-                onClick={() => void createReviewRevisionPreview()}
-              >
-                {working === "创建审片修订预览"
-                  ? "正在创建…"
-                  : "创建待确认修订预览"}
-              </BareButton>
+              )}
+              <details>
+                <summary className="cursor-pointer text-sm text-muted">
+                  导入已有修改稿
+                </summary>
+                <label className="grid gap-1 text-sm">
+                  修订草案
+                  <textarea
+                    className="min-h-36 rounded-lg border border-line bg-surface px-3 py-2"
+                    value={reviewRevisionContent}
+                    onChange={(event) =>
+                      setReviewRevisionContent(event.target.value)
+                    }
+                    placeholder="基于审片反馈填写拟采用的剧本内容"
+                  />
+                </label>
+                <BareButton
+                  className="w-fit rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+                  disabled={
+                    Boolean(working) ||
+                    !reviewRevisionScriptId ||
+                    !reviewRevisionContent.trim()
+                  }
+                  onClick={() => void createReviewRevisionPreview()}
+                >
+                  {working === "创建审片修订预览"
+                    ? "正在创建…"
+                    : "创建待确认修订预览"}
+                </BareButton>
+              </details>
             </div>
             {reviewRevisionPreview && (
               <AgentChangePreviewCard preview={reviewRevisionPreview} />

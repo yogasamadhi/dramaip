@@ -114,6 +114,81 @@ export function UiShowcase() {
         </ScrollArea>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel className="space-y-2">
+          <p className="text-xs font-semibold text-muted">导航与上下文</p>
+          {[
+            ["概览", false],
+            ["故事", true],
+            ["改编", false],
+            ["制作", false],
+            ["审核交付", false],
+          ].map(([label, active]) => (
+            <div
+              key={String(label)}
+              className={`rounded-md px-3 py-2 text-sm ${active ? "bg-brand-soft font-medium text-brand-strong" : "text-muted"}`}
+            >
+              {label}
+            </div>
+          ))}
+        </Panel>
+        <Panel className="lg:col-span-2">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <div>
+              <p className="font-semibold">第一章　雨夜来信</p>
+              <p className="text-xs text-muted">刚刚已保存 · 1,286 字</p>
+            </div>
+            <StatusBadge tone="info">AI 生成中，可继续编辑</StatusBadge>
+          </div>
+          <p className="mt-4 rounded-lg bg-field p-5 font-editor text-lg leading-8">
+            雨落在窗沿。她把信压在灯下，继续写下刚刚想到的新线索。
+          </p>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">章节修订：第一章</p>
+              <p className="mt-1 text-xs text-muted">当前项目 · 刚刚</p>
+            </div>
+            <StatusBadge tone="warning">等待采用</StatusBadge>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button size="sm">查看差异</Button>
+            <Button size="sm" variant="primary">
+              采用选中段落
+            </Button>
+          </div>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold text-muted">三方差异与冲突</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md bg-surface-muted p-3 text-sm">
+              <p className="mb-2 font-medium">我的当前草稿</p>
+              保留生成期间新增的线索。
+            </div>
+            <div className="rounded-md bg-brand-soft p-3 text-sm">
+              <p className="mb-2 font-medium text-brand-strong">AI 候选稿</p>
+              逐段选择后建立新的待确认预览。
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <InlineNotice tone="danger">
+          保存失败：本机草稿仍在，可重新保存。
+        </InlineNotice>
+        <InlineNotice tone="warning">
+          版本已变化：请比较后选择冲突段。
+        </InlineNotice>
+        <InlineNotice tone="success">
+          结果已应用，并建立版本检查点。
+        </InlineNotice>
+      </div>
+
       <EmptyState
         title="空状态示例"
         description="说明为什么为空，并只提供一个明确的下一步。"

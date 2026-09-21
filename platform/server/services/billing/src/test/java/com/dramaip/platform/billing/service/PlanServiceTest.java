@@ -7,6 +7,9 @@ import static org.mockito.Mockito.mock;
 import com.dramaip.platform.billing.client.QuotaProvisionClient;
 import com.dramaip.platform.billing.client.QuotaRefundClient;
 import com.dramaip.platform.billing.controller.BillingController;
+import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.observability.DramaipTelemetry;
+import com.dramaip.platform.common.observability.OutboxObservability;
 import com.dramaip.platform.common.web.BusinessException;
 import java.util.Collections;
 import java.util.List;
@@ -56,7 +59,10 @@ class PlanServiceTest {
     }
 
     private PlanService service(JdbcTemplate jdbc) {
-        return new PlanService(jdbc, mock(QuotaProvisionClient.class), mock(QuotaRefundClient.class), "internal-token", providers("test"));
+        OutboxObservability outbox = new OutboxObservability(
+                mock(DramaipMetrics.class), new DramaipTelemetry("test", "test"));
+        return new PlanService(jdbc, mock(QuotaProvisionClient.class), mock(QuotaRefundClient.class),
+                "internal-token", providers("test"), outbox);
     }
 
     private PaymentProviderRegistry providers(String profile) {

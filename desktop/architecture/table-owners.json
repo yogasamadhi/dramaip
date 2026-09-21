@@ -104,6 +104,10 @@
     "owner": "automation"
   },
   {
+    "table": "automation_creation_workflows",
+    "owner": "automation"
+  },
+  {
     "table": "automation_idempotency",
     "owner": "automation"
   },
@@ -158,6 +162,10 @@
   {
     "table": "creative_quality_resources",
     "owner": "creative-quality"
+  },
+  {
+    "table": "delivery_creation_adoptions",
+    "owner": "delivery"
   },
   {
     "table": "delivery_records",
@@ -272,6 +280,10 @@
     "owner": "knowledge"
   },
   {
+    "table": "knowledge_creation_adoptions",
+    "owner": "knowledge"
+  },
+  {
     "table": "knowledge_ip_twin_snapshots",
     "owner": "knowledge"
   },
@@ -354,6 +366,10 @@
   {
     "table": "plugin_migrations",
     "owner": "foundation"
+  },
+  {
+    "table": "production_creation_adoptions",
+    "owner": "production"
   },
   {
     "table": "production_records",
@@ -477,6 +493,10 @@
   },
   {
     "table": "writing_chapter_versions",
+    "owner": "writing"
+  },
+  {
+    "table": "writing_creation_adoptions",
     "owner": "writing"
   },
   {

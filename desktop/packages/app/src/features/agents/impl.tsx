@@ -1,3 +1,5 @@
+import { creationOperationForTask } from "@dramaip/contracts/creation";
+import { CreationRunCard } from "../creation-workbench";
 import type {
   AgentEngineKind,
   AgentExperiment,
@@ -85,6 +87,31 @@ export function AgentSidePanel() {
   );
   const [selectedTask, setSelectedTask] =
     useState<AgentTaskType>("chapter_diagnostic");
+  const [contentTargetId, setContentTargetId] = useState("");
+  const operation = creationOperationForTask(selectedTask);
+  const { data: contentTargets = [] } = useQuery({
+    queryKey: ["assistant-content-targets", projectId, operation],
+    enabled: Boolean(
+      projectId &&
+      ["chapter", "script-revision", "shot-prompt", "episode"].includes(
+        operation ?? "",
+      ),
+    ),
+    queryFn: async () =>
+      operation === "chapter"
+        ? client.chapters.list(projectId)
+        : client.resources.list(
+            operation === "episode"
+              ? "episodes"
+              : operation === "shot-prompt"
+                ? "shots"
+                : "scripts",
+            projectId,
+          ),
+  });
+  const selectedContentTarget = contentTargets.find(
+    (item) => item.id === contentTargetId,
+  );
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [webAccessMode, setWebAccessMode] = useState<"auto" | "off">("auto");
@@ -464,6 +491,22 @@ export function AgentSidePanel() {
       (activeRun && ["queued", "running"].includes(activeRun.status))
     )
       return;
+    const requestedOperation = taskType
+      ? creationOperationForTask(taskType)
+      : undefined;
+    if (
+      requestedOperation &&
+      ["chapter", "script-revision", "shot-prompt"].includes(
+        requestedOperation,
+      ) &&
+      (!selectedContentTarget || requestedOperation !== operation)
+    ) {
+      if (taskType) setSelectedTask(taskType);
+      setNotice(
+        "请展开「模型与更多任务」选择本次生成或修订的目标，再执行任务。",
+      );
+      return;
+    }
     if (!selectedEngineCanRun) {
       setNotice(
         selectedEngine?.statusMessage ?? "所选智能引擎当前不可用，请切换引擎",
@@ -487,7 +530,23 @@ export function AgentSidePanel() {
       const conversation = await ensureConversation(effectiveWebAccess);
       const started = await client.assistantConversations.sendMessage(
         conversation.id,
-        { message: userMessage, ...(taskType ? { taskType } : {}) },
+        {
+          message: userMessage,
+          ...(taskType ? { taskType } : {}),
+          ...(requestedOperation && selectedContentTarget
+            ? requestedOperation === "chapter"
+              ? {
+                  chapterId: selectedContentTarget.id,
+                  chapterBaseVersion: selectedContentTarget.version,
+                }
+              : {
+                  target: {
+                    id: selectedContentTarget.id,
+                    baseVersion: selectedContentTarget.version,
+                  },
+                }
+            : {}),
+        },
       );
       setDraft("");
       setDetail((current) => {
@@ -519,7 +578,7 @@ export function AgentSidePanel() {
       });
       await loadDetail(conversation.id);
       void loadConversations(conversation.id);
-      if (!started.run)
+      if (!started.run && !started.turn.route?.workflowId)
         setNotice(started.turn.route?.clarification ?? "请补充任务上下文");
     } catch (cause) {
       setNotice(message(cause));
@@ -815,6 +874,24 @@ export function AgentSidePanel() {
                 </option>
               ))}
             </select>
+            {operation &&
+              ["chapter", "script-revision", "shot-prompt", "episode"].includes(
+                operation,
+              ) && (
+                <select
+                  aria-label="AI 内容目标"
+                  className="col-span-2 rounded-lg border border-line bg-canvas p-2"
+                  value={selectedContentTarget?.id ?? ""}
+                  onChange={(event) => setContentTargetId(event.target.value)}
+                >
+                  <option value="">选择本次内容目标</option>
+                  {contentTargets.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+              )}
             <BareButton
               className="col-span-2 rounded-lg border border-brand py-1.5 text-brand"
               disabled={!selectedEngineCanRun}
@@ -953,6 +1030,9 @@ export function GlobalAssistantTimeline(props: {
                   : ""}
               </p>
             </div>
+            {turn.route?.workflowId && (
+              <CreationRunCard id={turn.route.workflowId} />
+            )}
             {turn.route?.kind === "clarify" && (
               <p className="mr-8 rounded-xl rounded-tl-sm bg-surface-muted px-3 py-2 text-sm leading-6">
                 {turn.route.clarification}
@@ -1050,6 +1130,7 @@ export function AgentTaskConfigPanel() {
   );
   const [notice, setNotice] = useState<string>();
   const [activeRunId, setActiveRunId] = useState<string>();
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string>();
   const [experimentId, setExperimentId] = useState<string>();
   const { data: engines = [] } = useQuery({
     queryKey: ["agent-engines"],
@@ -1189,6 +1270,7 @@ export function AgentTaskConfigPanel() {
         (item) => item.id === (requested?.taskType ?? taskType),
       );
       setActiveRunId(result.runId);
+      setActiveWorkflowId(result.workflowId);
       setNotice(
         `${definition?.label ?? "智能"}任务已创建：${result.taskId.slice(0, 8)}`,
       );
@@ -1589,7 +1671,8 @@ export function AgentTaskConfigPanel() {
           </BareButton>
         </>
       )}
-      {activeRun && (
+      {activeWorkflowId && <CreationRunCard id={activeWorkflowId} />}
+      {activeRun && !activeWorkflowId && (
         <section className="mt-4 rounded-xl border border-line bg-surface-raised p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium">任务条目流</p>

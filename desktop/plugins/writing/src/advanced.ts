@@ -1,3 +1,5 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
+import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
 import { createRoute } from "@hono/zod-openapi";
 import {
   AGENT_TASK_RUNNER_SERVICE,
@@ -169,30 +171,6 @@ function recordReplay(
   );
 }
 
-function startPrompt(
-  chapter: Chapter,
-  input: z.infer<typeof ChapterAgentRunInputSchema>,
-): string {
-  const taskInstruction =
-    input.taskType === "generate_chapter"
-      ? "请生成完整章节候选稿。"
-      : input.taskType === "continue_chapter"
-        ? "请承接现有正文继续写作。"
-        : "请按指定任务生成可审阅的章节候选稿。";
-  return [
-    taskInstruction,
-    `章节：${chapter.title}`,
-    chapter.summary ? `摘要：${chapter.summary}` : "",
-    chapter.content ? `当前正文：\n${chapter.content.slice(-12_000)}` : "",
-    input.wordGoal ? `目标字数：${input.wordGoal}` : "",
-    input.prompt?.trim() ? `补充要求：${input.prompt.trim()}` : "",
-    "只输出候选正文；系统会生成 Preview，未经用户确认不会提交。",
-  ]
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, 80_000);
-}
-
 function score(value: number, threshold: number): number {
   return Math.max(
     1,
@@ -265,7 +243,8 @@ export function writingAdvancedRoutes(
             "CONFLICT",
             "章节已变化，请刷新后重试。",
           );
-        const runner = context.services.optional<AgentTaskRunnerService>(
+        const runner = optionalService<AgentTaskRunnerService>(
+          context,
           AGENT_TASK_RUNNER_SERVICE,
         );
         if (!runner)
@@ -276,18 +255,38 @@ export function writingAdvancedRoutes(
             "Agent Runtime 尚未就绪。",
           );
         try {
-          const started = await runner.start({
-            projectId: chapter.projectId,
-            chapterId: chapter.id,
-            baseVersion: chapter.version,
-            taskType: input.data.taskType,
-            engineKind: input.data.engineKind,
-            prompt: startPrompt(chapter, input.data),
-            ...(input.data.model ? { model: input.data.model } : {}),
-            ...(input.data.selection
-              ? { selection: input.data.selection }
-              : {}),
-          });
+          const workflowService = optionalService(
+            context,
+            CREATION_WORKFLOW_SERVICE,
+          );
+          if (!workflowService) throw new Error("创作工作流未启用。");
+          const created = workflowService.start(
+            {
+              projectId: chapter.projectId,
+              operation: "chapter",
+              targetId: chapter.id,
+              baseVersion: chapter.version,
+              engineKind: input.data.engineKind,
+              model: input.data.model,
+              instruction:
+                input.data.prompt || "根据当前章节目标生成完整候选正文。",
+              wordGoal: input.data.wordGoal,
+              sourceIds: [],
+            },
+            idempotencyKey,
+          );
+          const workflow = await workflowService.launch(created.id);
+          if (
+            !workflow.runId ||
+            !workflow.sessionId ||
+            workflow.stage === "failed"
+          )
+            throw new Error(workflow.error ?? "创作运行未成功启动。");
+          const started = {
+            taskId: workflow.taskId,
+            runId: workflow.runId,
+            sessionId: workflow.sessionId,
+          };
           const response = {
             ...started,
             chapterId: chapter.id,
@@ -358,15 +357,33 @@ export function writingAdvancedRoutes(
             "TASK_REJECTED",
             "请先完成当前章节正文。",
           );
-        const next = chapters.create({
-          projectId: source.projectId,
-          title: `第 ${chapters.list(source.projectId).length + 1} 章`,
-        });
-        const runner = context.services.optional<AgentTaskRunnerService>(
+        const targetReplay = replay(
+          context,
+          "continue-target",
+          idempotencyKey,
+        ) as { id?: string } | undefined;
+        const next = targetReplay?.id
+          ? chapters.get(targetReplay.id)
+          : chapters.create({
+              projectId: source.projectId,
+              title: `第 ${chapters.list(source.projectId).length + 1} 章`,
+            });
+        if (!next || next.projectId !== source.projectId)
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "续章目标已失效，请从当前章节重新发起。",
+          );
+        if (!targetReplay)
+          recordReplay(context, "continue-target", idempotencyKey, {
+            id: next.id,
+          });
+        const runner = optionalService<AgentTaskRunnerService>(
+          context,
           AGENT_TASK_RUNNER_SERVICE,
         );
         if (!runner) {
-          chapters.remove(next.id);
           return problem(
             requestContext,
             409,
@@ -375,24 +392,39 @@ export function writingAdvancedRoutes(
           );
         }
         try {
-          const started = await runner.start({
-            projectId: source.projectId,
-            chapterId: next.id,
-            baseVersion: next.version,
-            taskType: "generate_chapter",
-            engineKind: input.data.engineKind,
-            prompt: [
-              "请承接上一章结尾，生成下一章完整候选正文，不要复述上一章。",
-              source.summary ? `上一章摘要：${source.summary}` : "",
-              `上一章结尾：\n${source.content.trim().slice(-2_400)}`,
-              input.data.prompt ? `补充要求：${input.data.prompt}` : "",
-              input.data.wordGoal ? `目标字数：${input.data.wordGoal}` : "",
-              "只输出候选正文；未经用户确认不会提交。",
-            ]
-              .filter(Boolean)
-              .join("\n\n"),
-            ...(input.data.model ? { model: input.data.model } : {}),
-          });
+          const workflowService = optionalService(
+            context,
+            CREATION_WORKFLOW_SERVICE,
+          );
+          if (!workflowService) throw new Error("创作工作流未启用。");
+          const created = workflowService.start(
+            {
+              projectId: source.projectId,
+              operation: "chapter",
+              targetId: next.id,
+              baseVersion: next.version,
+              engineKind: input.data.engineKind,
+              model: input.data.model,
+              instruction:
+                input.data.prompt ||
+                "承接上一章结尾与全书规划，推进新的剧情，生成下一章完整候选正文。",
+              wordGoal: input.data.wordGoal,
+              sourceIds: [],
+            },
+            idempotencyKey,
+          );
+          const workflow = await workflowService.launch(created.id);
+          if (
+            !workflow.runId ||
+            !workflow.sessionId ||
+            workflow.stage === "failed"
+          )
+            throw new Error(workflow.error ?? "创作运行未成功启动。");
+          const started = {
+            taskId: workflow.taskId,
+            runId: workflow.runId,
+            sessionId: workflow.sessionId,
+          };
           const response = {
             chapter: next,
             run: {
@@ -404,7 +436,6 @@ export function writingAdvancedRoutes(
           recordReplay(context, "continue-chapter", idempotencyKey, response);
           return requestContext.json(response, 202);
         } catch (error) {
-          chapters.remove(next.id);
           return problem(
             requestContext,
             409,
@@ -555,11 +586,12 @@ export function writingAdvancedRoutes(
             "VALIDATION_ERROR",
             "章节正文为空，无法分析。",
           );
-        const creative =
-          context.services.optional<CreativeQualityRecordService>(
-            CREATIVE_QUALITY_SERVICE,
-          );
-        const tasks = context.services.optional<AutomationTaskService>(
+        const creative = optionalService<CreativeQualityRecordService>(
+          context,
+          CREATIVE_QUALITY_SERVICE,
+        );
+        const tasks = optionalService<AutomationTaskService>(
+          context,
           AUTOMATION_TASK_SERVICE,
         );
         if (!creative || !tasks)

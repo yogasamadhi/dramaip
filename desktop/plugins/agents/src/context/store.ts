@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createHash, randomUUID } from "node:crypto";
 import {
   AgentContextPreviewInputSchema,
@@ -72,12 +73,10 @@ export interface AgentContextStore extends AgentContextService {
 export function createAgentContextStore(
   context: PluginContext,
 ): AgentContextStore {
-  const projectService = context.services.optional(WORKSPACE_PROJECT_SERVICE);
-  const chapterService = context.services.optional(WRITING_CHAPTER_SERVICE);
-  const resourceService = context.services.optional(WRITING_RESOURCE_SERVICE);
-  const knowledgeService = context.services.optional(
-    CREATIVE_KNOWLEDGE_SERVICE,
-  );
+  const projectService = optionalService(context, WORKSPACE_PROJECT_SERVICE);
+  const chapterService = optionalService(context, WRITING_CHAPTER_SERVICE);
+  const resourceService = optionalService(context, WRITING_RESOURCE_SERVICE);
+  const knowledgeService = optionalService(context, CREATIVE_KNOWLEDGE_SERVICE);
 
   const readPolicies = (projectId: string) =>
     context.uow.execute((transaction) => {
@@ -108,7 +107,11 @@ export function createAgentContextStore(
       return { version, policies };
     });
 
-  const build = (raw: AgentContextPreviewInput): AgentContextPreview => {
+  const build = (
+    raw: AgentContextPreviewInput,
+    preparedReferences?: import("@dramaip/contracts").AgentContextReference[],
+    frozenEntries?: AgentContextEntry[],
+  ): AgentContextPreview => {
     const input = AgentContextPreviewInputSchema.parse(raw);
     const project = input.projectId
       ? projectService?.get(input.projectId)
@@ -212,6 +215,8 @@ export function createAgentContextStore(
             sensitivity: "project",
           });
 
+    if (preparedReferences)
+      candidates.splice(0, candidates.length, ...preparedReferences);
     const projectPolicies = new Map(
       input.projectId
         ? readPolicies(input.projectId).policies.map((policy) => [
@@ -229,7 +234,7 @@ export function createAgentContextStore(
     const baseTokens = estimateTokens(input.basePrompt);
     if (baseTokens > input.tokenBudget)
       throw new Error("基础提示词已超过本次运行的 token 硬预算。");
-    const entries = candidates.map((candidate) => {
+    let entries = candidates.map((candidate) => {
       const mode =
         temporary.get(candidate.fieldPath) ??
         projectPolicies.get(candidate.fieldPath) ??
@@ -268,6 +273,17 @@ export function createAgentContextStore(
         entry.included = false;
         entry.reason = "auto 字段因 token 硬预算被裁剪。";
       }
+    }
+    if (frozenEntries) {
+      entries = frozenEntries;
+      if (
+        baseTokens +
+          entries
+            .filter((entry) => entry.included)
+            .reduce((total, entry) => total + entry.estimatedTokens, 0) >
+        input.tokenBudget
+      )
+        throw new Error("候选与冻结资料超过本轮上下文预算，请缩小创作范围。");
     }
     const finalPrompt = composePrompt(input.basePrompt, entries);
     const now = new Date().toISOString();
@@ -504,6 +520,27 @@ export function createAgentContextStore(
 
   return {
     createPreview: build,
+    prepareCreation: (input, references) => {
+      const preview = build(input, references);
+      return freeze(preview.id, preview.version)!;
+    },
+    deriveCreation: (id, prompt) => {
+      const snapshot = getSnapshot(id);
+      if (!snapshot) throw new Error("冻结的创作资料不存在。");
+      const preview = build(
+        {
+          projectId: snapshot.projectId,
+          runIntent: "creation-stage",
+          basePrompt: prompt,
+          tokenBudget: snapshot.tokenBudget,
+          destination: snapshot.destination,
+          temporaryOverrides: [],
+        },
+        [],
+        snapshot.entries,
+      );
+      return freeze(preview.id, preview.version)!;
+    },
     getPreview,
     updatePreview,
     freeze,
@@ -587,6 +624,8 @@ function priority(kind: AgentContextEntry["sourceKind"]): number {
     project: 70,
     story_bible: 60,
     writing_resource: 50,
+    production: 85,
+    knowledge: 75,
   }[kind];
 }
 

@@ -1,3 +1,4 @@
+import { CreationRecordWorkbench } from "../creation-workbench";
 import type {
   AnimaticInitialization,
   AssetCenterAsset,
@@ -224,7 +225,13 @@ export function ProductionWorkspace() {
     requestedStage &&
     mediaStageIds.includes(requestedStage as (typeof mediaStageIds)[number])
       ? requestedStage
-      : "assets";
+      : shots.length
+        ? "storyboard"
+        : "assets";
+  useEffect(() => {
+    if (!requestedStage && shots.length && stage === "assets")
+      setStage("storyboard");
+  }, [requestedStage, shots.length, stage]);
   const stageItems: WorkspaceStageItem[] = mediaStageIds.map((id) => {
     const needsShot = ["shot-stills", "image", "video"].includes(id);
     const needsEpisode = ["audio", "animatics", "timeline", "renders"].includes(
@@ -254,6 +261,31 @@ export function ProductionWorkspace() {
           })}`,
     };
   });
+  const stageGroups = [
+    {
+      id: "director",
+      label: "导演看板",
+      stages: ["storyboard", "asset-center"],
+    },
+    {
+      id: "assets",
+      label: "素材与角色",
+      stages: ["assets", "rights", "visual-assets", "shot-stills"],
+    },
+    {
+      id: "media",
+      label: "音视频",
+      stages: ["image", "audio", "video"],
+    },
+    {
+      id: "output",
+      label: "时间线与输出",
+      stages: ["animatics", "timeline", "renders"],
+    },
+  ] as const;
+  const activeStageGroup =
+    stageGroups.find((group) => group.stages.includes(stage as never)) ??
+    stageGroups[1];
   const resetChain = () => {
     setAdaptationId("");
     setEpisodeId("");
@@ -467,10 +499,29 @@ export function ProductionWorkspace() {
             </select>
           </label>
         </section>
-        {projectId && <ProductionGraphPanel projectId={projectId} />}
+        <nav
+          aria-label="制作工作分组"
+          className="grid grid-cols-2 gap-1 rounded-lg bg-canvas p-1 lg:grid-cols-4"
+        >
+          {stageGroups.map((group) => (
+            <BareButton
+              key={group.id}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${activeStageGroup.id === group.id ? "bg-surface-raised text-ink shadow-control" : "text-muted hover:text-ink"}`}
+              onClick={() => {
+                const nextStage = group.stages[0] as typeof stage;
+                setStage(nextStage);
+                syncRoute({ stage: nextStage });
+              }}
+            >
+              {group.label}
+            </BareButton>
+          ))}
+        </nav>
         <StageNavigation
-          label="制作阶段"
-          items={stageItems}
+          label={`${activeStageGroup.label}功能`}
+          items={stageItems.filter((item) =>
+            activeStageGroup.stages.includes(item.id as never),
+          )}
           active={stage}
           onChange={(value) => {
             const nextStage = value as typeof stage;
@@ -478,6 +529,16 @@ export function ProductionWorkspace() {
             syncRoute({ stage: nextStage });
           }}
         />
+        {projectId ? (
+          <details className="rounded-lg border border-line bg-surface px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium text-muted">
+              查看完整依赖与覆盖摘要
+            </summary>
+            <div className="mt-3">
+              <ProductionGraphPanel projectId={projectId} />
+            </div>
+          </details>
+        ) : null}
         {!projectId ? (
           <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
             请先选择项目，再登记或制作素材。
@@ -1436,8 +1497,22 @@ export function ImageGenerationPanel(props: {
   const [kind, setKind] = useState<
     "still" | "first_frame" | "last_frame" | "cover"
   >("still");
-  const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState("");
+  const { data: shot } = useQuery({
+    queryKey: ["resource", "shots", props.shotId],
+    queryFn: () => client.resources.get("shots", props.shotId),
+  });
+  const [prompt, setPrompt] = useMediaDraft(
+    `media-image:${props.shotId}`,
+    String(
+      recordPayload(shot?.payload)["图片提示"] ??
+        recordPayload(shot?.payload)["生成提示"] ??
+        "",
+    ),
+  );
+  const [negativePrompt, setNegativePrompt] = useMediaDraft(
+    `media-image-negative:${props.shotId}`,
+    String(recordPayload(shot?.payload)["负面提示"] ?? ""),
+  );
   const [size, setSize] = useState("1024x1536");
   const [notice, setNotice] = useState<string>();
   const [running, setRunning] = useState(false);
@@ -1503,6 +1578,17 @@ export function ImageGenerationPanel(props: {
   };
   return (
     <section className="space-y-4 rounded-xl border border-line bg-surface p-4">
+      <details className="mb-3">
+        <summary className="cursor-pointer text-sm text-brand">
+          AI 完善本镜头提示词
+        </summary>
+        <CreationRecordWorkbench
+          projectId={props.projectId}
+          targetId={props.shotId}
+          domain="shots"
+          operation="shot-prompt"
+        />
+      </details>
       <div>
         <h2 className="font-semibold">图片生成与静帧采用</h2>
         <p className="mt-1 text-sm text-muted">
@@ -1620,7 +1706,14 @@ export function VideoGenerationPanel(props: {
   const client = useStudio();
   const queryClient = useQueryClient();
   const [providerId, setProviderId] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const { data: shot } = useQuery({
+    queryKey: ["video-generation-shot", props.shotId],
+    queryFn: () => client.resources.get("shots", props.shotId),
+  });
+  const [prompt, setPrompt] = useMediaDraft(
+    `media-video:${props.shotId}`,
+    String(recordPayload(shot?.payload)["生成提示"] ?? ""),
+  );
   const [seconds, setSeconds] = useState("5");
   const [confirmUnknownCost, setConfirmUnknownCost] = useState(false);
   const [preflight, setPreflight] = useState<VideoGenerationPreflight>();
@@ -1630,10 +1723,6 @@ export function VideoGenerationPanel(props: {
   const { data: providers = [] } = useQuery({
     queryKey: ["resource", "providers"],
     queryFn: () => client.resources.list("providers"),
-  });
-  const { data: shot } = useQuery({
-    queryKey: ["video-generation-shot", props.shotId],
-    queryFn: () => client.resources.get("shots", props.shotId),
   });
   const { data: jobs = [] } = useQuery({
     queryKey: ["video-generation", props.shotId],
@@ -1652,21 +1741,6 @@ export function VideoGenerationPanel(props: {
   useEffect(() => {
     setPreflight(undefined);
   }, [providerId, prompt, seconds, props.shotId]);
-  useEffect(() => {
-    const payload = recordPayload(shot?.payload);
-    const savedPrompt =
-      typeof payload["生成提示"] === "string" ? payload["生成提示"] : "";
-    const durationValue = payload["时长"] ?? payload["时长秒数"];
-    const duration =
-      typeof durationValue === "number"
-        ? durationValue
-        : typeof durationValue === "string"
-          ? Number(durationValue.match(/\d+/)?.[0])
-          : undefined;
-    if (savedPrompt) setPrompt(savedPrompt);
-    if (Number.isInteger(duration) && duration! > 0)
-      setSeconds(String(duration));
-  }, [shot?.id, shot?.version]);
   const input = (): VideoGenerationInput | undefined => {
     if (!providerId || !prompt.trim()) {
       setNotice("请选择视频服务商并填写生成提示。");
@@ -1749,21 +1823,14 @@ export function VideoGenerationPanel(props: {
     }
   };
   const retry = async (id: string) => {
-    try {
-      const job = await client.videoGeneration.retry(
-        id,
-        {},
-        crypto.randomUUID(),
-      );
-      setNotice(
-        job.status === "succeeded"
-          ? "重试视频已完成并归档为分镜候选。"
-          : "已创建新的视频生成任务，并保留原任务作为重试父记录。",
-      );
-      await refresh();
-    } catch (cause) {
-      setNotice(message(cause));
-    }
+    const job = jobs.find((item) => item.id === id);
+    if (!job) return;
+    setProviderId(job.providerId);
+    setPrompt(job.prompt);
+    setPreflight(undefined);
+    setNotice(
+      "已恢复原服务商、模型和输入快照。请重新完成静帧、资产、权利与费用预检，再确认提交。",
+    );
   };
   const adopt = async (id: string) => {
     try {
@@ -1776,6 +1843,17 @@ export function VideoGenerationPanel(props: {
   };
   return (
     <section className="space-y-4 rounded-xl border border-line bg-surface p-4">
+      <details className="mb-3">
+        <summary className="cursor-pointer text-sm text-brand">
+          AI 完善本镜头提示词
+        </summary>
+        <CreationRecordWorkbench
+          projectId={props.projectId}
+          targetId={props.shotId}
+          domain="shots"
+          operation="shot-prompt"
+        />
+      </details>
       <div>
         <h2 className="font-semibold">视频生成与候选采用</h2>
         <p className="mt-1 text-sm text-muted">
@@ -2032,6 +2110,59 @@ export function AudioProductionPanel(props: {
     queryKey: ["resource", "providers"],
     queryFn: () => client.resources.list("providers"),
   });
+  const { data: scripts = [] } = useQuery({
+    queryKey: ["resource", "scripts", props.projectId, props.episodeId],
+    queryFn: () =>
+      client.resources.list("scripts", props.projectId, props.episodeId),
+  });
+  const { data: dialogueDocuments = [] } = useQuery({
+    queryKey: [
+      "audio-dialogue",
+      props.episodeId,
+      scripts.map((script) => `${script.id}:${script.version}`).join(","),
+    ],
+    queryFn: () =>
+      Promise.all(scripts.map((script) => client.screenplays.get(script.id))),
+    enabled: Boolean(scripts.length),
+  });
+  const { data: characters = [] } = useQuery({
+    queryKey: ["resource", "characters", props.projectId],
+    queryFn: () => client.resources.list("characters", props.projectId),
+  });
+  const dialogue = dialogueDocuments.flatMap((document) => {
+    let speaker = "";
+    return document.blocks.flatMap((block) => {
+      if (block.type === "character") speaker = block.text;
+      return block.type === "dialogue"
+        ? [{ id: block.id, speaker, text: block.text }]
+        : [];
+    });
+  });
+  const useDialogue = (id: string) => {
+    const line = dialogue.find((item) => item.id === id);
+    if (!line) return;
+    setTtsText(line.text);
+    setTrackKind("dialogue");
+    setTrackLabel(`${line.speaker} · 对白`);
+    const character = characters.find(
+      (item) => item.title.trim() === line.speaker.trim(),
+    );
+    const matches = voiceProfiles.filter(
+      (profile) =>
+        profile.status === "adopted" &&
+        ((character && profile.characterId === character.id) ||
+          profile.title.trim() === line.speaker.trim()),
+    );
+    if (matches.length === 1 && matches[0]?.providerVoice) {
+      setVoiceProfileId(matches[0].id);
+      setTtsVoice(matches[0].providerVoice);
+      setNotice("已从剧本提取台词并匹配已采用音色。");
+    } else {
+      setVoiceProfileId("");
+      setTtsVoice("");
+      setNotice("台词已提取，请选择角色的音色后确认生成。");
+    }
+  };
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
@@ -2217,6 +2348,23 @@ export function AudioProductionPanel(props: {
       </section>
       <section className="rounded-xl border border-line p-3">
         <h3 className="font-medium">生成对白或旁白</h3>
+        <label className="mt-3 grid gap-2 text-sm">
+          从本集剧本选取台词
+          <select
+            aria-label="剧本台词"
+            className="rounded border border-line p-2"
+            value=""
+            onChange={(event) => useDialogue(event.target.value)}
+          >
+            <option value="">选择人物与台词</option>
+            {dialogue.map((line) => (
+              <option key={line.id} value={line.id}>
+                {line.speaker}：{line.text.slice(0, 100)}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <p className="mt-1 text-xs text-muted">
           语音结果会安全归档为素材，并自动选入下方音轨草案；不会自动采用。
         </p>
@@ -2249,7 +2397,7 @@ export function AudioProductionPanel(props: {
           </BareButton>
           <textarea
             className="min-h-20 rounded-lg border border-line px-3 py-2 text-sm md:col-span-2 xl:col-span-3"
-            placeholder="输入对白或旁白文本"
+            placeholder="从剧本选择台词；需要时补充配音修改要求"
             value={ttsText}
             onChange={(event) => setTtsText(event.target.value)}
           />
@@ -3685,4 +3833,17 @@ export function ProductionGraphPanel(props: { projectId: string }) {
       )}
     </section>
   );
+}
+
+function useMediaDraft(key: string, initial: string) {
+  const [draft, setDraft] = useState<{ key: string; value: string }>();
+  return [
+    draft?.key === key
+      ? draft.value
+      : (window.localStorage.getItem(key) ?? initial),
+    (value: string) => {
+      setDraft({ key, value });
+      window.localStorage.setItem(key, value);
+    },
+  ] as const;
 }

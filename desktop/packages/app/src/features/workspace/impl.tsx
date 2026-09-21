@@ -1,9 +1,14 @@
+import {
+  CreationWorkbench,
+  CreationRecordWorkbench,
+} from "../creation-workbench";
 import type {
   Chapter,
   DomainEntity,
   ImportExtractionChangeSet,
   PilotPlan,
   Project,
+  ProjectDerivationPreview,
   ProjectMode,
   ProjectPackagePreview,
   Series,
@@ -667,7 +672,7 @@ function projectStartOptions(mode: ProjectMode): readonly ProjectStartOption[] {
       },
       {
         source: "script",
-        title: "直接写剧本",
+        title: "使用已有剧本",
         description: "粘贴首集剧本草稿，或预览并导入结构化剧本 JSON。",
         outcome: "创建后进入首集剧本",
       },
@@ -779,13 +784,50 @@ function ProjectHomeContinueCard(props: { project: Project }) {
   );
 }
 
+function ProjectHomeTaskSummary(props: { projectId: string }) {
+  const client = useStudio();
+  const { data } = useQuery({
+    queryKey: ["task-worklist-summary", props.projectId],
+    queryFn: () =>
+      client.tasks.worklist({
+        projectId: props.projectId,
+        category: "pending-result",
+        limit: 3,
+      }),
+  });
+  if (!data || (!data.counts.pendingResult && !data.counts.attention))
+    return null;
+  return (
+    <section className="rounded-lg border border-line bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">需要你确认</h2>
+          <p className="mt-1 text-sm text-muted">
+            {data.counts.pendingResult} 个结果待确认
+            {data.counts.attention
+              ? ` · ${data.counts.attention} 个任务需要处理`
+              : ""}
+          </p>
+        </div>
+        <Button asChild variant="secondary" size="sm">
+          <Link to={`/tasks?projectId=${encodeURIComponent(props.projectId)}`}>
+            打开任务中心
+          </Link>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 export function ProjectHome() {
   const client = useStudio();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const session = useStudioSession();
   const restoredDraft = session.creationDraft;
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(session.projects);
+  const [creationOpen, setCreationOpen] = useState(Boolean(restoredDraft));
+  const [packageImportOpen, setPackageImportOpen] = useState(false);
   const [creationSource, setCreationSource] = useState<ProjectCreationSource>(
     restoredDraft?.creationSource ?? "inspiration",
   );
@@ -853,6 +895,19 @@ export function ProjectHome() {
       void client.sourceImports
         .discard(current.importId)
         .catch(() => undefined);
+  };
+  const resetCreationForm = (close = false) => {
+    setProjectMode("series_longform");
+    setCreationSource("inspiration");
+    setBrief(projectModeBrief("series_longform", "inspiration"));
+    setStoryPresetId(undefined);
+    discardPendingImport();
+    setCreatorTopic("");
+    setScriptContent("");
+    setShowAdvanced(false);
+    setActiveCreateStep(1);
+    if (close) setCreationOpen(false);
+    session.clearCreationDraft();
   };
   const persistCreationDraft = (
     values: Partial<CreationDraftV1>,
@@ -1027,7 +1082,7 @@ export function ProjectHome() {
         );
       }
       setProjects((items) => [project, ...items]);
-      session.clearCreationDraft();
+      resetCreationForm(true);
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${project.id}`);
     } catch (cause) {
@@ -1160,373 +1215,476 @@ export function ProjectHome() {
   return (
     <div className="space-y-6">
       <WorkspaceIntro
-        eyebrow="尽意 DramaIP · 本地项目库"
+        eyebrow="尽意 DramaIP · 本地创作"
         title="项目工作台"
-        description="尽作者之意，成万象之作。本地优先的 AI IP 创作工作台，帮助你创建、导入和管理项目，并从已有内容继续推进下一步。"
+        description="提供创意或导入来源，由 AI 规划、生成与修订，你来审阅和决定。"
         badge="项目管理"
       />
-      {session.activeProject && (
-        <ProjectHomeContinueCard project={session.activeProject} />
-      )}
-      <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">新建创作项目</h2>
-            <p className="mt-1 text-sm text-muted">
-              按三个步骤完成创建。数量和时长都是建议值，创建后仍可调整。
-            </p>
+      {projects.length ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted">
+            {projects.length} 个本地项目 · 最近更新优先
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setPackageImportOpen((value) => !value)}
+            >
+              导入项目
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => setCreationOpen(true)}
+            >
+              新建项目
+            </Button>
           </div>
         </div>
-        {activeCreateStep === 1 ? (
-          <>
-            <div className="mt-5 flex items-center gap-3">
-              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                1
-              </span>
-              <div>
-                <h3 className="font-semibold">选择创作模式</h3>
-                <p className="text-xs text-muted">决定项目的工作台和生产流程</p>
+      ) : (
+        <section className="grid gap-4 rounded-xl border border-line bg-surface p-6 shadow-card lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+          <div>
+            <p className="studio-eyebrow">第一次使用</p>
+            <h2 className="mt-2 text-2xl font-semibold">
+              从一个创意开始，让 AI 完成创作
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+              描述作品方向，AI
+              会提出方案并生成候选。也可以先打开示例，了解完整创作流程。
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button variant="primary" onClick={() => setCreationOpen(true)}>
+                开始创作
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCreationOpen(true);
+                  setActiveCreateStep(1);
+                }}
+              >
+                导入内容
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={creatingDemo}
+                onClick={() => void createDemo()}
+              >
+                {creatingDemo ? "正在创建示例…" : "先看看示例"}
+              </Button>
+            </div>
+          </div>
+          <ol className="grid gap-2 rounded-lg bg-surface-muted p-4 text-sm text-muted">
+            <li>
+              <span className="mr-2 font-semibold text-ink">1</span>
+              提供创意或导入已有来源
+            </li>
+            <li>
+              <span className="mr-2 font-semibold text-ink">2</span>AI
+              生成、检查与修订，你来审阅采用
+            </li>
+            <li>
+              <span className="mr-2 font-semibold text-ink">3</span>
+              确认首集范围，由 AI 推进改编与制作
+            </li>
+          </ol>
+        </section>
+      )}
+      {session.activeProject && projects.length ? (
+        <ProjectHomeContinueCard project={session.activeProject} />
+      ) : null}
+      {session.activeProject && projects.length ? (
+        <ProjectHomeTaskSummary projectId={session.activeProject.id} />
+      ) : null}
+      {(creationOpen || !projects.length) && (
+        <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">新建创作项目</h2>
+              <p className="mt-1 text-sm text-muted">
+                按三个步骤完成创建。数量和时长都是建议值，创建后仍可调整。
+              </p>
+            </div>
+            {projects.length ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreationOpen(false)}
+              >
+                收起
+              </Button>
+            ) : null}
+          </div>
+          {activeCreateStep === 1 ? (
+            <>
+              <div className="mt-5 flex items-center gap-3">
+                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                  1
+                </span>
+                <div>
+                  <h3 className="font-semibold">选择创作模式</h3>
+                  <p className="text-xs text-muted">
+                    决定项目的工作台和生产流程
+                  </p>
+                </div>
               </div>
-            </div>
-            <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted">
-              核心创作
-            </p>
-            <div className="mt-2 grid gap-3 md:grid-cols-2">
-              {modeCards
-                .filter((item) => item.primary)
-                .map((item) => (
-                  <BareButton
-                    key={item.mode}
-                    className="group relative min-h-40 rounded-xl border border-line bg-surface-raised p-5 text-left transition hover:border-brand hover:bg-brand-soft"
-                    onClick={() => selectProjectMode(item.mode)}
-                  >
-                    <span className="absolute right-4 top-4 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand-strong">
-                      {item.badge}
-                    </span>
-                    <p className="text-lg font-semibold">{item.title}</p>
-                    <p className="mt-2 max-w-xl pr-20 text-sm leading-6 text-muted">
-                      {item.description}
-                    </p>
-                    <p className="mt-4 text-xs font-medium text-rust">
-                      {item.next} →
-                    </p>
-                  </BareButton>
-                ))}
-            </div>
-            <p className="mt-5 text-xs font-medium uppercase tracking-wider text-muted">
-              更多创作方式
-            </p>
-            <div className="mt-2 grid gap-3 md:grid-cols-2">
-              {modeCards
-                .filter((item) => !item.primary)
-                .map((item) => (
-                  <BareButton
-                    key={item.mode}
-                    className="rounded-xl border border-line bg-surface-raised p-4 text-left transition hover:border-line-strong hover:bg-surface-muted"
-                    onClick={() => selectProjectMode(item.mode)}
-                  >
-                    <span className="flex items-center justify-between gap-3">
-                      <span className="font-medium">{item.title}</span>
-                      <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] text-muted">
+              <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted">
+                核心创作
+              </p>
+              <div className="mt-2 grid gap-3 md:grid-cols-2">
+                {modeCards
+                  .filter((item) => item.primary)
+                  .map((item) => (
+                    <BareButton
+                      key={item.mode}
+                      className="group relative min-h-40 rounded-xl border border-line bg-surface-raised p-5 text-left transition hover:border-brand hover:bg-brand-soft"
+                      onClick={() => selectProjectMode(item.mode)}
+                    >
+                      <span className="absolute right-4 top-4 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand-strong">
                         {item.badge}
                       </span>
-                    </span>
-                    <span className="mt-2 block text-sm text-muted">
-                      {item.description}
-                    </span>
-                  </BareButton>
-                ))}
-            </div>
-          </>
-        ) : (
-          <div className="mt-5 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
-            <div className="flex items-center gap-3">
-              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                ✓
-              </span>
-              <div>
-                <p className="text-xs text-muted">创作模式</p>
-                <p className="text-sm font-semibold">
-                  {projectModeLabel(projectMode)}
-                </p>
+                      <p className="text-lg font-semibold">{item.title}</p>
+                      <p className="mt-2 max-w-xl pr-20 text-sm leading-6 text-muted">
+                        {item.description}
+                      </p>
+                      <p className="mt-4 text-xs font-medium text-rust">
+                        {item.next} →
+                      </p>
+                    </BareButton>
+                  ))}
               </div>
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setActiveCreateStep(1)}
-            >
-              修改
-            </Button>
-          </div>
-        )}
-        {projectMode !== "creator_channel" && activeCreateStep === 2 && (
-          <div
-            ref={startMethodRef}
-            className="mt-6 scroll-mt-20 border-t border-line pt-5"
-          >
-            <div className="flex items-center gap-3">
-              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                2
-              </span>
-              <div>
-                <h3 className="font-semibold">选择怎么开始</h3>
-                <p className="text-xs text-muted">
-                  已选择“{projectModeLabel(projectMode)}”，请选择一种开始方式
-                </p>
-              </div>
-            </div>
-            <div
-              className={`mt-4 grid gap-3 ${projectStartOptions(projectMode).length === 1 ? "md:grid-cols-1" : projectStartOptions(projectMode).length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}
-            >
-              {projectStartOptions(projectMode).map((path) => {
-                const selected = creationSource === path.source;
-                return (
-                  <BareButton
-                    key={path.source}
-                    className={`group relative min-h-28 overflow-hidden rounded-xl border px-5 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-focus ${selected ? "border-brand bg-brand-soft text-brand-strong shadow-control" : "border-line bg-surface-raised text-ink shadow-control hover:border-line-strong hover:bg-surface-muted"}`}
-                    aria-pressed={selected}
-                    onClick={() => selectCreationSource(path.source)}
-                  >
-                    {selected && (
-                      <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong">
-                        <span
-                          aria-hidden="true"
-                          className="grid size-4 place-items-center rounded-full bg-brand text-[10px] text-white"
-                        >
-                          ✓
-                        </span>
-                        {path.recommended ? "推荐 · 已选择" : "已选择"}
-                      </span>
-                    )}
-                    <p
-                      className={`pr-20 font-medium transition-colors ${selected ? "text-rust" : "text-ink"}`}
+              <p className="mt-5 text-xs font-medium uppercase tracking-wider text-muted">
+                更多创作方式
+              </p>
+              <div className="mt-2 grid gap-3 md:grid-cols-2">
+                {modeCards
+                  .filter((item) => !item.primary)
+                  .map((item) => (
+                    <BareButton
+                      key={item.mode}
+                      className="rounded-xl border border-line bg-surface-raised p-4 text-left transition hover:border-line-strong hover:bg-surface-muted"
+                      onClick={() => selectProjectMode(item.mode)}
                     >
-                      {path.title}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-muted">
-                      {path.description}
-                    </p>
-                    <p className="mt-3 text-xs font-medium text-rust/90">
-                      {path.outcome}
-                    </p>
-                  </BareButton>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {projectMode !== "creator_channel" && activeCreateStep === 3 && (
-          <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
-            <div className="flex items-center gap-3">
-              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                ✓
-              </span>
-              <div>
-                <p className="text-xs text-muted">开始方式</p>
-                <p className="text-sm font-semibold">
-                  {
-                    projectStartOptions(projectMode).find(
-                      (item) => item.source === creationSource,
-                    )?.title
-                  }
-                </p>
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="font-medium">{item.title}</span>
+                        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] text-muted">
+                          {item.badge}
+                        </span>
+                      </span>
+                      <span className="mt-2 block text-sm text-muted">
+                        {item.description}
+                      </span>
+                    </BareButton>
+                  ))}
               </div>
+            </>
+          ) : (
+            <div className="mt-5 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                  ✓
+                </span>
+                <div>
+                  <p className="text-xs text-muted">创作模式</p>
+                  <p className="text-sm font-semibold">
+                    {projectModeLabel(projectMode)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setActiveCreateStep(1)}
+              >
+                修改
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setActiveCreateStep(2)}
+          )}
+          {projectMode !== "creator_channel" && activeCreateStep === 2 && (
+            <div
+              ref={startMethodRef}
+              className="mt-6 scroll-mt-20 border-t border-line pt-5"
             >
-              修改
-            </Button>
-          </div>
-        )}
-        {activeCreateStep === 3 && creationSource && (
-          <div
-            ref={projectFormRef}
-            className="mt-6 scroll-mt-20 border-t border-line pt-5"
-          >
-            <div className="flex items-center gap-3">
-              <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                {projectMode === "creator_channel" ? "2" : "3"}
-              </span>
-              <div>
-                <h3 className="font-semibold">填写名称并创建</h3>
-                <p className="text-xs text-muted">
-                  只需填写必填项；其他设置可以创建后再调整
-                </p>
+              <div className="flex items-center gap-3">
+                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                  2
+                </span>
+                <div>
+                  <h3 className="font-semibold">选择怎么开始</h3>
+                  <p className="text-xs text-muted">
+                    已选择“{projectModeLabel(projectMode)}”，请选择一种开始方式
+                  </p>
+                </div>
+              </div>
+              <div
+                className={`mt-4 grid gap-3 ${projectStartOptions(projectMode).length === 1 ? "md:grid-cols-1" : projectStartOptions(projectMode).length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}
+              >
+                {projectStartOptions(projectMode).map((path) => {
+                  const selected = creationSource === path.source;
+                  return (
+                    <BareButton
+                      key={path.source}
+                      className={`group relative min-h-28 overflow-hidden rounded-xl border px-5 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-focus ${selected ? "border-brand bg-brand-soft text-brand-strong shadow-control" : "border-line bg-surface-raised text-ink shadow-control hover:border-line-strong hover:bg-surface-muted"}`}
+                      aria-pressed={selected}
+                      onClick={() => selectCreationSource(path.source)}
+                    >
+                      {selected && (
+                        <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong">
+                          <span
+                            aria-hidden="true"
+                            className="grid size-4 place-items-center rounded-full bg-brand text-[10px] text-white"
+                          >
+                            ✓
+                          </span>
+                          {path.recommended ? "推荐 · 已选择" : "已选择"}
+                        </span>
+                      )}
+                      <p
+                        className={`pr-20 font-medium transition-colors ${selected ? "text-rust" : "text-ink"}`}
+                      >
+                        {path.title}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        {path.description}
+                      </p>
+                      <p className="mt-3 text-xs font-medium text-rust/90">
+                        {path.outcome}
+                      </p>
+                    </BareButton>
+                  );
+                })}
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="mt-4 grid gap-1 text-sm">
-                <label htmlFor="new-project-title">
-                  项目名称 <span className="text-rust">必填</span>
-                </label>
-                <Input
-                  id="new-project-title"
-                  autoFocus={false}
-                  placeholder={`例如：我的${projectModeLabel(projectMode)}项目`}
-                  value={brief.title}
-                  onChange={(event) => updateBrief("title", event.target.value)}
-                />
+          )}
+          {projectMode !== "creator_channel" && activeCreateStep === 3 && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                  ✓
+                </span>
+                <div>
+                  <p className="text-xs text-muted">开始方式</p>
+                  <p className="text-sm font-semibold">
+                    {
+                      projectStartOptions(projectMode).find(
+                        (item) => item.source === creationSource,
+                      )?.title
+                    }
+                  </p>
+                </div>
               </div>
-              {projectMode === "creator_channel" && (
-                <label className="mt-4 grid gap-1 text-sm">
-                  <span>
-                    持续主题 / 账号定位
-                    <span className="ml-1 text-rust">必填</span>
-                  </span>
-                  <Input
-                    placeholder="例如：面向新手的宏观财经解读"
-                    value={creatorTopic}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setCreatorTopic(value);
-                      persistCreationDraft({ creatorTopic: value });
-                    }}
-                  />
-                </label>
-              )}
-              {projectMode === "personal_theater" && (
-                <label className="mt-4 grid gap-1 text-sm">
-                  故事类型（可选）
-                  <Input
-                    value={brief.shortDramaType}
-                    onChange={(event) => {
-                      if (storyPresetId) clearStoryPreset(event.target.value);
-                      else updateBrief("shortDramaType", event.target.value);
-                    }}
-                  />
-                </label>
-              )}
-              {(projectMode === "series_longform" ||
-                projectMode === "single_season") && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setActiveCreateStep(2)}
+              >
+                修改
+              </Button>
+            </div>
+          )}
+          {activeCreateStep === 3 && creationSource && (
+            <div
+              ref={projectFormRef}
+              className="mt-6 scroll-mt-20 border-t border-line pt-5"
+            >
+              <div className="flex items-center gap-3">
+                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+                  {projectMode === "creator_channel" ? "2" : "3"}
+                </span>
+                <div>
+                  <h3 className="font-semibold">填写名称并创建</h3>
+                  <p className="text-xs text-muted">
+                    只需填写必填项；其他设置可以创建后再调整
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="mt-4 grid gap-1 text-sm">
-                  <label htmlFor="new-project-genre">题材方向（可选）</label>
-                  <Select
-                    id="new-project-genre"
-                    value={brief.shortDramaType || "__unspecified__"}
-                    options={[
-                      { value: "__unspecified__", label: "暂不选择" },
-                      ...PROJECT_GENRE_GROUPS.flatMap((group) =>
-                        group.genres.map((genre) => ({
-                          value: genre,
-                          label: genre,
-                          group: group.label,
-                        })),
-                      ),
-                      ...(brief.shortDramaType &&
-                      !PROJECT_GENRE_CHOICES.some(
-                        (genre) => genre === brief.shortDramaType,
-                      )
-                        ? [
-                            {
-                              value: brief.shortDramaType,
-                              label: brief.shortDramaType,
-                              group: "其他",
-                            },
-                          ]
-                        : []),
-                    ]}
-                    onValueChange={(value) => {
-                      const nextValue =
-                        value === "__unspecified__" ? "" : value;
-                      if (storyPresetId) clearStoryPreset(nextValue);
-                      else updateBrief("shortDramaType", nextValue);
-                    }}
+                  <label htmlFor="new-project-title">
+                    项目名称 <span className="text-rust">必填</span>
+                  </label>
+                  <Input
+                    id="new-project-title"
+                    autoFocus={false}
+                    placeholder={`例如：我的${projectModeLabel(projectMode)}项目`}
+                    value={brief.title}
+                    onChange={(event) =>
+                      updateBrief("title", event.target.value)
+                    }
                   />
                 </div>
-              )}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted">
-              还没有想好项目名称？可以先去
-              <Link
-                className="mx-1 font-medium text-brand-strong underline-offset-2 hover:underline"
-                to="/inspiration"
-              >
-                灵感空间
-              </Link>
-              ，或打开
-              <BareButton
-                type="button"
-                aria-label="打开智能助手获取灵感"
-                className="mx-1 font-medium text-brand-strong underline-offset-2 hover:underline"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("dramaip:open-assistant-conversation"),
-                  )
-                }
-              >
-                智能助手
-              </BareButton>
-              获取灵感，再回来创建项目。
-            </p>
-            {creationSource === "inspiration" &&
-              (projectMode === "series_longform" ||
-                projectMode === "single_season") && (
-                <NovelStoryPresetPicker
-                  selectedId={storyPresetId}
-                  mode={projectMode}
-                  compact
-                  onSelect={(id) => {
-                    const preset = novelStoryPreset(id);
-                    if (!preset) return;
-                    const nextBrief = applyNovelStoryPresetToBrief(
-                      brief,
-                      preset,
-                    );
-                    setStoryPresetId(id);
-                    setBrief(nextBrief);
-                    persistCreationDraft({
-                      storyPresetId: id,
-                      brief: nextBrief,
-                    });
-                  }}
-                  onClear={() => clearStoryPreset()}
-                />
-              )}
-            {creationSource !== "script" && (
-              <label className="mt-3 grid gap-1 text-sm">
-                {projectMode === "creator_channel"
-                  ? "补充说明"
-                  : projectMode === "personal_theater"
-                    ? "想讲的故事（可选）"
-                    : "故事构思（可选）"}
-                <Textarea
-                  className="min-h-24"
-                  placeholder={
-                    projectMode === "creator_channel"
-                      ? "例如：强调数据来源，风格通俗但不过度简化"
-                      : "写一句话也可以，创建后再继续完善"
+                {projectMode === "creator_channel" && (
+                  <label className="mt-4 grid gap-1 text-sm">
+                    <span>
+                      持续主题 / 账号定位
+                      <span className="ml-1 text-rust">必填</span>
+                    </span>
+                    <Input
+                      placeholder="例如：面向新手的宏观财经解读"
+                      value={creatorTopic}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setCreatorTopic(value);
+                        persistCreationDraft({ creatorTopic: value });
+                      }}
+                    />
+                  </label>
+                )}
+                {projectMode === "personal_theater" && (
+                  <label className="mt-4 grid gap-1 text-sm">
+                    故事类型（可选）
+                    <Input
+                      value={brief.shortDramaType}
+                      onChange={(event) => {
+                        if (storyPresetId) clearStoryPreset(event.target.value);
+                        else updateBrief("shortDramaType", event.target.value);
+                      }}
+                    />
+                  </label>
+                )}
+                {(projectMode === "series_longform" ||
+                  projectMode === "single_season") && (
+                  <div className="mt-4 grid gap-1 text-sm">
+                    <label htmlFor="new-project-genre">题材方向（可选）</label>
+                    <Select
+                      id="new-project-genre"
+                      value={brief.shortDramaType || "__unspecified__"}
+                      options={[
+                        { value: "__unspecified__", label: "暂不选择" },
+                        ...PROJECT_GENRE_GROUPS.flatMap((group) =>
+                          group.genres.map((genre) => ({
+                            value: genre,
+                            label: genre,
+                            group: group.label,
+                          })),
+                        ),
+                        ...(brief.shortDramaType &&
+                        !PROJECT_GENRE_CHOICES.some(
+                          (genre) => genre === brief.shortDramaType,
+                        )
+                          ? [
+                              {
+                                value: brief.shortDramaType,
+                                label: brief.shortDramaType,
+                                group: "其他",
+                              },
+                            ]
+                          : []),
+                      ]}
+                      onValueChange={(value) => {
+                        const nextValue =
+                          value === "__unspecified__" ? "" : value;
+                        if (storyPresetId) clearStoryPreset(nextValue);
+                        else updateBrief("shortDramaType", nextValue);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                还没有想好项目名称？可以先去
+                <Link
+                  className="mx-1 font-medium text-brand-strong underline-offset-2 hover:underline"
+                  to="/inspiration"
+                >
+                  灵感空间
+                </Link>
+                ，或打开
+                <BareButton
+                  type="button"
+                  aria-label="打开智能助手获取灵感"
+                  className="mx-1 font-medium text-brand-strong underline-offset-2 hover:underline"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("dramaip:open-assistant-conversation"),
+                    )
                   }
-                  value={brief.idea}
-                  onChange={(event) => updateBrief("idea", event.target.value)}
-                />
-              </label>
-            )}
-            {creationSource === "script" && (
-              <>
-                <label className="mt-3 grid gap-1 text-sm">
-                  {projectMode === "personal_theater" ? "故事描述" : "首集剧本"}
-                  <span className="text-xs text-muted">
-                    可以直接粘贴，也可以在下方导入结构化剧本 JSON。
-                  </span>
-                  <Textarea
-                    className="min-h-40 font-editor"
-                    placeholder={
-                      projectMode === "personal_theater"
-                        ? "描述主角、发生的事情和希望呈现的情绪"
-                        : "粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目"
-                    }
-                    value={scriptContent}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setScriptContent(value);
-                      persistCreationDraft({ scriptDraft: value });
+                >
+                  智能助手
+                </BareButton>
+                获取灵感，再回来创建项目。
+              </p>
+              {creationSource === "inspiration" &&
+                (projectMode === "series_longform" ||
+                  projectMode === "single_season") && (
+                  <NovelStoryPresetPicker
+                    selectedId={storyPresetId}
+                    mode={projectMode}
+                    compact
+                    onSelect={(id) => {
+                      const preset = novelStoryPreset(id);
+                      if (!preset) return;
+                      const nextBrief = applyNovelStoryPresetToBrief(
+                        brief,
+                        preset,
+                      );
+                      setStoryPresetId(id);
+                      setBrief(nextBrief);
+                      persistCreationDraft({
+                        storyPresetId: id,
+                        brief: nextBrief,
+                      });
                     }}
+                    onClear={() => clearStoryPreset()}
+                  />
+                )}
+              {creationSource !== "script" && (
+                <label className="mt-3 grid gap-1 text-sm">
+                  {projectMode === "creator_channel"
+                    ? "补充说明"
+                    : projectMode === "personal_theater"
+                      ? "想讲的故事（可选）"
+                      : "故事构思（可选）"}
+                  <Textarea
+                    className="min-h-24"
+                    placeholder={
+                      projectMode === "creator_channel"
+                        ? "例如：强调数据来源，风格通俗但不过度简化"
+                        : "写一句话也可以，创建后再继续完善"
+                    }
+                    value={brief.idea}
+                    onChange={(event) =>
+                      updateBrief("idea", event.target.value)
+                    }
                   />
                 </label>
+              )}
+              {creationSource === "script" && (
+                <>
+                  <label className="mt-3 grid gap-1 text-sm">
+                    {projectMode === "personal_theater"
+                      ? "故事描述"
+                      : "已有剧本内容"}
+                    <span className="text-xs text-muted">
+                      可以直接粘贴，也可以在下方导入结构化剧本 JSON。
+                    </span>
+                    <Textarea
+                      className="min-h-40 font-editor"
+                      placeholder={
+                        projectMode === "personal_theater"
+                          ? "描述主角、发生的事情和希望呈现的情绪"
+                          : "粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目"
+                      }
+                      value={scriptContent}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setScriptContent(value);
+                        persistCreationDraft({ scriptDraft: value });
+                      }}
+                    />
+                  </label>
+                  <ProjectlessSourceImportEditor
+                    value={pendingImport}
+                    disabled={saving}
+                    onChange={setPendingImport}
+                    onSuggestedTitle={(title) => {
+                      if (!brief.title.trim()) updateBrief("title", title);
+                    }}
+                  />
+                </>
+              )}
+              {creationSource === "source-import" && (
                 <ProjectlessSourceImportEditor
                   value={pendingImport}
                   disabled={saving}
@@ -1535,435 +1693,424 @@ export function ProjectHome() {
                     if (!brief.title.trim()) updateBrief("title", title);
                   }}
                 />
-              </>
-            )}
-            {creationSource === "source-import" && (
-              <ProjectlessSourceImportEditor
-                value={pendingImport}
-                disabled={saving}
-                onChange={setPendingImport}
-                onSuggestedTitle={(title) => {
-                  if (!brief.title.trim()) updateBrief("title", title);
-                }}
-              />
-            )}
-            <BareButton
-              className="mt-4 text-sm font-medium text-brand hover:text-brand-strong"
-              aria-expanded={showAdvanced}
-              onClick={() => setShowAdvanced((value) => !value)}
-            >
-              {showAdvanced ? "收起更多设置 ↑" : "展开受众、平台与视觉设置 ↓"}
-            </BareButton>
-            {showAdvanced && (
-              <div className="mt-3 grid gap-3 rounded-xl border border-line bg-surface-raised p-4 md:grid-cols-2">
-                <label className="grid gap-1 text-sm">
-                  目标受众
-                  <Input
-                    value={brief.targetAudience}
-                    onChange={(event) =>
-                      updateBrief("targetAudience", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-sm">
-                  目标平台
-                  <Input
-                    value={brief.targetPlatform}
-                    onChange={(event) =>
-                      updateBrief("targetPlatform", event.target.value)
-                    }
-                  />
-                </label>
-                {projectMode === "series_longform" && (
-                  <>
-                    <label className="grid gap-1 text-sm">
-                      母本章节数
-                      <Input
-                        inputMode="numeric"
-                        value={brief.targetChapterCount}
-                        onChange={(event) =>
-                          updateBrief("targetChapterCount", event.target.value)
-                        }
-                      />
-                      {!positiveInteger(brief.targetChapterCount) && (
-                        <span className="text-xs text-red-600">
-                          请输入正整数
-                        </span>
-                      )}
-                    </label>
-                    <label className="grid gap-1 text-sm">
-                      计划季数
-                      <Input
-                        inputMode="numeric"
-                        value={brief.targetSeasonCount}
-                        onChange={(event) =>
-                          updateBrief("targetSeasonCount", event.target.value)
-                        }
-                      />
-                      {!positiveInteger(brief.targetSeasonCount) && (
-                        <span className="text-xs text-red-600">
-                          请输入正整数
-                        </span>
-                      )}
-                    </label>
-                    <label className="grid gap-1 text-sm">
-                      每季集数
-                      <Input
-                        inputMode="numeric"
-                        value={brief.targetEpisodesPerSeason}
-                        onChange={(event) =>
-                          updateBrief(
-                            "targetEpisodesPerSeason",
-                            event.target.value,
-                          )
-                        }
-                      />
-                      {!positiveInteger(brief.targetEpisodesPerSeason) && (
-                        <span className="text-xs text-red-600">
-                          请输入正整数
-                        </span>
-                      )}
-                    </label>
-                  </>
-                )}
-                {(projectMode === "single_season" ||
-                  projectMode === "personal_theater") && (
-                  <>
-                    <label className="grid gap-1 text-sm">
-                      单集时长
-                      <Input
-                        value={brief.episodeDuration}
-                        onChange={(event) =>
-                          updateBrief("episodeDuration", event.target.value)
-                        }
-                      />
-                      {projectMode === "personal_theater" &&
-                        !/^\s*[1-9]\d*(?:\s*分钟)?\s*$/u.test(
-                          brief.episodeDuration,
-                        ) && (
+              )}
+              <BareButton
+                className="mt-4 text-sm font-medium text-brand hover:text-brand-strong"
+                aria-expanded={showAdvanced}
+                onClick={() => setShowAdvanced((value) => !value)}
+              >
+                {showAdvanced ? "收起更多设置 ↑" : "展开受众、平台与视觉设置 ↓"}
+              </BareButton>
+              {showAdvanced && (
+                <div className="mt-3 grid gap-3 rounded-xl border border-line bg-surface-raised p-4 md:grid-cols-2">
+                  <label className="grid gap-1 text-sm">
+                    目标受众
+                    <Input
+                      value={brief.targetAudience}
+                      onChange={(event) =>
+                        updateBrief("targetAudience", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    目标平台
+                    <Input
+                      value={brief.targetPlatform}
+                      onChange={(event) =>
+                        updateBrief("targetPlatform", event.target.value)
+                      }
+                    />
+                  </label>
+                  {projectMode === "series_longform" && (
+                    <>
+                      <label className="grid gap-1 text-sm">
+                        母本章节数
+                        <Input
+                          inputMode="numeric"
+                          value={brief.targetChapterCount}
+                          onChange={(event) =>
+                            updateBrief(
+                              "targetChapterCount",
+                              event.target.value,
+                            )
+                          }
+                        />
+                        {!positiveInteger(brief.targetChapterCount) && (
                           <span className="text-xs text-red-600">
-                            请输入正整数分钟数
+                            请输入正整数
                           </span>
                         )}
-                    </label>
-                    <label className="grid gap-1 text-sm">
-                      计划集数
-                      <Input
-                        inputMode="numeric"
-                        value={brief.targetEpisodeCount}
-                        onChange={(event) =>
-                          updateBrief("targetEpisodeCount", event.target.value)
-                        }
-                      />
-                      {!positiveInteger(brief.targetEpisodeCount) && (
-                        <span className="text-xs text-red-600">
-                          请输入正整数
-                        </span>
-                      )}
-                    </label>
-                  </>
-                )}
-                <label className="grid gap-1 text-sm">
-                  画幅
-                  <Input
-                    value={brief.aspectRatio}
-                    onChange={(event) =>
-                      updateBrief("aspectRatio", event.target.value)
+                      </label>
+                      <label className="grid gap-1 text-sm">
+                        计划季数
+                        <Input
+                          inputMode="numeric"
+                          value={brief.targetSeasonCount}
+                          onChange={(event) =>
+                            updateBrief("targetSeasonCount", event.target.value)
+                          }
+                        />
+                        {!positiveInteger(brief.targetSeasonCount) && (
+                          <span className="text-xs text-red-600">
+                            请输入正整数
+                          </span>
+                        )}
+                      </label>
+                      <label className="grid gap-1 text-sm">
+                        每季集数
+                        <Input
+                          inputMode="numeric"
+                          value={brief.targetEpisodesPerSeason}
+                          onChange={(event) =>
+                            updateBrief(
+                              "targetEpisodesPerSeason",
+                              event.target.value,
+                            )
+                          }
+                        />
+                        {!positiveInteger(brief.targetEpisodesPerSeason) && (
+                          <span className="text-xs text-red-600">
+                            请输入正整数
+                          </span>
+                        )}
+                      </label>
+                    </>
+                  )}
+                  {(projectMode === "single_season" ||
+                    projectMode === "personal_theater") && (
+                    <>
+                      <label className="grid gap-1 text-sm">
+                        单集时长
+                        <Input
+                          value={brief.episodeDuration}
+                          onChange={(event) =>
+                            updateBrief("episodeDuration", event.target.value)
+                          }
+                        />
+                        {projectMode === "personal_theater" &&
+                          !/^\s*[1-9]\d*(?:\s*分钟)?\s*$/u.test(
+                            brief.episodeDuration,
+                          ) && (
+                            <span className="text-xs text-red-600">
+                              请输入正整数分钟数
+                            </span>
+                          )}
+                      </label>
+                      <label className="grid gap-1 text-sm">
+                        计划集数
+                        <Input
+                          inputMode="numeric"
+                          value={brief.targetEpisodeCount}
+                          onChange={(event) =>
+                            updateBrief(
+                              "targetEpisodeCount",
+                              event.target.value,
+                            )
+                          }
+                        />
+                        {!positiveInteger(brief.targetEpisodeCount) && (
+                          <span className="text-xs text-red-600">
+                            请输入正整数
+                          </span>
+                        )}
+                      </label>
+                    </>
+                  )}
+                  <label className="grid gap-1 text-sm">
+                    画幅
+                    <Input
+                      value={brief.aspectRatio}
+                      onChange={(event) =>
+                        updateBrief("aspectRatio", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    视觉方向
+                    <Input
+                      value={brief.visualStyleDirection}
+                      onChange={(event) =>
+                        updateBrief("visualStyleDirection", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+              <div className="sticky bottom-3 z-10 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/25 bg-brand-soft/95 p-4 shadow-card backdrop-blur">
+                <div>
+                  <p className="text-xs font-medium text-brand">即将创建</p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {brief.title.trim() || "未命名项目"} ·{" "}
+                    {projectModeLabel(projectMode)} ·{" "}
+                    {
+                      projectStartOptions(projectMode).find(
+                        (item) => item.source === creationSource,
+                      )?.title
                     }
-                  />
-                </label>
-                <label className="grid gap-1 text-sm">
-                  视觉方向
-                  <Input
-                    value={brief.visualStyleDirection}
-                    onChange={(event) =>
-                      updateBrief("visualStyleDirection", event.target.value)
-                    }
-                  />
-                </label>
-              </div>
-            )}
-            <div className="sticky bottom-3 z-10 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/25 bg-brand-soft/95 p-4 shadow-card backdrop-blur">
-              <div>
-                <p className="text-xs font-medium text-brand">即将创建</p>
-                <p className="mt-1 text-sm font-semibold">
-                  {brief.title.trim() || "未命名项目"} ·{" "}
-                  {projectModeLabel(projectMode)} ·{" "}
-                  {
-                    projectStartOptions(projectMode).find(
-                      (item) => item.source === creationSource,
-                    )?.title
-                  }
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  {storyPresetId
-                    ? `${novelStoryPreset(storyPresetId)?.label}预设 · `
-                    : ""}
-                  {scaleSummary}
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  disabled={saving}
-                  onClick={() => {
-                    setProjectMode("series_longform");
-                    setCreationSource("inspiration");
-                    setBrief(
-                      projectModeBrief("series_longform", "inspiration"),
-                    );
-                    setStoryPresetId(undefined);
-                    discardPendingImport();
-                    setCreatorTopic("");
-                    setScriptContent("");
-                    setShowAdvanced(false);
-                    setActiveCreateStep(1);
-                    session.clearCreationDraft();
-                  }}
-                >
-                  清空
-                </Button>
-                {creationSource === "inspiration" && (
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {storyPresetId
+                      ? `${novelStoryPreset(storyPresetId)?.label}预设 · `
+                      : ""}
+                    {scaleSummary}
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button
-                    variant="primary"
-                    disabled={saving || !brief.title.trim() || !modeConfig}
-                    onClick={() => void createFromBrief("inspiration")}
+                    variant="ghost"
+                    disabled={saving}
+                    onClick={() => resetCreationForm()}
                   >
-                    {saving ? "正在创建…" : projectCreateLabel(projectMode)}
+                    清空
                   </Button>
-                )}
-                {creationSource === "source-import" && (
-                  <Button
-                    variant="primary"
-                    disabled={
-                      saving ||
-                      !brief.title.trim() ||
-                      !modeConfig ||
-                      !importReady
-                    }
-                    onClick={() => void createFromBrief("source-file")}
-                  >
-                    {saving
-                      ? "正在创建…"
-                      : `${projectCreateLabel(projectMode)}并导入`}
-                  </Button>
-                )}
-                {creationSource === "script" && (
-                  <>
-                    {pendingImport && (
-                      <Button
-                        variant="secondary"
-                        disabled={
-                          saving ||
-                          !brief.title.trim() ||
-                          !modeConfig ||
-                          !importReady
-                        }
-                        onClick={() => void createFromBrief("script-file")}
-                      >
-                        {saving
-                          ? "正在导入…"
-                          : `${projectCreateLabel(projectMode)}并导入`}
-                      </Button>
-                    )}
+                  {creationSource === "inspiration" && (
+                    <Button
+                      variant="primary"
+                      disabled={saving || !brief.title.trim() || !modeConfig}
+                      onClick={() => void createFromBrief("inspiration")}
+                    >
+                      {saving ? "正在创建…" : projectCreateLabel(projectMode)}
+                    </Button>
+                  )}
+                  {creationSource === "source-import" && (
                     <Button
                       variant="primary"
                       disabled={
                         saving ||
                         !brief.title.trim() ||
                         !modeConfig ||
-                        !scriptContent.trim()
+                        !importReady
                       }
-                      onClick={() => void createFromBrief("script-draft")}
+                      onClick={() => void createFromBrief("source-file")}
                     >
-                      {saving ? "正在创建…" : projectCreateLabel(projectMode)}
+                      {saving
+                        ? "正在创建…"
+                        : `${projectCreateLabel(projectMode)}并导入`}
                     </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        {error && (
-          <div className="mt-3">
-            <RecoveryNotice
-              tone="danger"
-              happened={error}
-              contentSafety={
-                session.creationDraft?.createdProjectId
-                  ? "项目、已完成的初始化资料和创作草稿均已保留在本机。"
-                  : "创作草稿已保留，尚未确认成功的项目不会被当作完成项目。"
-              }
-              nextStep={
-                session.creationDraft?.createdProjectId
-                  ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
-                  : "检查当前输入后重试创建。"
-              }
-              returnTo="成功后进入刚创建的项目工作区。"
-              actions={
-                session.creationDraft?.createdProjectId ? (
-                  <>
-                    <Button
-                      variant="secondary"
-                      disabled={saving}
-                      onClick={() =>
-                        void createFromBrief(
-                          creationSource === "inspiration"
-                            ? "inspiration"
-                            : creationSource === "source-import"
-                              ? "source-file"
-                              : pendingImport
-                                ? "script-file"
-                                : "script-draft",
-                        )
-                      }
-                    >
-                      继续初始化
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={saving}
-                      onClick={() => void removeUnfinishedProject()}
-                    >
-                      移除这个空项目
-                    </Button>
-                  </>
-                ) : undefined
-              }
-            />
-          </div>
-        )}
-      </section>
-      <ProjectPackageImportPanel
-        onImported={async (project) => {
-          setProjects((items) => [project, ...items]);
-          await queryClient.invalidateQueries({ queryKey: ["projects"] });
-          navigate(`/projects/${project.id}`);
-        }}
-      />
-      <section>
-        <div className="mb-5 flex items-end justify-between">
-          <div>
-            <p className="studio-eyebrow">本地项目库</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight">项目</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted">{projects.length} 个</span>
-            <BareButton
-              className="text-sm text-muted hover:text-brand"
-              onClick={() => {
-                setShowTrash((value) => !value);
-                if (!showTrash) loadTrash();
-              }}
-            >
-              {showTrash ? "收起回收站" : "查看回收站"}
-            </BareButton>
-          </div>
-        </div>
-        <div
-          className={`grid gap-4 ${projects.length === 1 ? "grid-cols-1" : "md:grid-cols-2 xl:grid-cols-3"}`}
-        >
-          {projects.map((project, index) => (
-            <article
-              key={project.id}
-              className={`studio-card studio-card-interactive group relative overflow-hidden p-6 transition ${projects.length === 1 ? "max-w-none" : ""}`}
-            >
-              <span className="absolute right-5 top-5 font-mono text-xs text-muted">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <Link to={`/projects/${project.id}`} className="block">
-                <div className="flex flex-wrap gap-2 pr-8">
-                  <span className="inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-rust">
-                    {projectModeLabel(project.mode)}
-                  </span>
-                  {project.id === session.activeProjectId && (
-                    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
-                      当前项目
-                    </span>
+                  )}
+                  {creationSource === "script" && (
+                    <>
+                      {pendingImport && (
+                        <Button
+                          variant="secondary"
+                          disabled={
+                            saving ||
+                            !brief.title.trim() ||
+                            !modeConfig ||
+                            !importReady
+                          }
+                          onClick={() => void createFromBrief("script-file")}
+                        >
+                          {saving
+                            ? "正在导入…"
+                            : `${projectCreateLabel(projectMode)}并导入`}
+                        </Button>
+                      )}
+                      <Button
+                        variant="primary"
+                        disabled={
+                          saving ||
+                          !brief.title.trim() ||
+                          !modeConfig ||
+                          !scriptContent.trim()
+                        }
+                        onClick={() => void createFromBrief("script-draft")}
+                      >
+                        {saving ? "正在创建…" : projectCreateLabel(projectMode)}
+                      </Button>
+                    </>
                   )}
                 </div>
-                <p className="mt-8 text-xl font-semibold tracking-tight group-hover:text-rust">
-                  {project.title}
-                </p>
-                <p className="mt-3 min-h-12 line-clamp-2 text-sm leading-6 text-muted">
-                  {project.synopsis || "尚未填写项目简介"}
-                </p>
-                <p className="mt-6 text-sm font-medium text-rust">
-                  {projectModeNextStep(project)}
-                </p>
-                <p className="mt-2 text-xs text-muted">
-                  最近更新：
-                  {new Date(project.updatedAt).toLocaleString("zh-CN")}
-                </p>
-              </Link>
-              <BareButton
-                className="mt-5 text-xs text-muted hover:text-red-600"
-                onClick={() => void trashProject(project)}
-              >
-                移入回收站
-              </BareButton>
-            </article>
-          ))}
-          {!projects.length && (
-            <EmptyState
-              className="col-span-full"
-              title="创建第一个项目"
-              description="从灵感、原著或已有剧本开始搭建故事世界。"
-              action={
-                <Button
-                  variant="secondary"
-                  disabled={creatingDemo}
-                  onClick={() => void createDemo()}
-                >
-                  {creatingDemo ? "正在创建示例…" : "先看看示例"}
-                </Button>
-              }
-            />
-          )}
-        </div>
-        {showTrash && (
-          <section className="mt-6 rounded-xl border border-dashed border-line bg-surface p-5">
-            <h3 className="font-medium">回收站</h3>
-            <p className="mt-1 text-sm text-muted">
-              恢复后项目会重新出现在项目列表；永久删除需要再次输入项目名称确认。
-            </p>
-            <div className="mt-4 space-y-2">
-              {trashedProjects.map((project) => (
-                <div
-                  key={project.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"
-                >
-                  <div>
-                    <p className="font-medium">{project.title}</p>
-                    <p className="text-xs text-muted">
-                      {projectModeLabel(project.mode)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void restoreProject(project)}
-                    >
-                      恢复项目
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => void purgeProject(project)}
-                    >
-                      永久删除
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {!trashedProjects.length && (
-                <p className="text-sm text-muted">回收站为空。</p>
-              )}
+              </div>
             </div>
-          </section>
-        )}
-      </section>
+          )}
+          {error && (
+            <div className="mt-3">
+              <RecoveryNotice
+                tone="danger"
+                happened={error}
+                contentSafety={
+                  session.creationDraft?.createdProjectId
+                    ? "项目、已完成的初始化资料和创作草稿均已保留在本机。"
+                    : "创作草稿已保留，尚未确认成功的项目不会被当作完成项目。"
+                }
+                nextStep={
+                  session.creationDraft?.createdProjectId
+                    ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
+                    : "检查当前输入后重试创建。"
+                }
+                returnTo="成功后进入刚创建的项目工作区。"
+                actions={
+                  session.creationDraft?.createdProjectId ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        disabled={saving}
+                        onClick={() =>
+                          void createFromBrief(
+                            creationSource === "inspiration"
+                              ? "inspiration"
+                              : creationSource === "source-import"
+                                ? "source-file"
+                                : pendingImport
+                                  ? "script-file"
+                                  : "script-draft",
+                          )
+                        }
+                      >
+                        继续初始化
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={saving}
+                        onClick={() => void removeUnfinishedProject()}
+                      >
+                        移除这个空项目
+                      </Button>
+                    </>
+                  ) : undefined
+                }
+              />
+            </div>
+          )}
+        </section>
+      )}
+      {packageImportOpen ? (
+        <ProjectPackageImportPanel
+          onImported={async (project) => {
+            setProjects((items) => [project, ...items]);
+            await queryClient.invalidateQueries({ queryKey: ["projects"] });
+            navigate(`/projects/${project.id}`);
+          }}
+        />
+      ) : null}
+      {projects.length ? (
+        <section>
+          <div className="mb-5 flex items-end justify-between">
+            <div>
+              <p className="studio-eyebrow">本地项目库</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+                项目
+              </h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted">{projects.length} 个</span>
+              <BareButton
+                className="text-sm text-muted hover:text-brand"
+                onClick={() => {
+                  setShowTrash((value) => !value);
+                  if (!showTrash) loadTrash();
+                }}
+              >
+                {showTrash ? "收起回收站" : "查看回收站"}
+              </BareButton>
+            </div>
+          </div>
+          <div
+            className={`grid gap-4 ${projects.length === 1 ? "grid-cols-1" : "md:grid-cols-2 xl:grid-cols-3"}`}
+          >
+            {projects.map((project, index) => (
+              <article
+                key={project.id}
+                className={`studio-card studio-card-interactive group relative overflow-hidden p-6 transition ${projects.length === 1 ? "max-w-none" : ""}`}
+              >
+                <span className="absolute right-5 top-5 font-mono text-xs text-muted">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <Link to={`/projects/${project.id}`} className="block">
+                  <div className="flex flex-wrap gap-2 pr-8">
+                    <span className="inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-rust">
+                      {projectModeLabel(project.mode)}
+                    </span>
+                    {project.id === session.activeProjectId && (
+                      <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+                        当前项目
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-8 text-xl font-semibold tracking-tight group-hover:text-rust">
+                    {project.title}
+                  </p>
+                  <p className="mt-3 min-h-12 line-clamp-2 text-sm leading-6 text-muted">
+                    {project.synopsis || "尚未填写项目简介"}
+                  </p>
+                  <p className="mt-6 text-sm font-medium text-rust">
+                    {projectModeNextStep(project)}
+                  </p>
+                  <p className="mt-2 text-xs text-muted">
+                    最近更新：
+                    {new Date(project.updatedAt).toLocaleString("zh-CN")}
+                  </p>
+                </Link>
+                <BareButton
+                  className="mt-5 text-xs text-muted hover:text-red-600"
+                  onClick={() => void trashProject(project)}
+                >
+                  移入回收站
+                </BareButton>
+              </article>
+            ))}
+            {!projects.length && (
+              <EmptyState
+                className="col-span-full"
+                title="创建第一个项目"
+                description="从灵感、原著或已有剧本开始搭建故事世界。"
+                action={
+                  <Button
+                    variant="secondary"
+                    disabled={creatingDemo}
+                    onClick={() => void createDemo()}
+                  >
+                    {creatingDemo ? "正在创建示例…" : "先看看示例"}
+                  </Button>
+                }
+              />
+            )}
+          </div>
+          {showTrash && (
+            <section className="mt-6 rounded-xl border border-dashed border-line bg-surface p-5">
+              <h3 className="font-medium">回收站</h3>
+              <p className="mt-1 text-sm text-muted">
+                恢复后项目会重新出现在项目列表；永久删除需要再次输入项目名称确认。
+              </p>
+              <div className="mt-4 space-y-2">
+                {trashedProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"
+                  >
+                    <div>
+                      <p className="font-medium">{project.title}</p>
+                      <p className="text-xs text-muted">
+                        {projectModeLabel(project.mode)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void restoreProject(project)}
+                      >
+                        恢复项目
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => void purgeProject(project)}
+                      >
+                        永久删除
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {!trashedProjects.length && (
+                  <p className="text-sm text-muted">回收站为空。</p>
+                )}
+              </div>
+            </section>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -2285,6 +2432,14 @@ function PersonalTheaterToolPanel(props: { project: Project }) {
   };
   return (
     <section className="space-y-4">
+      {subjects.length > 0 &&
+        subjects.every((subject) => subject.consentStatus === "active") && (
+          <CreationWorkbench
+            projectId={props.project.id}
+            operation="episode"
+            defaultInstruction="根据本项目创意和已授权人物，生成小剧场首集故事、剧本和分镜方案。"
+          />
+        )}
       <div className="rounded-xl border border-brand/30 bg-brand-soft/50 p-5 text-sm leading-6 text-muted">
         照片只经短期文件授权进入 Desktop
         Host；运行时、项目包、日志和诊断中只保存不透明引用、摘要和校验值。撤回授权会删除
@@ -2455,6 +2610,12 @@ function CreatorChannelToolPanel(props: { project: Project }) {
   };
   return (
     <section className="space-y-4">
+      <CreationWorkbench
+        projectId={props.project.id}
+        operation="creator-content"
+        defaultInstruction="围绕项目的受众与创作目标，提出选题、研究计划、完整内容脚本和配音方案。明确关键事实的来源与待核验项。"
+        onApplied={refresh}
+      />
       <div className="rounded-xl border border-brand/30 bg-brand-soft/50 p-5 text-sm leading-6 text-muted">
         内容工作室不保存平台账号密码，也不会自动发布。财经、健康、法律等高风险主题的关键事实需要已采用来源、数据日期和检索时间；事实、引述、推测和博主观点会分开保存。
       </div>
@@ -2710,8 +2871,8 @@ export function ProjectWorkspace() {
     series_longform: {
       title: "系列长篇工作台",
       detail:
-        "母本写作 → 故事圣经 → 分季改编 → 制作 → 审核交付。章节变更会提示关联季重新核对。",
-      action: "开始母本写作",
+        "AI 母本创作 → 故事圣经 → 分季改编 → 制作 → 审核交付。采用章节后更新故事资料，版本变化会提示关联季重新核对。",
+      action: "开始 AI 母本创作",
     },
     single_season: {
       title: "单季短剧工作台",
@@ -3054,6 +3215,23 @@ export function ProjectCockpitPanel(props: {
     queryFn: client.tasks.list,
     refetchInterval: 15_000,
   });
+  const { data: pilotPlans = [] } = useQuery({
+    queryKey: ["pilot-plans", props.project.id],
+    queryFn: () => client.pilotPlans.list(props.project.id),
+  });
+  const activePilot = pilotPlans.find((plan) => plan.status !== "canceled");
+  const { data: progress } = useQuery({
+    queryKey: [
+      "project-progress",
+      props.project.id,
+      activePilot?.episodeIds.join(",") ?? "project",
+    ],
+    queryFn: () =>
+      client.projects.progress(
+        props.project.id,
+        activePilot?.episodeIds.length ? activePilot.episodeIds : undefined,
+      ),
+  });
   if (graphError || taskError)
     return (
       <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
@@ -3130,7 +3308,25 @@ export function ProjectCockpitPanel(props: {
           </Link>
         </article>
         <div className="rounded-xl border border-line bg-surface-raised p-4">
-          <p className="text-xs font-medium text-muted">真实覆盖情况</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium text-muted">真实覆盖情况</p>
+            {progress ? (
+              <span className="text-xs tabular-nums text-muted">
+                {progress.scope.kind === "episodes"
+                  ? `当前试制 ${progress.scope.episodeIds.length} 集`
+                  : "项目范围"}
+                · {Math.round(progress.completion * 100)}%
+              </span>
+            ) : null}
+          </div>
+          {progress ? (
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
+              <div
+                className="h-full rounded-full bg-brand"
+                style={{ width: `${Math.round(progress.completion * 100)}%` }}
+              />
+            </div>
+          ) : null}
           <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {cockpit.coverage.map((item) => (
               <div key={item.label} className="rounded-lg bg-canvas p-2">
@@ -3170,6 +3366,23 @@ export function ProjectCockpitPanel(props: {
           </Link>
         ))}
       </nav>
+      {props.project.mode !== "creator_channel" ? (
+        <details className="mt-4 rounded-lg border border-line bg-surface-raised p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-brand-strong">
+            启动或继续首集试制
+          </summary>
+          <p className="mt-2 text-sm text-muted">
+            默认试制 1
+            集。确认来源范围后才会创建分集并推进剧本、分镜、资产和审核。
+          </p>
+          <div className="mt-4">
+            <ProjectPilotPanel
+              project={props.project}
+              chapters={props.chapters}
+            />
+          </div>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -3539,6 +3752,7 @@ export function ProjectPilotPanel(props: {
   });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [episodeCount, setEpisodeCount] = useState(1);
+  const [pilotEpisodeId, setPilotEpisodeId] = useState("");
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState(false);
   useEffect(() => {
@@ -3609,7 +3823,7 @@ export function ProjectPilotPanel(props: {
       await client.pilotPlans.action(plan.id, { action });
       setNotice(
         action === "confirm-source"
-          ? "来源已人工确认，已建立可继续编辑的试制分集。"
+          ? "来源已确认；AI 创作状态与候选显示在下方，连接问题会保留范围并提示。"
           : action === "cancel"
             ? "试制运行已取消；已采用内容会保留在现有工作区。"
             : action === "resume"
@@ -3650,7 +3864,8 @@ export function ProjectPilotPanel(props: {
             先完成一小段可信制作链路
           </h2>
           <p className="mt-2 max-w-3xl text-sm text-muted">
-            向导只保存试制范围与人工确认。剧本、场景、分镜、资产和完成度都来自已有的权威资料，关闭后可随时恢复。
+            确认来源后，AI
+            生成并检查首集剧本、场景与分镜。候选采用后再继续下一集；范围和运行均可恢复。
           </p>
         </div>
         <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
@@ -3738,7 +3953,7 @@ export function ProjectPilotPanel(props: {
                     disabled={working}
                     onClick={() => void act(active, "confirm-source")}
                   >
-                    确认来源并创建试制分集
+                    确认来源并生成首集
                   </BareButton>
                 )}
               {active.status === "canceled" && (
@@ -3787,6 +4002,42 @@ export function ProjectPilotPanel(props: {
               )}
             </div>
           </div>
+          {active.sourceConfirmed && active.episodeIds[0] && (
+            <div className="mt-4">
+              {active.episodeIds.length > 1 && (
+                <label className="mb-3 flex items-center gap-3 text-sm">
+                  本次试制分集
+                  <select
+                    value={
+                      active.episodeIds.includes(pilotEpisodeId)
+                        ? pilotEpisodeId
+                        : active.episodeIds[0]
+                    }
+                    onChange={(event) => setPilotEpisodeId(event.target.value)}
+                  >
+                    {active.episodeIds.map((id, index) => (
+                      <option key={id} value={id}>
+                        第 {index + 1} 集
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-muted">选择下一集后明确发起生成。</span>
+                </label>
+              )}
+              <CreationRecordWorkbench
+                projectId={props.project.id}
+                targetId={
+                  active.episodeIds.includes(pilotEpisodeId)
+                    ? pilotEpisodeId
+                    : active.episodeIds[0]
+                }
+                domain="episodes"
+                sourceIds={active.chapterIds}
+                operation="episode"
+                defaultInstruction="根据已确认来源生成并检查本集剧本、场景和分镜。"
+              />
+            </div>
+          )}
           <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
             {Object.entries(active.coverage).map(([label, count]) => (
               <div key={label} className="rounded-lg bg-canvas p-2 text-sm">
@@ -3957,7 +4208,173 @@ export function ProjectSettingsEditor(props: {
           onChange={(event) => set("productionBrief", event.target.value)}
         />
       </label>
+      <ProjectDerivationPanel project={props.project} />
     </section>
+  );
+}
+
+const DERIVATION_TARGET: Partial<Record<ProjectMode, ProjectMode>> = {
+  series_longform: "single_season",
+  single_season: "series_longform",
+  personal_theater: "single_season",
+  creator_channel: "personal_theater",
+};
+
+function ProjectDerivationPanel(props: { project: Project }) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const session = useStudioSession();
+  const targetMode = DERIVATION_TARGET[props.project.mode];
+  const [title, setTitle] = useState("");
+  const [seasonId, setSeasonId] = useState("");
+  const [preview, setPreview] = useState<ProjectDerivationPreview>();
+  const [working, setWorking] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const { data: seasons } = useQuery({
+    queryKey: ["seasons", props.project.id, "derivation"],
+    queryFn: () => client.seasons.list(props.project.id),
+    enabled: props.project.mode === "series_longform",
+  });
+
+  useEffect(() => {
+    setTitle("");
+    setSeasonId("");
+    setPreview(undefined);
+    setNotice(undefined);
+  }, [props.project.id]);
+
+  if (!targetMode) return null;
+  const needsSeason = props.project.mode === "series_longform";
+  const canPreview = !needsSeason || Boolean(seasonId);
+  const createPreview = async () => {
+    if (!canPreview) return;
+    setWorking(true);
+    setNotice(undefined);
+    try {
+      const value = await client.projects.previewDerivation(props.project.id, {
+        targetMode,
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(seasonId ? { seasonId } : {}),
+      });
+      setPreview(value);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const commit = async () => {
+    if (!preview?.supported) return;
+    setWorking(true);
+    setNotice(undefined);
+    try {
+      const result = await client.projects.commitDerivation(
+        props.project.id,
+        preview.id,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      session.selectProject(result.project.id);
+      navigate(`/projects/${result.project.id}`);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 border-t border-line pt-5">
+      <p className="studio-eyebrow">创作意图</p>
+      <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold">
+            派生为{projectModeLabel(targetMode)}
+          </h3>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+            当前项目模式保持不变。提交后会建立一个带来源关系的新项目，原项目与已有内容仍可独立继续创作。
+          </p>
+        </div>
+        {props.project.derivedFromProjectId ? (
+          <span className="rounded-full bg-surface-muted px-3 py-1 text-xs text-muted">
+            此项目已有派生来源
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {needsSeason ? (
+          <label className="grid gap-1 text-sm">
+            选择要改编的季
+            <Select
+              aria-label="选择要改编的季"
+              placeholder="选择一季"
+              value={seasonId}
+              options={(seasons?.items ?? []).map((season) => ({
+                value: season.id,
+                label: season.title,
+              }))}
+              onValueChange={(value) => {
+                setSeasonId(value);
+                setPreview(undefined);
+              }}
+            />
+            {seasons && seasons.items.length === 0 ? (
+              <span className="text-xs text-muted">
+                需要先在改编工作区建立一季，再创建单季派生项目。
+              </span>
+            ) : null}
+          </label>
+        ) : null}
+        <label className="grid gap-1 text-sm">
+          新项目名称（可选）
+          <Input
+            placeholder={`${props.project.title} · ${projectModeLabel(targetMode)}`}
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setPreview(undefined);
+            }}
+          />
+        </label>
+      </div>
+      {preview ? (
+        <div className="mt-4 rounded-lg border border-brand/25 bg-brand-soft/45 p-4">
+          <p className="text-sm font-medium">创建预览：{preview.title}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            目标模式为{projectModeLabel(preview.targetMode)}；预览将在
+            {new Date(preview.expiresAt).toLocaleTimeString("zh-CN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            前有效。
+          </p>
+          {preview.reason ? (
+            <InlineNotice tone="warning" className="mt-3">
+              {preview.reason}
+            </InlineNotice>
+          ) : null}
+        </div>
+      ) : null}
+      {notice ? (
+        <InlineNotice tone="danger" className="mt-3">
+          {notice}
+        </InlineNotice>
+      ) : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          disabled={working || !canPreview}
+          onClick={() => void createPreview()}
+        >
+          {working && !preview ? "正在生成预览…" : "预览派生项目"}
+        </Button>
+        {preview?.supported ? (
+          <Button disabled={working} onClick={() => void commit()}>
+            {working ? "正在创建…" : "确认创建派生项目"}
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

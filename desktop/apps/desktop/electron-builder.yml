@@ -19,6 +19,16 @@ files:
   - "!**/node_modules/**/LICENSE*"
   - "!**/node_modules/**/*.{map,test.js,spec.js}"
 extraResources:
+  - from: ../../build/runtime
+    to: runtime
+    filter:
+      - "**/*"
+      - "!.last-good.json*"
+  # electron-builder deliberately skips node_modules at the root of a file set.
+  - from: ../../build/runtime/node_modules
+    to: runtime/node_modules
+    filter:
+      - "**/*"
   - from: ../../profiles
     to: profiles
     filter:

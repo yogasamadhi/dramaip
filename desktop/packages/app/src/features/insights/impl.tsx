@@ -1,3 +1,7 @@
+import {
+  CreationWorkbench,
+  CreationRecordWorkbench,
+} from "../creation-workbench";
 import type { FeedbackKind, FeedbackPreview } from "@dramaip/contracts/product";
 import { BareButton } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +20,18 @@ export function FeedbackPage() {
   const [projectId, setProjectId] = useState(
     () => session.activeProjectId ?? "",
   );
+  const [revisionClusterId, setRevisionClusterId] = useState<string>();
+  const [revisionTargetId, setRevisionTargetId] = useState("");
+  const { data: chapters = [] } = useQuery({
+    queryKey: ["chapters", projectId],
+    queryFn: () => client.chapters.list(projectId),
+    enabled: Boolean(projectId),
+  });
+  const { data: scripts = [] } = useQuery({
+    queryKey: ["resource", "scripts", projectId],
+    queryFn: () => client.resources.list("scripts", projectId),
+    enabled: Boolean(projectId),
+  });
   const [preview, setPreview] = useState<FeedbackPreview>();
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string>();
@@ -88,29 +104,60 @@ export function FeedbackPage() {
       setWorking(false);
     }
   };
-  const createRevisionTask = async (clusterId: string) => {
-    setWorking(true);
-    setNotice(undefined);
-    try {
-      const task = await client.feedback.createRevisionTask(
-        clusterId,
-        crypto.randomUUID(),
-      );
-      setNotice(`已创建修订任务「${task.title}」，可在任务中心查看。`);
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    } catch (cause) {
-      setNotice(message(cause));
-    } finally {
-      setWorking(false);
-    }
-  };
   const batches = dashboard?.batches ?? [];
   return (
     <section className="space-y-5">
+      {revisionClusterId && (
+        <section className="space-y-3 rounded-lg border border-line p-4">
+          <h2 className="font-semibold">反馈修订</h2>
+          <p className="text-sm text-muted">
+            反馈没有可靠的内容定位，请选择本次要修订的章节或剧本。
+          </p>
+          <select
+            aria-label="反馈修订目标"
+            className="rounded border border-line p-2"
+            value={revisionTargetId}
+            onChange={(event) => setRevisionTargetId(event.target.value)}
+          >
+            <option value="">选择内容</option>
+            {chapters.map((item) => (
+              <option key={item.id} value={item.id}>
+                章节 · {item.title}
+              </option>
+            ))}
+            {scripts.map((item) => (
+              <option key={item.id} value={item.id}>
+                剧本 · {item.title}
+              </option>
+            ))}
+          </select>
+          {chapters.find((item) => item.id === revisionTargetId) ? (
+            <CreationWorkbench
+              projectId={projectId}
+              operation="chapter"
+              targetId={revisionTargetId}
+              baseVersion={
+                chapters.find((item) => item.id === revisionTargetId)!.version
+              }
+              feedbackClusterId={revisionClusterId}
+              defaultInstruction="分析观众反馈与原文，核对定位和证据，结合创作方向生成修订候选并检查。"
+            />
+          ) : scripts.some((item) => item.id === revisionTargetId) ? (
+            <CreationRecordWorkbench
+              projectId={projectId}
+              domain="scripts"
+              operation="script-revision"
+              targetId={revisionTargetId}
+              feedbackClusterId={revisionClusterId}
+              defaultInstruction="分析观众反馈与剧本，生成有依据的局部修订并检查。"
+            />
+          ) : null}
+        </section>
+      )}
       <WorkspaceIntro
         eyebrow="反馈闭环"
         title="运营数据与用户反馈"
-        description="先预览再导入指标与评论；数据只保存在本地项目数据库，用于后续人工修订决策。"
+        description="先预览再导入指标与评论；数据只保存在本地项目数据库，关联原文与目标，由 AI 分析反馈并提出修订候选。"
         badge="数据洞察"
       />
       <section className="rounded-xl border border-line bg-surface p-4">
@@ -278,9 +325,12 @@ export function FeedbackPage() {
                     <BareButton
                       className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
                       disabled={working}
-                      onClick={() => void createRevisionTask(cluster.id)}
+                      onClick={() => {
+                        setRevisionClusterId(cluster.id);
+                        setRevisionTargetId("");
+                      }}
                     >
-                      创建修订任务
+                      分析反馈并修订
                     </BareButton>
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted">

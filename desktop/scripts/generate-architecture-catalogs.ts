@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   const runtime = await bootRuntime({
     databasePath: ":memory:",
     profile,
-    runtimeKind: "bun",
+    runtimeKind: "node",
     mode: "headless",
   });
 

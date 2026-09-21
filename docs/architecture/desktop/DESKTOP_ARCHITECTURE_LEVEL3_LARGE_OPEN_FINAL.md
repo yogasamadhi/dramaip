@@ -1,14 +1,16 @@
 # 通用桌面软件架构：Level 3 大型开放项目版
 
-> DramaIP 实现状态（2026-08-23）：本文定义的 Level 3 v1 已以每 revision 独立
+> DramaIP 实现状态（2026-09-10 核对）：Level 3 v1 的每 revision 独立
 > Extension Host process、QuickJS/WASM、Capability Broker、Ed25519 静态 Registry、
-> Marketplace 与严格声明式 UI 落地。isolated interactive UI 和远程发布者后台仍为 future。
+> Marketplace 与严格声明式 UI 已进入代码。第一方已迁移 DSH Cordis，第三方隔离和公开 SDK 边界保持独立。
+> isolated interactive UI、远程发布者后台及正式跨平台 GA 验收仍未完成；证据见
+> [当前实现](../../../desktop/docs/engineering/ARCHITECTURE.md)与[迁移验收记录](../../../desktop/docs/engineering/DSH_CORDIS_MIGRATION.md)。
 
 > 文档类型：Normative Level Profile
 >
-> 架构版本：2.0
+> 架构版本：2.1
 >
-> 更新时间：2026-08-23
+> 更新时间：2026-09-10
 >
 > 适用对象：有真实第三方扩展需求并承担平台治理责任的大型桌面产品
 >
@@ -21,6 +23,8 @@
 # 1. 定位
 
 Level 3 在 Level 2 的第一方 Internal Plugin Runtime 之外增加公共插件平台。
+
+继承 Level 2 的 Core 生命周期、契约和数据所有权约束；其中“不开放第三方”的产品范围由本 Level 的 Extension Host 边界扩展，不能据此让第三方代码进入 Core。本文中的通用扩展方向不等同于 DramaIP 当前已开放的 SDK 能力。
 
 ```text
 Clients
@@ -96,13 +100,15 @@ declarative-only
 
 “属于 Effective Product Graph”不意味着代码可以进入同一进程。
 
+上列 placement 是通用设计分类。DramaIP 当前第三方执行位置为 Extension Host，UI 仅接受声明式数据；`isolated-renderer` 仍是后续方向。第一方开发 HMR 更新 Core Graph，扩展安装、更新和禁用更新 Extension Graph，两种 revision 独立。
+
 Core/critical first-party plugin 不得依赖用户可禁用或卸载的第三方插件。第三方插件之间的依赖也不能提升其权限或信任等级。
 
 ---
 
 # 4. Extension Host
 
-Extension Host supervisor 是独立进程；第三方 bundle 在进程内独立 QuickJS/WASM runtime 中执行，负责：
+DramaIP 的 ExtensionProcessSupervisor 位于 Desktop Host，负责监督每个 active revision 的独立 utility process；第三方 bundle 只在该进程内的 QuickJS/WASM runtime 中执行。Extension Host 负责：
 
 ```text
 manifest loading
@@ -167,19 +173,23 @@ Trust 影响默认策略，不绕过显式 capability enforcement。
 
 # 7. Manifest
 
-最低 Manifest：
+DramaIP Public Plugin API v1 的最小 Manifest 示例（完整字段与默认值以 [ExtensionManifestSchema](../../../desktop/packages/extension-host/src/manifest.ts) 为准）：
 
 ```json
 {
+  "schemaVersion": 1,
   "id": "vendor.plugin",
+  "name": "Example Extension",
   "version": "1.0.0",
+  "publisher": {
+    "id": "vendor",
+    "keyId": "vendor-key-1"
+  },
   "pluginApi": "^1",
   "product": ">=3 <4",
-  "entrypoint": "dist/index.js",
+  "entrypoint": "dist/extension.js",
   "activation": "lazy",
-  "reloadPolicy": "restart-extension-host",
   "permissions": [],
-  "capabilities": [],
   "serverContributions": [],
   "uiContributions": []
 }
@@ -235,6 +245,8 @@ Internal     = first-party implementation only
 
 公共兼容承诺应从 Extension Host beta/conformance 开始明确计时，不能仅因为仓库里存在一个 package 就宣称生态已经稳定。
 
+DramaIP 第一方使用 `@dramaip/plugin-api/internal` 和 DSH Cordis；扩展使用 `@dramaip/plugin-api` 根导出。第一方 `Context / Service / inject / effect / Fiber`、Loader 配置和 HMR 不进入公共 SDK，迁移内部框架不改变第三方的执行环境或权限。
+
 ---
 
 # 9. Capability 与 Permission
@@ -275,7 +287,7 @@ Credential 默认只通过受限 Provider/Network Capability 注入，第三方�
 
 # 10. Lifecycle、Effect 与 Reload
 
-Extension Host 使用与 Level 2 一致的 acquisition/effect 语义，但第三方 effect 只能作用于 Extension Host 或通过 capability 创建平台可撤销的远程资源。
+Extension Host 延续 Level 2 的 owner、资源追踪、失败回收和 revision 原则，但不向第三方暴露 Cordis 的 effect API 或清理实现。第三方资源只能作用于自身沙箱，或通过 capability 创建平台可撤销的远程资源；沙箱进程退出时由 supervisor/broker 回收。
 
 每个已安装 revision 至少包含：
 
@@ -308,15 +320,7 @@ download to staging
 degraded → disabled → quarantined
 ```
 
-插件可以声明：
-
-```text
-hot
-restart-extension-host
-restart-runtime
-```
-
-平台不承诺所有插件零停机热更新。`restart-runtime` 必须经过平台审核，不能成为第三方默认权限。
+DramaIP v1 使用候选 revision 进程启动与健康握手、成功切换、旧 revision 回收的更新协议。Manifest 不接受 `reloadPolicy` 字段，也不授予第三方 `hot` 或 `restart-runtime` 权限。第一方 DSH 开发 HMR 不用于执行第三方更新；扩展失败或回滚不能修改官方 Profile/Core Graph。
 
 ---
 
@@ -386,7 +390,7 @@ Command / Menu / Settings
 
 第三方 React/Vue bundle 不进入主 Renderer。
 
-声明式 UI 由主 Renderer 使用平台组件渲染。任意交互代码使用独立隔离 Renderer、严格 sandbox iframe 或其他具有等价安全边界的容器，并通过 capability message protocol 与平台交互。
+声明式 UI 由主 Renderer 使用平台组件渲染。DramaIP v1 只开放 Command/Menu/Settings/Form/Table/Panel；HTML、script、外部 iframe/URL 和任意第三方网页代码均不接受。未来若开放交互代码，必须另行建立隔离 Renderer 或具有等价安全边界的容器和 capability message protocol，并通过对应安全验收。
 
 UI Contribution 仍受 plugin identity、permission、slot allowlist、content security policy 和资源限制约束。
 
@@ -468,7 +472,7 @@ unsafe UI message
 
 # 17. MUST
 
-1. MUST 遵守共享基线和 Level 2 全部约束。
+1. MUST 遵守共享基线和 Level 2 的 Core 约束；第三方开放仅发生在本 Level 定义的隔离边界。
 2. MUST 将第三方代码放在独立 Extension Host/隔离 Renderer 中。
 3. MUST 物理区分 Core Graph 与 Extension Graph。
 4. MUST 提供版本化 Public Plugin SDK。

@@ -168,6 +168,11 @@ function checkToolchain(): Toolchain {
 export function vendorSubmoduleSpecs(): readonly VendorSubmoduleSpec[] {
   return [
     {
+      label: "DSH Cordis",
+      path: "desktop/vendor/deepseek-harness",
+      marker: "vendor/cordis/src/index.ts",
+    },
+    {
       label: "Codex",
       path: "desktop/vendor/codex-rust",
       marker: "codex-rs/Cargo.toml",
@@ -231,10 +236,6 @@ async function ensureDependencies(
       fail("desktop 依赖未安装：请运行 bun run-desktop.ts --install");
     }
     ok("desktop 依赖已安装");
-    return;
-  }
-  if (!options.forceInstall && existsSync(installMarker)) {
-    ok("依赖已安装，跳过 bun install");
     return;
   }
   info("安装 desktop 依赖（bun install）……首次可能较慢。");
@@ -650,9 +651,20 @@ async function main(): Promise<void> {
   process.stdout.write(`${color("1;36", "▶ desktop 一键启动")}\n`);
   const toolchain = checkToolchain();
   await ensureVendorSubmodules(options.check);
+  await runCommand(toolchain.bun, [
+    "scripts/prepare-dsh-framework.mjs",
+    ...(options.check ? ["--check"] : []),
+  ]);
   await ensureDependencies(toolchain.bun, options);
+  if (!options.check)
+    await runCommand(toolchain.bun, ["run", "build:framework"]);
+  await runCommand(toolchain.bun, ["scripts/check-dsh-framework.mjs"]);
   await ensureAgentRuntimes(toolchain.bun, options);
   await ensureElectron(toolchain.bun, options.check);
+  if (!options.check) {
+    await runCommand(toolchain.bun, ["run", "plugins:generate"]);
+    await runCommand(toolchain.bun, ["run", "build:runtime"]);
+  }
 
   if (options.check) {
     ok("desktop 启动环境检查通过");

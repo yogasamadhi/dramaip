@@ -10,9 +10,25 @@ const pkgSrc = (p: string) =>
 const pluginSrc = (p: string) =>
   resolve(root, "../../plugins", p, "src", "index.ts");
 const runtimeAliases = {
+  "@dramaip/runtime-adapters/artifact-recovery": resolve(
+    root,
+    "../../packages/runtime-adapters/src/artifact-recovery.ts",
+  ),
+  "@dramaip/contracts/agent-context": resolve(
+    root,
+    "../../packages/contracts/src/agent-context.ts",
+  ),
+  "@dramaip/contracts/creation": resolve(
+    root,
+    "../../packages/contracts/src/creation.ts",
+  ),
   "@dramaip/contracts/automation": resolve(
     root,
     "../../packages/contracts/src/automation.ts",
+  ),
+  "@dramaip/contracts/creative-intelligence": resolve(
+    root,
+    "../../packages/contracts/src/creative-intelligence.ts",
   ),
   "@dramaip/contracts/creative-quality": resolve(
     root,
@@ -129,12 +145,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(root, "electron/main.ts"),
-          "core-runtime": resolve(root, "electron/core-runtime.ts"),
           "extension-host-process": resolve(
             root,
             "electron/extensions/extension-host-process.ts",
           ),
-          "migration-worker": resolve(root, "electron/migration-worker.ts"),
           "codex-engine": resolve(
             root,
             "../../packages/ai/src/codex-sidecar.ts",
@@ -180,6 +194,10 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        "@dramaip/contracts/creation": resolve(
+          root,
+          "../../packages/contracts/src/creation.ts",
+        ),
         "@dramaip/contracts/automation": resolve(
           root,
           "../../packages/contracts/src/automation.ts",
@@ -187,6 +205,10 @@ export default defineConfig({
         "@dramaip/contracts/product": resolve(
           root,
           "../../packages/contracts/src/product.ts",
+        ),
+        "@dramaip/contracts/production": resolve(
+          root,
+          "../../packages/contracts/src/production.ts",
         ),
         "@dramaip/contracts": pkgSrc("contracts"),
         "@": resolve(root, "../../packages/app/src"),

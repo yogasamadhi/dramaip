@@ -91,6 +91,19 @@ async function runtimeJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function openProjectCreation(): Promise<void> {
+  await page.evaluate(() => {
+    window.location.hash = "#/";
+  });
+  await expect(page.getByRole("heading", { name: "项目工作台" })).toBeVisible();
+  const create = page.getByRole("button", {
+    name: "新建项目",
+    exact: true,
+  });
+  if (await create.isVisible().catch(() => false)) await create.click();
+  await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
+}
+
 test.afterAll(async () => {
   await application?.close();
   if (userData)
@@ -102,17 +115,16 @@ test.afterAll(async () => {
     });
 });
 
-test("桌面窗口使用更宽高的默认工作区", async () => {
+test("桌面窗口默认尺寸为 1800×1000", async () => {
   const size = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.getSize(),
   );
-  expect(size?.[0]).toBeGreaterThanOrEqual(1600);
-  expect(size?.[1]).toBeGreaterThanOrEqual(1000);
+  expect(size).toEqual([1800, 1000]);
 });
 
 test("全中文项目壳与示例项目纵向链路可用", async () => {
   await expect(
-    page.getByRole("link", { name: "小说写作", exact: true }),
+    page.getByRole("link", { name: "项目库", exact: true }),
   ).toBeVisible();
   const buttonTexts = await page.getByRole("button").allTextContents();
   const englishOnly = buttonTexts
@@ -126,8 +138,10 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   await expect(
     page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "更多", exact: true }).click();
-  await page.getByRole("menuitem", { name: "设置", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "小说写作", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "设置", exact: true }).click();
   await expect(
     page.getByText("智能引擎", { exact: true }).first(),
   ).toBeVisible();
@@ -166,6 +180,11 @@ test("Core Runtime 使用 Electron 内嵌 Node", async () => {
     runtimeKind: "electron-node",
     mode: "desktop",
   });
+  const diagnostics = await runtimeJson<{ hmr: { enabled: boolean } }>(
+    "/api/v2/system/diagnostics",
+  );
+  const packaged = await application.evaluate(({ app }) => app.isPackaged);
+  expect(diagnostics.hmr.enabled).toBe(!packaged);
 });
 
 test("主题跟随系统并持久化手动选择", async () => {
@@ -189,7 +208,7 @@ test("最小窗口下应用栏可用且页面无横向溢出", async () => {
     page.getByRole("link", { name: "小说写作", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "更多", exact: true }),
+    page.getByRole("button", { name: /当前项目：示例短剧：雨夜归来/ }),
   ).toBeVisible();
   const overflow = await page.evaluate(
     () =>
@@ -297,26 +316,25 @@ test("智能助手只在用户打开弹窗后显示", async () => {
     0,
   );
 
-  await page.getByRole("button", { name: "打开智能助手" }).click();
-  const dialog = page.getByRole("dialog", { name: "尽意智能助手" });
-  await expect(dialog).toBeVisible();
+  await page.getByRole("button", { name: "打开智能助手面板" }).click();
+  const assistant = page.getByRole("complementary", {
+    name: "尽意智能助手",
+  });
+  await expect(assistant).toBeVisible();
   await expect(
-    dialog.getByRole("heading", { name: "尽意智能助手" }).first(),
+    assistant.getByText("AI 办事助手", { exact: true }),
   ).toBeVisible();
-  await expect(dialog.getByText("AI 办事助手", { exact: true })).toBeVisible();
-  await expect(dialog.getByLabel("智能助手引擎")).toBeVisible();
-  await expect(dialog.getByLabel("智能助手引擎").locator("option")).toHaveText([
-    /Pi/,
-    /Codex/,
-    /LangGraph\.js/,
-  ]);
+  await expect(assistant.getByLabel("智能助手引擎")).toBeVisible();
   await expect(
-    dialog.getByRole("textbox", { name: "给 AI 办事助手发消息" }),
+    assistant.getByLabel("智能助手引擎").locator("option"),
+  ).toHaveText([/Pi/, /Codex/, /LangGraph\.js/]);
+  await expect(
+    assistant.getByRole("textbox", { name: "给 AI 办事助手发消息" }),
   ).toBeVisible();
   await expect(
-    dialog.getByRole("switch", { name: "联网搜索 · 自动" }),
+    assistant.getByRole("switch", { name: "联网搜索 · 自动" }),
   ).toBeVisible();
-  const assistantLayout = await dialog.evaluate((element) => {
+  const assistantLayout = await assistant.evaluate((element) => {
     const messages = element.querySelector<HTMLElement>(
       '[aria-label="助手消息列表"]',
     );
@@ -339,7 +357,7 @@ test("智能助手只在用户打开弹窗后显示", async () => {
   expect(assistantLayout.messagesHeight).toBeGreaterThan(
     assistantLayout.composerHeight * 2,
   );
-  const messages = dialog.getByLabel("助手消息列表");
+  const messages = assistant.getByLabel("助手消息列表");
   await messages.evaluate(
     (element) =>
       new Promise<void>((resolve) => {
@@ -368,13 +386,110 @@ test("智能助手只在用户打开弹窗后显示", async () => {
       ?.remove();
   });
 
-  await dialog.getByRole("button", { name: "关闭智能助手" }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await assistant.getByRole("button", { name: "关闭智能助手" }).click();
+  await expect(assistant).toHaveCount(0);
+});
+
+test("助手长对话独立滚动且输入框固定在右侧底部", async () => {
+  await openProjectCreation();
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1080, height: 700 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.getByRole("button", { name: "打开智能助手面板" }).click();
+    const assistant = page.locator('[aria-label="尽意智能助手"]');
+    const messages = assistant.getByLabel("助手消息列表");
+    const composer = assistant.getByRole("textbox", {
+      name: "给 AI 办事助手发消息",
+    });
+    await composer.fill("滚动时保留的输入草稿");
+    const composerBefore = await composer.boundingBox();
+    expect(composerBefore).not.toBeNull();
+
+    await page.locator("main").evaluate((element) => {
+      element.scrollTop = 120;
+    });
+    const mainScrollTop = await page
+      .locator("main")
+      .evaluate((element) => element.scrollTop);
+
+    // Long rendered messages exercise layout without submitting an AI request.
+    await messages.evaluate((element) => {
+      const transcript = document.createElement("div");
+      for (let index = 0; index < 40; index += 1) {
+        const paragraph = document.createElement("p");
+        paragraph.textContent = `第 ${index + 1} 段对话：给小说起名时，可以围绕人物的目标、故事发生的地点和核心冲突展开。`;
+        transcript.appendChild(paragraph);
+      }
+      element.appendChild(transcript);
+    });
+    await expect
+      .poll(() =>
+        messages.evaluate(
+          (element) => element.scrollHeight - element.clientHeight,
+        ),
+      )
+      .toBeGreaterThan(500);
+
+    for (const edge of ["top", "bottom"] as const) {
+      await messages.evaluate((element, edge) => {
+        element.scrollTop = edge === "top" ? 0 : element.scrollHeight;
+      }, edge);
+      await messages.hover();
+      await page.mouse.wheel(0, edge === "top" ? -600 : 600);
+      await page.waitForTimeout(150);
+
+      expect(await composer.boundingBox()).toEqual(composerBefore);
+      await expect(composer).toHaveValue("滚动时保留的输入草稿");
+      expect(composerBefore!.y + composerBefore!.height).toBeLessThan(
+        viewport.height,
+      );
+      expect(
+        await assistant.evaluate(
+          (element) => element.getBoundingClientRect().bottom,
+        ),
+      ).toBeLessThanOrEqual(viewport.height);
+      expect(
+        await page.evaluate(() => ({
+          windowScrollY: window.scrollY,
+          documentHeight: document.documentElement.scrollHeight,
+          mainScrollTop: document.querySelector("main")?.scrollTop,
+        })),
+      ).toEqual({
+        windowScrollY: 0,
+        documentHeight: viewport.height,
+        mainScrollTop,
+      });
+    }
+
+    await messages.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await messages.hover();
+    await page.mouse.wheel(0, 300);
+    await expect
+      .poll(() => messages.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    expect(await composer.boundingBox()).toEqual(composerBefore);
+    if (viewport.width >= 1280) {
+      await page.locator("main").hover();
+      await page.mouse.wheel(0, 300);
+      await expect
+        .poll(() =>
+          page.locator("main").evaluate((element) => element.scrollTop),
+        )
+        .toBeGreaterThan(mainScrollTop);
+      expect(await composer.boundingBox()).toEqual(composerBefore);
+    }
+    await assistant.getByRole("button", { name: "关闭智能助手" }).click();
+  }
+  await page.setViewportSize({ width: 1440, height: 920 });
 });
 
 test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡片呈现", async () => {
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
-  await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
+  await openProjectCreation();
   await expect(page.getByText("更多创作方式", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /系列长篇/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /单季短剧/ })).toContainText(
@@ -396,10 +511,13 @@ test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡�
     page.getByRole("main").getByRole("link", { name: "灵感空间" }),
   ).toHaveAttribute("href", "#/inspiration");
   await page.getByRole("button", { name: "打开智能助手获取灵感" }).click();
+  const assistant = page.getByRole("complementary", {
+    name: "尽意智能助手",
+  });
   await expect(
-    page.getByRole("dialog").getByRole("heading", { name: "尽意智能助手" }),
+    assistant.getByText("AI 办事助手", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "关闭智能助手" }).click();
+  await assistant.getByRole("button", { name: "关闭智能助手" }).click();
   await expect(page.getByRole("heading", { name: "选择怎么开始" })).toHaveCount(
     0,
   );
@@ -407,7 +525,7 @@ test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡�
 });
 
 test("系列长篇把用户修改后的章节、季和每季集数持久化", async () => {
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
+  await openProjectCreation();
   await page.getByRole("button", { name: /系列长篇/ }).click();
   await page.getByRole("button", { name: /从灵感开始/ }).click();
   const titleInput = page.getByLabel("项目名称");
@@ -449,7 +567,7 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
 });
 
 test("单季短剧从创意开始生成母稿、四个人物、季纲和首集", async () => {
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
+  await openProjectCreation();
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /从创意开始/ }).click();
   await page.getByLabel("项目名称").fill("单季初始化验收");
@@ -493,7 +611,7 @@ test("单季短剧从创意开始生成母稿、四个人物、季纲和首集",
 });
 
 test("项目外导入预览不创建项目，确认后才创建并导入", async () => {
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
+  await openProjectCreation();
   const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
@@ -524,15 +642,12 @@ test("项目外导入预览不创建项目，确认后才创建并导入", async
 });
 
 test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览并取消", async () => {
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
   for (const fixture of importFixtures) {
     await application.evaluate((_, filePath) => {
       process.env.DRAMAIP_E2E_SOURCE_IMPORT_FILE = filePath;
     }, fixture.path);
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "项目工作台" }),
-    ).toBeVisible();
+    await openProjectCreation();
     const clearDraft = page.getByRole("button", {
       name: "清空",
       exact: true,
@@ -543,7 +658,7 @@ test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览
     await page.getByRole("button", { name: /单季短剧/ }).click();
     await page
       .getByRole("button", {
-        name: fixture.script ? /直接写剧本/ : /导入小说 \/ IP/,
+        name: fixture.script ? /使用已有剧本/ : /导入小说 \/ IP/,
       })
       .click();
     await page.getByRole("button", { name: "选择文件" }).click();
@@ -558,6 +673,7 @@ test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览
     const afterCancel =
       await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
     expect(afterCancel, fixture.name).toHaveLength(before.length);
+    await page.getByRole("button", { name: "清空", exact: true }).click();
   }
 });
 
@@ -574,23 +690,26 @@ test("只填作品名即可创建小说、首章并进入写作", async () => {
   if (await startNewSeries.isVisible().catch(() => false))
     await startNewSeries.click();
   await page.getByRole("textbox", { name: "作品名称" }).fill("端到端空白小说");
-  await page.getByRole("button", { name: "创建并开始写作" }).click();
+  await page.getByRole("button", { name: "创建并进入 AI 工作台" }).click();
 
   await expect(page).toHaveURL(/\/projects\/[^/]+$/);
   await expect(
     page.getByRole("heading", { name: "端到端空白小说" }),
   ).toBeVisible();
+  const directory = page.getByRole("button", { name: "章节目录", exact: true });
+  if ((await directory.getAttribute("aria-expanded")) !== "true")
+    await directory.click();
   await expect(
     page.getByText("第 1 章", { exact: true }).first(),
   ).toBeVisible();
   const contextPanel = page.locator('aside[aria-label="章节辅助栏"]');
   await expect(contextPanel).toBeVisible();
   await expect(
-    contextPanel.getByRole("button", { name: "智能生成正文" }),
+    contextPanel.getByRole("button", { name: "生成并检查本章正文" }),
   ).toBeVisible();
   await expect(
     contextPanel.getByRole("button", { name: "续写本章" }),
-  ).toHaveCount(0);
+  ).toBeDisabled();
   await expect(page.getByLabel("项目辅助区")).toHaveCount(0);
 });
 
@@ -610,7 +729,7 @@ test("快捷入口选择末世囤货后初始化首章、人物、大纲和故�
     .getByRole("button", { name: /末世囤货/ })
     .click();
   await expect(page.getByText("将创建：末世囤货完整骨架")).toBeVisible();
-  await page.getByRole("button", { name: "创建并开始写作" }).click();
+  await page.getByRole("button", { name: "创建并进入 AI 工作台" }).click();
 
   await expect(page).toHaveURL(/\/projects\/[^/]+$/);
   const guide = page.getByLabel("继续完善预设");
@@ -635,7 +754,7 @@ test("快捷入口选择末世囤货后初始化首章、人物、大纲和故�
 });
 
 test("完整向导创建嘉豪预设并提供四个分区的可确认 AI 润色入口", async () => {
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
+  await openProjectCreation();
   await page.getByRole("button", { name: /系列长篇/ }).click();
   await page.getByRole("button", { name: /从灵感开始/ }).click();
   await page.getByLabel("项目名称").fill("普通人的主角镜头");
@@ -661,19 +780,29 @@ test("完整向导创建嘉豪预设并提供四个分区的可确认 AI 润色�
 
   await guide.getByRole("button", { name: "人物", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /智能生成人物卡/ }),
+    page.getByRole("button", { name: "生成并检查人物方案" }),
   ).toBeVisible();
   await guide.getByRole("button", { name: "全书大纲", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /智能生成全书大纲/ }),
+    page.getByRole("button", { name: "生成并检查全书大纲" }),
   ).toBeVisible();
   await guide.getByRole("button", { name: "故事弧", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /智能规划卷与单元/ }),
+    page.getByRole("button", { name: "生成并检查卷与单元方案" }),
   ).toBeVisible();
 });
 
-test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", async () => {
+test("小说默认 AI 工作台且窄屏辅助栏无溢出", async () => {
+  if (!(await page.getByLabel("小说创作入口").isVisible())) {
+    await page.evaluate(() => {
+      window.location.hash = "#/";
+    });
+    await page.getByRole("button", { name: "先看看示例" }).click();
+    await page
+      .getByRole("link", { name: /示例短剧：雨夜归来/ })
+      .first()
+      .click();
+  }
   const novelNavigation = page.getByLabel("小说创作入口");
   for (const label of ["正文", "大纲", "人物", "设定", "故事圣经"])
     await expect(
@@ -693,33 +822,30 @@ test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", as
   ).toBeVisible();
   const panel = page.locator('aside[aria-label="章节辅助栏"]');
   await expect(panel).toBeVisible();
-  await expect(panel.getByLabel("智能写作")).toBeVisible();
-  await expect(panel.getByLabel("AI 写作消息时间线")).toBeVisible();
-  await expect(
-    panel.getByRole("textbox", { name: "给 AI 写作助手发消息" }),
-  ).toBeVisible();
-  await panel.getByRole("button", { name: "Story Bible", exact: true }).click();
+  await expect(panel.getByLabel("AI 本章正文")).toBeVisible();
+  await expect(panel.getByLabel("AI 创作要求")).toBeVisible();
+  await panel.getByRole("button", { name: "资料", exact: true }).click();
   await expect(panel.getByLabel("Story Bible 侧栏")).toBeVisible();
-  await panel.getByRole("button", { name: "智能写作", exact: true }).click();
-
+  await panel.getByRole("button", { name: "AI 创作", exact: true }).click();
   const editor = page.getByRole("textbox", { name: "章节正文编辑器" });
-  await editor.fill("雨落在玻璃上，林夏推开了那扇三年未开的门。");
-  for (const label of ["续写本章", "改写本章", "润色本章", "续写下一章"])
-    await expect(panel.getByRole("button", { name: label })).toBeVisible();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await panel
+    .getByLabel("AI 创作要求")
+    .fill("承接上章结尾，突出林夏的动机，保持第三人称。");
   await expect(
-    panel.getByRole("textbox", { name: "给 AI 写作助手发消息" }),
+    panel.getByRole("button", { name: "生成并检查本章正文" }),
   ).toBeVisible();
-  await panel.getByText("高级设置", { exact: true }).click();
-  await expect(panel.getByRole("combobox", { name: /本次模型/ })).toBeVisible();
-
   const [editorBox, panelBox] = await Promise.all([
     editor.boundingBox(),
     panel.boundingBox(),
   ]);
-  expect(panelBox!.width).toBeGreaterThanOrEqual(520);
+  expect(panelBox!.width).toBeGreaterThanOrEqual(360);
   expect(editorBox!.x + editorBox!.width).toBeLessThanOrEqual(panelBox!.x);
 
   await page.setViewportSize({ width: 1080, height: 700 });
+  await page.getByRole("button", { name: "智能写作", exact: true }).click();
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "关闭章节辅助栏" }).click();
   await expect(panel).toBeHidden();
   await page.getByRole("button", { name: "智能写作", exact: true }).click();
   await expect(panel).toBeVisible();
@@ -750,7 +876,7 @@ test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", as
       page.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "开始智能分析", exact: true }),
+    page.getByRole("button", { name: "本地规则检查", exact: true }),
   ).toBeVisible();
 
   await page.getByRole("link", { name: "项目工具", exact: true }).click();
@@ -762,8 +888,7 @@ test("小说正文使用全高三栏，智能写作常驻且窄屏无溢出", as
 });
 
 test("模型服务商置顶、模型级联并通过独立安全窗口采集密钥", async () => {
-  await page.getByRole("button", { name: "更多", exact: true }).click();
-  await page.getByRole("menuitem", { name: "设置", exact: true }).click();
+  await page.getByRole("link", { name: "设置", exact: true }).click();
   const providerHeading = page.getByText("模型服务商", { exact: true }).first();
   const engineHeading = page.getByText("智能引擎", { exact: true }).first();
   const [providerBox, engineBox] = await Promise.all([

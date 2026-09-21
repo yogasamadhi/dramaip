@@ -36,6 +36,7 @@ export interface AgentUsage {
 }
 
 export type AgentRuntimeEvent =
+  | { cursor: number; type: "activity"; activity: "thinking" }
   | { cursor: number; type: "content.delta"; delta: string }
   | {
       cursor: number;

@@ -1,4 +1,10 @@
+import { WRITING_RESOURCE_SERVICE } from "@dramaip/contracts/writing";
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
+import {
+  registerProductionCreation,
+  productionCreationMigration,
+} from "./creation.js";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   CREATIVE_QUALITY_SERVICE,
@@ -16,6 +22,7 @@ import {
   PRODUCTION_RECORD_SERVICE,
   PRODUCTION_SEASON_SERVICE,
   ProductionGraphSchema,
+  ProjectProgressSchema,
   ProductionImpactInputSchema,
   ProductionImpactSchema,
   ProductionRecordInputSchema,
@@ -62,7 +69,7 @@ import {
 } from "@dramaip/contracts/writing";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -220,6 +227,49 @@ function appendEvent(
   });
 }
 
+function syncScriptDocument(
+  transaction: UnitOfWorkTransaction,
+  value: ProductionRecord,
+): void {
+  if (value.kind !== "scripts") return;
+  const content = String(value.payload["剧本内容"] ?? "");
+  const existing = transaction.get<ScreenplayDocumentRow>(
+    "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
+    value.id,
+  );
+  const parsed = parseFountain(content);
+  if (existing) {
+    const old = screenplayDocument(existing).blocks;
+    if (exportFountain(old) === content && existing.title === value.title)
+      return;
+    const used = new Set<string>();
+    for (const block of parsed.blocks) {
+      const match = old.find(
+        (item) =>
+          !used.has(item.id) &&
+          item.type === block.type &&
+          ("text" in item ? item.text : "") ===
+            ("text" in block ? block.text : ""),
+      );
+      if (match) {
+        block.id = match.id;
+        used.add(match.id);
+      }
+    }
+  }
+  transaction.run(
+    "INSERT INTO screenplay_documents(id, script_record_id, project_id, title, source_format, blocks_json, loss_report_json, version, created_at, updated_at) VALUES (?, ?, ?, ?, 'native', ?, ?, 0, ?, ?) ON CONFLICT(script_record_id) DO UPDATE SET title = excluded.title, blocks_json = excluded.blocks_json, loss_report_json = excluded.loss_report_json, version = screenplay_documents.version + 1, updated_at = excluded.updated_at",
+    crypto.randomUUID(),
+    value.id,
+    value.projectId,
+    value.title,
+    JSON.stringify(parsed.blocks),
+    JSON.stringify(parsed.lossReport),
+    value.createdAt,
+    value.updatedAt,
+  );
+}
+
 function createRecord(
   context: PluginContext,
   kind: ProductionRecordKind,
@@ -258,6 +308,7 @@ function createRecord(
         id,
       )!,
     );
+    syncScriptDocument(transaction, value);
     appendEvent(transaction, `${kind}-created`, value);
     return value;
   });
@@ -732,6 +783,21 @@ function screenplayRoutes(
         response: ScreenplayDocumentSchema,
       }),
       (requestContext) => {
+        context.uow.execute((transaction) => {
+          const id = requestContext.req.param("id");
+          if (
+            !transaction.get(
+              "SELECT id FROM screenplay_documents WHERE script_record_id = ?",
+              id,
+            )
+          ) {
+            const record = transaction.get<ProductionRow>(
+              "SELECT * FROM production_records WHERE id = ? AND kind = 'scripts'",
+              id,
+            );
+            if (record) syncScriptDocument(transaction, toRecord(record));
+          }
+        });
         const row = context.uow.execute((transaction) =>
           transaction.get<ScreenplayDocumentRow>(
             "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
@@ -809,9 +875,10 @@ function screenplayRoutes(
           );
           transaction.run(
             `UPDATE production_records
-             SET title = ?, version = version + 1, updated_at = ?
+             SET title = ?, payload_json = json_set(payload_json, '$.剧本内容', ?), version = version + 1, updated_at = ?
              WHERE id = ?`,
             title,
+            exportFountain(input.data.blocks),
             now,
             current.script_record_id,
           );
@@ -934,6 +1001,7 @@ function openapi(input: {
   path: string;
   operationId: string;
   params?: ZodType;
+  query?: ZodType;
   body?: ZodType;
   response: ZodType;
   status?: 200 | 201 | 204;
@@ -946,6 +1014,7 @@ function openapi(input: {
     tags: ["production"],
     request: {
       ...(input.params ? { params: input.params } : {}),
+      ...(input.query ? { query: input.query } : {}),
       ...(input.body
         ? {
             body: {
@@ -1342,6 +1411,17 @@ function productionRoutes(
     params: idParams,
     response: ProductionGraphSchema,
   });
+  const progressQuery = z.object({
+    episodeIds: z.string().max(2_000).optional(),
+  });
+  const progressDeclaration = openapi({
+    method: "get",
+    path: "/api/v2/projects/{id}/progress",
+    operationId: "projects.progress",
+    params: idParams,
+    query: progressQuery,
+    response: ProjectProgressSchema,
+  });
   const impactDeclaration = openapi({
     method: "post",
     path: "/api/v2/production/impact",
@@ -1363,6 +1443,176 @@ function productionRoutes(
     ...screenplayRoutes(context, workspace, records, host),
     route(
       {
+        id: "production:project-progress",
+        pluginId: "production",
+        method: "get",
+        path: "/api/v2/projects/{id}/progress",
+        operationId: "projects.progress",
+      },
+      progressDeclaration,
+      (requestContext) => {
+        const projectId = requestContext.req.param("id");
+        const project = workspace.get(projectId);
+        if (!project)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        const requestedIds = (requestContext.req.query("episodeIds") ?? "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean);
+        if (requestedIds.some((id) => !z.string().uuid().safeParse(id).success))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "分集范围无效。",
+          );
+        const all = productionKinds.flatMap((kind) =>
+          records.list(kind, { projectId }),
+        );
+        const episodes = all.filter((item) => item.kind === "episodes");
+        const selectedEpisodes = requestedIds.length
+          ? episodes.filter((item) => requestedIds.includes(item.id))
+          : episodes;
+        if (
+          requestedIds.length &&
+          selectedEpisodes.length !== requestedIds.length
+        )
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "试制范围包含不属于当前项目的分集。",
+          );
+        const episodeIds = new Set(selectedEpisodes.map((item) => item.id));
+        const scripts = all.filter(
+          (item) =>
+            item.kind === "scripts" &&
+            item.parentId &&
+            episodeIds.has(item.parentId),
+        );
+        const scriptIds = new Set(scripts.map((item) => item.id));
+        const scenes = all.filter(
+          (item) =>
+            item.kind === "scenes" &&
+            item.parentId &&
+            scriptIds.has(item.parentId),
+        );
+        const sceneIds = new Set(scenes.map((item) => item.id));
+        const shots = all.filter(
+          (item) =>
+            item.kind === "shots" &&
+            item.parentId &&
+            sceneIds.has(item.parentId),
+        );
+        const shotIds = new Set(shots.map((item) => item.id));
+        const media = optionalService<MediaRecordService>(
+          context,
+          MEDIA_RECORD_SERVICE,
+        );
+        const adoptedShotIds = new Set(
+          (media?.list("shot-stills", { projectId }) ?? [])
+            .filter(
+              (item) =>
+                item.parentId &&
+                shotIds.has(item.parentId) &&
+                item.payload["采用状态"] === "已采用",
+            )
+            .map((item) => item.parentId!),
+        );
+        const review = optionalService<ReviewRecordService>(
+          context,
+          REVIEW_RECORD_SERVICE,
+        );
+        const reviewedEpisodeIds = new Set(
+          (["compliance", "review"] as const)
+            .flatMap((kind) => review?.list(kind, { projectId }) ?? [])
+            .filter((item) => item.parentId && episodeIds.has(item.parentId))
+            .map((item) => item.parentId!),
+        );
+        const contextQuery = new URLSearchParams({ projectId });
+        const requiredEpisodes = Math.max(1, selectedEpisodes.length);
+        const values = [
+          {
+            id: "source" as const,
+            label: "来源正文",
+            current: Math.min(1, writing.list(projectId).length),
+            required: 1,
+            target: `/projects/${projectId}`,
+          },
+          {
+            id: "script" as const,
+            label: "分集剧本",
+            current: scripts.length,
+            required: requiredEpisodes,
+            target: `/adapt?${contextQuery}&stage=scripts`,
+          },
+          {
+            id: "scenes" as const,
+            label: "制作场景",
+            current: scenes.length,
+            required: Math.max(1, scripts.length),
+            target: `/adapt?${contextQuery}&stage=scenes`,
+          },
+          {
+            id: "shots" as const,
+            label: "分镜",
+            current: shots.length,
+            required: Math.max(1, scenes.length),
+            target: `/adapt?${contextQuery}&stage=shots`,
+          },
+          {
+            id: "assets" as const,
+            label: "已采用镜头静帧",
+            current: adoptedShotIds.size,
+            required: Math.max(1, shots.length),
+            target: `/produce?${contextQuery}&stage=storyboard`,
+          },
+          {
+            id: "review" as const,
+            label: "分集审核",
+            current: reviewedEpisodeIds.size,
+            required: requiredEpisodes,
+            target: `/review?${contextQuery}&stage=review`,
+          },
+        ];
+        const steps = values.map((step) => ({
+          ...step,
+          complete: step.current >= step.required,
+        }));
+        const next = steps.find((step) => !step.complete) ?? steps.at(-1)!;
+        const completion =
+          steps.reduce(
+            (total, step) =>
+              total + Math.min(1, step.current / Math.max(1, step.required)),
+            0,
+          ) / steps.length;
+        return requestContext.json({
+          projectId,
+          scope: {
+            kind: requestedIds.length ? "episodes" : "project",
+            episodeIds: selectedEpisodes.map((item) => item.id),
+          },
+          sourceVersion: project.version,
+          completion,
+          steps,
+          blockers: next.complete
+            ? []
+            : [
+                {
+                  code: `MISSING_${next.id.toUpperCase()}`,
+                  message: `${next.label}尚未覆盖当前范围（${next.current}/${next.required}）。`,
+                  target: next.target,
+                },
+              ],
+          nextAction: {
+            label: next.complete ? "查看审核交付" : `继续${next.label}`,
+            target: next.target,
+          },
+        });
+      },
+    ),
+    route(
+      {
         id: "production:graph",
         pluginId: "production",
         method: "get",
@@ -1379,8 +1629,10 @@ function productionRoutes(
         const production = productionKinds.flatMap((kind) =>
           records.list(kind, { projectId }),
         );
-        const media =
-          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
+        const media = optionalService<MediaRecordService>(
+          context,
+          MEDIA_RECORD_SERVICE,
+        );
         const mediaKinds = [
           "assets",
           "visual-assets",
@@ -1395,13 +1647,14 @@ function productionRoutes(
         const mediaRecords = media
           ? mediaKinds.flatMap((kind) => media.list(kind, { projectId }))
           : [];
-        const creativeQuality =
-          context.services.optional<CreativeQualityRecordService>(
-            CREATIVE_QUALITY_SERVICE,
-          );
+        const creativeQuality = optionalService<CreativeQualityRecordService>(
+          context,
+          CREATIVE_QUALITY_SERVICE,
+        );
         const qualityRecords =
           creativeQuality?.list("quality", { projectId }) ?? [];
-        const review = context.services.optional<ReviewRecordService>(
+        const review = optionalService<ReviewRecordService>(
+          context,
           REVIEW_RECORD_SERVICE,
         );
         const reviewRecords = review
@@ -1409,7 +1662,8 @@ function productionRoutes(
               review.list(kind, { projectId }),
             )
           : [];
-        const delivery = context.services.optional<DeliveryRecordService>(
+        const delivery = optionalService<DeliveryRecordService>(
+          context,
           DELIVERY_RECORD_SERVICE,
         );
         const deliveryRecords = delivery
@@ -1958,7 +2212,12 @@ const productionMigrations = [
 ] as const;
 
 export function createProductionPlugin(host?: DesktopHostClient) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [
+      WORKSPACE_PROJECT_SERVICE.id,
+      WRITING_CHAPTER_SERVICE.id,
+      WRITING_RESOURCE_SERVICE.id,
+    ],
     descriptor: {
       id: "production",
       version: "3.0.0-alpha.4",
@@ -1993,12 +2252,15 @@ export function createProductionPlugin(host?: DesktopHostClient) {
         metadata: { target: "script", title: "剧本编辑器" },
       },
     ],
-    migrations: productionMigrations,
-    activate: (context) => {
-      const workspace = context.services.optional<WorkspaceProjectService>(
+    migrations: [...productionMigrations, productionCreationMigration],
+    apply: (context) => {
+      registerProductionCreation(context);
+      const workspace = optionalService<WorkspaceProjectService>(
+        context,
         WORKSPACE_PROJECT_SERVICE,
       );
-      const writing = context.services.optional<WritingChapterService>(
+      const writing = optionalService<WritingChapterService>(
+        context,
         WRITING_CHAPTER_SERVICE,
       );
       if (!workspace || !writing)
@@ -2037,6 +2299,7 @@ export function createProductionPlugin(host?: DesktopHostClient) {
                 id,
               )!,
             );
+            syncScriptDocument(transaction, value);
             appendEvent(transaction, `${row.kind}-updated`, value);
             return value;
           }),
@@ -2078,58 +2341,62 @@ export function createProductionPlugin(host?: DesktopHostClient) {
         update: (id, patch) => updateSeason(context, id, patch),
         mapChapter: (input) => mapSeasonChapter(context, input),
       };
-      context.effect(`service:${PRODUCTION_RECORD_SERVICE}`, () =>
-        context.services.provide(PRODUCTION_RECORD_SERVICE, service),
+      context.effect(
+        () => provideService(context, PRODUCTION_RECORD_SERVICE, service),
+        `service:${PRODUCTION_RECORD_SERVICE}`,
       );
-      context.effect(`service:${PRODUCTION_SEASON_SERVICE}`, () =>
-        context.services.provide(PRODUCTION_SEASON_SERVICE, seasonService),
+      context.effect(
+        () => provideService(context, PRODUCTION_SEASON_SERVICE, seasonService),
+        `service:${PRODUCTION_SEASON_SERVICE}`,
       );
-      context.effect("event:season-chapter-staleness", () =>
-        context.events.registerConsumer({
-          id: "production:season-chapter-staleness.v1",
-          pluginId: "production",
-          critical: false,
-          eventTypes: [
-            "writing.chapter-updated.v1",
-            "writing.chapter-content-replaced.v1",
-            "writing.chapter-summary-updated.v1",
-          ],
-          handle: (event) => {
-            const now = new Date().toISOString();
-            context.uow.execute((transaction) => {
-              const affected = transaction.all<SeasonRow>(
-                `SELECT s.* FROM production_seasons s
+      context.effect(
+        () =>
+          context.domainEvents.registerConsumer({
+            id: "production:season-chapter-staleness.v1",
+            pluginId: "production",
+            critical: false,
+            eventTypes: [
+              "writing.chapter-updated.v1",
+              "writing.chapter-content-replaced.v1",
+              "writing.chapter-summary-updated.v1",
+            ],
+            handle: (event) => {
+              const now = new Date().toISOString();
+              context.uow.execute((transaction) => {
+                const affected = transaction.all<SeasonRow>(
+                  `SELECT s.* FROM production_seasons s
                JOIN production_season_chapter_mappings m ON m.season_id = s.id
                WHERE m.chapter_id = ? AND m.chapter_version <> ?
                  AND s.status <> 'archived'`,
-                event.aggregateId,
-                event.aggregateVersion,
-              );
-              for (const current of affected) {
-                transaction.run(
-                  `UPDATE production_seasons
+                  event.aggregateId,
+                  event.aggregateVersion,
+                );
+                for (const current of affected) {
+                  transaction.run(
+                    `UPDATE production_seasons
                  SET status = 'review_required', version = version + 1, updated_at = ?
                  WHERE id = ?`,
-                  now,
-                  current.id,
-                );
-                transaction.append({
-                  type: "production.season-review-required.v1",
-                  pluginId: "production",
-                  aggregateType: "season",
-                  aggregateId: current.id,
-                  aggregateVersion: current.version + 1,
-                  payload: {
-                    seasonId: current.id,
-                    sourceChapterId: event.aggregateId,
-                    sourceChapterVersion: event.aggregateVersion,
-                    reason: "来源章节已更新，需要重新核对季纲与分集。",
-                  },
-                });
-              }
-            });
-          },
-        }),
+                    now,
+                    current.id,
+                  );
+                  transaction.append({
+                    type: "production.season-review-required.v1",
+                    pluginId: "production",
+                    aggregateType: "season",
+                    aggregateId: current.id,
+                    aggregateVersion: current.version + 1,
+                    payload: {
+                      seasonId: current.id,
+                      sourceChapterId: event.aggregateId,
+                      sourceChapterVersion: event.aggregateVersion,
+                      reason: "来源章节已更新，需要重新核对季纲与分集。",
+                    },
+                  });
+                }
+              });
+            },
+          }),
+        "event:season-chapter-staleness",
       );
       for (const contribution of productionRoutes(
         context,
@@ -2139,11 +2406,28 @@ export function createProductionPlugin(host?: DesktopHostClient) {
         seasonService,
         host,
       ))
-        context.effect(`route:${contribution.id}`, () =>
-          context.http.register(contribution),
+        context.effect(
+          () => context.http.register(contribution),
+          `route:${contribution.id}`,
         );
     },
   });
 }
 
 export const productionPlugin = createProductionPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "production-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createProductionPlugin(
+        ctx.pluginEnvironment.host as Parameters<
+          typeof createProductionPlugin
+        >[0],
+      ),
+      config,
+    );
+  },
+};

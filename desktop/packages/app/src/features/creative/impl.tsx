@@ -1,3 +1,4 @@
+import { CreationWorkbench } from "../creation-workbench";
 import { BareButton } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -19,55 +20,64 @@ export function CreativeWorkspace() {
         description="把故事圣经、章节分析、人物关系和创意诊断集中在同一个上下文中。"
         badge="智能创作"
       />
-      <StoryBibleChangeSetPanel projectId={projectId} />
+      {projectId && (
+        <CreationWorkbench projectId={projectId} operation="knowledge-plan" />
+      )}
+      <details className="rounded-lg border border-line p-4">
+        <summary className="cursor-pointer text-sm">已有变更提案</summary>
+        <StoryBibleChangeSetPanel projectId={projectId} />
+      </details>
       <ChapterAnalysisPanel projectId={projectId} />
       <CreativeDiagnosticsPanel projectId={projectId} />
       <StoryIntelligencePanel projectId={projectId} />
-      <PluginResourceWorkspace
-        owner="writing"
-        title="人物与故事结构"
-        domains={["characters", "outlines", "story-arcs"]}
-        projectId={projectId}
-      />
-      <PluginResourceWorkspace
-        owner="knowledge"
-        title="故事知识与连续性"
-        domains={[
-          "story",
-          "memory",
-          "chapter-memories",
-          "character-states",
-          "visual-profiles",
-          "visual-settings",
-          "story-events",
-          "foreshadowings",
-        ]}
-        projectId={projectId}
-      />
-      <PluginResourceWorkspace
-        owner="automation"
-        title="创作自动化"
-        domains={[
-          "project-skills",
-          "agent-schemes",
-          "inspirations",
-          "templates",
-        ]}
-        projectId={projectId}
-      />
-      <PluginResourceWorkspace
-        owner="creative-quality"
-        title="创意质量"
-        domains={[
-          "analysis",
-          "beats",
-          "highlights",
-          "feasibility",
-          "trends",
-          "evaluations",
-        ]}
-        projectId={projectId}
-      />
+      <details className="rounded-lg border border-line p-4">
+        <summary className="cursor-pointer text-sm">资料管理与人工补充</summary>
+        <PluginResourceWorkspace
+          owner="writing"
+          title="人物与故事结构"
+          domains={["characters", "outlines", "story-arcs"]}
+          projectId={projectId}
+        />
+        <PluginResourceWorkspace
+          owner="knowledge"
+          title="故事知识与连续性"
+          domains={[
+            "story",
+            "memory",
+            "chapter-memories",
+            "character-states",
+            "visual-profiles",
+            "visual-settings",
+            "story-events",
+            "foreshadowings",
+          ]}
+          projectId={projectId}
+        />
+        <PluginResourceWorkspace
+          owner="automation"
+          title="创作自动化"
+          domains={[
+            "project-skills",
+            "agent-schemes",
+            "inspirations",
+            "templates",
+          ]}
+          projectId={projectId}
+        />
+        <PluginResourceWorkspace
+          owner="creative-quality"
+          title="创意质量"
+          domains={[
+            "analysis",
+            "beats",
+            "highlights",
+            "feasibility",
+            "trends",
+            "evaluations",
+          ]}
+          projectId={projectId}
+        />
+      </details>
     </div>
   );
 }
@@ -100,7 +110,7 @@ function StoryIntelligencePanel(props: { projectId?: string }) {
 
   const addNode = async () => {
     if (!projectId) return;
-    const title = window.prompt("人物、事件、秘密或规则名称")?.trim();
+    const title = window.prompt("人工观察：人物、事件、秘密或规则名称")?.trim();
     if (!title) return;
     const kind = (window.prompt(
       "类型：character / event / secret / rule / location / organization / resource / relationship / inspiration",
@@ -274,7 +284,7 @@ export function ChapterAnalysisPanel(props: { projectId?: string } = {}) {
   return (
     <section className="rounded-xl border border-line bg-surface p-5">
       <div>
-        <h2 className="font-semibold">章节自动分析</h2>
+        <h2 className="font-semibold">章节检查与修订</h2>
         <p className="mt-1 text-sm text-muted">
           基于已保存正文提取节拍、高光、可制作性和章节评估，结果均为可编辑的本地资料。
         </p>
@@ -322,10 +332,23 @@ export function ChapterAnalysisPanel(props: { projectId?: string } = {}) {
             disabled={!chapterId}
             onClick={() => void run()}
           >
-            执行章节分析
+            本地规则检查
           </BareButton>
         </div>
       </div>
+      {projectId && chapterId && (
+        <div className="mt-4">
+          <CreationWorkbench
+            projectId={projectId}
+            targetId={chapterId}
+            baseVersion={
+              chapters.find((item) => item.id === chapterId)?.version
+            }
+            operation="chapter"
+            defaultInstruction="分析本章人物动机、连续性、节奏和表达，提出有证据的局部修订，保留原作方向，生成候选并检查。"
+          />
+        </div>
+      )}
       {notice && (
         <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
           {notice}

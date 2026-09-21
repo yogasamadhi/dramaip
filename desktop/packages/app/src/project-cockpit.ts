@@ -39,7 +39,7 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
   const { project, chapters, graph } = input;
   const tasks = input.tasks.filter((task) => task.projectId === project.id);
   const failedTasks = tasks.filter((task) =>
-    ["failed", "canceled", "interrupted"].includes(task.status),
+    ["failed", "interrupted"].includes(task.status),
   );
   const activeTasks = tasks.filter((task) =>
     ["queued", "running"].includes(task.status),
@@ -55,7 +55,7 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
     {
       label: "已采用静帧",
       current: graph.coverage.adoptedStills,
-      required: graph.coverage.stills,
+      required: graph.coverage.shots,
     },
   ];
   const context = query({ projectId: project.id });
@@ -104,22 +104,47 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
   if (!chapters.length && !graph.coverage.scripts)
     return cockpit(
       "needs-input",
-      "等待内容输入",
+      "准备 AI 创作",
       {
-        label: "导入已授权原著",
-        description: "先选择本地文件并核对预览与使用权；确认前不会写入章节。",
-        to: `/projects/${project.id}/tools/import`,
+        label:
+          project.mode === "series_longform"
+            ? "AI 生成第一章"
+            : "完善 AI 创作方案",
+        description:
+          project.mode === "series_longform"
+            ? "提供本章目标，由 AI 生成、检查并提出待审阅候选。"
+            : "提供方向并确认来源，由 AI 生成可审阅方案。",
+        to:
+          project.mode === "series_longform"
+            ? `/projects/${project.id}`
+            : project.mode === "single_season"
+              ? `/adapt?${context}`
+              : `/projects/${project.id}/tools/${project.mode === "creator_channel" ? "creator-channel" : "personal-theater"}`,
       },
       ["尚未保存章节或剧本正文。"],
       coverage,
       `项目「${project.title}」已创建，等待可信内容输入。`,
+    );
+  if (!adaptationId && project.mode === "series_longform")
+    return cockpit(
+      "needs-input",
+      "继续创作母本",
+      {
+        label: "继续 AI 创作",
+        description:
+          "系列长篇以母本创作为默认主线；准备试制时再显式确认 1–3 集范围。",
+        to: `/projects/${project.id}`,
+      },
+      [],
+      coverage,
+      recentTaskOrNode(tasks, graph),
     );
   if (!adaptationId)
     return cockpit(
       "needs-input",
       "准备改编",
       {
-        label: "创建改编方案",
+        label: "AI 生成改编方案",
         description: "基于已保存的正文建立改编方案，再进入分集和剧本链路。",
         to: `/adapt?${context}&stage=adaptations`,
       },
@@ -132,7 +157,7 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
       "needs-input",
       "准备分集",
       {
-        label: "创建第一集",
+        label: "AI 生成第一集",
         description:
           "在当前改编方案下建立分集，后续剧本会自动保留这个项目上下文。",
         to: `/adapt?${withAdaptation}&stage=episodes`,
@@ -146,8 +171,8 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
       "needs-input",
       "等待剧本",
       {
-        label: "编写首集剧本",
-        description: "先在当前分集下保存剧本，再继续拆分场景和镜头。",
+        label: "AI 生成首集剧本",
+        description: "由 AI 生成本集剧本与分镜候选，检查后统一审阅采用。",
         to: `/adapt?${withEpisode}&stage=scripts`,
       },
       ["当前分集尚未保存剧本。"],
@@ -159,7 +184,7 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
       "needs-input",
       "等待分镜拆分",
       {
-        label: "拆分场景和分镜",
+        label: "AI 完善场景和分镜",
         description: "使用当前剧本继续建立场景和镜头，避免跳过制作依据。",
         to: `/adapt?${withEpisode}&stage=scenes`,
       },
@@ -185,19 +210,23 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
       coverage,
       recentTaskOrNode(tasks, graph),
     );
-  if (!graph.coverage.stills || !graph.coverage.adoptedStills)
+  if (
+    !graph.coverage.stills ||
+    graph.coverage.adoptedStills < graph.coverage.shots
+  )
     return cockpit(
       "needs-human",
       "等待人工确认静帧",
       {
-        label: "确认首个静帧",
+        label:
+          graph.coverage.adoptedStills > 0 ? "继续确认静帧" : "确认首个静帧",
         description:
           "先查看并采用静帧候选；未采用的视觉方向不能进入后续高成本制作。",
         to: `/produce?${withShot}&stage=shot-stills`,
       },
       [
         graph.coverage.stills
-          ? "已有静帧候选，尚未人工采用。"
+          ? `已采用 ${graph.coverage.adoptedStills}/${graph.coverage.shots} 个镜头静帧。`
           : "尚未创建静帧候选。",
       ],
       coverage,

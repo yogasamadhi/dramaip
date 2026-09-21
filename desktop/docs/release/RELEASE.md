@@ -1,5 +1,7 @@
 # 发布检查清单
 
+发布前除技术与签名检查外，还应核对商店文案、更新说明和截图是否遵循 [产品定位](../../../docs/product/POSITIONING.md)：突出小说/故事母本、IP 改编、短剧剧本与连续性控制，将媒体生成描述为生产验证和交付能力，不承诺“一键爆款”或“全自动成片”。
+
 1. 运行 `bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run test:e2e`、`bun run check:generated`、`bun run check:architecture`、`bun run check:engine-locks`、`bun run check:provider-catalog` 和 `bun run build`。
 2. 设置真实 `DRAMAIP_UPDATE_URL`，分别在 macOS、Windows、Linux 运行 `bun run package`。
 3. 启动每个平台的安装包，验证 `/api/v2/runtime` 与 `/api/v2/system/diagnostics` 中的 Profile、Bundle、插件顺序、迁移、Host 和 Pi、Codex、LangGraph.js 三个引擎健康状态；确认 `dramaip.db` 可写，退出后没有残留进程。

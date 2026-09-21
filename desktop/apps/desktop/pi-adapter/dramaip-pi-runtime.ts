@@ -27,6 +27,7 @@ export type PiProviderConfiguration = {
 };
 
 export type PiRuntimeEvent =
+  | { type: "activity"; activity: "thinking" }
   | { type: "content.delta"; delta: string }
   | {
       type: "tool";
@@ -129,6 +130,10 @@ export async function createPiSession(
         ) {
           throw new Error(assistant.errorMessage || "Pi 模型调用未完成");
         }
+        if (assistant.stopReason === "length")
+          throw new Error(
+            "模型输出达到长度上限，未返回完整结果，请缩小创作范围后重试。",
+          );
         const finalText = text.trim() ? text : assistantText(assistant);
         if (!finalText.trim()) throw new Error("Pi 未返回有效内容");
         return { text: finalText };
@@ -168,7 +173,26 @@ function createStreamFunction(
     context: Context,
     options?: SimpleStreamOptions,
   ) => {
-    const requestOptions = { ...options, apiKey: configuration.secret };
+    const requestOptions: SimpleStreamOptions = {
+      ...options,
+      apiKey: configuration.secret,
+    };
+    if (
+      configuration.providerKind === "openai" &&
+      /^deepseek-v4-/i.test(model.id) &&
+      !options?.reasoning
+    ) {
+      // Pi's local "off" setting alone does not disable DeepSeek V4's default
+      // thinking mode: https://api-docs.deepseek.com/guides/thinking_mode/
+      requestOptions.onPayload = async (payload, selectedModel) => {
+        const prepared =
+          (await options?.onPayload?.(payload, selectedModel)) ?? payload;
+        return {
+          ...(prepared as Record<string, unknown>),
+          thinking: { type: "disabled" },
+        };
+      };
+    }
     if (configuration.providerKind === "anthropic") {
       return streamAnthropic(
         model as Model<"anthropic-messages">,
@@ -231,6 +255,14 @@ function projectAgentEvent(
   onEvent: (event: PiRuntimeEvent) => void,
   onText: (delta: string) => void,
 ): void {
+  if (
+    event.type === "message_update" &&
+    event.assistantMessageEvent.type === "thinking_delta"
+  ) {
+    // Forward liveness, never the model's private reasoning text.
+    onEvent({ type: "activity", activity: "thinking" });
+    return;
+  }
   if (
     event.type === "message_update" &&
     event.assistantMessageEvent.type === "text_delta"

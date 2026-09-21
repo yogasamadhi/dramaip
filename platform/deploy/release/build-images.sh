@@ -101,6 +101,7 @@ while IFS='|' read -r chart_key image_name kind target; do
       build_cmd+=(
         --file "$root/server/Dockerfile"
         --build-arg "MODULE=$target"
+        --build-arg "SERVICE_VERSION=$tag"
         --tag "$image"
         "$root"
       )

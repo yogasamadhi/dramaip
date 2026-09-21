@@ -2,9 +2,13 @@
 
 > **尽作者之意，成万象之作**
 >
-> 本地优先的 AI IP 创作工作台
+> 面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台
 
-尽意 DramaIP 以作者意图为创作原点，贯通灵感、小说、剧本、分镜与影像生产，让创作者始终掌握内容、版本和最终采用权。仓库包含两个边界独立的子项目：
+尽意 DramaIP 面向原创作者和小型内容团队，把创意或长篇小说转化为经过连续性、节奏、钩子和制作风险检查的分集剧本、分镜与交付包。小说创作是建立故事母本的上游核心之一，短剧/漫剧改编是当前转化核心；图片、声音与视频模型作为可替换的生产出口接入。作品、版本、来源和最终采用权始终由创作者掌握。
+
+长期愿景是成为创作者拥有的本地优先 IP 操作系统；当前市场定位、首要用户、英雄流程和产品边界以[产品定位](./docs/product/POSITIONING.md)为准。
+
+仓库包含两个边界独立的子项目：
 
 - [`desktop`](./desktop/README.md)：开源 Electron 桌面端、本地 Core Runtime 与插件运行时。
 - [`platform`](./platform/README.md)：闭源 Java/Spring Cloud Alibaba 云平台、Web、Mobile、Admin 与部署资产。
@@ -20,6 +24,7 @@
 ## 文档入口
 
 - [品牌与文案规范](./docs/product/BRAND.md)
+- [产品定位](./docs/product/POSITIONING.md)
 - [Desktop Client / Plugin Runtime 目标架构](./docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)
 - [Desktop 当前实现](./desktop/docs/engineering/ARCHITECTURE.md)
 - [Platform 后端技术架构](./docs/后端技术架构.md)

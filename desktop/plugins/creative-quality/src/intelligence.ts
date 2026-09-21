@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createHash } from "node:crypto";
 import { createRoute } from "@hono/zod-openapi";
 import {
@@ -335,7 +336,8 @@ const idParams = z.object({ id: z.string().uuid() });
 export function creativeIntelligenceQualityRoutes(
   context: PluginContext,
 ): readonly RouteContribution[] {
-  const creativeKnowledge = context.services.optional<CreativeKnowledgeService>(
+  const creativeKnowledge = optionalService<CreativeKnowledgeService>(
+    context,
     CREATIVE_KNOWLEDGE_SERVICE,
   );
   if (!creativeKnowledge)

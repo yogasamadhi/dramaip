@@ -66,10 +66,10 @@ async function createPilotFromEntry(
     await page.getByRole("button", { name: "创建单季短剧并导入" }).click();
   } else {
     await selectByKeyboard(page, "单季短剧");
-    await selectByKeyboard(page, "直接写剧本");
+    await selectByKeyboard(page, "使用已有剧本");
     await page.getByRole("textbox", { name: "项目名称" }).fill(title);
     await page
-      .getByRole("textbox", { name: "首集剧本" })
+      .getByRole("textbox", { name: "已有剧本内容" })
       .fill("【雨夜·门口】\\n林晚：你终于来了。");
     await page.getByRole("button", { name: "创建单季短剧" }).click();
   }
@@ -81,7 +81,7 @@ async function createPilotFromEntry(
     pilotWizard.locator('input[type="checkbox"]:checked'),
   ).toHaveCount(1);
   await page.getByRole("button", { name: "建立试制计划" }).click();
-  await page.getByRole("button", { name: "确认来源并创建试制分集" }).click();
+  await page.getByRole("button", { name: "确认来源并生成首集" }).click();
   await expect(
     page.getByText("当前阶段：采用试制剧本", { exact: true }),
   ).toBeVisible();
@@ -137,6 +137,10 @@ test("统一创作草稿经过灵感空间、设置页和应用重启后仍可�
     await running.page.evaluate(() => {
       window.location.hash = "#/inspiration";
     });
+    await running.page
+      .getByRole("dialog")
+      .getByRole("button", { name: "取消", exact: true })
+      .click();
     await expect(
       running.page.getByRole("heading", { name: "灵感空间" }),
     ).toBeVisible();

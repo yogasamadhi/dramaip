@@ -32,8 +32,8 @@ test.afterAll(async () => {
 
 test("默认上下文助手只展示推荐动作，高级模式保留完整控制", async () => {
   await createSeriesProject(page, "LM6 上下文助手项目");
-  await page.getByRole("button", { name: "更多", exact: true }).click();
-  await page.getByRole("menuitem", { name: "任务", exact: true }).click();
+  await page.getByRole("link", { name: "任务", exact: true }).click();
+  await page.getByRole("button", { name: "新建任务", exact: true }).click();
 
   const config = page.getByLabel("智能任务配置");
   await expect(config.getByLabel("当前页面推荐动作")).toBeVisible();

@@ -1,3 +1,4 @@
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -85,7 +86,7 @@ import {
 } from "@dramaip/contracts/workspace";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -2165,9 +2166,10 @@ function providerFor(
   context: PluginContext,
   id: string,
 ): ConfiguredProvider | undefined {
-  return context.services
-    .optional<ConfiguredProviderService>(CONFIGURED_PROVIDER_SERVICE)
-    ?.get(id);
+  return optionalService<ConfiguredProviderService>(
+    context,
+    CONFIGURED_PROVIDER_SERVICE,
+  )?.get(id);
 }
 
 function providerCredential(provider: ConfiguredProvider): string {
@@ -2288,9 +2290,10 @@ function recordGeneration(
   context: PluginContext,
   input: Parameters<InsightsGenerationService["record"]>[0],
 ): void {
-  context.services
-    .optional<InsightsGenerationService>(INSIGHTS_GENERATION_SERVICE)
-    ?.record(input);
+  optionalService<InsightsGenerationService>(
+    context,
+    INSIGHTS_GENERATION_SERVICE,
+  )?.record(input);
 }
 
 async function runImageGeneration(input: {
@@ -2606,6 +2609,7 @@ async function createVideoGeneration(input: {
   tasks: AutomationTaskService;
   value: VideoGenerationInput;
   idempotencyKey: string;
+  parentTaskId?: string;
 }): Promise<VideoGenerationJob> {
   const shotId = input.value.shotId;
   if (!shotId) throw new Error("视频生成需要指定分镜。");
@@ -2632,6 +2636,7 @@ async function createVideoGeneration(input: {
     kind: "video-generation",
     title: "视频生成",
     projectId: input.value.projectId,
+    ...(input.parentTaskId ? { parentTaskId: input.parentTaskId } : {}),
     result: { shotId, preflight },
   });
   try {
@@ -3564,7 +3569,9 @@ function generationRoutes(
             tasks,
             value,
             idempotencyKey: claimed.key!,
+            parentTaskId: current.task_id,
           });
+          tasks.update(current.task_id, { attentionStatus: "acknowledged" });
           completeRequest(
             context,
             `video-generation-retry:${current.id}`,
@@ -3810,7 +3817,12 @@ const mediaMigrations = [
 ] as const;
 
 export function createMediaPlugin(host?: DesktopHostClient) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [
+      AUTOMATION_TASK_SERVICE.id,
+      PRODUCTION_RECORD_SERVICE.id,
+      WORKSPACE_PROJECT_SERVICE.id,
+    ],
     descriptor: {
       id: "media",
       version: "3.0.0-alpha.3",
@@ -3840,16 +3852,19 @@ export function createMediaPlugin(host?: DesktopHostClient) {
       },
     ],
     migrations: mediaMigrations,
-    activate: (context) => {
-      const workspace = context.services.optional<WorkspaceProjectService>(
+    apply: (context) => {
+      const workspace = optionalService<WorkspaceProjectService>(
+        context,
         WORKSPACE_PROJECT_SERVICE,
       );
-      const production = context.services.optional<ProductionRecordService>(
+      const production = optionalService<ProductionRecordService>(
+        context,
         PRODUCTION_RECORD_SERVICE,
       );
       if (!workspace || !production)
         throw new Error("media requires workspace and production services");
-      const tasks = context.services.optional<AutomationTaskService>(
+      const tasks = optionalService<AutomationTaskService>(
+        context,
         AUTOMATION_TASK_SERVICE,
       );
       if (!tasks) throw new Error("media requires automation task service");
@@ -3916,8 +3931,9 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return true;
           }),
       };
-      context.effect(`service:${MEDIA_RECORD_SERVICE}`, () =>
-        context.services.provide(MEDIA_RECORD_SERVICE, service),
+      context.effect(
+        () => provideService(context, MEDIA_RECORD_SERVICE, service),
+        `service:${MEDIA_RECORD_SERVICE}`,
       );
       const likeness: MediaLikenessService = {
         getSubject: (id) =>
@@ -3939,8 +3955,9 @@ export function createMediaPlugin(host?: DesktopHostClient) {
           ),
         preflight: (input) => likenessPreflight(context, input.subjectIds),
       };
-      context.effect(`service:${MEDIA_LIKENESS_SERVICE}`, () =>
-        context.services.provide(MEDIA_LIKENESS_SERVICE, likeness),
+      context.effect(
+        () => provideService(context, MEDIA_LIKENESS_SERVICE, likeness),
+        `service:${MEDIA_LIKENESS_SERVICE}`,
       );
       const audioTracks: MediaAudioTrackService = {
         list: (episodeId) =>
@@ -3984,8 +4001,9 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return value;
           }),
       };
-      context.effect(`service:${MEDIA_AUDIO_TRACK_SERVICE}`, () =>
-        context.services.provide(MEDIA_AUDIO_TRACK_SERVICE, audioTracks),
+      context.effect(
+        () => provideService(context, MEDIA_AUDIO_TRACK_SERVICE, audioTracks),
+        `service:${MEDIA_AUDIO_TRACK_SERVICE}`,
       );
       if (host) {
         const executor: ProviderActionExecutorService = {
@@ -4058,8 +4076,10 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return { taskId: accepted.id };
           },
         };
-        context.effect(`service:${PROVIDER_ACTION_EXECUTOR_SERVICE}`, () =>
-          context.services.provide(PROVIDER_ACTION_EXECUTOR_SERVICE, executor),
+        context.effect(
+          () =>
+            provideService(context, PROVIDER_ACTION_EXECUTOR_SERVICE, executor),
+          `service:${PROVIDER_ACTION_EXECUTOR_SERVICE}`,
         );
       }
       for (const contribution of [
@@ -4077,11 +4097,26 @@ export function createMediaPlugin(host?: DesktopHostClient) {
         ),
         ...generationRoutes(context, host, production, service, tasks),
       ])
-        context.effect(`route:${contribution.id}`, () =>
-          context.http.register(contribution),
+        context.effect(
+          () => context.http.register(contribution),
+          `route:${contribution.id}`,
         );
     },
   });
 }
 
 export const mediaPlugin = createMediaPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "media-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createMediaPlugin(
+        ctx.pluginEnvironment.host as Parameters<typeof createMediaPlugin>[0],
+      ),
+      config,
+    );
+  },
+};

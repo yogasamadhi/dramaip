@@ -4,6 +4,8 @@
 Router**, **NativeWind v5** (Tailwind CSS v4), **gluestack-ui v5**, and
 **Reanimated**. Development and debugging use **Expo Go**.
 
+The mobile client extends the optional cloud and collaboration surface of DramaIP; it is not the local creative authority or a standalone video generator. Product copy and feature scope follow the canonical [product positioning](../../../../docs/product/POSITIONING.md): AI-assisted story/IP development, adaptation, screenplay production, continuity, review, and delivery.
+
 ## Stack
 
 | Concern        | Choice                                                |

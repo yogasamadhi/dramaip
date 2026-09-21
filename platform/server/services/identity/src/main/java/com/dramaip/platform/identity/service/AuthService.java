@@ -1,6 +1,8 @@
 package com.dramaip.platform.identity.service;
 
+import com.dramaip.platform.common.observability.OutboxObservability;
 import com.dramaip.platform.common.web.BusinessException;
+import com.dramaip.platform.common.web.RequestContext;
 import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.security.MessageDigest;
@@ -18,9 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
     private final JdbcTemplate jdbc;
     private final TokenService tokens;
+    private final OutboxObservability outbox;
     private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
-    public AuthService(JdbcTemplate jdbc, TokenService tokens) { this.jdbc = jdbc; this.tokens = tokens; }
+    public AuthService(JdbcTemplate jdbc, TokenService tokens, OutboxObservability outbox) {
+        this.jdbc = jdbc;
+        this.tokens = tokens;
+        this.outbox = outbox;
+    }
 
     @Transactional
     public Session register(String email, String password, String displayName, String deviceId) {
@@ -168,19 +175,21 @@ public class AuthService {
 
     private void audit(String userId, String eventType, String subject) {
         jdbc.update("""
-                insert into auth.security_audit_events(id, user_id, event_type, subject_hash)
-                values (?::uuid, ?::uuid, ?, ?)
-                """, UUID.randomUUID().toString(), userId, eventType, hash(subject == null ? "" : subject));
+                insert into auth.security_audit_events(id, user_id, event_type, subject_hash, trace_id)
+                values (?::uuid, ?::uuid, ?, ?, ?)
+                """, UUID.randomUUID().toString(), userId, eventType, hash(subject == null ? "" : subject),
+                RequestContext.traceId());
     }
 
     private void publish(String userId, String eventType, String email, String purpose, String deliveryToken) {
-        jdbc.update("""
-                insert into user_profile.identity_outbox_events(
-                  id, aggregate_type, aggregate_id, event_type, payload
-                ) values (?::uuid, 'user', ?::uuid, ?,
-                  jsonb_build_object('userId', ?, 'email', ?, 'purpose', ?,
-                    'deliveryToken', ?, 'sensitive', true))
-                """, UUID.randomUUID().toString(), userId, eventType, userId, email, purpose, deliveryToken);
+        outbox.stage("identity", eventType, () -> jdbc.update("""
+                    insert into user_profile.identity_outbox_events(
+                      id, aggregate_type, aggregate_id, event_type, payload
+                    ) values (?::uuid, 'user', ?::uuid, ?,
+                      jsonb_build_object('userId', ?, 'email', ?, 'purpose', ?,
+                        'deliveryToken', ?, 'sensitive', true, 'traceId', ?))
+                    """, UUID.randomUUID().toString(), userId, eventType, userId, email, purpose, deliveryToken,
+                    RequestContext.traceId()));
     }
 
     /** Issues a one-time OAuth 2.1 PKCE code while persisting only its digest. */

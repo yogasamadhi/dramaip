@@ -1,3 +1,5 @@
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
+import { registerInsightsCreation } from "./creation.js";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -26,7 +28,7 @@ import {
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
 } from "@dramaip/plugin-api/internal";
@@ -883,7 +885,8 @@ const migrations = [
 ] as const;
 
 export function createInsightsPlugin(host?: DesktopHostClient) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [AUTOMATION_TASK_SERVICE.id, WORKSPACE_PROJECT_SERVICE.id],
     descriptor: {
       id: "insights",
       version: "3.0.0-alpha.3",
@@ -905,38 +908,61 @@ export function createInsightsPlugin(host?: DesktopHostClient) {
         kind: "navigation",
         metadata: {
           section: "secondary",
-          order: 10,
+          order: 60,
           label: "数据洞察",
           to: "/insights",
         },
       },
     ],
     migrations,
-    activate: (context) => {
-      const workspace = context.services.optional<WorkspaceProjectService>(
+    apply: (context) => {
+      registerInsightsCreation(context);
+      const workspace = optionalService<WorkspaceProjectService>(
+        context,
         WORKSPACE_PROJECT_SERVICE,
       );
-      const tasks = context.services.optional<AutomationTaskService>(
+      const tasks = optionalService<AutomationTaskService>(
+        context,
         AUTOMATION_TASK_SERVICE,
       );
       if (!workspace || !tasks)
         throw new Error("insights requires workspace and automation services");
       const generationService = createGenerationService(context);
-      context.effect(`service:${INSIGHTS_GENERATION_SERVICE}`, () =>
-        context.services.provide(
-          INSIGHTS_GENERATION_SERVICE,
-          generationService,
-        ),
+      context.effect(
+        () =>
+          provideService(
+            context,
+            INSIGHTS_GENERATION_SERVICE,
+            generationService,
+          ),
+        `service:${INSIGHTS_GENERATION_SERVICE}`,
       );
       for (const contribution of [
         ...feedbackRoutes(context, host, workspace, tasks),
         ...generationRoutes(context, workspace),
       ])
-        context.effect(`route:${contribution.id}`, () =>
-          context.http.register(contribution),
+        context.effect(
+          () => context.http.register(contribution),
+          `route:${contribution.id}`,
         );
     },
   });
 }
 
 export const insightsPlugin = createInsightsPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "insights-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createInsightsPlugin(
+        ctx.pluginEnvironment.host as Parameters<
+          typeof createInsightsPlugin
+        >[0],
+      ),
+      config,
+    );
+  },
+};

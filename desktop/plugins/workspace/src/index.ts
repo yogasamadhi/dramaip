@@ -1,3 +1,4 @@
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -50,7 +51,7 @@ import {
 import type { DesktopHostClient } from "@dramaip/desktop-host";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -779,26 +780,32 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
           appendProjectEvent(transaction, "demo-created", value);
           return value;
         });
-        const writing = context.services.optional<WritingChapterService>(
+        const writing = optionalService<WritingChapterService>(
+          context,
           WRITING_CHAPTER_SERVICE,
         );
-        const production = context.services.optional<ProductionRecordService>(
+        const production = optionalService<ProductionRecordService>(
+          context,
           PRODUCTION_RECORD_SERVICE,
         );
-        const media =
-          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
-        const writingResources =
-          context.services.optional<WritingResourceService>(
-            WRITING_RESOURCE_SERVICE,
-          );
-        const creativeQuality =
-          context.services.optional<CreativeQualityRecordService>(
-            CREATIVE_QUALITY_SERVICE,
-          );
-        const review = context.services.optional<ReviewRecordService>(
+        const media = optionalService<MediaRecordService>(
+          context,
+          MEDIA_RECORD_SERVICE,
+        );
+        const writingResources = optionalService<WritingResourceService>(
+          context,
+          WRITING_RESOURCE_SERVICE,
+        );
+        const creativeQuality = optionalService<CreativeQualityRecordService>(
+          context,
+          CREATIVE_QUALITY_SERVICE,
+        );
+        const review = optionalService<ReviewRecordService>(
+          context,
           REVIEW_RECORD_SERVICE,
         );
-        const delivery = context.services.optional<DeliveryRecordService>(
+        const delivery = optionalService<DeliveryRecordService>(
+          context,
           DELIVERY_RECORD_SERVICE,
         );
         if (
@@ -1712,7 +1719,7 @@ const workspaceMigrations = [
 ] as const;
 
 export function createWorkspacePlugin(host?: DesktopHostClient) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
     descriptor: {
       id: "workspace",
       version: "3.0.0-alpha.3",
@@ -1775,7 +1782,7 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
       ...workspaceMigrations.slice(1),
       ...sourceImportMigrations.slice(1),
     ],
-    activate: (context) => {
+    apply: (context) => {
       const service: WorkspaceProjectService = {
         create: (input) => createProjectRecord(context, input),
         createIdempotent: (input, idempotencyKey) => {
@@ -1850,20 +1857,48 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
             return value;
           }),
       };
-      context.effect(`service:${WORKSPACE_PROJECT_SERVICE}`, () =>
-        context.services.provide(WORKSPACE_PROJECT_SERVICE, service),
+      context.effect(
+        () => provideService(context, WORKSPACE_PROJECT_SERVICE, service),
+        `service:${WORKSPACE_PROJECT_SERVICE}`,
       );
+      context.plugin({
+        name: "workspace-series",
+        inject: [WORKSPACE_PROJECT_SERVICE.id, "http", "uow", "domainEvents"],
+        apply: (ctx) => {
+          for (const contribution of seriesRoutes(ctx))
+            ctx.effect(
+              () => ctx.http.register(contribution),
+              `route:${contribution.id}`,
+            );
+        },
+      });
       for (const contribution of [
         ...projectRoutes(context),
-        ...seriesRoutes(context),
         ...sourceImportRoutes(context, host, service),
         ...workspaceMaintenanceRoutes(context, host, service),
       ])
-        context.effect(`route:${contribution.id}`, () =>
-          context.http.register(contribution),
+        context.effect(
+          () => context.http.register(contribution),
+          `route:${contribution.id}`,
         );
     },
   });
 }
 
 export const workspacePlugin = createWorkspacePlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "workspace-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createWorkspacePlugin(
+        ctx.pluginEnvironment.host as Parameters<
+          typeof createWorkspacePlugin
+        >[0],
+      ),
+      config,
+    );
+  },
+};

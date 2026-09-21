@@ -103,14 +103,14 @@ const order = assertResult((await request('/api/v1/orders', {
   method: 'POST',
   token,
   expected: 201,
+  headers: { 'Idempotency-Key': `order-${suffix}` },
   body: { planCode: plan.code, provider: 'simulated' },
 })).body, 'order creation')
 assert(order.status === 'pending' && order.provider === 'simulated', 'created order is not pending simulated payment')
 
-const payment = assertResult((await request('/api/v1/payments/simulated/confirm', {
+const payment = assertResult((await request(`/api/v1/orders/${encodeURIComponent(order.id)}/simulated-confirm`, {
   method: 'POST',
   token,
-  body: { orderId: order.id },
 })).body, 'simulated payment')
 assert(payment.status === 'paid' && payment.orderId === order.id, 'simulated payment did not settle the order')
 

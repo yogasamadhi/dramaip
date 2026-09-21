@@ -9,12 +9,18 @@
   },
   "scripts": {
     "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test"
+    "test": "bun ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/cordis": "workspace:*",
     "@dramaip/contracts": "workspace:*",
-    "@dramaip/plugin-api": "workspace:*"
+    "@dramaip/plugin-api": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-group": "workspace:*",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:*",
+    "@deepseek-ai/cordis-plugin-hmr": "workspace:*",
+    "@deepseek-ai/cordis-plugin-logger-console": "workspace:*"
   },
   "devDependencies": {
     "vitest": "4.1.9"

@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.observability.DramaipTelemetry;
+import com.dramaip.platform.common.observability.OutboxObservability;
 import com.dramaip.platform.common.web.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,7 +16,8 @@ class WorkspaceServiceSecurityTest {
     @Test
     void malformedInvitationInputsAreRejectedBeforeDatabaseAccess() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        WorkspaceService service = new WorkspaceService(jdbc);
+        WorkspaceService service = new WorkspaceService(jdbc, new OutboxObservability(
+                mock(DramaipMetrics.class), new DramaipTelemetry("test", "test")));
 
         assertEquals("IDENTITY_INVALID_EMAIL", assertThrows(BusinessException.class,
                 () -> service.invite("actor", "workspace",

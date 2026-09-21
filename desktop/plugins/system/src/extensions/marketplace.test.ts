@@ -235,7 +235,7 @@ describe("Extension Marketplace lifecycle", () => {
           "SELECT 1 FROM extension_documents WHERE plugin_id = 'attacker.spoofed'",
         )
         .get(),
-    ).toBeNull();
+    ).toBeUndefined();
 
     await platform.disable("official.dramaip.sample");
     await expect(

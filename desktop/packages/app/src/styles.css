@@ -52,24 +52,25 @@
 }
 
 :root {
-  --ui-canvas: #f8f7f4;
-  --ui-page: #f2f0eb;
-  --ui-surface: #fffdfa;
+  --ui-canvas: #f5f5f3;
+  --ui-page: #efefec;
+  --ui-surface: #fbfbf9;
   --ui-surface-raised: #ffffff;
-  --ui-surface-muted: #f0ede7;
-  --ui-field: #fffefa;
-  --ui-ink: #242320;
-  --ui-muted: #6f6a63;
-  --ui-line: #e4dfd7;
-  --ui-line-strong: #d6cfc5;
-  --ui-brand: #ba5a3a;
-  --ui-brand-strong: #943d24;
-  --ui-brand-soft: #faebe4;
-  --ui-brand-soft-hover: #f5ddd2;
-  --ui-action: #292825;
-  --ui-action-hover: #47433e;
+  --ui-surface-muted: #ececea;
+  --ui-field: #ffffff;
+  --ui-ink: #232422;
+  --ui-muted: #686a65;
+  --ui-line: #deded9;
+  --ui-line-strong: #c9cac3;
+  --ui-brand: #b8673f;
+  --ui-brand-strong: #8f4829;
+  /* Neutral emphasis surfaces shared by selections, badges and highlights. */
+  --ui-brand-soft: #e3e5e0;
+  --ui-brand-soft-hover: #d7dbd3;
+  --ui-action: #30312f;
+  --ui-action-hover: #484a46;
   --ui-action-contrast: #ffffff;
-  --ui-focus: #bb6546;
+  --ui-focus: #b8673f;
   --ui-overlay: #171614;
   --ui-sand: #eadbc8;
   --ui-workbench: #20211f;
@@ -86,7 +87,7 @@
   --ui-info-strong: #3d6289;
   --ui-info-soft: #e8f0f8;
   --ui-shadow-control: 0 1px 2px rgba(45, 38, 31, 0.08);
-  --ui-shadow-card: 0 16px 34px -28px rgba(45, 38, 31, 0.5);
+  --ui-shadow-card: 0 8px 24px -22px rgba(35, 36, 34, 0.55);
   --ui-shadow-float: 0 28px 72px -28px rgba(31, 26, 22, 0.48);
   color: var(--ui-ink);
   background: var(--ui-canvas);
@@ -203,8 +204,8 @@ select:focus {
   --ui-line-strong: #50574f;
   --ui-brand: #de8667;
   --ui-brand-strong: #f0a184;
-  --ui-brand-soft: #443129;
-  --ui-brand-soft-hover: #59392e;
+  --ui-brand-soft: #343a33;
+  --ui-brand-soft-hover: #424a40;
   --ui-action: #f0f2ed;
   --ui-action-hover: #ffffff;
   --ui-action-contrast: #1b1d1a;
@@ -252,20 +253,20 @@ select:focus {
 }
 
 .dark {
-  --ui-canvas: #191a19;
-  --ui-page: #20211f;
-  --ui-surface: #242522;
-  --ui-surface-raised: #2a2b28;
-  --ui-surface-muted: #30312d;
-  --ui-field: #20211f;
-  --ui-ink: #f1eee9;
-  --ui-muted: #aaa39a;
-  --ui-line: #3a3b37;
-  --ui-line-strong: #4c4d47;
-  --ui-brand: #dd8667;
-  --ui-brand-strong: #f0a184;
-  --ui-brand-soft: #453129;
-  --ui-brand-soft-hover: #58392e;
+  --ui-canvas: #181918;
+  --ui-page: #1d1f1d;
+  --ui-surface: #222422;
+  --ui-surface-raised: #292b29;
+  --ui-surface-muted: #30322f;
+  --ui-field: #1d1f1d;
+  --ui-ink: #f0f0ec;
+  --ui-muted: #a8aaa4;
+  --ui-line: #393b37;
+  --ui-line-strong: #4b4e48;
+  --ui-brand: #cf7b52;
+  --ui-brand-strong: #eba27f;
+  --ui-brand-soft: #343833;
+  --ui-brand-soft-hover: #42483f;
   --ui-action: #f0ede8;
   --ui-action-hover: #ffffff;
   --ui-action-contrast: #20211f;
@@ -289,6 +290,248 @@ select:focus {
   --ui-shadow-card: 0 18px 40px -30px rgba(0, 0, 0, 0.8);
   --ui-shadow-float: 0 30px 80px -26px rgba(0, 0, 0, 0.85);
   color-scheme: dark;
+}
+
+.studio-shell {
+  display: grid;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-areas:
+    "sidebar context"
+    "sidebar main";
+  background: var(--ui-canvas);
+}
+
+.studio-shell-navigation-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.studio-shell-assistant-open {
+  grid-template-columns: 224px minmax(0, 1fr) clamp(320px, 25vw, 420px);
+  grid-template-areas:
+    "sidebar context assistant"
+    "sidebar main assistant";
+}
+
+.studio-shell-navigation-collapsed.studio-shell-assistant-open {
+  grid-template-columns: 64px minmax(0, 1fr) clamp(320px, 25vw, 420px);
+}
+
+.studio-shell-sidebar {
+  grid-area: sidebar;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--ui-line);
+  background: var(--ui-page);
+}
+
+.studio-shell-brand {
+  display: flex;
+  height: 48px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--ui-line);
+}
+
+.studio-shell-brand-macos {
+  padding-left: 5.5rem;
+}
+
+.studio-shell-brand-macos .studio-shell-brand-link {
+  gap: 0.5rem;
+}
+
+.studio-shell-brand-macos .studio-shell-brand-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.studio-shell-brand-macos .studio-shell-nav-label {
+  font-size: 0.8125rem;
+}
+
+.studio-shell-macos .app-titlebar-content {
+  padding-left: 0.75rem;
+}
+
+.studio-shell-desktop-navigation-trigger {
+  display: inline-flex !important;
+}
+
+.studio-shell-mobile-navigation-trigger {
+  display: none !important;
+}
+
+.studio-shell-navigation {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem 0.5rem;
+}
+
+.studio-shell-nav-section {
+  padding: 0.45rem 0.65rem;
+  color: var(--ui-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.studio-shell-nav-link {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  color: var(--ui-muted);
+  font-size: 0.875rem;
+  font-weight: 520;
+  outline: none;
+}
+
+.studio-shell-nav-link:hover {
+  background: var(--ui-surface-muted);
+  color: var(--ui-ink);
+}
+
+.studio-shell-nav-link-active {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-strong);
+}
+
+.studio-shell-navigation-collapsed .studio-shell-nav-label,
+.studio-shell-navigation-collapsed .studio-shell-nav-section {
+  display: none;
+}
+
+.studio-shell-navigation-collapsed .studio-shell-brand {
+  padding-inline: 0.5rem;
+}
+
+.studio-shell-navigation-collapsed .studio-shell-brand-macos {
+  padding-inline: 0;
+}
+
+.studio-shell-navigation-collapsed .studio-shell-brand-macos > a {
+  display: none;
+}
+
+.studio-shell-macos.studio-shell-navigation-collapsed {
+  grid-template-columns: 80px minmax(0, 1fr);
+}
+
+.studio-shell-macos.studio-shell-navigation-collapsed.studio-shell-assistant-open {
+  grid-template-columns: 80px minmax(0, 1fr) clamp(320px, 25vw, 420px);
+}
+
+.studio-shell-navigation-collapsed .studio-shell-nav-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.studio-shell-contextbar {
+  grid-area: context;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-width: 0;
+  border-bottom: 1px solid var(--ui-line);
+  background: color-mix(in srgb, var(--ui-canvas) 92%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.studio-shell-main {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.studio-shell-assistant {
+  grid-area: assistant;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  overflow: hidden;
+}
+
+.studio-shell-assistant-content {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 0.75rem;
+}
+
+.studio-shell-assistant-drawer {
+  display: none !important;
+}
+
+@media (max-width: 1279px) {
+  .studio-shell-assistant-open,
+  .studio-shell-navigation-collapsed.studio-shell-assistant-open {
+    grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-areas:
+      "sidebar context"
+      "sidebar main";
+  }
+  .studio-shell-navigation-collapsed.studio-shell-assistant-open {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .studio-shell-macos.studio-shell-navigation-collapsed.studio-shell-assistant-open {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+  .studio-shell-assistant {
+    display: none;
+  }
+  .studio-shell-assistant-drawer {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 1079px) {
+  .studio-shell,
+  .studio-shell-navigation-collapsed,
+  .studio-shell-assistant-open,
+  .studio-shell-navigation-collapsed.studio-shell-assistant-open {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "context"
+      "main";
+  }
+  .studio-shell-sidebar {
+    display: none;
+  }
+
+  .studio-shell-macos .app-titlebar-content {
+    padding-left: 5.5rem;
+  }
+
+  .studio-shell-macos.studio-shell-navigation-collapsed,
+  .studio-shell-macos.studio-shell-navigation-collapsed.studio-shell-assistant-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-shell-desktop-navigation-trigger {
+    display: none !important;
+  }
+
+  .studio-shell-mobile-navigation-trigger {
+    display: inline-flex !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

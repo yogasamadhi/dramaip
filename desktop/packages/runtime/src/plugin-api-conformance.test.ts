@@ -8,6 +8,32 @@ import {
 } from "./index.js";
 
 describe("Plugin API v1 conformance", () => {
+  for (const name of ["studio", "server", "safe", "test", "e2e"] as const)
+    it(`boots ${name} with its declared capability scope on Node`, async () => {
+      const profile = loadProfile(
+        resolve(process.cwd(), `profiles/${name}.json`),
+      );
+      const runtime = await bootRuntime({
+        databasePath: ":memory:",
+        profile,
+        runtimeKind: "node",
+        mode: name === "server" ? "server" : "headless",
+      });
+      try {
+        expect(runtime.runtimeInfo.runtimeKind).toBe("node");
+        expect(runtime.kernel.diagnostics().plugins).toHaveLength(
+          ["safe", "test"].includes(name) ? 3 : 14,
+        );
+        expect(runtime.kernel.diagnostics().services.length).toBeGreaterThan(0);
+        expect(
+          runtime.kernel
+            .diagnostics()
+            .plugins.every((plugin) => plugin.status === "active"),
+        ).toBe(true);
+      } finally {
+        await runtime.stop();
+      }
+    });
   it("publishes one validated graph and releases every tracked effect", async () => {
     const profile = loadProfile(resolve(process.cwd(), "profiles/studio.json"));
     const registry = createFirstPartyPluginRegistry();
@@ -22,7 +48,7 @@ describe("Plugin API v1 conformance", () => {
     const runtime = await bootRuntime({
       databasePath: ":memory:",
       profile,
-      runtimeKind: "bun",
+      runtimeKind: "node",
       mode: "headless",
     });
     const active = runtime.kernel.diagnostics();

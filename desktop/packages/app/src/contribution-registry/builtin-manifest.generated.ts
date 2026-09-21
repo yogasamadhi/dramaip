@@ -142,12 +142,12 @@ export const BUILTIN_UI_MANIFEST = {
     kind: "navigation",
     metadata: {
       section: "secondary",
-      order: 10,
+      order: 60,
       label: "数据洞察",
       to: "/insights",
     },
     metadataHash:
-      "477e49ef838f2aed8b51540379aabc4f67f3a0550dbc6c94ac765030310f166d",
+      "718e6f89f7c090a900ab459f2445a910a4eeac500a78f6577b6cd0925d37ecf0",
   },
   "insights.route.dashboard": {
     pluginId: "insights",

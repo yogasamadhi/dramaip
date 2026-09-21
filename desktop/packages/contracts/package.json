@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./agent-context": "./src/agent-context.ts",
     "./automation": "./src/automation.ts",
+    "./creation": "./src/creation.ts",
     "./creative-quality": "./src/creative-quality.ts",
     "./creative-intelligence": "./src/creative-intelligence.ts",
     "./delivery": "./src/delivery.ts",

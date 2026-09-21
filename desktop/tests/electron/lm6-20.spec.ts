@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -33,7 +34,7 @@ test("多轨时间线可定位、编辑、撤销并在重开后保留编辑", as
   await page
     .getByRole("combobox", { name: "分集" })
     .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page.getByRole("button", { name: "多轨时间线" }).click();
+  await openProductionStage(page, "多轨时间线");
 
   const editor = page.getByLabel("多轨时间线编辑器");
   await expect(editor).toBeVisible();
@@ -78,7 +79,7 @@ test("多轨时间线可定位、编辑、撤销并在重开后保留编辑", as
   await page
     .getByRole("combobox", { name: "分集" })
     .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page.getByRole("button", { name: "多轨时间线" }).click();
+  await openProductionStage(page, "多轨时间线");
   await expect(page.getByLabel("多轨时间线编辑器")).toBeVisible();
   await expect(page.getByText("v4", { exact: false })).toBeVisible();
 });

@@ -1,3 +1,5 @@
+import type { ScreenplayDocument } from "@dramaip/contracts/production";
+import type { ChapterPreviewMerge } from "@dramaip/contracts/automation";
 /* 此文件封装由三引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
 import {
   type DomainEvent,
@@ -6,6 +8,11 @@ import {
   type RuntimeInfo,
 } from "@dramaip/contracts";
 import type { RuntimeTransport } from "@dramaip/server-connection";
+import type { SeasonPage } from "@dramaip/contracts/production";
+import type {
+  CreationInput,
+  CreationWorkflow,
+} from "@dramaip/contracts/creation";
 import {
   createGeneratedOpenApiClient,
   requestGeneratedApi,
@@ -45,6 +52,7 @@ import type {
   InspirationProjectPreviewInput,
   ChangePreview,
   ChangePreviewContentInput,
+  ChangePreviewRebaseInput,
   CodexAuthStatus,
   CodexLoginInput,
   CodexLoginResult,
@@ -119,6 +127,7 @@ import type {
   FeedbackPreviewInput,
   DiagnosticReport,
   ProductionGraph,
+  ProjectProgress,
   ProductionImpact,
   ProductionImpactInput,
   GenerationRecord,
@@ -212,6 +221,8 @@ import type {
   Task,
   TaskInput,
   TaskRetryInput,
+  TaskWorklistCategory,
+  TaskWorklistResponse,
 } from "@dramaip/contracts/product";
 import type {
   AudienceKnowledgeState,
@@ -233,9 +244,35 @@ export type StudioClientOptions = RuntimeTransport;
 
 export interface StudioClient {
   runtime: { info(): Promise<RuntimeInfo> };
+  creation: {
+    merge(
+      id: string,
+    ): Promise<import("@dramaip/contracts/creation").CreationMerge>;
+    rebase(
+      id: string,
+      input: {
+        baseVersion: number;
+        choices: Record<string, "main" | "branch">;
+      },
+      key: string,
+    ): Promise<CreationWorkflow>;
+    start(input: CreationInput, key: string): Promise<CreationWorkflow>;
+    get(id: string): Promise<CreationWorkflow>;
+    list(
+      projectId: string,
+      targetId?: string,
+      cursor?: string,
+    ): Promise<{ items: CreationWorkflow[]; nextCursor?: string }>;
+    action(
+      id: string,
+      action: "cancel" | "retry" | "continue",
+      key: string,
+    ): Promise<CreationWorkflow>;
+  };
   projects: {
     list(): Promise<Project[]>;
     get(id: string): Promise<Project>;
+    progress(id: string, episodeIds?: string[]): Promise<ProjectProgress>;
     create(
       input: ProjectInput,
       idempotencyKey?: string,
@@ -376,9 +413,16 @@ export interface StudioClient {
   };
   tasks: {
     list(): Promise<Task[]>;
+    worklist(input: {
+      category: TaskWorklistCategory;
+      projectId?: string;
+      cursor?: string;
+      limit?: number;
+    }): Promise<TaskWorklistResponse>;
     create(input: TaskInput, idempotencyKey: string): Promise<Task>;
     cancel(id: string): Promise<Task>;
     retry(id: string, input: TaskRetryInput): Promise<Task>;
+    setAttention(id: string, status: "open" | "acknowledged"): Promise<Task>;
   };
   revisions: {
     create(
@@ -396,7 +440,12 @@ export interface StudioClient {
       id: string,
       input?: AgentRunInput,
       idempotencyKey?: string,
-    ): Promise<{ taskId: string; sessionId: string; runId: string }>;
+    ): Promise<{
+      taskId: string;
+      sessionId: string;
+      runId: string;
+      workflowId?: string;
+    }>;
     getRun(id: string): Promise<AgentRun>;
     listItems(id: string): Promise<AgentItem[]>;
     interrupt(id: string): Promise<AgentRun>;
@@ -428,6 +477,7 @@ export interface StudioClient {
     sendMessage(
       id: string,
       input: AssistantMessageInput,
+      key?: string,
     ): Promise<AssistantTurnStart>;
     remove(id: string): Promise<void>;
   };
@@ -576,10 +626,16 @@ export interface StudioClient {
     reveal(id: string): Promise<AgentExperiment>;
   };
   changePreviews: {
+    merge(id: string): Promise<ChapterPreviewMerge>;
     get(id: string): Promise<ChangePreview>;
     updateContent(
       id: string,
       input: ChangePreviewContentInput,
+    ): Promise<ChangePreview>;
+    rebase(
+      id: string,
+      input: ChangePreviewRebaseInput,
+      idempotencyKey: string,
     ): Promise<ChangePreview>;
     commit(id: string, idempotencyKey: string): Promise<ChangePreview>;
     discard(id: string, idempotencyKey: string): Promise<ChangePreview>;
@@ -643,7 +699,10 @@ export interface StudioClient {
   };
   localization: {
     adopt(id: string): Promise<DomainEntity>;
-    subtitles(id: string, format: "srt" | "vtt"): Promise<ExportDocument>;
+    subtitles(
+      id: string,
+      format: "srt" | "vtt" | "txt",
+    ): Promise<ExportDocument>;
   };
   delivery: { export(id: string): Promise<ExportDocument> };
   platformDelivery: {
@@ -855,6 +914,13 @@ export interface StudioClient {
     graph(projectId: string): Promise<ProductionGraph>;
     impact(input: ProductionImpactInput): Promise<ProductionImpact>;
   };
+  seasons: {
+    list(
+      projectId: string,
+      cursor?: string,
+      limit?: number,
+    ): Promise<SeasonPage>;
+  };
   generation: {
     list(projectId: string): Promise<GenerationRecord[]>;
     update(id: string, patch: GenerationRecordPatch): Promise<GenerationRecord>;
@@ -921,6 +987,7 @@ export interface StudioClient {
       input: CreativeIssueAcknowledgementInput,
     ): Promise<CreativeIssueAcknowledgement>;
   };
+  screenplays: { get(id: string): Promise<ScreenplayDocument> };
   resources: {
     list(
       domain: string,
@@ -1028,6 +1095,37 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
   const subscribe = createEventSubscription(options);
   return {
     runtime: { info: () => request("/api/v2/runtime") },
+    creation: {
+      merge: (id) =>
+        request(`/api/v2/workflows/creation/${encodeURIComponent(id)}/merge`),
+      rebase: (id, input, key) =>
+        request(`/api/v2/workflows/creation/${encodeURIComponent(id)}/rebase`, {
+          method: "POST",
+          headers: { "Idempotency-Key": key },
+          body: JSON.stringify(input),
+        }),
+      start: (input, key) =>
+        request("/api/v2/workflows/creation", {
+          method: "POST",
+          headers: { "Idempotency-Key": key },
+          body: JSON.stringify(input),
+        }),
+      get: (id) =>
+        request(`/api/v2/workflows/creation/${encodeURIComponent(id)}`),
+      list: (projectId, targetId, cursor) =>
+        request(
+          `/api/v2/workflows/creation?${new URLSearchParams({ projectId, ...(targetId ? { targetId } : {}), ...(cursor ? { cursor } : {}) })}`,
+        ),
+      action: (id, action, key) =>
+        request(
+          `/api/v2/workflows/creation/${encodeURIComponent(id)}/actions`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": key },
+            body: JSON.stringify({ action }),
+          },
+        ),
+    },
     host: {
       pickFiles: (options = {}) =>
         request("/api/v2/system/host/files/pick", {
@@ -1114,6 +1212,14 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     projects: {
       list: () => request("/api/v2/projects"),
       get: (id) => request(`/api/v2/projects/${id}`),
+      progress: (id, episodeIds) => {
+        const search = episodeIds?.length
+          ? `?episodeIds=${encodeURIComponent(episodeIds.join(","))}`
+          : "";
+        return request(
+          `/api/v2/projects/${encodeURIComponent(id)}/progress${search}`,
+        );
+      },
       create: (input, idempotencyKey) =>
         request("/api/v2/projects", {
           method: "POST",
@@ -1317,6 +1423,15 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     tasks: {
       list: () => request("/api/v2/tasks"),
+      worklist: (input) => {
+        const search = new URLSearchParams({
+          category: input.category,
+          limit: String(input.limit ?? 25),
+        });
+        if (input.projectId) search.set("projectId", input.projectId);
+        if (input.cursor) search.set("cursor", input.cursor);
+        return request(`/api/v2/task-worklist?${search}`);
+      },
       create: (input, idempotencyKey) =>
         request("/api/v2/tasks", {
           method: "POST",
@@ -1328,6 +1443,11 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(`/api/v2/tasks/${id}/retry`, {
           method: "POST",
           body: JSON.stringify(input),
+        }),
+      setAttention: (id, status) =>
+        request(`/api/v2/tasks/${encodeURIComponent(id)}/attention`, {
+          method: "POST",
+          body: JSON.stringify({ status }),
         }),
     },
     revisions: {
@@ -1419,10 +1539,14 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           `/api/v2/assistant-conversations/${encodeURIComponent(id)}/bind-project`,
           { method: "POST", body: JSON.stringify(input) },
         ),
-      sendMessage: (id, input) =>
+      sendMessage: (id, input, key = crypto.randomUUID()) =>
         request(
           `/api/v2/assistant-conversations/${encodeURIComponent(id)}/messages`,
-          { method: "POST", body: JSON.stringify(input) },
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+            headers: { "Idempotency-Key": key },
+          },
         ),
       remove: (id) =>
         request(`/api/v2/assistant-conversations/${encodeURIComponent(id)}`, {
@@ -1677,10 +1801,18 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         }),
     },
     changePreviews: {
+      merge: (id) =>
+        request(`/api/v2/change-previews/${encodeURIComponent(id)}/merge`),
       get: (id) => request(`/api/v2/change-previews/${encodeURIComponent(id)}`),
       updateContent: (id, input) =>
         request(`/api/v2/change-previews/${encodeURIComponent(id)}/content`, {
           method: "PUT",
+          body: JSON.stringify(input),
+        }),
+      rebase: (id, input, idempotencyKey) =>
+        request(`/api/v2/change-previews/${encodeURIComponent(id)}/rebase`, {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
         }),
       commit: (id, idempotencyKey) =>
@@ -2250,6 +2382,15 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           body: JSON.stringify(input),
         }),
     },
+    seasons: {
+      list: (projectId, cursor, limit = 40) => {
+        const search = new URLSearchParams({ limit: String(limit) });
+        if (cursor) search.set("cursor", cursor);
+        return request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/seasons?${search}`,
+        );
+      },
+    },
     generation: {
       list: (projectId) =>
         request(
@@ -2379,6 +2520,10 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "POST",
           body: JSON.stringify(input),
         }),
+    },
+    screenplays: {
+      get: (id) =>
+        request(`/api/v2/scripts/${encodeURIComponent(id)}/screenplay`),
     },
     resources: {
       list: (domain, projectId, parentId) =>

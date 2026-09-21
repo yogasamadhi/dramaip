@@ -176,6 +176,12 @@ const providerAction = new Set([
   "plan_video_generation",
   "plan_remote_render",
 ]);
+const reports = new Set([
+  "chapter_diagnostic",
+  "analyze_first_10_episodes",
+  "review_ai_drama_script",
+  "review_shot_prompt",
+]);
 const changePreview = new Set([
   ...chapter,
   ...adaptation,
@@ -231,7 +237,7 @@ export const AGENT_TASK_CATALOG: readonly AgentTaskDescriptor[] =
     promptVersion: "v3.1",
     writePolicy: providerAction.has(id)
       ? "provider-action-preview"
-      : changePreview.has(id)
+      : changePreview.has(id) && !reports.has(id)
         ? "change-preview"
         : "readonly",
     allowedTools:

@@ -1,5 +1,7 @@
 # DramaIP Java Server (JDK 21)
 
+This server provides optional cloud capabilities for the canonical [DramaIP product positioning](../../docs/product/POSITIONING.md), including identity, subscriptions, collaboration, review, operations, and cross-client APIs. It does not replace Desktop as the local authoritative creation environment or redefine the product as a cloud content generator.
+
 Maven reactor modules are `common`, `migration`, `gateway`, and seven independently deployable services in dependency order: `identity`, `notification`, `reporting`, `creation`, `quota`, `ai`, `billing`.
 
 Run all verification:

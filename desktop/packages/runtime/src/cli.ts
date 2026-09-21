@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ServerConnectionManager } from "@dramaip/server-connection";
@@ -65,19 +65,30 @@ const profilePath = resolve(
   `${options.profileName}.json`,
 );
 const runtime = await bootRuntime({
+  development:
+    process.env.DRAMAIP_RUNTIME_DEV === "1"
+      ? {
+          onRestart: (reason) => {
+            console.warn(`Restarting Core Runtime: ${reason.message}`);
+            setImmediate(
+              () => void runtime.stop().finally(() => process.exit(75)),
+            );
+          },
+        }
+      : undefined,
   databasePath: options.databasePath,
   profile: loadProfile(profilePath),
   accessToken: process.env.DRAMAIP_RUNTIME_TOKEN,
-  runtimeKind: "bun",
+  runtimeKind: "node",
   mode: options.profileName === "server" ? "server" : "headless",
   alpha3AgentCutover: {
     backupDirectory: resolve(dirname(options.databasePath), "backups"),
   },
   migrationWorker: {
-    runtimeKind: "bun",
+    runtimeKind: "node",
     executable: process.execPath,
     entry: fileURLToPath(
-      new URL("./migration-worker-process.ts", import.meta.url),
+      new URL("./migration-worker-process.js", import.meta.url),
     ),
   },
 });

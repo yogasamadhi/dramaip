@@ -1,0 +1,8 @@
+alertmanagerConfig: |
+  route:
+    receiver: validation-receiver
+    match:
+      notification_route: validation-route
+  receivers:
+    - name: validation-receiver
+notificationRoute: validation-route

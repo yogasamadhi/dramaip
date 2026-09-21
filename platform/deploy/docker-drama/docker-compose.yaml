@@ -93,11 +93,11 @@ services:
       MINIO_ROOT_PASSWORD: ${REVIEW_S3_SECRET_KEY:-dramaip-review-development-secret}
 
   # ─────────────────── 可观测性 ───────────────────
-  # 三大支柱：traces/metrics 经 OTLP 推送到 otel-collector，
-  # logs 走 stdout 由宿主 docker json-file 落盘、再由 Filebeat 采集。
+  # 三大支柱：metrics 由 Prometheus 拉取，traces 经 Alloy 写入 Tempo，
+  # logs 由 Alloy 从 Docker API 或宿主机 NDJSON 文件采集并写入 Loki。
   # 书写顺序≠启动顺序（启动由 depends_on 拓扑决定），这里按「排查优先级」排——
   # 接到告警后的典型动线：指标发现问题 → 链路定位服务 → 日志深挖到行。
-  # 故顺序为 指标(Prometheus) → 链路(Jaeger + otel-collector) → 日志(Elastic Stack)
+  # 故顺序为 指标(Prometheus) → 采集(Alloy) → 日志(Loki) / 链路(Tempo)
   # → 可视化前端(Grafana) 收尾。
 
   # ────── 指标 (Metrics)：拉模型抓取 + TSDB 存储（告警/排障第一站）──────
@@ -106,7 +106,7 @@ services:
     image: prom/prometheus:v3.11.3
     pull_policy: missing
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:${PROMETHEUS_HOST_PORT:-9090}:9090"
     volumes:
       - ${DRAMAIP_PROMETHEUS_CONFIG:-./prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -119,116 +119,58 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=15d
 
-  # ────── 链路追踪 (Tracing)：定位「哪个服务、哪一跳」出问题 ──────
-  # 数据流：Java 服务 → otel-collector（中转）→ jaeger（存储/UI）。
-  # otel-collector 横跨三支柱：traces 转发至 jaeger，metrics/logs 视
-  # otel-collector/config.yaml 可下发到 Prometheus 或其他观测后端。
-  otel-collector:
+  # ────── 采集与转发：OTLP traces + Docker/宿主机 logs ──────
+  alloy:
     profiles: [observability]
-    image: otel/opentelemetry-collector-contrib:0.155.0
+    image: grafana/alloy:v1.19.2
     pull_policy: missing
-    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
-    ports:
-      - "127.0.0.1:4317:4317"     # OTLP gRPC
-      - "127.0.0.1:4318:4318"     # OTLP HTTP
-    volumes:
-      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
-    depends_on:
-      - jaeger
-
-  jaeger:
-    profiles: [observability]
-    # v2 基于 OTel Collector；v1(all-in-one) 已于 2025-12-31 EOL。
-    # badger 落盘到 docker-data/jaeger（见 jaeger/config.yaml）。
-    image: jaegertracing/jaeger:2.17.0
-    pull_policy: missing
-    command: ["--config", "/jaeger/config.yaml"]
-    ports:
-      - "127.0.0.1:16686:16686"   # Jaeger UI（local development only）
-    volumes:
-      - ./jaeger/config.yaml:/jaeger/config.yaml:ro
-      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/jaeger:/badger
-
-  # ────── 日志 (Logging)：采集 → 存储/检索 → UI（深挖到「哪一行」）──────
-  # Filebeat tail Docker json-file，并经 Docker socket 注入容器元数据；registry 卷持久化
-  # 读取偏移，避免重启后重复采集。此配置仅用于本机开发，Elasticsearch 安全功能关闭。
-  filebeat:
-    profiles: [observability]
-    image: elastic/filebeat:9.4.2
-    pull_policy: missing
-    user: root
-    entrypoint: ["/bin/sh", "-ec"]
     command:
-      - |
-        curl -fsS -X PUT http://elasticsearch:9200/_index_template/dramaip-logs-java \
-          -H 'Content-Type: application/json' \
-          --data-binary @/usr/share/filebeat/dramaip-java-index-template.json >/dev/null
-        exec filebeat -e --strict.perms=false
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports:
+      - "127.0.0.1:${ALLOY_HOST_PORT:-12345}:12345"
+      - "127.0.0.1:${ALLOY_OTLP_GRPC_HOST_PORT:-4317}:4317"
+      - "127.0.0.1:${ALLOY_OTLP_HTTP_HOST_PORT:-4318}:4318"
+    environment:
+      DRAMAIP_HOST_LOG_GLOB: /var/log/dramaip/*.log
+      DRAMAIP_COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-docker-drama}
     volumes:
-      - ${DRAMAIP_FILEBEAT_CONFIG:-./filebeat/filebeat.yml}:/usr/share/filebeat/filebeat.yml:ro
-      - ./filebeat/dramaip-java-index-template.json:/usr/share/filebeat/dramaip-java-index-template.json:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/filebeat:/usr/share/filebeat/data
       - ${DRAMAIP_HOST_LOG_DIR:-../../server/target/local-dev}:/var/log/dramaip:ro
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/alloy:/var/lib/alloy/data
     depends_on:
-      elasticsearch:
-        condition: service_healthy
+      - loki
+      - tempo
 
-  # Elasticsearch 存储/检索。此 Compose 服务仅用于本机开发：安全功能关闭且所有
-  # 端口限制在 loopback。生产环境必须使用启用认证、TLS、索引生命周期和最小权限
-  # 角色的受管/受控 Elastic 集群（见 docs/LOCAL_DEVELOPMENT.md）。
-  elasticsearch:
+  # ────── 日志：单机 TSDB + filesystem，保留 30 天 ──────
+  loki:
     profiles: [observability]
-    image: elasticsearch:9.4.2
+    image: grafana/loki:3.7.3
     pull_policy: missing
-    environment:
-      cluster.name: dramaip-logs
-      node.name: drama-elasticsearch
-      discovery.type: single-node
-      bootstrap.memory_lock: "true"
-      xpack.security.enabled: "false"
-      xpack.security.http.ssl.enabled: "false"
-      # 256m keeps the full local Java + observability stack usable on the
-      # default 8GB Docker Desktop allocation. Override for larger data sets.
-      ES_JAVA_OPTS: "-Xms256m -Xmx256m -XX:MaxDirectMemorySize=128m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    # Leave headroom for Lucene off-heap segments while keeping the entire
-    # local platform below Docker Desktop's common 8GB allocation.
-    # The 256MB heap still needs native/Lucene/ML headroom. One GiB remains
-    # well below the prior unbounded footprint and is stable alongside the
-    # heap-bounded Java services on an 8GB Docker Desktop allocation.
-    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    command: ["-config.file=/etc/loki/config.yaml"]
     ports:
-      - "127.0.0.1:9200:9200"   # REST API（Kibana / Filebeat 连）
+      - "127.0.0.1:${LOKI_HOST_PORT:-3100}:3100"
     volumes:
-      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/elasticsearch:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/loki:/var/lib/loki
 
-  kibana:
+  # ────── 链路追踪：单机 filesystem/WAL，保留 30 天 ──────
+  tempo:
     profiles: [observability]
-    image: kibana:9.4.2
+    image: grafana/tempo:3.0.2
     pull_policy: missing
-    environment:
-      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
-      XPACK_SECURITY_ENABLED: "false"
+    command: ["-target=all", "-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/tempo:/var/lib/tempo
+      - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/tempo:/var/tempo
     ports:
-      - "127.0.0.1:5601:5601"
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
+      - "127.0.0.1:${TEMPO_HOST_PORT:-3200}:3200"
 
-  # ────── 可视化前端：统一大盘，provisioning 同时接 Prometheus(指标,默认) + Elasticsearch(日志) ──────
+  # ────── 可视化前端：统一接入 Prometheus、Loki、Tempo ──────
   grafana:
     profiles: [observability]
     image: grafana/grafana:12.3.8
@@ -237,16 +179,36 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-dramaip}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dramaip}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3000}:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ${DRAMAIP_COMPOSE_DATA_ROOT:-./docker-data}/grafana:/var/lib/grafana
     depends_on:
-      prometheus:
+      - prometheus
+      - loki
+      - tempo
+
+  # End-to-end gate only. A clean witness followed by a synthetic sensitive
+  # record lets the smoke test prove both Docker discovery and whole-entry
+  # filtering for the configured sensitive-field denylist. This service is
+  # never started by the normal observability profile and contains no real
+  # credential or user data.
+  observability-canary:
+    profiles: [observability-test]
+    image: node:24.18.0-alpine
+    pull_policy: missing
+    init: true
+    read_only: true
+    command: ["node", "/app/observability-log-canary.mjs"]
+    environment:
+      DRAMAIP_OBSERVABILITY_CANARY: ${DRAMAIP_OBSERVABILITY_CANARY:-dramaip-observability-synthetic-canary}
+      DRAMAIP_OBSERVABILITY_WITNESS: ${DRAMAIP_OBSERVABILITY_WITNESS:-dramaip-observability-log-pipeline-witness}
+    volumes:
+      - ../../scripts/observability-log-canary.mjs:/app/observability-log-canary.mjs:ro
+    depends_on:
+      alloy:
         condition: service_started
-      elasticsearch:
-        condition: service_healthy
 
   # ─────────────────── Java 服务端 ───────────────────
   # 镜像未指定 platform，Docker Desktop 会为 Windows/amd64、macOS/arm64
@@ -379,9 +341,8 @@ services:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: migration } }
     environment:
-      # Eight Spring Boot JVMs plus the local Elastic stack run together in
-      # observability mode. Bound each heap so Docker Desktop does not evict
-      # Elasticsearch on an 8GB development allocation.
+      # Eight Spring Boot JVMs plus the local observability stack run together.
+      # Bound each heap so Docker Desktop remains usable on an 8GB allocation.
       JAVA_OPTS: "${JAVA_OPTS:--Xms64m -Xmx256m -XX:+UseG1GC}"
       POSTGRES_DSN: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dramaip}
       POSTGRES_USER: ${POSTGRES_USER:-dramaip}
@@ -390,8 +351,11 @@ services:
       HISTORICAL_MIGRATIONS_APPLY_PENDING: ${HISTORICAL_MIGRATIONS_APPLY_PENDING:-true}
       DB_ROLE_BOOTSTRAP: ${DB_ROLE_BOOTSTRAP:-true}
       DRAMAIP_MIGRATION_ROLE_PASSWORD: ${DRAMAIP_MIGRATION_ROLE_PASSWORD:-dramaip}
+      DRAMAIP_DEPLOYMENT_ENVIRONMENT: ${DRAMAIP_DEPLOYMENT_ENVIRONMENT:-local}
+      DRAMAIP_SERVICE_VERSION: ${DRAMAIP_SERVICE_VERSION:-development}
+      DRAMAIP_RELEASE_NAME: ${COMPOSE_PROJECT_NAME:-docker-drama}
       OTEL_SERVICE_NAME: migration
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://alloy:4318}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_TRACES_EXPORTER: otlp
       OTEL_METRICS_EXPORTER: none
@@ -416,8 +380,11 @@ services:
       JWT_ENABLED: ${JWT_ENABLED:-true}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3009,http://127.0.0.1:3009,http://localhost:3010,http://127.0.0.1:3010}
       DRAMAIP_INTERNAL_TOKEN: ${DRAMAIP_INTERNAL_TOKEN:-change-me-internal}
+      DRAMAIP_DEPLOYMENT_ENVIRONMENT: ${DRAMAIP_DEPLOYMENT_ENVIRONMENT:-local}
+      DRAMAIP_SERVICE_VERSION: ${DRAMAIP_SERVICE_VERSION:-development}
+      DRAMAIP_RELEASE_NAME: ${COMPOSE_PROJECT_NAME:-docker-drama}
       OTEL_SERVICE_NAME: gateway
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://alloy:4318}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_TRACES_EXPORTER: otlp
       OTEL_METRICS_EXPORTER: none
@@ -463,7 +430,10 @@ services:
       REVIEW_S3_ACCESS_KEY: ${REVIEW_S3_ACCESS_KEY:-dramaip-review}
       REVIEW_S3_SECRET_KEY: ${REVIEW_S3_SECRET_KEY:-dramaip-review-development-secret}
       REVIEW_S3_ALLOW_INSECURE: ${REVIEW_S3_ALLOW_INSECURE:-true}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      DRAMAIP_DEPLOYMENT_ENVIRONMENT: ${DRAMAIP_DEPLOYMENT_ENVIRONMENT:-local}
+      DRAMAIP_SERVICE_VERSION: ${DRAMAIP_SERVICE_VERSION:-development}
+      DRAMAIP_RELEASE_NAME: ${COMPOSE_PROJECT_NAME:-docker-drama}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://alloy:4318}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_TRACES_EXPORTER: otlp
       OTEL_METRICS_EXPORTER: none
@@ -550,6 +520,9 @@ services:
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/billing } }
     environment:
       <<: *java-service-env
+      # Local Compose owns the simulated payment adapter; production Helm
+      # releases do not activate this profile.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       OTEL_SERVICE_NAME: billing
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
 

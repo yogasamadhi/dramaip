@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "otlp", "traces", "prometheus", "alerting", "embedded"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "otlp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["endpoint", "headersSecretName", "headersSecretKey"],
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "pattern": "^$|^https?://((\\[([0-9A-Fa-f]{0,4}:){1,7}[0-9A-Fa-f]{0,4}\\])|([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)(\\.([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?))*)(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?([/?#][^[:space:]]*)?$"
+            },
+            "headersSecretName": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+              "maxLength": 253
+            },
+            "headersSecretKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "maxLength": 253
+            }
+          }
+        },
+        "traces": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sampler", "samplerArg"],
+          "properties": {
+            "sampler": {
+              "type": "string",
+              "enum": [
+                "always_on",
+                "always_off",
+                "traceidratio",
+                "parentbased_always_on",
+                "parentbased_always_off",
+                "parentbased_traceidratio"
+              ]
+            },
+            "samplerArg": {
+              "type": "string",
+              "pattern": "^$|^(0(\\.[0-9]+)?|1(\\.0+)?)$"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "sampler": {
+                    "enum": ["traceidratio", "parentbased_traceidratio"]
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "samplerArg": { "minLength": 1 }
+                }
+              },
+              "else": {
+                "properties": {
+                  "samplerArg": { "maxLength": 0 }
+                }
+              }
+            }
+          ]
+        },
+        "prometheus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["scrape"],
+          "properties": {
+            "scrape": { "type": "boolean" }
+          }
+        },
+        "alerting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "notificationRoute", "prometheusRule"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "notificationRoute": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]*$"
+            },
+            "prometheusRule": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["labels"],
+              "properties": {
+                "labels": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "enabled": { "const": true } },
+                "required": ["enabled"]
+              },
+              "then": {
+                "properties": { "notificationRoute": { "minLength": 1 } }
+              }
+            }
+          ]
+        },
+        "embedded": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "retention",
+            "terminationGracePeriodSeconds",
+            "networkPolicy",
+            "grafana",
+            "images",
+            "storage",
+            "resources"
+          ],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "retention": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*(ms|s|m|h)$"
+            },
+            "terminationGracePeriodSeconds": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 300
+            },
+            "networkPolicy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            },
+            "grafana": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["existingAdminSecret", "adminUserKey", "adminPasswordKey"],
+              "properties": {
+                "existingAdminSecret": {
+                  "type": "string",
+                  "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+                  "maxLength": 253
+                },
+                "adminUserKey": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+$",
+                  "maxLength": 253
+                },
+                "adminPasswordKey": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+$",
+                  "maxLength": 253
+                }
+              }
+            },
+            "images": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["prometheus", "alloy", "loki", "tempo", "grafana"],
+              "properties": {
+                "prometheus": { "type": "string", "minLength": 1 },
+                "alloy": { "type": "string", "minLength": 1 },
+                "loki": { "type": "string", "minLength": 1 },
+                "tempo": { "type": "string", "minLength": 1 },
+                "grafana": { "type": "string", "minLength": 1 }
+              }
+            },
+            "storage": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["prometheus", "alloy", "loki", "tempo", "grafana"],
+              "properties": {
+                "prometheus": { "$ref": "#/definitions/storageQuantity" },
+                "alloy": { "$ref": "#/definitions/storageQuantity" },
+                "loki": { "$ref": "#/definitions/storageQuantity" },
+                "tempo": { "$ref": "#/definitions/storageQuantity" },
+                "grafana": { "$ref": "#/definitions/storageQuantity" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["prometheus", "alloy", "loki", "tempo", "grafana"],
+              "properties": {
+                "prometheus": { "$ref": "#/definitions/resources" },
+                "alloy": { "$ref": "#/definitions/resources" },
+                "loki": { "$ref": "#/definitions/resources" },
+                "tempo": { "$ref": "#/definitions/resources" },
+                "grafana": { "$ref": "#/definitions/resources" }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "embedded": {
+                "properties": { "enabled": { "const": true } },
+                "required": ["enabled"]
+              }
+            },
+            "required": ["embedded"]
+          },
+          "then": {
+            "properties": {
+              "otlp": {
+                "properties": { "headersSecretName": { "maxLength": 0 } }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": { "$ref": "#/definitions/resourcePair" },
+        "limits": { "$ref": "#/definitions/resourcePair" }
+      }
+    },
+    "resourcePair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": { "$ref": "#/definitions/cpuQuantity" },
+        "memory": { "$ref": "#/definitions/memoryQuantity" }
+      }
+    },
+    "cpuQuantity": {
+      "type": "string",
+      "pattern": "^([1-9][0-9]*m|[1-9][0-9]*(\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+    },
+    "memoryQuantity": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
+    },
+    "storageQuantity": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
+    }
+  }
+}

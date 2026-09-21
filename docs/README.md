@@ -2,10 +2,14 @@
 
 ## 品牌与产品
 
+- [当前产品定位（统一口径）](./product/POSITIONING.md)
+- [新定位优化执行计划](./PLAN.md)
 - [品牌与文案规范](./product/BRAND.md)
 - [项目定义](./product/PROJECT_BRIEF.md)
 - [产品路线图](./product/ROADMAP.md)
 - [创意竞争力系统](./product/CREATIVE_INTELLIGENCE.md)
+
+文档中的当前市场定位统一为“面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台”；长期愿景是“创作者拥有的本地优先 IP 操作系统”。历史路线、发布记录和实现审计保留当时事实，但旧口径不覆盖当前定位。
 
 ## Desktop 架构
 
@@ -13,7 +17,7 @@
 
 ```text
 DramaIP Target Architecture
-        │ defines product target and red lines
+        │ defines technical target and red lines
         ▼
 Desktop Current Architecture
         │ describes implemented facts

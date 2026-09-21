@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import {
   AUTOMATION_RESOURCE_SERVICE,
@@ -817,10 +818,12 @@ export function inspirationRoutes(
             "CONFLICT",
             "项目转换预览已过期。",
           );
-        const workspace = context.services.optional<WorkspaceProjectService>(
+        const workspace = optionalService<WorkspaceProjectService>(
+          context,
           WORKSPACE_PROJECT_SERVICE,
         );
-        const resources = context.services.optional<AutomationResourceService>(
+        const resources = optionalService<AutomationResourceService>(
+          context,
           AUTOMATION_RESOURCE_SERVICE,
         );
         if (!workspace || !resources)

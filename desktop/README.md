@@ -2,9 +2,11 @@
 
 > **尽作者之意，成万象之作**
 >
-> 本地优先的 AI IP 创作工作台
+> 面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台
 
-尽意 DramaIP Desktop 3.0 alpha 是采用 React 19、第一方插件 Runtime 和本地 HTTP 边界的 Electron 桌面应用。
+尽意 DramaIP Desktop 3.0 alpha 是本地权威创作与生产环境：支持从创意、小说或已有剧本进入，持续维护作者意图、故事母本、分集改编、叙事连续性、版本与来源，并把已采用内容推进为分镜、媒体试制和专业交付。小说创作是上游核心之一，不是所有项目的强制入口；图片、TTS 和视频 Provider 是可替换的生产出口。
+
+统一产品口径见[产品定位](../docs/product/POSITIONING.md)。Desktop 采用 React 19、第一方插件 Runtime 和本地 HTTP 边界。
 
 ```text
 React Renderer
@@ -40,11 +42,15 @@ bun run test:runtime
 
 ## 开发
 
-桌面工作区只接受 Bun 1.4.0。安装、开发、构建、测试、生成、打包以及无 Electron 的 Headless/Server Runtime 都不需要系统 Node；Electron 桌面模式的受管进程使用 Electron 内嵌 Node。
+桌面工作区只接受 Bun 1.4.0，用于依赖管理和构建。独立 Core Runtime、迁移 Worker 与 Runtime 测试使用 Node 24.18.0；Electron 桌面模式使用 Electron 内嵌 Node。开发期 Cordis HMR 由启动器显式传入 `--expose-internals`，启动时检查内部 Loader。
 
 ```bash
-bun install
-bun run-desktop.ts
+git submodule update --init
+bun run prepare:framework
+bun ci
+bun run build:framework
+bun run check:framework
+bun ../run-desktop.ts
 bun run typecheck
 bun run test
 bun run check:generated
@@ -53,6 +59,10 @@ bun run check:engine-locks
 bun run build
 ```
 
-无 Electron 的 Runtime 可用 `bun run serve --profile server --database /absolute/path/dramaip.db --port 8787` 启动。支持的 Profile 是 `studio`、`server`、`safe`、`test`、`e2e`，运行时固定为 Bun。
+无 Electron 的 Runtime 可用 `bun run serve --profile server --database /absolute/path/dramaip.db --port 8787` 启动。支持的 Profile 是 `studio`、`server`、`safe`、`test`、`e2e`，运行时固定为 Node 24.18.0，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。`bun run dev:runtime` 启用开发 HMR 和 supervisor。
 
-`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。Pi 0.84.2、Codex 0.147.0 与 LangGraph.js 1.4.9 的版本与完整性记录位于 `vendor/*.lock.json`；其中 Node 版本字段描述 Electron 内嵌 Node 的兼容要求，不是系统 Node 前置条件。Pi Runtime 由冻结源码直接打包，首次运行不下载依赖。LangGraph.js 依赖由 Bun 锁文件固定且不引入源码 submodule 或 `better-sqlite3`；OpenCode 与 DeepSeek Harness 的 vendor 内容仅用于架构参考与完整性检查。
+`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。Pi 0.84.2、Codex 0.147.0 与 LangGraph.js 1.4.9 的版本与完整性记录位于 `vendor/*.lock.json`；桌面受管进程还校验 Electron 内嵌 Node 版本。Pi Runtime 由冻结源码直接打包，首次运行不下载依赖。LangGraph.js 依赖由 Bun 锁文件固定且不引入源码 submodule 或 `better-sqlite3`；OpenCode 保持参考用途。DeepSeek Harness 的锁定快照提供九个框架包源码：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR 和 Logger Console。准备脚本只复制到忽略提交的 `build/dsh-framework/`，不修改 vendor。
+
+第一方插件通过六个 Bundle 的 `cordis.patch.yml` 和五个 Profile patch 交给 DSH Loader/Include/Group 装配。开发时业务模块局部重载，框架、公共元数据和迁移变化重启 Runtime。重载期间业务请求返回结构化 `RUNTIME_RELOADING`，待生命周期与贡献校验成功后原子发布新图；失败图不会发布。
+
+`build/runtime/` 是可独立复制的 ESM 发布目录，包含模块、配置、框架许可证及内部相对依赖链接。发布包关闭监听。运行 `bun run test:runtime:hmr` 和 `bun run test:runtime:hmr:electron` 验证脱离仓库后的加载与恢复。实施细节见 [Cordis 迁移说明](docs/engineering/DSH_CORDIS_MIGRATION.md)。

@@ -3,7 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
-import { openProjectTool } from "./project-tools";
+import {
+  openProductionStage,
+  openProjectCreation,
+  openProjectTool,
+} from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -31,13 +35,14 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await expect(
     page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
   ).toBeVisible();
+  await openProjectCreation(page);
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /直接写剧本/ }).click();
+  await page.getByRole("button", { name: /使用已有剧本/ }).click();
   await page
     .getByRole("textbox", { name: "项目名称" })
     .fill("P2 Gate 剧本入口");
   await page
-    .getByRole("textbox", { name: "首集剧本" })
+    .getByRole("textbox", { name: "已有剧本内容" })
     .fill("【雨夜门口】\n林晚：这封信不能让任何人看见。");
   await page.getByRole("button", { name: "创建单季短剧" }).click();
   await openProjectTool(page, "试制计划");
@@ -49,9 +54,7 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
     }),
   ).toBeChecked();
   await inputPilot.getByRole("button", { name: "建立试制计划" }).click();
-  await inputPilot
-    .getByRole("button", { name: "确认来源并创建试制分集" })
-    .click();
+  await inputPilot.getByRole("button", { name: "确认来源并生成首集" }).click();
   await expect(inputPilot).toContainText("当前阶段：采用试制剧本");
   await expect(
     inputPilot.getByRole("link", { name: "前往唯一待办" }),
@@ -68,7 +71,7 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await expect(fixturePilot.getByRole("checkbox").first()).toBeChecked();
   await fixturePilot.getByRole("button", { name: "建立试制计划" }).click();
   await fixturePilot
-    .getByRole("button", { name: "确认来源并创建试制分集" })
+    .getByRole("button", { name: "确认来源并生成首集" })
     .click();
   await expect(fixturePilot).toContainText("当前阶段：采用试制剧本");
 
@@ -92,11 +95,11 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
     .getByRole("combobox", { name: "分镜" })
     .selectOption({ label: "镜头 1：门缝中的雨夜" });
 
-  await page.getByRole("button", { name: "导演看板" }).click();
+  await openProductionStage(page, "导演看板");
   await expect(page.getByLabel("导演分镜看板")).toBeVisible();
   await expect(page.getByLabel("静帧预览：静帧已采用")).toBeVisible();
 
-  await page.getByRole("button", { name: "多轨时间线" }).click();
+  await openProductionStage(page, "多轨时间线");
   const timeline = page.getByLabel("多轨时间线编辑器");
   await expect(timeline).toBeVisible();
   for (const track of ["视频", "对白", "旁白", "配乐", "音效", "字幕"])
@@ -129,7 +132,7 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await page
     .getByRole("combobox", { name: "分集" })
     .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page.getByRole("button", { name: "审片", exact: true }).click();
+  await page.getByRole("button", { name: "预览与修订", exact: true }).click();
   await page.getByRole("button", { name: "创建离线审片包" }).click();
   await expect(
     page.getByText("已创建离线审片包记录；可以导出单文件审阅页分发给审片人。"),
@@ -150,6 +153,7 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await page.getByRole("button", { name: "保存审片决定" }).click();
   await expect(page.getByText("需要修改 · 本地审片人")).toBeVisible();
 
+  await page.getByText("导入已有修改稿", { exact: true }).click();
   await page
     .getByLabel("修订草案")
     .fill("【雨夜门口】\n林晚先观察门外的反应，再打开门。");

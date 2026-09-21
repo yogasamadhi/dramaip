@@ -19,19 +19,7 @@ export function startMigrationWorkerRuntime(): void {
     });
     return;
   }
-  if (!process.versions.bun)
-    throw new Error("Migration Worker requires a supervised parent process");
-  void readBunRequest().then(handle);
-}
-
-async function readBunRequest(): Promise<
-  MigrationWorkerRequest | MigrationWorkerIntegrityRequest
-> {
-  process.stdin.setEncoding("utf8");
-  let serialized = "";
-  for await (const chunk of process.stdin) serialized += chunk;
-  return JSON.parse(serialized) as
-    MigrationWorkerRequest | MigrationWorkerIntegrityRequest;
+  throw new Error("Migration Worker requires a supervised parent process");
 }
 
 async function handle(
@@ -67,11 +55,15 @@ async function handle(
   }
 }
 
-function assertRuntime(runtimeKind: "bun" | "electron-node"): void {
+function assertRuntime(runtimeKind: "node" | "bun" | "electron-node"): void {
   const versions = process.versions as Record<string, string | undefined>;
   const isBun = Boolean(versions.bun);
   const isElectronNode = Boolean(versions.electron) && !isBun;
-  if (runtimeKind === "bun" ? !isBun : !isElectronNode)
+  if (
+    isBun ||
+    runtimeKind === "bun" ||
+    (runtimeKind === "electron-node" ? !isElectronNode : isElectronNode)
+  )
     throw new Error(
       `Migration Worker runtime mismatch: expected ${runtimeKind}`,
     );

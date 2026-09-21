@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -42,7 +43,7 @@ test("已采用的音轨可以审查、选择采用为时间线 change set，并
   await page
     .getByRole("combobox", { name: "分镜" })
     .selectOption({ label: "镜头 1：门缝中的雨夜" });
-  await page.getByRole("button", { name: "音频制作", exact: true }).click();
+  await openProductionStage(page, "音频制作");
 
   for (const [kind, label, text] of [
     ["dialogue", "雨夜对白", "你还记得我吗？"],
@@ -67,7 +68,7 @@ test("已采用的音轨可以审查、选择采用为时间线 change set，并
     ).toBeVisible();
   }
 
-  await page.getByRole("button", { name: "多轨时间线" }).click();
+  await openProductionStage(page, "多轨时间线");
   const editor = page.getByLabel("多轨时间线编辑器");
   await expect(editor).toBeVisible();
   const assembly = editor.getByLabel("自动音频字幕编排");

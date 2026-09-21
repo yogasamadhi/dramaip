@@ -30,8 +30,17 @@ devInfra:
     image: docker.m.daocloud.io/library/redis:8-alpine
   rabbitmq:
     image: docker.m.daocloud.io/library/rabbitmq:4.3-management-alpine
-  otel:
-    image: docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.155.0
+
+observability:
+  enabled: true
+  embedded:
+    enabled: true
+    images:
+      prometheus: docker.m.daocloud.io/prom/prometheus:v3.11.3
+      alloy: docker.m.daocloud.io/grafana/alloy:v1.19.2
+      loki: docker.m.daocloud.io/grafana/loki:3.7.3
+      tempo: docker.m.daocloud.io/grafana/tempo:3.0.2
+      grafana: docker.m.daocloud.io/grafana/grafana:12.3.8
 
 review:
   objectStore:

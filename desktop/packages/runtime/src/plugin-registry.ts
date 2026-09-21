@@ -1,25 +1,13 @@
-import type { DatabaseMaintenanceService } from "@dramaip/contracts/foundation";
+import { existsSync } from "node:fs";
 import type {
   FirstPartyPlugin,
   PluginProfile,
 } from "@dramaip/plugin-api/internal";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
-import { validatePluginGraph } from "@dramaip/kernel";
-import { createAgentsPlugin } from "@dramaip/agents";
-import { automationPlugin } from "@dramaip/automation";
-import { creativeQualityPlugin } from "@dramaip/creative-quality";
-import { deliveryPlugin } from "@dramaip/delivery";
-import { createFoundationPlugin } from "@dramaip/foundation";
-import { createInsightsPlugin } from "@dramaip/insights";
-import { createKnowledgePlugin } from "@dramaip/knowledge";
-import { createMediaPlugin } from "@dramaip/media";
-import { createProductionPlugin } from "@dramaip/production";
-import { createReviewPlugin } from "@dramaip/review";
-import { createSystemPlugin } from "@dramaip/system";
+import type { DatabaseMaintenanceService } from "@dramaip/contracts/foundation";
 import type { ExtensionPlatform } from "@dramaip/system";
-import { createTimelinePlugin } from "@dramaip/timeline";
-import { createWorkspacePlugin } from "@dramaip/workspace";
-import { writingPlugin } from "@dramaip/writing";
+import { validatePluginGraph } from "@dramaip/kernel";
+import manifests from "./plugin-manifests.generated.json" with { type: "json" };
 
 export interface FirstPartyPluginRegistryOptions {
   readonly host?: DesktopHostClient;
@@ -27,35 +15,28 @@ export interface FirstPartyPluginRegistryOptions {
   readonly extensionPlatform?: ExtensionPlatform;
 }
 
-/**
- * The single authoritative first-party plugin registry. Runtime boot,
- * architecture catalogs and conformance tests all consume this exact graph.
- */
+/** Metadata is generated from plugin declarations. Implementations are loaded only by Cordis. */
 export function createFirstPartyPluginRegistry(
-  options: FirstPartyPluginRegistryOptions = {},
+  _options: FirstPartyPluginRegistryOptions = {},
 ): ReadonlyMap<string, FirstPartyPlugin> {
-  const plugins: FirstPartyPlugin[] = [
-    createFoundationPlugin(options.maintenance),
-    createSystemPlugin(options.host, options.extensionPlatform),
-    createWorkspacePlugin(options.host),
-    automationPlugin,
-    writingPlugin,
-    createKnowledgePlugin(options.host),
-    createAgentsPlugin(options.host),
-    creativeQualityPlugin,
-    createProductionPlugin(options.host),
-    createMediaPlugin(options.host),
-    createTimelinePlugin(options.host),
-    createReviewPlugin(options.host),
-    deliveryPlugin,
-    createInsightsPlugin(options.host),
-  ];
-  const registry = new Map(
-    plugins.map((plugin) => [plugin.descriptor.id, plugin]),
+  return new Map(
+    manifests.map((manifest) => {
+      const js = new URL(
+        `../../../plugins/${manifest.id}/src/index.js`,
+        import.meta.url,
+      );
+      const entry = existsSync(js)
+        ? js.href
+        : new URL(
+            `../../../plugins/${manifest.id}/src/index.ts`,
+            import.meta.url,
+          ).href;
+      return [
+        manifest.id,
+        { ...manifest, entry } as unknown as FirstPartyPlugin,
+      ];
+    }),
   );
-  if (registry.size !== plugins.length)
-    throw new Error("duplicate first-party plugin id");
-  return registry;
 }
 
 export function collectPluginMigrations(

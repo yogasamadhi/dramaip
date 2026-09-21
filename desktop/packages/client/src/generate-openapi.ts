@@ -16,7 +16,7 @@ export async function generateEffectiveOpenApi(check: boolean): Promise<void> {
     ),
     accessToken: "openapi-generation-token",
     mode: "headless",
-    runtimeKind: "bun",
+    runtimeKind: "node",
     backupDirectory: join(temporaryDirectory, "backups"),
   });
   try {

@@ -1,5 +1,11 @@
+import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createHash } from "node:crypto";
 import { createRoute } from "@hono/zod-openapi";
+import {
+  registerDeliveryCreation,
+  deliveryCreationMigration,
+} from "./creation.js";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   DELIVERY_RECORD_SERVICE,
@@ -17,7 +23,7 @@ import {
 } from "@dramaip/contracts/production";
 import {
   defineRouteContribution,
-  defineFirstPartyPlugin,
+  definePlugin,
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
@@ -547,15 +553,55 @@ function deliveryRoutes(
       const format = context.req.param("format");
       if (!value || value.kind !== "localization")
         return problem(context, 404, "NOT_FOUND", "未找到本地化版本。");
-      if (!(["srt", "vtt"] as const).includes(format as "srt" | "vtt"))
+      if (!["srt", "vtt", "txt"].includes(format))
         return problem(context, 400, "VALIDATION_ERROR", "字幕格式无效。");
       const text = String(
         value.value["字幕与译文"] ?? value.value["content"] ?? "",
       );
+      if (format === "txt")
+        return context.json({
+          fileName: `${String(value.value["title"] ?? "subtitle")}.draft.txt`,
+          mimeType: "text/plain",
+          content: `待对齐译文草稿（不含经过验证的时间信息）\n\n${text}\n`,
+        });
+      if (value.value["timingStatus"] === "unaligned")
+        return problem(
+          context,
+          409,
+          "TIMING_REQUIRED",
+          "译文草稿已保存，尚无可靠时间信息。请先对齐音轨，或导出译文草稿 TXT。",
+        );
+      const sections = text
+        .replace(/^WEBVTT[^\n]*\n+/u, "")
+        .trim()
+        .split(/\r?\n\s*\r?\n/u);
+      const cues = sections.map((section) =>
+        section.match(
+          /^(?:\d+\r?\n)?(\d{2}:\d{2}:\d{2}[,.]\d{3})\s+-->\s+(\d{2}:\d{2}:\d{2}[,.]\d{3})\r?\n([\s\S]+)$/u,
+        ),
+      );
+      const seconds = (time: string) => {
+        const parts = time.replace(",", ".").split(":").map(Number);
+        return parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
+      };
+      if (
+        !cues.length ||
+        cues.some((cue) => !cue || seconds(cue[2]!) <= seconds(cue[1]!))
+      )
+        return problem(
+          context,
+          409,
+          "TIMING_REQUIRED",
+          "没有可用的字幕时间段。请导入已对齐字幕，或先导出译文草稿 TXT。",
+        );
       const content =
-        format === "vtt"
-          ? `WEBVTT\n\n00:00:00.000 --> 00:00:05.000\n${text}\n`
-          : `1\n00:00:00,000 --> 00:00:05,000\n${text}\n`;
+        (format === "vtt" ? "WEBVTT\n\n" : "") +
+        cues
+          .map(
+            (cue, index) =>
+              `${format === "srt" ? `${index + 1}\n` : ""}${cue![1]!.replace(/[,.]/u, format === "srt" ? "," : ".")} --> ${cue![2]!.replace(/[,.]/u, format === "srt" ? "," : ".")}\n${cue![3]}\n`,
+          )
+          .join("\n");
       return context.json({
         fileName: `${String(value.value["title"] ?? "subtitle")}.${format}`,
         mimeType: format === "vtt" ? "text/vtt" : "application/x-subrip",
@@ -679,7 +725,8 @@ function deliveryRoutes(
   return routes;
 }
 
-export const deliveryPlugin = defineFirstPartyPlugin({
+export const deliveryPlugin = definePlugin({
+  inject: [PRODUCTION_RECORD_SERVICE.id, WORKSPACE_PROJECT_SERVICE.id],
   descriptor: {
     id: "delivery",
     version: "3.0.0-alpha.3",
@@ -710,6 +757,7 @@ export const deliveryPlugin = defineFirstPartyPlugin({
     },
   ],
   migrations: [
+    deliveryCreationMigration,
     {
       id: "delivery.0001.records",
       pluginId: "delivery",
@@ -733,16 +781,21 @@ export const deliveryPlugin = defineFirstPartyPlugin({
       `,
     },
   ],
-  activate: (context) => {
-    const production = context.services.optional<ProductionRecordService>(
+  apply: (context) => {
+    registerDeliveryCreation(context);
+    const production = optionalService<ProductionRecordService>(
+      context,
       PRODUCTION_RECORD_SERVICE,
     );
     if (!production) throw new Error("delivery requires production service");
     const records = makeService(context);
-    context.effect(`service:${DELIVERY_RECORD_SERVICE}`, () =>
-      context.services.provide(DELIVERY_RECORD_SERVICE, records),
+    context.effect(
+      () => provideService(context, DELIVERY_RECORD_SERVICE, records),
+      `service:${DELIVERY_RECORD_SERVICE}`,
     );
     for (const route of deliveryRoutes(records, production))
-      context.effect(`route:${route.id}`, () => context.http.register(route));
+      context.effect(() => context.http.register(route), `route:${route.id}`);
   },
 });
+
+export default deliveryPlugin;

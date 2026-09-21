@@ -1,4 +1,20 @@
-import { Context } from "@deepseek-ai/cordis";
+import {
+  Context,
+  Service,
+  type EffectMeta,
+  type Plugin,
+} from "@deepseek-ai/cordis";
+import Loader from "@deepseek-ai/cordis-plugin-loader";
+import Include, { type PatchOptions } from "@deepseek-ai/cordis-plugin-include";
+import Group from "@deepseek-ai/cordis-plugin-group";
+import Timer from "@deepseek-ai/cordis-plugin-timer";
+import ConsoleExporter from "@deepseek-ai/cordis-plugin-logger-console";
+import Hmr from "@deepseek-ai/cordis-plugin-hmr";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { serviceContracts } from "@dramaip/plugin-api/internal";
 import { createHash } from "node:crypto";
 import type { ServiceContract } from "@dramaip/contracts";
 import type {
@@ -7,7 +23,6 @@ import type {
   KernelDiagnostics,
   PluginContext,
   PluginProfile,
-  TypedServiceRegistry,
   UiRegistry,
 } from "@dramaip/plugin-api/internal";
 
@@ -76,6 +91,18 @@ function versionSatisfies(version: string, range: string): boolean {
 }
 
 export class ContributionRegistry implements UiRegistry {
+  private published?: readonly ReturnType<
+    UiRegistry["contributions"]
+  >[number][];
+  stage(): void {
+    this.published = [...this.entries.values()];
+  }
+  publish(): void {
+    this.published = undefined;
+  }
+  candidateContributions() {
+    return [...this.entries.values()];
+  }
   private readonly entries = new Map<
     string,
     ReturnType<UiRegistry["contributions"]>[number]
@@ -105,7 +132,7 @@ export class ContributionRegistry implements UiRegistry {
   }
 
   contributions(): readonly ReturnType<UiRegistry["contributions"]>[number][] {
-    return [...this.entries.values()];
+    return this.published ?? [...this.entries.values()];
   }
 }
 
@@ -120,243 +147,327 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-class ServiceRegistry {
-  private readonly values = new Map<
-    string,
-    {
-      owner: string;
-      major: number;
-      capabilities: readonly string[];
-      service: unknown;
-    }
-  >();
-
-  resolve<T>(contract: ServiceContract<T>): T | undefined {
-    const value = this.values.get(contract.id);
-    if (value && value.major !== contract.major)
-      throw new Error(`service major mismatch: ${contract.id}`);
-    return value?.service as T | undefined;
-  }
-
-  forOwner(owner: string): TypedServiceRegistry {
-    return {
-      provide: <T>(contract: ServiceContract<T>, service: T): Cleanup => {
-        if (contract.owner !== owner)
-          throw new Error(
-            `service ${contract.id} is owned by ${contract.owner}, not ${owner}`,
-          );
-        const existing = this.values.get(contract.id);
-        if (existing)
-          throw new Error(
-            `duplicate typed service: ${contract.id} (${existing.owner}, ${owner})`,
-          );
-        this.values.set(contract.id, {
-          owner,
-          major: contract.major,
-          capabilities: contract.capabilities,
-          service,
-        });
-        return () => {
-          if (this.values.get(contract.id)?.service === service)
-            this.values.delete(contract.id);
-        };
-      },
-      require: <T>(contract: ServiceContract<T>): T => {
-        const value = this.values.get(contract.id);
-        if (!value)
-          throw new Error(`required service is unavailable: ${contract.id}`);
-        if (value.major !== contract.major)
-          throw new Error(`service major mismatch: ${contract.id}`);
-        return value.service as T;
-      },
-      optional: <T>(contract: ServiceContract<T>): T | undefined => {
-        if (!contract.degradable)
-          throw new Error(
-            `service contract is not declared degradable: ${contract.id}`,
-          );
-        const value = this.values.get(contract.id);
-        if (value && value.major !== contract.major)
-          throw new Error(`service major mismatch: ${contract.id}`);
-        return value?.service as T | undefined;
-      },
-      entries: () =>
-        [...this.values].map(([id, value]) => ({
-          id,
-          owner: value.owner,
-          major: value.major,
-          capabilities: value.capabilities,
-        })),
-    };
-  }
-}
-
 export interface KernelOptions {
   graphRevision: string;
   profile: PluginProfile;
   plugins: ReadonlyMap<string, FirstPartyPlugin>;
-  context: Omit<
-    PluginContext,
-    | "pluginId"
-    | "profile"
-    | "ui"
-    | "services"
-    | "diagnostics"
-    | "capability"
-    | "effect"
-  >;
+  context: Pick<PluginContext, "http" | "domainEvents" | "uow">;
+  environment?: Record<string, unknown>;
   capabilities?: ReadonlyMap<string, unknown>;
+  hmr?: {
+    base: string;
+    root: string[];
+    run(task: () => Promise<boolean>): Promise<void>;
+    recompose?(): PluginProfile;
+    rejectConfig?(reason: Error): Promise<void>;
+    restart(reason: Error): void;
+  };
 }
 
 export interface RunningKernel {
   readonly pluginOrder: readonly string[];
-  readonly ui: UiRegistry;
+  readonly ui: ContributionRegistry;
+  readonly context: Context;
   service<T>(contract: ServiceContract<T>): T | undefined;
   diagnostics(): KernelDiagnostics;
+  settle(): Promise<void>;
+  setGraphRevision(revision: string): void;
   dispose(): Promise<void>;
 }
 
-interface TrackedEffect {
-  owner: string;
-  label: string;
-  pluginVersion: string;
-  graphRevision: string;
-  acquiredAt: string;
-  cleanup: Cleanup;
-}
-
-class EffectScope {
-  private readonly entries: TrackedEffect[] = [];
-
-  effect(
-    owner: string,
-    pluginVersion: string,
-    graphRevision: string,
-    cleanup: Cleanup,
-    label: string,
-  ): void {
-    if (!label.trim()) throw new Error("effect label is required");
-    this.entries.push({
-      owner,
-      pluginVersion,
-      graphRevision,
-      acquiredAt: new Date().toISOString(),
-      cleanup,
-      label,
-    });
-  }
-
-  diagnostics(): readonly Omit<TrackedEffect, "cleanup">[] {
-    return this.entries.map(
-      ({ owner, pluginVersion, graphRevision, acquiredAt, label }) => ({
-        owner,
-        pluginVersion,
-        graphRevision,
-        acquiredAt,
-        label,
-      }),
-    );
-  }
-
-  async disposeOwner(owner: string): Promise<void> {
-    for (let index = this.entries.length - 1; index >= 0; index -= 1) {
-      const effect = this.entries[index]!;
-      if (effect.owner !== owner) continue;
-      this.entries.splice(index, 1);
-      await effect.cleanup();
-    }
-  }
-
-  async disposeAll(): Promise<void> {
-    while (this.entries.length > 0) await this.entries.pop()!.cleanup();
+class RuntimeEnvironment extends Service {
+  constructor(ctx: Context, values: Record<string, unknown>) {
+    super(ctx, "pluginEnvironment");
+    Object.assign(this, values);
   }
 }
 
-/** Cordis remains the composition root but is intentionally hidden from plugin APIs. */
+/** Cordis owns every plugin fiber and resource. This layer validates product contracts. */
 export async function bootKernel(
   options: KernelOptions,
 ): Promise<RunningKernel> {
-  const cordis = new Context();
   const order = validatePluginGraph(options.plugins, options.profile);
+  let graphRevision = options.graphRevision;
+  const ctx = new Context();
   const ui = new ContributionRegistry();
-  const active: string[] = [];
-  const failed: string[] = [];
-  const effects = new EffectScope();
-  const services = new ServiceRegistry();
-  const capabilities = options.capabilities ?? new Map<string, unknown>();
+  const effectTimes = new WeakMap<EffectMeta, string>();
+  const directory = await mkdtemp(join(tmpdir(), "dramaip-plugin-graph-"));
+  const effects = (): KernelDiagnostics["effects"] => {
+    const entries: KernelDiagnostics["effects"][number][] = [];
+    const visit = (meta: EffectMeta, owner: string) => {
+      if (!effectTimes.has(meta))
+        effectTimes.set(meta, new Date().toISOString());
+      const acquiredAt = effectTimes.get(meta)!;
+      if (meta.label.startsWith("plugin:")) owner = meta.label.slice(7);
+      if (options.plugins.has(owner))
+        entries.push({
+          owner,
+          label: meta.label,
+          pluginVersion: options.plugins.get(owner)!.descriptor.version,
+          graphRevision,
+          acquiredAt,
+        });
+      for (const child of meta.children) visit(child, owner);
+    };
+    for (const runtime of ctx.registry.values())
+      for (const fiber of runtime.fibers) {
+        for (const meta of fiber.getEffects()) visit(meta, runtime.name ?? "");
+      }
+    return entries;
+  };
   const diagnostics = (): KernelDiagnostics => ({
     profile: options.profile.name,
     plugins: order.map((id) => ({
       id,
-      status: failed.includes(id) ? "failed" : "active",
+      status: ctx.get(`dramaip.plugin.${id}`) ? "active" : "failed",
     })),
     routes: options.context.http.routeIds,
     routeContributions: options.context.http.routeDetails,
     bridgeRouteCount: 0,
-    effects: effects.diagnostics(),
-    services: services.forOwner("kernel-diagnostics").entries(),
+    effects: effects(),
+    services: serviceContracts(ctx).map(
+      ({ id, owner, major, capabilities }) => ({
+        id,
+        owner,
+        major,
+        capabilities,
+      }),
+    ),
   });
-  try {
-    // Cordis owns the runtime composition lifetime while adapters keep its private Context out of plugins.
-    cordis.effect(() => () => undefined, "dramaip-kernel");
-    for (const id of order) {
-      const plugin = options.plugins.get(id)!;
-      const context: PluginContext = {
-        ...options.context,
-        pluginId: id,
-        profile: options.profile.name,
-        ui,
-        services: services.forOwner(id),
-        diagnostics,
-        capability: <T>(name: string): T | undefined =>
-          capabilities.get(name) as T | undefined,
-        effect: (
-          label: string,
-          acquire: () => Cleanup | Promise<Cleanup>,
-        ): void | Promise<void> => {
-          const acquired = acquire();
-          if (acquired instanceof Promise)
-            return acquired.then((cleanup) =>
-              effects.effect(
-                id,
-                plugin.descriptor.version,
-                options.graphRevision,
-                cleanup,
-                label,
-              ),
-            );
-          effects.effect(
-            id,
-            plugin.descriptor.version,
-            options.graphRevision,
-            acquired,
-            label,
+  const settle = async () => {
+    await ctx.loader.await();
+    // Child capabilities created with ctx.plugin() have no Loader entry.
+    // Join their native lifecycle too; an entry being ACTIVE alone is insufficient.
+    for (;;) {
+      const fibers = [...ctx.registry.values()].flatMap((runtime) => [
+        ...runtime.fibers,
+      ]);
+      await Promise.all(fibers.map((fiber) => fiber.await()));
+      if (
+        ![...ctx.registry.values()].some((runtime) =>
+          [...runtime.fibers].some((fiber) => fiber.inertia),
+        )
+      )
+        break;
+    }
+    for (const entry of ctx.loader.entries()) {
+      if (entry.disabled) continue;
+      // Cordis exports FiberState as a const enum; ACTIVE is 2 in the locked source.
+      if (!entry.fiber || entry.fiber.state !== 2) {
+        const missing = entry.fiber
+          ? Object.keys(entry.fiber.inject).filter(
+              (id) => entry.fiber!.ctx.get(id) === undefined,
+            )
+          : [];
+        throw new Error(
+          `Plugin ${entry.options.id} is not active; missing services: ${missing.join(", ")}`,
+        );
+      }
+    }
+    for (const runtime of ctx.registry.values())
+      for (const fiber of runtime.fibers) {
+        if (fiber.state === 4) continue; // Disposed fibers cannot contribute to the graph.
+        if (fiber.state !== 2) {
+          const missing = Object.keys(fiber.inject).filter(
+            (id) => fiber.ctx.get(id) === undefined,
           );
+          throw new Error(
+            `Plugin fiber ${runtime.name ?? fiber.uid} is not active; missing services: ${missing.join(", ")}`,
+          );
+        }
+      }
+    for (const id of order)
+      if (!ctx.get(`dramaip.plugin.${id}`))
+        throw new Error(`Plugin ${id} failed to activate`);
+  };
+  try {
+    for (const [name, value] of Object.entries({
+      ...options.context,
+      ui,
+      diagnostics,
+      profile: options.profile.name,
+      graphRevision: options.graphRevision,
+    }))
+      ctx.provide(name, value);
+    ctx.provide("serviceContractMetadata", new Map());
+    ctx.provide("validatePluginMetadata", (actual: FirstPartyPlugin) => {
+      const expected = options.plugins.get(actual.descriptor.id);
+      for (const key of ["descriptor", "migrations", "ui"] as const) {
+        if (
+          canonicalJson(actual[key] ?? []) !==
+          canonicalJson(expected?.[key] ?? [])
+        )
+          throw new Error(
+            `Plugin ${actual.descriptor.id} ${key} changed; full Runtime restart and migration preflight required`,
+          );
+      }
+    });
+    ctx.provide("capability", (name: string) =>
+      options.capabilities?.get(name),
+    );
+    await ctx.plugin(RuntimeEnvironment, options.environment ?? {});
+    await ctx.plugin(Loader);
+    if (options.hmr) await ctx.plugin(ConsoleExporter).await();
+    Object.assign(ctx.loader.builtins, {
+      include: Include,
+      group: Group,
+      timer: Timer,
+      hmr: Hmr,
+    });
+    const entries = options.profile.plugins.map(({ id, config }) => {
+      const plugin = options.plugins.get(id)!;
+      if (!plugin.entry) ctx.loader.builtins[id] = plugin as Plugin;
+      return { id, name: plugin.entry ?? `cordis:${id}`, config: config ?? {} };
+    });
+    // Resolve trusted package names without changing Include's patch semantics.
+    const resolveNames = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(resolveNames);
+      if (!value || typeof value !== "object") return value;
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [
+          key,
+          key === "name" &&
+          typeof entry === "string" &&
+          entry.startsWith("@dramaip/")
+            ? (options.plugins.get(entry.slice(9))?.entry ?? entry)
+            : resolveNames(entry),
+        ]),
+      );
+    };
+    let includeId: string;
+    if (options.profile.assembly) {
+      includeId = await ctx.loader.create({
+        name: "cordis:include",
+        config: {
+          path: options.profile.assembly.root,
+          patches: resolveNames(
+            options.profile.assembly.patches,
+          ) as PatchOptions[],
         },
+      });
+    } else {
+      const path = join(directory, "cordis.json");
+      await writeFile(path, JSON.stringify(entries));
+      includeId = await ctx.loader.create({
+        name: "cordis:include",
+        config: { path: pathToFileURL(path).href },
+      });
+    }
+    await settle();
+    if (options.hmr) {
+      const development = options.hmr;
+      if (!ctx.loader.internal)
+        throw new Error("Cordis HMR requires Node --expose-internals");
+      ctx.loader.exit = () =>
+        development.restart(
+          new Error("Runtime framework or public metadata changed"),
+        );
+      await ctx.loader.create({ name: "cordis:timer" });
+      await ctx.loader.create({
+        name: "cordis:hmr",
+        config: { base: development.base, root: development.root },
+      });
+      await ctx.loader.await();
+      // DSH does not expose an async before-reload hook. Interpose this pinned
+      // instance method to drain business requests BEFORE native disposal.
+      // The implementation and module/config recovery remain entirely DSH's.
+      const hmr = ctx.hmr as unknown as {
+        partialReload(): Promise<void>;
+        externals: Set<string>;
       };
-      const cleanup = await plugin.activate(context);
-      if (cleanup) context.effect("activation", () => cleanup);
-      if (plugin.ui?.length)
-        context.effect("ui-contributions", () => ui.register(plugin.ui!));
-      active.push(id);
+      // Contract submodules used only by plugins must still remain shared and
+      // require a full restart; DSH's CLI dependency tree alone cannot see them.
+      for (const url of ctx.loader.internal.loadCache.keys()) {
+        if (
+          ["packages/", "framework/"].some((path) =>
+            url.startsWith(new URL(path, development.base).href),
+          )
+        )
+          hmr.externals.add(url);
+      }
+      const partialReload = hmr.partialReload.bind(hmr);
+      let reloads = 0;
+      ctx.on("hmr/reload", (changed) => {
+        if (changed.size) reloads++;
+      });
+      hmr.partialReload = () =>
+        development.run(async () => {
+          const before = reloads;
+          await partialReload();
+          return before !== reloads;
+        });
+      ctx.effect(
+        () => () => {
+          hmr.partialReload = partialReload;
+        },
+        "hmr-batch-coordination",
+      );
+      const include = ctx.loader.resolve(includeId);
+      let lastConfig = JSON.stringify(options.profile.assembly?.patches);
+      for (const filename of options.profile.assembly?.files ?? []) {
+        await ctx.effect(
+          async () =>
+            ctx.hmr.registerConfig(filename, async () => {
+              let profile: PluginProfile | undefined;
+              try {
+                profile = development.recompose?.();
+              } catch (reason) {
+                const error =
+                  reason instanceof Error ? reason : new Error(String(reason));
+                await development.rejectConfig?.(error);
+                throw error;
+              }
+              if (!profile?.assembly) return;
+              validatePluginGraph(options.plugins, profile);
+              if (
+                JSON.stringify(profile.plugins.map((p) => p.id).sort()) !==
+                JSON.stringify([...order].sort())
+              ) {
+                development.restart(
+                  new Error(
+                    "Profile membership changed; migration preflight requires a full restart",
+                  ),
+                );
+                return;
+              }
+              const next = JSON.stringify(profile.assembly.patches);
+              if (next === lastConfig) return;
+              await development.run(async () => {
+                await include.update({
+                  config: {
+                    path: profile.assembly!.root,
+                    patches: resolveNames(profile.assembly!.patches),
+                  },
+                });
+                lastConfig = next;
+                return true;
+              });
+            }),
+          `hmr-config:${filename}`,
+        );
+      }
     }
   } catch (error) {
-    const activeId = order[active.length] ?? "unknown";
-    failed.push(activeId);
-    await effects.disposeOwner(activeId);
-    for (const id of active.reverse()) await effects.disposeOwner(id);
+    await ctx.fiber.dispose();
+    await rm(directory, { recursive: true, force: true });
     throw error;
   }
-  let disposed = false;
+  let disposed: Promise<void> | undefined;
   return {
     pluginOrder: order,
     ui,
-    service: <T>(contract: ServiceContract<T>) => services.resolve(contract),
+    context: ctx,
     diagnostics,
-    async dispose() {
-      if (disposed) return;
-      disposed = true;
-      for (const id of active.reverse()) await effects.disposeOwner(id);
-      await effects.disposeAll();
+    settle,
+    setGraphRevision: (revision) => {
+      graphRevision = revision;
     },
+    service: <T>(contract: ServiceContract<T>) =>
+      ctx.get(contract.id) as T | undefined,
+    dispose: () =>
+      (disposed ??= (async () => {
+        await ctx.fiber.dispose();
+        await rm(directory, { recursive: true, force: true });
+      })()),
   };
 }

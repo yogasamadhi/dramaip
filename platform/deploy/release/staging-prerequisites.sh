@@ -83,6 +83,16 @@ for resource in \
   kongplugins.configuration.konghq.com; do
   require_release_resource "$resource"
 done
+if [[ "$temporary_staging" == "1" ]]; then
+  # The disposable embedded observability stack creates only namespace-scoped
+  # discovery RBAC and a namespace NetworkPolicy.
+  for resource in \
+    roles.rbac.authorization.k8s.io \
+    rolebindings.rbac.authorization.k8s.io \
+    networkpolicies.networking.k8s.io; do
+    require_release_resource "$resource"
+  done
+fi
 for verb in get list watch; do
   require_permission "$verb" pods
 done

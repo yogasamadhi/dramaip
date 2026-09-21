@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { Context } from "@deepseek-ai/cordis";
 import { bootKernel, validatePluginGraph } from "./index.js";
 import { defineServiceContract } from "@dramaip/contracts";
 import {
-  defineFirstPartyPlugin,
+  definePlugin,
+  provideService,
+  requireService,
+  optionalService,
   type FirstPartyPlugin,
+  type PluginContext,
   type PluginProfile,
 } from "@dramaip/plugin-api/internal";
 
@@ -12,23 +17,24 @@ const profile: PluginProfile = {
   bundles: ["core"],
   plugins: [{ id: "foundation" }, { id: "system" }],
 };
-
-function plugin(id: string, requires: string[] = []): FirstPartyPlugin {
-  return defineFirstPartyPlugin({
+function plugin(
+  id: string,
+  requires: string[] = [],
+  apply: (ctx: PluginContext) => unknown = () => undefined,
+): FirstPartyPlugin {
+  return definePlugin({
     descriptor: {
       id,
       version: "3.0.0-alpha.3",
-      apiVersion: "2",
       requires,
       stability: "internal",
     },
-    activate: () => undefined,
+    apply,
   });
 }
-
 const context = {
   http: { routeIds: [], register: () => () => undefined },
-  events: {
+  domainEvents: {
     publishLive: () => undefined,
     subscribeLive: () => () => undefined,
     subscribeDomain: () => () => undefined,
@@ -43,202 +49,224 @@ const context = {
     onAfterCommit: () => () => undefined,
   },
 };
-
-describe("first-party kernel", () => {
-  it("orders dependencies before dependents", () => {
-    const plugins = new Map([
-      ["system", plugin("system", ["foundation"])],
-      ["foundation", plugin("foundation")],
-    ]);
-    expect(validatePluginGraph(plugins, profile)).toEqual([
-      "foundation",
-      "system",
-    ]);
+const start = (...plugins: FirstPartyPlugin[]) =>
+  bootKernel({
+    graphRevision: "test-graph",
+    profile,
+    plugins: new Map(plugins.map((p) => [p.descriptor.id, p])),
+    context,
   });
+const contract = defineServiceContract<{ value: number }>({
+  id: "foundation.test-service.v1",
+  owner: "foundation",
+  major: 1,
+  capabilities: ["read"],
+});
 
-  it("reports missing profile dependencies", () => {
-    const plugins = new Map([["system", plugin("system", ["foundation"])]]);
+describe("native Cordis kernel", () => {
+  it("validates missing and circular product dependencies before loading", () => {
     expect(() =>
-      validatePluginGraph(plugins, {
-        name: "test",
-        bundles: ["core"],
-        plugins: [{ id: "system" }],
-      }),
+      validatePluginGraph(
+        new Map([["system", plugin("system", ["foundation"])]]),
+        { ...profile, plugins: [{ id: "system" }] },
+      ),
     ).toThrow("requires foundation");
-  });
-
-  it("cleans active plugins in reverse order after activation failure", async () => {
-    const cleaned: string[] = [];
-    const plugins = new Map<string, FirstPartyPlugin>([
-      [
-        "foundation",
-        {
-          ...plugin("foundation"),
-          activate: () => () => {
-            cleaned.push("foundation");
-          },
-        },
-      ],
-      [
-        "system",
-        {
-          ...plugin("system", ["foundation"]),
-          activate: () => {
-            throw new Error("boom");
-          },
-        },
-      ],
-    ]);
-    await expect(
-      bootKernel({
-        graphRevision: "test-graph",
+    expect(() =>
+      validatePluginGraph(
+        new Map([
+          ["foundation", plugin("foundation", ["system"])],
+          ["system", plugin("system", ["foundation"])],
+        ]),
         profile,
-        plugins,
-        context,
-      }),
-    ).rejects.toThrow("boom");
-    expect(cleaned).toEqual(["foundation"]);
+      ),
+    ).toThrow("cycle");
   });
-
-  it("tracks effects by owner and disposes them in reverse registration order", async () => {
-    const cleaned: string[] = [];
-    const plugins = new Map<string, FirstPartyPlugin>([
-      [
-        "foundation",
-        {
-          ...plugin("foundation"),
-          activate: (pluginContext) => {
-            pluginContext.effect("first", () => () => {
-              cleaned.push("first");
-            });
-            pluginContext.effect("second", () => () => {
-              cleaned.push("second");
-            });
-          },
-        },
-      ],
-      ["system", plugin("system", ["foundation"])],
-    ]);
-    const kernel = await bootKernel({
-      graphRevision: "test-graph",
-      profile,
-      plugins,
-      context,
-    });
-    expect(kernel.diagnostics().effects).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ owner: "foundation", label: "first" }),
-        expect.objectContaining({ owner: "foundation", label: "second" }),
-      ]),
-    );
-    await kernel.dispose();
-    expect(cleaned).toEqual(["second", "first"]);
-  });
-
-  it("provides and requires an owner-scoped, major-versioned service", async () => {
-    const contract = defineServiceContract<{ value: number }>({
-      id: "foundation.test-service.v1",
-      owner: "foundation",
-      major: 1,
-      capabilities: ["read"],
-    });
+  it("delays a consumer until its asynchronous provider becomes available", async () => {
     let observed = 0;
-    const plugins = new Map<string, FirstPartyPlugin>([
-      [
-        "foundation",
-        {
-          ...plugin("foundation"),
-          activate: (pluginContext) => {
-            pluginContext.effect("service:test", () =>
-              pluginContext.services.provide(contract, { value: 42 }),
-            );
-          },
-        },
-      ],
-      [
-        "system",
-        {
-          ...plugin("system", ["foundation"]),
-          activate: (pluginContext) => {
-            observed = pluginContext.services.require(contract).value;
-          },
-        },
-      ],
-    ]);
-    const kernel = await bootKernel({
-      graphRevision: "test-graph",
-      profile,
-      plugins,
-      context,
-    });
-
+    const kernel = await start(
+      plugin("system", ["foundation"], (ctx) => {
+        observed = requireService(ctx, contract).value;
+      }),
+      plugin("foundation", [], async (ctx) => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        ctx.effect(
+          () => provideService(ctx, contract, { value: 42 }),
+          "service:test",
+        );
+      }),
+    );
     expect(observed).toBe(42);
+    expect(kernel.context).toBeInstanceOf(Context);
     expect(kernel.diagnostics().services).toEqual([
       expect.objectContaining({
-        id: "foundation.test-service.v1",
+        id: contract.id,
         owner: "foundation",
         major: 1,
-        capabilities: ["read"],
       }),
     ]);
     await kernel.dispose();
   });
-
-  it("fails activation when a required service is unavailable", async () => {
-    const contract = defineServiceContract<{ value: number }>({
-      id: "foundation.required-test.v1",
-      owner: "foundation",
-      major: 1,
-    });
-    const plugins = new Map<string, FirstPartyPlugin>([
-      ["foundation", plugin("foundation")],
-      [
-        "system",
-        {
-          ...plugin("system", ["foundation"]),
-          activate: (pluginContext) => {
-            pluginContext.services.require(contract);
-          },
-        },
-      ],
-    ]);
-
+  it("unwinds acquisition when an asynchronous plugin fails", async () => {
+    const cleaned: string[] = [];
     await expect(
-      bootKernel({
-        graphRevision: "test-graph",
-        profile,
-        plugins,
-        context,
-      }),
-    ).rejects.toThrow("required service is unavailable");
+      start(
+        plugin("foundation", [], () => () => {
+          cleaned.push("foundation");
+        }),
+        plugin("system", ["foundation"], async (ctx) => {
+          ctx.effect(
+            () => () => {
+              cleaned.push("system");
+            },
+            "partial-resource",
+          );
+          await Promise.resolve();
+          throw new Error("async activation failed");
+        }),
+      ),
+    ).rejects.toThrow("async activation failed");
+    expect(cleaned.sort()).toEqual(["foundation", "system"]);
   });
-
-  it("allows optional lookup only for a degradable contract", async () => {
-    const contract = defineServiceContract<{ value: number }>({
-      id: "foundation.strict-test.v1",
-      owner: "foundation",
-      major: 1,
-    });
-    const plugins = new Map<string, FirstPartyPlugin>([
-      [
-        "foundation",
-        {
-          ...plugin("foundation"),
-          activate: (pluginContext) => {
-            pluginContext.services.optional(contract);
+  it("tracks native effects and waits for explicitly ordered resource cleanup once", async () => {
+    const cleaned: string[] = [];
+    const kernel = await start(
+      plugin("foundation", [], (ctx) => {
+        ctx.effect(
+          () => async () => {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            cleaned.push("requests drained");
+            cleaned.push("database closed");
           },
-        },
-      ],
-      ["system", plugin("system", ["foundation"])],
-    ]);
-
-    await expect(
-      bootKernel({
-        graphRevision: "test-graph",
-        profile,
-        plugins,
-        context,
+          "ordered-resources",
+        );
       }),
-    ).rejects.toThrow("service contract is not declared degradable");
+      plugin("system", ["foundation"]),
+    );
+    expect(kernel.diagnostics().effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          owner: "foundation",
+          label: "ordered-resources",
+          graphRevision: "test-graph",
+        }),
+      ]),
+    );
+    await Promise.all([kernel.dispose(), kernel.dispose()]);
+    expect(cleaned).toEqual(["requests drained", "database closed"]);
+  });
+  it("continues native disposal after a cleanup exception", async () => {
+    let cleaned = false;
+    const kernel = await start(
+      plugin("foundation", [], (ctx) => {
+        ctx.effect(
+          () => () => {
+            cleaned = true;
+          },
+          "good",
+        );
+        ctx.effect(
+          () => () => {
+            throw new Error("cleanup failed");
+          },
+          "bad",
+        );
+      }),
+      plugin("system", ["foundation"]),
+    );
+    await kernel.dispose();
+    expect(cleaned).toBe(true);
+  });
+  it("rejects duplicate and wrong-owner service providers", async () => {
+    await expect(
+      start(
+        plugin("foundation", [], (ctx) => {
+          provideService(ctx, contract, { value: 1 });
+          provideService(ctx, contract, { value: 2 });
+        }),
+        plugin("system", ["foundation"]),
+      ),
+    ).rejects.toThrow(/duplicate|registered/i);
+    await expect(
+      start(
+        plugin("foundation"),
+        plugin("system", ["foundation"], (ctx) => {
+          provideService(ctx, contract, { value: 1 });
+        }),
+      ),
+    ).rejects.toThrow("owned by foundation");
+  });
+  it("fails when a required service is absent or a strict service is requested optionally", async () => {
+    await expect(
+      start(
+        plugin("foundation"),
+        plugin("system", ["foundation"], (ctx) => {
+          requireService(ctx, contract);
+        }),
+      ),
+    ).rejects.toThrow("required service is unavailable");
+    await expect(
+      start(
+        plugin("foundation", [], (ctx) => {
+          optionalService(ctx, contract);
+        }),
+        plugin("system", ["foundation"]),
+      ),
+    ).rejects.toThrow("not declared degradable");
+  });
+  it("rejects a settled pending fiber instead of publishing a partial graph", async () => {
+    const pending = definePlugin({
+      descriptor: {
+        id: "system",
+        version: "3.0.0",
+        stability: "internal",
+        requires: ["foundation"],
+      },
+      inject: ["missing.service"],
+      apply: () => undefined,
+    });
+    await expect(start(plugin("foundation"), pending)).rejects.toThrow(
+      /missing.service/,
+    );
+  });
+  it("rejects missing dependencies in child capabilities", async () => {
+    await expect(
+      start(
+        plugin("foundation", [], (ctx) => {
+          ctx.plugin({
+            name: "pending-child",
+            inject: ["child.missing"],
+            apply() {},
+          });
+        }),
+        plugin("system", ["foundation"]),
+      ),
+    ).rejects.toThrow("child.missing");
+  });
+  it("withdraws and restarts native service dependents", async () => {
+    const ctx = new Context();
+    let activated = 0;
+    let disposed = 0;
+    const consumer = ctx.plugin({
+      inject: ["number"],
+      apply: () => {
+        activated++;
+        return () => {
+          disposed++;
+        };
+      },
+    });
+    await consumer.await();
+    expect(activated).toBe(0);
+    const release = ctx.provide("number", 1);
+    await consumer.await();
+    expect(activated).toBe(1);
+    await release();
+    await consumer.await();
+    expect(disposed).toBe(1);
+    ctx.provide("number", 2);
+    await consumer.await();
+    expect(activated).toBe(2);
+    await ctx.fiber.dispose();
+    expect(disposed).toBe(2);
   });
 });

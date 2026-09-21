@@ -4,19 +4,83 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
-  - interval: 1m
+  - name: every DramaIP alert reaches firing state
+    interval: 1m
     input_series:
+      - series: 'up{job="alloy",instance="alloy:12345"}'
+        values: '0 0 0 0 0 0 0 0 0'
+      - series: 'dramaip_requests_total{service="gateway",outcome="error"}'
+        values: '0 2 4 6 8 10 12 14 16'
+      - series: 'dramaip_requests_total{service="gateway",outcome="success"}'
+        values: '0 18 36 54 72 90 108 126 144'
       - series: 'dramaip_business_events_total{service="billing",event="payment_confirmation",outcome="failed"}'
-        values: '0 1 1 1'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'dramaip_quota_reservations_total{service="quota",outcome="rejected"}'
+        values: '0 25 50 75 100 125 150 175 200'
       - series: 'dramaip_outbox_pending_events{service="billing"}'
-        values: '101 101 101 101 101 101 101'
+        values: '101 101 101 101 101 101 101 101 101'
+      - series: 'rabbitmq_queue_messages_ready{queue="dramaip.billing"}'
+        values: '1001 1001 1001 1001 1001 1001 1001 1001 1001'
+      - series: 'dramaip_db_connections{service="identity",state="in_use",job="java-services",instance="identity:8080"}'
+        values: '9 9 9 9 9 9 9 9 9'
+      - series: 'dramaip_db_max_open_connections{service="identity",job="java-services",instance="identity:8080"}'
+        values: '10 10 10 10 10 10 10 10 10'
+      - series: 'dramaip_provider_requests_total{service="ai",provider="test",outcome="failed"}'
+        values: '0 3 6 9 12 15 18 21 24'
+      - series: 'dramaip_provider_requests_total{service="ai",provider="test",outcome="succeeded"}'
+        values: '0 17 34 51 68 85 102 119 136'
       - series: 'dramaip_provider_request_duration_seconds_sum{service="ai",provider="test"}'
-        values: '0 16 32 48 64 80 96'
+        values: '0 20 40 60 80 100 120 140 160'
       - series: 'dramaip_provider_request_duration_seconds_count{service="ai",provider="test"}'
-        values: '0 1 2 3 4 5 6'
+        values: '0 1 2 3 4 5 6 7 8'
       - series: 'dramaip_provider_cost_alerts_total{service="ai",event="high_request_cost"}'
-        values: '0 1 1 1'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'dramaip_errors_total{service="identity",class="internal"}'
+        values: '0 12 24 36 48 60 72 84 96'
+      - series: 'otelcol_exporter_send_failed_spans_total{exporter="otlp/tempo"}'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'otelcol_exporter_queue_size{exporter="otlp/tempo"}'
+        values: '90 90 90 90 90 90 90 90 90'
+      - series: 'otelcol_exporter_queue_capacity{exporter="otlp/tempo"}'
+        values: '100 100 100 100 100 100 100 100 100'
+      - series: 'loki_write_dropped_entries_total{component_id="loki.write.local"}'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'loki_write_batch_retries_total{component_id="loki.write.local"}'
+        values: '0 12 24 36 48 60 72 84 96'
+      - series: 'loki_process_dropped_lines_total{component_id="loki.process.dramaip",reason="sensitive_content"}'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'loki_discarded_samples_total{tenant="single-tenant",reason="rate_limited"}'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'loki_ingester_wal_corruptions_total{instance="loki:3100"}'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'loki_ingester_wal_disk_usage_percent{instance="loki:3100"}'
+        values: '0.92 0.92 0.92 0.92 0.92 0.92 0.92 0.92 0.92'
+      - series: 'loki_ingester_wal_disk_full_failures_total{instance="loki:3100"}'
+        values: '0 1 2 3 4 5 6 7 8'
+      - series: 'tempo_discarded_spans_total{tenant="single-tenant",reason="trace_too_large"}'
+        values: '0 1 2 3 4 5 6 7 8'
     alert_rule_test:
+      - eval_time: 2m
+        alertname: DramaipTargetDown
+        exp_alerts:
+          - exp_labels:
+              area: platform
+              instance: alloy:12345
+              job: alloy
+              severity: critical
+            exp_annotations:
+              summary: DramaIP scrape target is down
+              runbook: docs/OBSERVABILITY.md#target-down
+      - eval_time: 7m
+        alertname: DramaipHighRequestErrorRate
+        exp_alerts:
+          - exp_labels:
+              area: api
+              service: gateway
+              severity: warning
+            exp_annotations:
+              summary: DramaIP request error rate exceeds 5%
+              runbook: docs/OBSERVABILITY.md#request-error-rate
       - eval_time: 2m
         alertname: DramaipPaymentConfirmationFailed
         exp_alerts:
@@ -30,6 +94,17 @@ tests:
               summary: A payment confirmation failed
               runbook: docs/OBSERVABILITY.md#payment-confirmation
       - eval_time: 6m
+        alertname: DramaipQuotaRejectionsHigh
+        exp_alerts:
+          - exp_labels:
+              area: quota
+              outcome: rejected
+              service: quota
+              severity: warning
+            exp_annotations:
+              summary: Quota reservation rejections are elevated
+              runbook: docs/OBSERVABILITY.md#quota-rejections
+      - eval_time: 6m
         alertname: DramaipOutboxBacklog
         exp_alerts:
           - exp_labels:
@@ -39,6 +114,37 @@ tests:
             exp_annotations:
               summary: Billing outbox backlog exceeds 100 events
               runbook: docs/OBSERVABILITY.md#outbox-backlog
+      - eval_time: 6m
+        alertname: DramaipRabbitMQQueueBacklog
+        exp_alerts:
+          - exp_labels:
+              area: messaging
+              queue: dramaip.billing
+              severity: warning
+            exp_annotations:
+              summary: RabbitMQ ready-message backlog exceeds 1000
+              runbook: docs/OBSERVABILITY.md#rabbitmq-backlog
+      - eval_time: 6m
+        alertname: DramaipDatabasePoolSaturated
+        exp_alerts:
+          - exp_labels:
+              area: database
+              service: identity
+              severity: warning
+            exp_annotations:
+              summary: DramaIP database pool utilization exceeds 80%
+              runbook: docs/OBSERVABILITY.md#database-pool
+      - eval_time: 6m
+        alertname: DramaipProviderFailureRate
+        exp_alerts:
+          - exp_labels:
+              area: ai
+              provider: test
+              service: ai
+              severity: warning
+            exp_annotations:
+              summary: AI Provider failure rate exceeds 10%
+              runbook: docs/OBSERVABILITY.md#provider-failure
       - eval_time: 6m
         alertname: DramaipProviderLatencyHigh
         exp_alerts:
@@ -61,3 +167,133 @@ tests:
             exp_annotations:
               summary: AI Provider cost guard emitted an alert
               runbook: docs/OBSERVABILITY.md#provider-cost
+      - eval_time: 6m
+        alertname: DramaipErrorAggregationHigh
+        exp_alerts:
+          - exp_labels:
+              area: errors
+              class: internal
+              service: identity
+              severity: warning
+            exp_annotations:
+              summary: Aggregated DramaIP errors exceed threshold
+              runbook: docs/OBSERVABILITY.md#error-aggregation
+      - eval_time: 2m
+        alertname: DramaipAlloyTraceExportFailures
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: critical
+            exp_annotations:
+              summary: Alloy failed to export traces to Tempo
+              runbook: docs/OBSERVABILITY.md#alloy-trace-export-failures
+      - eval_time: 6m
+        alertname: DramaipAlloyTraceQueueSaturated
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: warning
+            exp_annotations:
+              summary: Alloy trace exporter queue exceeds 80% capacity
+              runbook: docs/OBSERVABILITY.md#alloy-trace-queue
+      - eval_time: 2m
+        alertname: DramaipAlloyLogWriteDrops
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: critical
+            exp_annotations:
+              summary: Alloy permanently dropped log entries
+              runbook: docs/OBSERVABILITY.md#alloy-log-write-drops
+      - eval_time: 3m
+        alertname: DramaipAlloyLogWriteRetriesHigh
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: warning
+            exp_annotations:
+              summary: Alloy is repeatedly retrying Loki writes
+              runbook: docs/OBSERVABILITY.md#alloy-log-write-retries
+      - eval_time: 2m
+        alertname: DramaipSensitiveLogRejected
+        exp_alerts:
+          - exp_labels:
+              area: security
+              reason: sensitive_content
+              severity: warning
+            exp_annotations:
+              summary: Alloy rejected a log entry containing sensitive content
+              runbook: docs/OBSERVABILITY.md#sensitive-log-rejected
+      - eval_time: 2m
+        alertname: DramaipLokiDiscardingLogs
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              reason: rate_limited
+              severity: warning
+            exp_annotations:
+              summary: Loki discarded incoming log entries
+              runbook: docs/OBSERVABILITY.md#loki-discards
+      - eval_time: 2m
+        alertname: DramaipLokiWalCorruption
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: critical
+            exp_annotations:
+              summary: Loki detected WAL corruption
+              runbook: docs/OBSERVABILITY.md#loki-wal-corruption
+      - eval_time: 6m
+        alertname: DramaipLokiWalDiskPressure
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: warning
+            exp_annotations:
+              summary: Loki WAL filesystem usage exceeds 90%
+              runbook: docs/OBSERVABILITY.md#loki-wal-disk-pressure
+      - eval_time: 2m
+        alertname: DramaipLokiWalWriteFailures
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              severity: critical
+            exp_annotations:
+              summary: Loki rejected or failed WAL writes because the disk is full
+              runbook: docs/OBSERVABILITY.md#loki-wal-write-failures
+      - eval_time: 2m
+        alertname: DramaipTempoDiscardingSpans
+        exp_alerts:
+          - exp_labels:
+              area: observability
+              reason: trace_too_large
+              severity: warning
+            exp_annotations:
+              summary: Tempo discarded incoming spans
+              runbook: docs/OBSERVABILITY.md#tempo-discards
+
+  - name: thresholds do not fire at their safe boundary
+    interval: 1m
+    input_series:
+      - series: 'up{job="alloy",instance="alloy:12345"}'
+        values: '1 1 1 1 1 1 1'
+      - series: 'dramaip_db_connections{service="identity",state="in_use",job="java-services",instance="identity:8080"}'
+        values: '8 8 8 8 8 8 8'
+      - series: 'dramaip_db_max_open_connections{service="identity",job="java-services",instance="identity:8080"}'
+        values: '10 10 10 10 10 10 10'
+      - series: 'otelcol_exporter_queue_size{exporter="otlp/tempo"}'
+        values: '80 80 80 80 80 80 80'
+      - series: 'otelcol_exporter_queue_capacity{exporter="otlp/tempo"}'
+        values: '100 100 100 100 100 100 100'
+      - series: 'loki_ingester_wal_disk_usage_percent{instance="loki:3100"}'
+        values: '0.9 0.9 0.9 0.9 0.9 0.9 0.9'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: DramaipDatabasePoolSaturated
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: DramaipAlloyTraceQueueSaturated
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: DramaipLokiWalDiskPressure
+        exp_alerts: []

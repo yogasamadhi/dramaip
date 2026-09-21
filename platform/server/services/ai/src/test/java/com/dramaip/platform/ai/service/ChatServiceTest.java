@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import com.dramaip.platform.ai.AiProperties;
 import com.dramaip.platform.ai.client.QuotaClient;
 import com.dramaip.platform.common.observability.DramaipMetrics;
+import com.dramaip.platform.common.observability.DramaipTelemetry;
 import com.dramaip.platform.common.web.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
@@ -75,6 +76,7 @@ class ChatServiceTest {
                 new EmptyJdbcTemplate(),
                 new ObjectMapper(),
                 mock(DramaipMetrics.class),
+                new DramaipTelemetry("test", "test"),
                 "internal-token"
         );
     }

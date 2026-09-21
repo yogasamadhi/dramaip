@@ -1,0 +1,23 @@
+apiVersion: 1
+
+# Remove the retired datasource from persisted developer Grafana databases.
+deleteDatasources:
+  - name: Elasticsearch
+    orgId: 1
+
+datasources:
+  - name: DramaIP Loki
+    uid: dramaip-loki
+    version: 1
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: true
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"trace_id"\s*:\s*"([0-9a-fA-F]{32})"'
+          datasourceUid: dramaip-tempo
+          url: '${__value.raw}'
+          urlDisplayLabel: View trace

@@ -51,6 +51,8 @@ export const AgentContextEntrySchema = z.object({
     "selection",
     "story_bible",
     "writing_resource",
+    "production",
+    "knowledge",
   ]),
   sourceId: z.string().min(1),
   sourceVersion: z.number().int().nonnegative(),
@@ -134,7 +136,17 @@ export const AGENT_CONTEXT_SERVICE = defineServiceContract<AgentContextService>(
   },
 );
 
+export type AgentContextReference = Omit<
+  AgentContextEntry,
+  "mode" | "included" | "reason" | "estimatedTokens"
+>;
+
 export interface AgentContextService {
+  prepareCreation?(
+    input: AgentContextPreviewInput,
+    references: AgentContextReference[],
+  ): AgentContextSnapshot;
+  deriveCreation?(snapshotId: string, prompt: string): AgentContextSnapshot;
   createPreview(input: AgentContextPreviewInput): AgentContextPreview;
   updatePreview(
     id: string,

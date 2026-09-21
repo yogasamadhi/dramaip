@@ -118,6 +118,9 @@ export const KNOWLEDGE_RESEARCH_SERVICE =
     degradable: true,
   });
 export interface KnowledgeResearchService {
+  references?(
+    projectId: string,
+  ): import("./agent-context.js").AgentContextReference[];
   listTopics(
     projectId: string,
     options?: { cursor?: string; limit?: number; status?: string },

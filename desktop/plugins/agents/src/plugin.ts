@@ -1,3 +1,10 @@
+import { WRITING_RESOURCE_SERVICE } from "@dramaip/contracts/writing";
+import { WRITING_CHAPTER_SERVICE } from "@dramaip/contracts/writing";
+import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
+import { AUTOMATION_RESOURCE_SERVICE } from "@dramaip/contracts/automation";
+import { AUTOMATION_PREVIEW_SERVICE } from "@dramaip/contracts/automation";
+import { CREATIVE_KNOWLEDGE_SERVICE } from "@dramaip/contracts";
+import { provideService } from "@dramaip/plugin-api/internal";
 export { AGENT_TASK_CATALOG } from "./task-catalog.js";
 import {
   AGENT_CONTEXT_SERVICE,
@@ -6,7 +13,7 @@ import {
   type ConfiguredProviderService,
 } from "@dramaip/contracts";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
-import { defineFirstPartyPlugin } from "@dramaip/plugin-api/internal";
+import { definePlugin } from "@dramaip/plugin-api/internal";
 import { AGENTS_DESCRIPTOR, AGENTS_UI_CONTRIBUTIONS } from "./descriptor.js";
 import { evaluationRoutes } from "./experiments/routes.js";
 import { agentContextRoutes } from "./context/routes.js";
@@ -35,18 +42,27 @@ import {
 import { inspirationRoutes } from "./inspiration/routes.js";
 import { startInspirationMemoryWorker } from "./inspiration/worker.js";
 export function createAgentsPlugin(host?: DesktopHostClient) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
+    inject: [
+      AUTOMATION_PREVIEW_SERVICE.id,
+      AUTOMATION_RESOURCE_SERVICE.id,
+      CREATION_WORKFLOW_SERVICE.id,
+      CREATIVE_KNOWLEDGE_SERVICE.id,
+      WRITING_CHAPTER_SERVICE.id,
+      WRITING_RESOURCE_SERVICE.id,
+    ],
     descriptor: AGENTS_DESCRIPTOR,
     ui: AGENTS_UI_CONTRIBUTIONS,
     migrations: agentMigrations,
-    activate: async (context) => {
+    apply: async (context) => {
       const agentContext = createAgentContextStore(context);
-      if (context.services)
-        context.effect(`service:${AGENT_CONTEXT_SERVICE}`, () =>
-          context.services.provide(AGENT_CONTEXT_SERVICE, agentContext),
-        );
-      context.effect("worker:inspiration-memory", () =>
-        startInspirationMemoryWorker(context, host, agentContext),
+      context.effect(
+        () => provideService(context, AGENT_CONTEXT_SERVICE, agentContext),
+        `service:${AGENT_CONTEXT_SERVICE}`,
+      );
+      context.effect(
+        () => startInspirationMemoryWorker(context, host, agentContext),
+        "worker:inspiration-memory",
       );
       recoverAgentRuns(context, host);
       const providerService: ConfiguredProviderService = {
@@ -60,20 +76,20 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
           }
         },
       };
-      if (context.services)
-        context.effect(`service:${CONFIGURED_PROVIDER_SERVICE}`, () =>
-          context.services.provide(
-            CONFIGURED_PROVIDER_SERVICE,
-            providerService,
-          ),
-        );
-      if (context.services)
-        context.effect(`service:${AGENT_TASK_RUNNER_SERVICE}`, () =>
-          context.services.provide(
+      context.effect(
+        () =>
+          provideService(context, CONFIGURED_PROVIDER_SERVICE, providerService),
+        `service:${CONFIGURED_PROVIDER_SERVICE}`,
+      );
+      context.effect(
+        () =>
+          provideService(
+            context,
             AGENT_TASK_RUNNER_SERVICE,
             createAgentTaskRunner(context, host, agentContext),
           ),
-        );
+        `service:${AGENT_TASK_RUNNER_SERVICE}`,
+      );
       const assistantRoutes = assistantConversationRoutes(
         context,
         host,
@@ -99,8 +115,9 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
       ]) {
         const registered =
           "bind" in route ? materializeAgentRoute(route) : route;
-        context.effect(`route:${registered.id}`, () =>
-          context.http.register(registered),
+        context.effect(
+          () => context.http.register(registered),
+          `route:${registered.id}`,
         );
       }
       await restoreSavedAgentConfiguration(context, host, () =>

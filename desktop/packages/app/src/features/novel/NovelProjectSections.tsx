@@ -1,3 +1,4 @@
+import { CreationWorkbench } from "../creation-workbench";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { StudioClient } from "@dramaip/client";
@@ -293,7 +294,8 @@ export function NovelCharactersSection(props: {
       generator={{
         taskType: "generate_characters",
         title: "智能生成人物卡",
-        description: "根据项目设定一次生成主要人物，采用前可以逐张核对。",
+        description:
+          "根据项目设定一次生成主要人物，检查后以完整人物方案包审阅采用。",
         defaultInstruction: props.defaultInstruction,
       }}
     />
@@ -333,7 +335,7 @@ export function NovelOutlineSection(props: {
             domain: "outlines",
             title: "章节大纲",
             description:
-              "把全书大纲拆成可直接生成正文的章节目标、冲突、爽点、反转和结尾钩子。",
+              "AI 根据题材与全书规划提出章节任务、人物目标、节奏和事实约束。",
             itemName: "章节大纲",
             titleLabel: "章节大纲标题",
             fields: OUTLINE_FIELDS,
@@ -390,8 +392,7 @@ export function NovelOutlineSection(props: {
         generator={{
           taskType: configuration.taskType,
           title: configuration.generatorTitle,
-          description:
-            "沿用旧版 Prompt 与采用后落库策略，结果不会直接覆盖正式资料。",
+          description: "AI 提出完整规划并检查一致性，审阅采用后进入正式资料。",
           defaultInstruction: props.defaultInstruction,
         }}
       />
@@ -567,16 +568,35 @@ function NovelResourceSection(props: {
           className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
           onClick={() => open("new")}
         >
-          新建{props.itemName}
+          补充已有{props.itemName}
         </BareButton>
       </div>
       {props.generator && (
-        <NovelArtifactGenerator
-          client={props.client}
-          projectId={props.projectId}
-          {...props.generator}
-          onCommitted={load}
-        />
+        <>
+          <CreationWorkbench
+            projectId={props.projectId}
+            operation={
+              props.generator.taskType === "generate_characters"
+                ? "characters"
+                : props.generator.taskType === "generate_story_arc_outline"
+                  ? "story-arc"
+                  : props.generator.taskType === "generate_chapter_outline"
+                    ? "chapter-outline"
+                    : "book-outline"
+            }
+            defaultInstruction={props.generator.defaultInstruction}
+            onApplied={load}
+          />
+          <details className="mt-4 text-sm text-muted">
+            <summary className="cursor-pointer">旧方案与生成记录</summary>
+            <NovelArtifactGenerator
+              client={props.client}
+              projectId={props.projectId}
+              {...props.generator}
+              onCommitted={load}
+            />
+          </details>
+        </>
       )}
       {notice && (
         <p className="mt-4 rounded-lg bg-brand-soft p-3 text-sm text-brand">
@@ -629,7 +649,7 @@ function NovelResourceSection(props: {
         })}
         {!visibleItems.length && (
           <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-muted lg:col-span-2">
-            还没有{props.itemName}。可以手动新建，也可以使用上方智能生成。
+            还没有{props.itemName}。提出创作目标，AI 会生成可审阅的完整方案。
           </p>
         )}
       </div>
@@ -1082,6 +1102,8 @@ export function NovelArtifactGenerator(props: {
         id: started.taskId,
         kind: `agent.${props.taskType}`,
         status: "queued",
+        attentionStatus: "open",
+        resultStatus: "none",
         title: props.title,
         progress: 0,
         projectId: props.projectId,

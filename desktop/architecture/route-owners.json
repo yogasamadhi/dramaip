@@ -523,6 +523,18 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/change-previews/{id}/merge",
+    "operationId": "change-previews.merge",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/change-previews/{id}/rebase",
+    "operationId": "change-previews.rebase",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/chapter-memories",
     "operationId": "chapter-memories.list",
     "owner": "knowledge"
@@ -1914,6 +1926,12 @@
     "owner": "production"
   },
   {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/progress",
+    "operationId": "projects.progress",
+    "owner": "production"
+  },
+  {
     "method": "post",
     "path": "/api/v2/projects/{id}/restore",
     "operationId": "projects.restore",
@@ -3031,6 +3049,12 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/task-worklist",
+    "operationId": "tasks.worklist",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/tasks",
     "operationId": "tasks.list",
     "owner": "automation"
@@ -3039,6 +3063,12 @@
     "method": "post",
     "path": "/api/v2/tasks",
     "operationId": "tasks.create",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/tasks/{id}/attention",
+    "operationId": "tasks.setAttention",
     "owner": "automation"
   },
   {
@@ -3388,6 +3418,42 @@
     "path": "/api/v2/volumes/{id}",
     "operationId": "volumes.update",
     "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/workflows/creation",
+    "operationId": "creation.list",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/workflows/creation",
+    "operationId": "creation.start",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/workflows/creation/{id}",
+    "operationId": "creation.get",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/workflows/creation/{id}/actions",
+    "operationId": "creation.action",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/workflows/creation/{id}/merge",
+    "operationId": "creation.merge",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/workflows/creation/{id}/rebase",
+    "operationId": "creation.rebase",
+    "owner": "automation"
   },
   {
     "method": "post",

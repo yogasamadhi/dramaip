@@ -1,35 +1,53 @@
+import { provideService } from "@dramaip/plugin-api/internal";
 import { foundationMigrations } from "@dramaip/database";
 import {
   FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
   type DatabaseMaintenanceService,
 } from "@dramaip/contracts/foundation";
-import { defineFirstPartyPlugin } from "@dramaip/plugin-api/internal";
+import { definePlugin } from "@dramaip/plugin-api/internal";
 
 export function createFoundationPlugin(
   maintenance?: DatabaseMaintenanceService,
 ) {
-  return defineFirstPartyPlugin({
+  return definePlugin({
     descriptor: {
       id: "foundation",
       version: "3.0.0-alpha.3",
       apiVersion: "2",
       requires: [],
-      provides: maintenance ? [FOUNDATION_DATABASE_MAINTENANCE_SERVICE.id] : [],
+      provides: [FOUNDATION_DATABASE_MAINTENANCE_SERVICE.id],
       stability: "internal",
     },
     migrations: foundationMigrations,
-    activate: (context) => {
+    apply: (context) => {
       if (maintenance)
         context.effect(
-          `service:${FOUNDATION_DATABASE_MAINTENANCE_SERVICE}`,
           () =>
-            context.services.provide(
+            provideService(
+              context,
               FOUNDATION_DATABASE_MAINTENANCE_SERVICE,
               maintenance,
             ),
+          `service:${FOUNDATION_DATABASE_MAINTENANCE_SERVICE}`,
         );
     },
   });
 }
 
 export const foundationPlugin = createFoundationPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "foundation-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createFoundationPlugin(
+        ctx.pluginEnvironment.maintenance as Parameters<
+          typeof createFoundationPlugin
+        >[0],
+      ),
+      config,
+    );
+  },
+};

@@ -1,3 +1,5 @@
+import { mountTestPlugin } from "./plugin-test-fixture.js";
+import type { Context } from "@deepseek-ai/cordis";
 import { afterEach, describe, expect, it } from "vitest";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { applyMigrations, openDatabase } from "@dramaip/database";
@@ -10,6 +12,7 @@ import type {
   RouteContribution,
   UnitOfWork,
 } from "@dramaip/plugin-api/internal";
+import { recoverAvailableAgentRuns } from "../../../plugins/agents/src/runs/recovery.js";
 
 interface InstalledProviderRoutes {
   app: OpenAPIHono;
@@ -19,30 +22,26 @@ interface InstalledProviderRoutes {
   eventCount(): number;
 }
 
+// Provider-route unit tests isolate Agents from unrelated domain services.
+// Empty service stubs keep dependency availability explicit; these tests only
+// exercise provider routes, while workspace-writing covers the domain APIs.
+const agentDependencies = Object.fromEntries(
+  [
+    "automation.previews.v1",
+    "automation.resources.v1",
+    "automation.creation.v1",
+    "knowledge.creative-intelligence.v1",
+    "writing.chapters.v1",
+    "writing.resources.v1",
+  ].map((id) => [id, Object.freeze({})]),
+);
+
 const installed: InstalledProviderRoutes[] = [];
+const nativeContexts: Context[] = [];
 
-function isolatedServices() {
-  const values = new Map<string, unknown>();
-  return {
-    provide(contract: { id: string }, service: unknown) {
-      values.set(contract.id, service);
-      return () => values.delete(contract.id);
-    },
-    optional(contract: { id: string }) {
-      return values.get(contract.id);
-    },
-    require(contract: { id: string }) {
-      const service = values.get(contract.id);
-      if (!service) throw new Error(`missing test service: ${contract.id}`);
-      return service;
-    },
-    entries: () => [],
-  };
-}
-
-function installProviderRoutes(
+async function installProviderRoutes(
   host?: DesktopHostClient,
-): InstalledProviderRoutes {
+): Promise<InstalledProviderRoutes> {
   const database = openDatabase(":memory:");
   const plugin = createAgentsPlugin(host);
   applyMigrations(database.sqlite, [
@@ -51,29 +50,34 @@ function installProviderRoutes(
   ]);
   const routes: RouteContribution[] = [];
   const liveEvents: Array<{ type: string; payload: unknown }> = [];
-  plugin.activate({
-    http: {
-      register(route: RouteContribution) {
-        routes.push(route);
-        return () => undefined;
+  nativeContexts.push(
+    await mountTestPlugin(
+      plugin,
+      {
+        http: {
+          routeIds: [],
+          register(route: RouteContribution) {
+            routes.push(route);
+            return () => undefined;
+          },
+        },
+        uow: database.uow,
+        domainEvents: {
+          publishLive(input: { type: string; payload: unknown }) {
+            liveEvents.push(input);
+          },
+          subscribeLive: () => () => undefined,
+          subscribeDomain: () => () => undefined,
+          replay: () => [],
+          registerConsumer: () => () => undefined,
+          diagnostics: () => [],
+          retryConsumer: () => false,
+          dispose: () => undefined,
+        },
       },
-    },
-    uow: database.uow,
-    services: isolatedServices(),
-    events: {
-      publishLive(input: { type: string; payload: unknown }) {
-        liveEvents.push(input);
-      },
-      subscribeLive: () => () => undefined,
-      subscribeDomain: () => () => undefined,
-      replay: () => [],
-      registerConsumer: () => () => undefined,
-      diagnostics: () => [],
-      retryConsumer: () => false,
-      dispose: () => undefined,
-    },
-    effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
-  } as unknown as PluginContext);
+      agentDependencies,
+    ),
+  );
   const app = new OpenAPIHono();
   for (const route of routes) {
     const register = app.openapi as unknown as (
@@ -98,11 +102,72 @@ function installProviderRoutes(
   return fixture;
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (const ctx of nativeContexts.splice(0)) await ctx.fiber.dispose();
   while (installed.length > 0) installed.pop()!.close();
 });
 
 describe("agents provider configurations", () => {
+  it("does not recover a live run when another engine becomes ready, but recovers a restarted generation", async () => {
+    const fixture = await installProviderRoutes();
+    const now = new Date().toISOString();
+    fixture.uow.execute((tx) => {
+      tx.run(
+        `INSERT INTO agent_assistant_sessions(id, engine_session_id, engine_kind, surface, status, last_opened_at, created_at, updated_at)
+        VALUES ('live-session', 'pi-session', 'pi', 'chapter', 'running', ?, ?, ?)`,
+        now,
+        now,
+        now,
+      );
+      tx.run(
+        `INSERT INTO agent_assistant_runs(id, session_id, task_id, task_type, engine_kind, status, engine_run_id, engine_generation, created_at, updated_at)
+        VALUES ('live-run', 'live-session', 'task', 'expand', 'pi', 'running', 'pi-run', 7, ?, ?)`,
+        now,
+        now,
+      );
+    });
+    let generation = 7;
+    let recoveries = 0;
+    const host = {
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        configured: true,
+        generation,
+      }),
+      engineOperation: async () => {
+        recoveries++;
+        return { disposition: "missing" };
+      },
+    } as unknown as DesktopHostClient;
+    const context = { uow: fixture.uow } as PluginContext;
+    await recoverAvailableAgentRuns(context, host);
+    expect(recoveries).toBe(0);
+    expect(
+      fixture.uow.execute((tx) =>
+        tx.get<{ status: string }>(
+          "SELECT status FROM agent_assistant_runs WHERE id = 'live-run'",
+        ),
+      )?.status,
+    ).toBe("running");
+    generation = 8;
+    await recoverAvailableAgentRuns(context, host);
+    expect(recoveries).toBe(1);
+    expect(
+      fixture.uow.execute((tx) =>
+        tx.get<{ status: string }>(
+          "SELECT status FROM agent_assistant_runs WHERE id = 'live-run'",
+        ),
+      )?.status,
+    ).toBe("orphaned");
+    fixture.uow.execute((tx) =>
+      tx.run(
+        "UPDATE agent_assistant_runs SET status = 'recoverable', engine_generation = 8 WHERE id = 'live-run'",
+      ),
+    );
+    await recoverAvailableAgentRuns(context, host);
+    expect(recoveries).toBe(2);
+  });
   it("rejects a three-engine experiment before any write or model call when one engine is not ready", async () => {
     let engineOperations = 0;
     const host = {
@@ -117,7 +182,7 @@ describe("agents provider configurations", () => {
         throw new Error("preflight must not invoke an engine");
       },
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
 
     const response = await fixture.app.request(
       "http://runtime.test/api/v2/agent-experiments",
@@ -145,7 +210,7 @@ describe("agents provider configurations", () => {
     ).toBe(0);
   });
 
-  it("removes Grok Build from historical evaluations and compacts retained candidates", () => {
+  it("removes Grok Build from historical evaluations and compacts retained candidates", async () => {
     const database = openDatabase(":memory:");
     const plugin = createAgentsPlugin();
     const migrations = plugin.migrations ?? [];
@@ -219,12 +284,13 @@ describe("agents provider configurations", () => {
           .get("four-engine-evaluation"),
       ).toEqual({ preferred_candidate: "c" });
     } finally {
+      for (const ctx of nativeContexts.splice(0)) await ctx.fiber.dispose();
       database.close();
     }
   });
 
   it("keeps all three candidate engines, models and providers anonymous until review and reveal", async () => {
-    const fixture = installProviderRoutes();
+    const fixture = await installProviderRoutes();
     const evaluationId = "anonymous-three-engine";
     const now = new Date().toISOString();
     fixture.uow.execute((transaction) => {
@@ -327,7 +393,7 @@ describe("agents provider configurations", () => {
         throw new Error(`unexpected operation: ${operation}`);
       },
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
     const created = await fixture.app.request(
       "http://runtime.test/api/v2/agent-sessions",
       {
@@ -706,13 +772,16 @@ describe("agents provider configurations", () => {
       );
     });
     try {
-      await plugin.activate({
-        http: { register: () => () => undefined },
-        uow: database.uow,
-        services: isolatedServices(),
-        effect: ((_label, acquire) =>
-          void acquire()) as PluginContext["effect"],
-      } as unknown as PluginContext);
+      nativeContexts.push(
+        await mountTestPlugin(
+          plugin,
+          {
+            http: { routeIds: [], register: () => () => undefined },
+            uow: database.uow,
+          },
+          agentDependencies,
+        ),
+      );
       expect(receivedConfiguration).toMatchObject({
         providerId: "saved-provider",
         model: "deepseek-v4-flash",
@@ -720,12 +789,13 @@ describe("agents provider configurations", () => {
       });
       expect(receivedConfiguration).not.toHaveProperty("secret");
     } finally {
+      for (const ctx of nativeContexts.splice(0)) await ctx.fiber.dispose();
       database.close();
     }
   });
 
   it("persists only an opaque credential reference and honors optimistic locking", async () => {
-    const fixture = installProviderRoutes();
+    const fixture = await installProviderRoutes();
     const created = await fixture.app.request(
       "http://runtime.test/api/v2/providers",
       {
@@ -815,7 +885,7 @@ describe("agents provider configurations", () => {
         version: `${kind}-test-version`,
       }),
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
     const initialEngines = await fixture.app.request(
       "http://runtime.test/api/v2/agent-engines",
     );
@@ -908,7 +978,7 @@ describe("agents provider configurations", () => {
         configured: true,
       }),
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
     const created = await fixture.app.request(
       "http://runtime.test/api/v2/providers",
       {
@@ -984,7 +1054,7 @@ describe("agents provider configurations", () => {
         };
       },
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
     const configured = await fixture.app.request(
       "http://runtime.test/api/v2/providers",
       {
@@ -1202,7 +1272,7 @@ describe("agents provider configurations", () => {
         };
       },
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
 
     const forbidden = await fixture.app.request(
       "http://runtime.test/api/v2/assistant-conversations",
@@ -1413,7 +1483,7 @@ describe("agents provider configurations", () => {
         throw new Error("unexpected engine operation");
       },
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
     const configured = await fixture.app.request(
       "http://runtime.test/api/v2/providers",
       {
@@ -1486,12 +1556,16 @@ describe("agents provider configurations", () => {
         return { status: "authenticated" };
       },
     } as unknown as DesktopHostClient);
-    await restoredPlugin.activate({
-      http: { register: () => () => undefined },
-      uow: fixture.uow,
-      services: isolatedServices(),
-      effect: ((_label, acquire) => void acquire()) as PluginContext["effect"],
-    } as unknown as PluginContext);
+    nativeContexts.push(
+      await mountTestPlugin(
+        restoredPlugin,
+        {
+          http: { routeIds: [], register: () => () => undefined },
+          uow: fixture.uow,
+        },
+        agentDependencies,
+      ),
+    );
     expect(restoredLogins).toEqual([
       expect.objectContaining({
         mode: "custom_provider",
@@ -1530,7 +1604,7 @@ describe("agents provider configurations", () => {
         throw new Error("must not create an unauthenticated Codex session");
       },
     } as unknown as DesktopHostClient;
-    const fixture = installProviderRoutes(host);
+    const fixture = await installProviderRoutes(host);
 
     const response = await fixture.app.request(
       "http://runtime.test/api/v2/assistant-conversations",

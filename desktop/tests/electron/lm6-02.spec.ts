@@ -34,8 +34,8 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   await createSeriesProject(page, "LM6 驾驶舱项目");
   await openProjectTool(page, "项目驾驶舱");
   await expect(page.getByLabel("项目驾驶舱")).toBeVisible();
-  await expect(page.getByText("准备改编", { exact: true })).toBeVisible();
-  const actions = page.getByRole("link", { name: "创建改编方案" });
+  const actions = page.getByRole("link", { name: "继续 AI 创作" });
+  await expect(actions).toBeVisible();
   await expect(actions).toHaveCount(1);
 
   const projectId = /\/projects\/([^/?]+)/.exec(page.url())?.[1];
@@ -49,11 +49,17 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   const reviewStages = page.getByRole("navigation", {
     name: "审核交付阶段",
   });
-  for (const label of ["质量检查", "合规检查", "本地化", "审片", "交付"])
+  for (const label of [
+    "问题与阻塞",
+    "合规复检",
+    "预览与修订",
+    "字幕与本地化",
+    "导出与发布",
+  ])
     await expect(
       reviewStages.getByRole("button", { name: label }),
     ).toBeVisible();
-  await reviewStages.getByRole("button", { name: "交付" }).click();
+  await reviewStages.getByRole("button", { name: "导出与发布" }).click();
   await expect(
     page.getByRole("link", { name: "去改编工作区补齐" }),
   ).toBeVisible();
@@ -68,36 +74,25 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   await expect(page.getByText("请先创建或选择一个分集。")).toBeVisible();
 
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  const productionStages = page.getByRole("navigation", { name: "制作阶段" });
-  for (const label of [
-    "素材",
-    "资产中心",
-    "导演看板",
-    "版权声明",
-    "视觉资产",
-    "分镜静帧候选",
-    "图片生成",
-    "音频制作",
-    "视频制作",
-    "动态分镜",
-    "多轨时间线",
-    "成片渲染",
-  ])
+  const productionStages = page.getByRole("navigation", {
+    name: "制作工作分组",
+  });
+  for (const label of ["导演看板", "素材与角色", "音视频", "时间线与输出"])
     await expect(
       productionStages.getByRole("button", { name: label }),
     ).toBeVisible();
 
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
   await createSeriesProject(page, "LM6 第二项目");
   await expect(
     page.getByRole("button", { name: "当前项目：LM6 第二项目" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "当前项目：LM6 第二项目" }).click();
   await page.getByRole("menuitem", { name: /LM6 驾驶舱项目/ }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/produce\\?projectId=${projectId}$`),
+  );
 
-  await page.getByRole("button", { name: "更多", exact: true }).click();
-  await page.getByRole("menuitem", { name: "创作分析", exact: true }).click();
+  await page.getByRole("link", { name: "创作分析", exact: true }).click();
   await expect
     .poll(() =>
       new URL(page.url().replace("#/", "/")).searchParams.get("projectId"),
@@ -112,13 +107,8 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
       )
       .toBe(projectId);
   }
-  await page.getByRole("button", { name: "更多", exact: true }).click();
-  await page.getByRole("menuitem", { name: "任务", exact: true }).click();
-  await expect
-    .poll(() =>
-      new URL(page.url().replace("#/", "/")).searchParams.get("projectId"),
-    )
-    .toBe(projectId);
+  await page.getByRole("link", { name: "任务", exact: true }).click();
+  await expect(page.getByText("正在显示当前项目的任务。")).toBeVisible();
 
   await application.close();
   const executablePath = process.env.DRAMAIP_E2E_EXECUTABLE;

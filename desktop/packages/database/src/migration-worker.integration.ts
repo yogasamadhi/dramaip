@@ -7,8 +7,8 @@ import type { PluginMigration } from "@dramaip/plugin-api/internal";
 import { openDatabase } from "./index.js";
 import { runMigrationPlanInWorker } from "./migration-worker.js";
 
-if (process.versions.bun !== "1.4.0")
-  throw new Error("Migration Worker integration requires Bun 1.4.0");
+if (process.versions.node !== "24.18.0" || process.versions.bun)
+  throw new Error("Migration Worker integration requires Node 24.18.0");
 
 const directory = mkdtempSync(join(tmpdir(), "dramaip-worker-test-"));
 const databasePath = join(directory, "dramaip.db");
@@ -25,9 +25,10 @@ try {
     sql: "CREATE TABLE worker_test(value TEXT NOT NULL);",
   };
   const diagnostic = await runMigrationPlanInWorker({
-    runtimeKind: "bun",
+    runtimeKind: "node",
     executable: process.execPath,
     workerEntry,
+    execArgv: ["--import", "tsx"],
     databasePath,
     backupDirectory: join(directory, "backups"),
     migrations: [migration],
@@ -61,9 +62,10 @@ try {
   const stuckDatabasePath = join(directory, "stuck.db");
   await assert.rejects(
     runMigrationPlanInWorker({
-      runtimeKind: "bun",
+      runtimeKind: "node",
       executable: process.execPath,
       workerEntry,
+      execArgv: ["--import", "tsx"],
       databasePath: stuckDatabasePath,
       backupDirectory: join(directory, "backups"),
       migrations: [stuckMigration],
@@ -80,7 +82,7 @@ try {
         "SELECT 1 FROM plugin_migrations WHERE migration_id = 'worker-test.0002-timeout'",
       )
       .get(),
-    null,
+    undefined,
   );
   assert.equal(
     database.sqlite
@@ -88,10 +90,10 @@ try {
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'worker_timeout'",
       )
       .get(),
-    null,
+    undefined,
   );
   database.close();
-  console.log("Bun Migration Worker integration passed");
+  console.log("Node Migration Worker integration passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
 }

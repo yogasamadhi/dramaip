@@ -7,6 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
+import { openProjectCreation } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -52,7 +53,7 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     page.getByRole("heading", { name: "LM6 灵感项目" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
+  await openProjectCreation(page);
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 原著项目");
@@ -68,17 +69,20 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     page.getByRole("heading", { name: "LM6 原著项目" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "尽意项目首页" }).click();
+  await openProjectCreation(page);
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /直接写剧本/ }).click();
+  await page.getByRole("button", { name: /使用已有剧本/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 剧本项目");
   await page
-    .getByRole("textbox", { name: "首集剧本" })
+    .getByRole("textbox", { name: "已有剧本内容" })
     .fill("【雨夜·门口】\n林晚：你终于来了。");
   await page.getByRole("button", { name: "创建单季短剧" }).click();
   await expect(
     page.getByRole("heading", { name: "LM6 剧本项目" }),
   ).toBeVisible();
+  const directory = page.getByRole("button", { name: "章节目录", exact: true });
+  if ((await directory.getAttribute("aria-expanded")) !== "true")
+    await directory.click();
   await expect(
     page.getByText("第 1 集剧本草稿", { exact: true }),
   ).toBeVisible();

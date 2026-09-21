@@ -1,3 +1,4 @@
+import { optionalService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -512,7 +513,8 @@ export function sourceImportRoutes(
           );
           const preview = parseImportedDocument(file);
           const writing = parsed.data.projectId
-            ? context.services.optional<WritingChapterService>(
+            ? optionalService<WritingChapterService>(
+                context,
                 WRITING_CHAPTER_SERVICE,
               )
             : undefined;
@@ -627,7 +629,8 @@ export function sourceImportRoutes(
             "当前版本仅允许追加导入。",
           );
         if (input.data.preview.contentKind === "script") {
-          const production = context.services.optional<ProductionRecordService>(
+          const production = optionalService<ProductionRecordService>(
+            context,
             PRODUCTION_RECORD_SERVICE,
           );
           if (!production)
@@ -721,7 +724,8 @@ export function sourceImportRoutes(
             );
           }
         }
-        const writing = context.services.optional<WritingChapterService>(
+        const writing = optionalService<WritingChapterService>(
+          context,
           WRITING_CHAPTER_SERVICE,
         );
         if (!writing)
@@ -966,18 +970,22 @@ export function sourceImportRoutes(
         );
         if (!input.success || !row)
           return problem(requestContext, 404, "NOT_FOUND", "未找到导入候选。");
-        const writingResources =
-          context.services.optional<WritingResourceService>(
-            WRITING_RESOURCE_SERVICE,
-          );
-        const writing = context.services.optional<WritingChapterService>(
+        const writingResources = optionalService<WritingResourceService>(
+          context,
+          WRITING_RESOURCE_SERVICE,
+        );
+        const writing = optionalService<WritingChapterService>(
+          context,
           WRITING_CHAPTER_SERVICE,
         );
-        const production = context.services.optional<ProductionRecordService>(
+        const production = optionalService<ProductionRecordService>(
+          context,
           PRODUCTION_RECORD_SERVICE,
         );
-        const media =
-          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
+        const media = optionalService<MediaRecordService>(
+          context,
+          MEDIA_RECORD_SERVICE,
+        );
         if (!writingResources || !writing || !production || !media)
           return problem(
             requestContext,
@@ -1131,15 +1139,18 @@ export function sourceImportRoutes(
         );
         if (!row || row.status !== "applied")
           return problem(requestContext, 409, "CONFLICT", "当前候选不可撤销。");
-        const writingResources =
-          context.services.optional<WritingResourceService>(
-            WRITING_RESOURCE_SERVICE,
-          );
-        const production = context.services.optional<ProductionRecordService>(
+        const writingResources = optionalService<WritingResourceService>(
+          context,
+          WRITING_RESOURCE_SERVICE,
+        );
+        const production = optionalService<ProductionRecordService>(
+          context,
           PRODUCTION_RECORD_SERVICE,
         );
-        const media =
-          context.services.optional<MediaRecordService>(MEDIA_RECORD_SERVICE);
+        const media = optionalService<MediaRecordService>(
+          context,
+          MEDIA_RECORD_SERVICE,
+        );
         for (const adoption of JSON.parse(row.adoptions_json) as Array<
           Record<string, unknown>
         >) {

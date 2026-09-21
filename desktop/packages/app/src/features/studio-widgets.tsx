@@ -2089,7 +2089,10 @@ export function PluginResourceWorkspace(props: {
       setActionError(message(cause));
     }
   };
-  const exportSubtitles = async (item: DomainEntity, format: "srt" | "vtt") => {
+  const exportSubtitles = async (
+    item: DomainEntity,
+    format: "srt" | "vtt" | "txt",
+  ) => {
     setActionError(undefined);
     setActionNotice(undefined);
     try {
@@ -2503,6 +2506,12 @@ export function PluginResourceWorkspace(props: {
                         onClick={() => void exportSubtitles(item, "vtt")}
                       >
                         导出网页字幕
+                      </BareButton>
+                      <BareButton
+                        className="rounded-md border border-line px-2 py-1 text-xs text-muted"
+                        onClick={() => void exportSubtitles(item, "txt")}
+                      >
+                        导出译文草稿 TXT
                       </BareButton>
                     </>
                   )}
