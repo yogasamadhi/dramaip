@@ -94,16 +94,14 @@ const llmServer = createServer(async (request, response) => {
     body.model !== "deepseek-v4-flash" ||
     body.thinking?.type !== "disabled"
   ) {
-    response
-      .writeHead(400)
-      .end(
-        JSON.stringify({
-          error: {
-            message:
-              "Pi must explicitly disable DeepSeek V4 thinking when configured off",
-          },
-        }),
-      );
+    response.writeHead(400).end(
+      JSON.stringify({
+        error: {
+          message:
+            "Pi must explicitly disable DeepSeek V4 thinking when configured off",
+        },
+      }),
+    );
     return;
   }
   exposedToolNames = Array.isArray(body.tools)
@@ -176,6 +174,18 @@ try {
     throw new Error("Pi Runtime 泄漏了原始分析文本");
   if (!events.some((event) => event.type === "usage"))
     throw new Error("Pi Runtime 未产生用量事件");
+  const usageEvents = events.filter((event) => event.type === "usage");
+  if (
+    usageEvents.length !== 2 ||
+    usageEvents.some(
+      (event, index) =>
+        event.measurementScope !== "response-increment" ||
+        event.inputAccounting !== "excludes-cache" ||
+        event.inputTokens !== 7 ||
+        event.outputTokens !== [3, 5][index],
+    )
+  )
+    throw new Error("Pi Runtime 未逐响应保留引擎用量及缓存计量口径");
   if (
     !events.some(
       (event) => event.type === "tool" && event.status === "completed",

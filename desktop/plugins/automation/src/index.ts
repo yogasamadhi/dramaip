@@ -1,10 +1,15 @@
-import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import {
+  WORKSPACE_PROJECT_SERVICE,
+  type WorkspaceProjectService,
+} from "@dramaip/contracts/workspace";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
 import { createRoute } from "@hono/zod-openapi";
 import {
   RevisionInputSchema,
   RevisionPreviewSchema,
+  RevisionPreviewPageSchema,
+  RevisionPreviewSummarySchema,
   AUTOMATION_TASK_SERVICE,
   AUTOMATION_RESOURCE_SERVICE,
   TaskAttentionInputSchema,
@@ -229,12 +234,14 @@ const TASKS_WITH_RESULT_STATUS = `
     COALESCE(
       (SELECT provider.status
          FROM automation_provider_action_previews provider
-        WHERE provider.task_id = task.id
+        WHERE provider.project_id = task.project_id
+          AND (provider.task_id = task.id
            OR provider.id = json_extract(task.result_json, '$.providerActionPreviewId')
+           OR provider.id = json_extract(task.result_json, '$.providerActionPreview.id'))
         ORDER BY provider.created_at DESC LIMIT 1),
       (SELECT preview.status
          FROM automation_change_previews preview
-        WHERE preview.task_id = task.id
+        WHERE preview.task_id = task.id AND preview.project_id = task.project_id
         ORDER BY preview.created_at DESC LIMIT 1)
     ) AS result_status
   FROM automation_tasks task`;
@@ -244,15 +251,20 @@ function taskWithResultStatus(
   row: TaskRow,
 ): Task {
   const change = transaction.get<{ status: string }>(
-    "SELECT status FROM automation_change_previews WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+    "SELECT status FROM automation_change_previews WHERE task_id = ? AND project_id = ? ORDER BY created_at DESC LIMIT 1",
     row.id,
+    row.project_id,
   );
   const provider = transaction.get<{ status: string }>(
     `SELECT status FROM automation_provider_action_previews
-      WHERE task_id = ?
+      WHERE project_id = ?
+        AND (task_id = ?
          OR id = json_extract(?, '$.providerActionPreviewId')
+         OR id = json_extract(?, '$.providerActionPreview.id'))
       ORDER BY created_at DESC LIMIT 1`,
+    row.project_id,
     row.id,
+    row.result_json,
     row.result_json,
   );
   const value = task({
@@ -743,6 +755,89 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
   return [
     contribute(
       {
+        id: "automation:revision-previews-list",
+        pluginId: "automation",
+        method: "get",
+        path: "/api/v2/projects/{projectId}/revision-previews",
+        operationId: "revisions.list",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/projects/{projectId}/revision-previews",
+        operationId: "revisions.list",
+        params: z.object({ projectId: z.string().uuid() }),
+        query: z.object({
+          cursor: z.string().optional(),
+          limit: z.coerce.number().int().min(1).max(100).default(25),
+        }),
+        response: RevisionPreviewPageSchema,
+      }),
+      (request) => {
+        const projectId = request.req.param("projectId");
+        const projects = optionalService<WorkspaceProjectService>(
+          context,
+          WORKSPACE_PROJECT_SERVICE,
+        );
+        if (!projects?.get(projectId))
+          return problem(request, 404, "NOT_FOUND", "未找到项目。");
+        const writing = optionalService<WritingChapterService>(
+          context,
+          WRITING_CHAPTER_SERVICE,
+        );
+        if (!writing)
+          return problem(
+            request,
+            503,
+            "CAPABILITY_UNAVAILABLE",
+            "章节服务尚未就绪。",
+          );
+        const cursor = request.req.query("cursor");
+        const limit = Number(request.req.query("limit") ?? "25");
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+          return problem(request, 400, "VALIDATION_ERROR", "分页数量无效。");
+        const chapterVersions = new Map(
+          writing
+            .list(projectId)
+            .map((chapter) => [chapter.id, chapter.version]),
+        );
+        const chapters = new Set(chapterVersions.keys());
+        const records = context.uow
+          .execute((tx) =>
+            tx.all<RevisionRow>(
+              "SELECT * FROM automation_revision_previews ORDER BY created_at DESC, id DESC",
+            ),
+          )
+          .filter((row) => chapters.has(row.chapter_id));
+        const index = cursor
+          ? records.findIndex((row) => `${row.created_at}|${row.id}` === cursor)
+          : -1;
+        if (cursor && index < 0)
+          return problem(
+            request,
+            400,
+            "INVALID_CURSOR",
+            "分页游标无效或已失效。",
+          );
+        const selected = records.slice(index + 1, index + 1 + limit);
+        const last = selected.at(-1);
+        return request.json({
+          items: selected.map((row) =>
+            RevisionPreviewSummarySchema.parse({
+              ...revision(row),
+              ...(row.status === "pending" &&
+              chapterVersions.get(row.chapter_id) !== row.base_version
+                ? { status: "conflicted" }
+                : {}),
+            }),
+          ),
+          ...(last && index + 1 + selected.length < records.length
+            ? { nextCursor: `${last.created_at}|${last.id}` }
+            : {}),
+        });
+      },
+    ),
+    contribute(
+      {
         id: "automation:revisions-create",
         pluginId: "automation",
         method: "post",
@@ -900,7 +995,14 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
               "NOT_FOUND",
               "未找到修订预览。",
             );
-          if (current.status !== "pending")
+          // Discard remains available after a source conflict. A repeated
+          // discard is a read of the durable outcome, not another state write.
+          if (action === "discard" && current.status === "discarded")
+            return requestContext.json(revision(current));
+          if (
+            current.status !== "pending" &&
+            !(action === "discard" && current.status === "conflicted")
+          )
             return problem(requestContext, 409, "CONFLICT", "修订预览已处理。");
           if (action === "commit") {
             const writing = optionalService<WritingChapterService>(
@@ -930,12 +1032,16 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
               current.proposed_content,
             );
             if (replaced.state !== "updated") {
-              context.uow.execute((transaction) =>
+              context.uow.execute((transaction) => {
                 transaction.run(
                   "UPDATE automation_revision_previews SET status = 'conflicted' WHERE id = ?",
                   id,
-                ),
-              );
+                );
+                append(transaction, "revision", "conflicted", {
+                  id,
+                  status: "conflicted",
+                });
+              });
               return problem(
                 requestContext,
                 replaced.state === "missing" ? 404 : 409,
@@ -959,7 +1065,12 @@ function revisionRoutes(context: PluginContext): readonly RouteContribution[] {
                 id,
               )!,
             );
-            append(transaction, "revision", `${action}ted`, updated);
+            append(
+              transaction,
+              "revision",
+              action === "commit" ? "committed" : "discarded",
+              updated,
+            );
             return updated;
           });
           return requestContext.json(
@@ -1051,6 +1162,18 @@ export const automationPlugin = definePlugin({
     stability: "internal",
   },
   ui: [
+    {
+      id: "automation.route.pending",
+      pluginId: "automation",
+      kind: "route",
+      metadata: { path: "/pending", title: "待确认" },
+    },
+    {
+      id: "automation.navigation.pending",
+      pluginId: "automation",
+      kind: "navigation",
+      metadata: { section: "main", order: 25, label: "待确认", to: "/pending" },
+    },
     {
       id: "automation.route.tasks",
       pluginId: "automation",

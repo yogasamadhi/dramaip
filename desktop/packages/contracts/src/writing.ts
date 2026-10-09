@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { NarrativeContextRequestSchema } from "./narrative-context.js";
 import { AgentEngineKindSchema } from "./index.js";
 import { TaskSchema } from "./automation.js";
 import { CreativeQualityRecordSchema } from "./creative-quality.js";
 import { ProjectSchema } from "./workspace.js";
 import { defineServiceContract } from "./service-contract.js";
+export { canonicalImportRequestJSON } from "./import-recovery.js";
 
 export const ChapterSchema = z.object({
   id: z.string().uuid(),
@@ -74,6 +76,21 @@ export type Chapter = z.infer<typeof ChapterSchema>;
 export type ChapterInput = z.infer<typeof ChapterInputSchema>;
 export type ChapterPatch = z.infer<typeof ChapterPatchSchema>;
 
+// Facts recorded by Writing in the same transaction as Preview / Commit.
+// Saved text, workflow completion and imported drafts are not AI adoption.
+export const ChapterAdoptionSchema = z.object({
+  workflowId: z.string().uuid(),
+  chapterId: z.string().uuid(),
+  version: z.number().int().nonnegative(),
+  adoptedAt: z.string().datetime(),
+});
+export const ChapterAdoptionPageSchema = z.object({
+  items: z.array(ChapterAdoptionSchema),
+  nextCursor: z.string().optional(),
+});
+export type ChapterAdoption = z.infer<typeof ChapterAdoptionSchema>;
+export type ChapterAdoptionPage = z.infer<typeof ChapterAdoptionPageSchema>;
+
 export const WritingVolumeSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
@@ -99,6 +116,95 @@ export const WritingVolumePageSchema = z.object({
   nextCursor: z.string().optional(),
 });
 export type WritingVolume = z.infer<typeof WritingVolumeSchema>;
+
+// An explicit batch changes only these chapter memberships. Omitted chapters
+// remain untouched; null removes membership, never deletes a chapter or volume.
+export const WritingVolumeAssignmentInputSchema = z
+  .object({
+    chapters: z
+      .array(
+        z
+          .object({
+            chapterId: z.string().uuid(),
+            version: z.number().int().nonnegative(),
+            volumeId: z.string().uuid().nullable(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+    volumes: z
+      .array(
+        z
+          .object({
+            id: z.string().uuid(),
+            version: z.number().int().nonnegative(),
+          })
+          .strict(),
+      )
+      .max(2000),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      new Set(value.chapters.map((item) => item.chapterId)).size ===
+        value.chapters.length &&
+      new Set(value.volumes.map((item) => item.id)).size ===
+        value.volumes.length &&
+      new Set(
+        value.chapters.flatMap((item) =>
+          item.volumeId ? [item.volumeId] : [],
+        ),
+      ).size === value.volumes.length &&
+      value.volumes.every((volume) =>
+        value.chapters.some((item) => item.volumeId === volume.id),
+      ),
+  );
+export const WritingVolumeAssignmentReceiptSchema = z
+  .object({
+    id: z.string().uuid(),
+    projectId: z.string().uuid(),
+    input: WritingVolumeAssignmentInputSchema,
+    chapters: z
+      .array(
+        z
+          .object({
+            chapterId: z.string().uuid(),
+            version: z.number().int().nonnegative(),
+            volumeId: z.string().uuid().nullable(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+    committedAt: z.string().datetime(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.chapters.length === value.input.chapters.length &&
+      value.chapters.every((item, index) => {
+        const source = value.input.chapters[index];
+        return (
+          source &&
+          item.chapterId === source.chapterId &&
+          item.volumeId === source.volumeId &&
+          item.version === source.version + 1
+        );
+      }),
+  );
+export type WritingVolumeAssignmentInput = z.infer<
+  typeof WritingVolumeAssignmentInputSchema
+>;
+export type WritingVolumeAssignmentReceipt = z.infer<
+  typeof WritingVolumeAssignmentReceiptSchema
+>;
+export type WritingVolumeWriteResult<T> =
+  | { state: "committed"; value: T }
+  | {
+      state: "conflict";
+      code: "CONFLICT" | "IDEMPOTENCY_CONFLICT" | "INVALID_RECEIPT";
+    };
 
 export const CREATOR_CONTENT_KINDS = [
   "profile",
@@ -159,6 +265,15 @@ export const WRITING_VOLUME_SERVICE =
   });
 export interface WritingVolumeService {
   create(input: z.infer<typeof WritingVolumeInputSchema>): WritingVolume;
+  createOnce(
+    input: z.infer<typeof WritingVolumeInputSchema>,
+    key: string,
+  ): WritingVolumeWriteResult<WritingVolume>;
+  assignChapters(
+    projectId: string,
+    input: WritingVolumeAssignmentInput,
+    key: string,
+  ): WritingVolumeWriteResult<WritingVolumeAssignmentReceipt>;
   list(
     projectId: string,
     options?: { cursor?: string; limit?: number },
@@ -209,7 +324,68 @@ export type ChapterMutationResult =
   | { state: "missing" }
   | { state: "conflict"; current: Chapter };
 
+export const WritingImportBatchInputSchema = z
+  .object({
+    importId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    chapters: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string().min(1).max(500),
+            title: z.string().trim().min(1).max(160),
+            content: z.string(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      new Set(value.chapters.map((chapter) => chapter.sourceKey)).size ===
+      value.chapters.length,
+  );
+export const WritingImportBatchReceiptSchema = z
+  .object({
+    importId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    committedAt: z.string().datetime(),
+    chapters: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string().min(1).max(500),
+            chapterId: z.string().uuid(),
+            version: z.literal(0),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      new Set(value.chapters.map((chapter) => chapter.sourceKey)).size ===
+        value.chapters.length &&
+      new Set(value.chapters.map((chapter) => chapter.chapterId)).size ===
+        value.chapters.length,
+  );
+export type WritingImportBatchInput = z.infer<
+  typeof WritingImportBatchInputSchema
+>;
+export type WritingImportBatchReceipt = z.infer<
+  typeof WritingImportBatchReceiptSchema
+>;
+
 export interface WritingChapterService {
+  importBatch(
+    input: WritingImportBatchInput,
+  ):
+    | { state: "committed"; receipt: WritingImportBatchReceipt }
+    | { state: "conflict" };
   create(input: ChapterInput): Chapter;
   get(id: string): Chapter | undefined;
   list(projectId: string): readonly Chapter[];
@@ -250,7 +426,10 @@ export const ContinueChapterAgentRunInputSchema =
     prompt: true,
     wordGoal: true,
     baseVersion: true,
-  }).extend({ sourceChapterId: z.string().uuid() });
+  }).extend({
+    sourceChapterId: z.string().uuid(),
+    narrativeContextRequest: NarrativeContextRequestSchema.optional(),
+  });
 export const ContinueChapterAgentRunStartSchema = z.object({
   chapter: ChapterSchema,
   run: ChapterAgentRunStartSchema,

@@ -5,7 +5,6 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -16,7 +15,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-
     "baseUrl": ".",
     "paths": {
       "@dramaip/ui": ["./packages/app/src/main.tsx"],
@@ -24,6 +22,7 @@
       "@dramaip/agent-host-adapters": ["./packages/ai/src/index.ts"],
       "@dramaip/contracts": ["./packages/contracts/src/index.ts"],
       "@dramaip/contracts/product": ["./packages/contracts/src/product.ts"],
+      "@dramaip/contracts/creation": ["./packages/contracts/src/creation.ts"],
       "@dramaip/contracts/automation": [
         "./packages/contracts/src/automation.ts"
       ],
@@ -39,6 +38,9 @@
       ],
       "@dramaip/contracts/review": ["./packages/contracts/src/review.ts"],
       "@dramaip/contracts/timeline": ["./packages/contracts/src/timeline.ts"],
+      "@dramaip/contracts/timeline-copy": [
+        "./packages/contracts/src/timeline-copy.ts"
+      ],
       "@dramaip/contracts/workspace": ["./packages/contracts/src/workspace.ts"],
       "@dramaip/contracts/writing": ["./packages/contracts/src/writing.ts"],
       "@dramaip/agent-runtime": ["./packages/agent-runtime/src/index.ts"],
@@ -62,7 +64,10 @@
       "@dramaip/client": ["./packages/client/src/index.ts"],
       "@dramaip/desktop-host": ["./packages/desktop-host/src/index.ts"],
       "@dramaip/ui-runtime": ["./packages/ui-runtime/src/index.ts"],
-      "@dramaip/ui-shared/*": ["./packages/ui/src/*"]
+      "@dramaip/ui-shared/*": ["./packages/ui/src/*"],
+      "@dramaip/contracts/creation-project-lineage": [
+        "./packages/contracts/src/creation-project-lineage.ts"
+      ]
     }
   }
 }

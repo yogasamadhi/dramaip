@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
-import { bootKernel, validatePluginGraph } from "./index.js";
+import {
+  bootKernel,
+  validatePluginGraph,
+  type RunningKernel,
+} from "./index.js";
 import { defineServiceContract } from "@dramaip/contracts";
 import {
   definePlugin,
@@ -64,6 +68,37 @@ const contract = defineServiceContract<{ value: number }>({
 });
 
 describe("native Cordis kernel", () => {
+  it("identifies actual initial configuration canonically without exposing its values", async () => {
+    const plugins = new Map([
+      ["foundation", plugin("foundation")],
+      ["system", plugin("system", ["foundation"])],
+    ]);
+    const kernels: RunningKernel[] = [];
+    try {
+      for (const config of [
+        { first: 1, second: 2 },
+        { second: 2, first: 1 },
+      ]) {
+        kernels.push(
+          await bootKernel({
+            graphRevision: "test-graph",
+            profile: {
+              ...profile,
+              plugins: [{ id: "foundation" }, { id: "system", config }],
+            },
+            plugins,
+            context,
+          }),
+        );
+      }
+      expect(kernels[0]!.configurationFingerprint()).toMatch(/^[a-f0-9]{64}$/u);
+      expect(kernels[0]!.configurationFingerprint()).toBe(
+        kernels[1]!.configurationFingerprint(),
+      );
+    } finally {
+      await Promise.all(kernels.map((kernel) => kernel.dispose()));
+    }
+  });
   it("validates missing and circular product dependencies before loading", () => {
     expect(() =>
       validatePluginGraph(

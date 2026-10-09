@@ -20,8 +20,10 @@
     "./product": "./src/product.ts",
     "./review": "./src/review.ts",
     "./timeline": "./src/timeline.ts",
+    "./timeline-copy": "./src/timeline-copy.ts",
     "./workspace": "./src/workspace.ts",
-    "./writing": "./src/writing.ts"
+    "./writing": "./src/writing.ts",
+    "./creation-project-lineage": "./src/creation-project-lineage.ts"
   },
   "scripts": {
     "typecheck": "bun --bun run tsc --noEmit"

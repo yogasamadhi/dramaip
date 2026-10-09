@@ -10,6 +10,8 @@ import { apiClient } from '../lib/api-client'
 import { paymentProviderLabel } from '../lib/display'
 import { loginPath } from '../lib/routes'
 import { Button } from './ui/Button'
+import { PLAN_DESCRIPTIONS } from '../lib/product-positioning'
+import { pricingEntitlementRows } from '../lib/pricing-entitlements'
 
 const orderedCodes = ['free', 'creator', 'studio', 'enterprise']
 
@@ -110,18 +112,15 @@ export function PricingPlans() {
 
       <div className="mt-12 overflow-x-auto rounded-3xl border border-stone-200 bg-white">
         <table className="w-full min-w-[780px] border-collapse text-left text-sm">
-          <caption className="px-6 py-5 text-left text-lg font-semibold text-ink">权益逐项比较</caption>
+          <caption className="px-6 py-5 text-left text-lg font-semibold text-ink">按创作资源、审阅交付与协作比较平台权益</caption>
           <thead className="border-y border-stone-200 bg-stone-50 text-stone-500">
             <tr><th className="px-6 py-4 font-medium">能力</th>{sorted.map((plan) => <th key={plan.id} className="px-6 py-4 font-medium">{planName(plan.id)}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-stone-100 text-stone-700">
-            <CompareRow label="文本额度 / 月" plans={sorted} render={(plan) => plan.quota_tokens.toLocaleString()} />
-            <CompareRow label="本地项目 / BYOK" plans={sorted} render={() => '无限 / 支持'} />
-            <CompareRow label="离线审片包" plans={sorted} render={(plan) => yesNo(plan.entitlements.offline_review_enabled)} />
-            <CompareRow label="FCPXML / EDL" plans={sorted} render={(plan) => yesNo(plan.entitlements.advanced_export_enabled)} />
-            <CompareRow label="云审片" plans={sorted} render={(plan) => plan.entitlements.cloud_review_enabled ? `${formatStorage(plan.entitlements.review_storage_bytes)} · ${plan.entitlements.review_retention_days} 天` : '—'} />
-            <CompareRow label="包含席位" plans={sorted} render={(plan) => plan.entitlements.included_seats > 0 ? String(plan.entitlements.included_seats) : '自定义'} />
-            <CompareRow label="私有模型网关" plans={sorted} render={(plan) => yesNo(plan.entitlements.private_gateway_enabled)} />
+            <CompareRow label="创作资源 · 平台文本额度 / 月" plans={sorted} render={(plan) => plan.quota_tokens.toLocaleString()} />
+            {sorted[0] ? pricingEntitlementRows(sorted[0].entitlements).map((row, index) => (
+              <CompareRow key={row.id} label={`${row.group} · ${row.label}`} plans={sorted} render={(plan) => pricingEntitlementRows(plan.entitlements)[index].value} />
+            )) : null}
           </tbody>
         </table>
       </div>
@@ -129,12 +128,12 @@ export function PricingPlans() {
   )
 }
 
-function PlanCard({ plan, current, pending, disabled, onChoose }: { plan: Plan; current: boolean; pending: boolean; disabled: boolean; onChoose: () => void }) {
+export function PlanCard({ plan, current, pending, disabled, onChoose }: { plan: Plan; current: boolean; pending: boolean; disabled: boolean; onChoose: () => void }) {
   const enterprise = plan.purchase_mode === 'sales_contact'
   const highlight = plan.id === 'studio'
   return (
     <article className={`relative flex min-h-[430px] flex-col rounded-3xl border p-6 ${highlight ? 'border-rust bg-[#292725] text-white shadow-studio' : 'border-stone-200 bg-white text-ink'}`}>
-      {highlight ? <span className="absolute right-5 top-5 rounded-full bg-[#ef8964] px-3 py-1 text-xs font-semibold text-ink">制作团队首选</span> : null}
+      {highlight ? <span className="absolute right-5 top-5 rounded-full bg-[#ef8964] px-3 py-1 text-xs font-semibold text-ink">小型内容工作室</span> : null}
       <p className={`text-xs font-semibold uppercase tracking-[.16em] ${highlight ? 'text-[#efa88d]' : 'text-rust'}`}>{plan.id}</p>
       <h2 className="mt-3 text-2xl font-semibold">{planName(plan.id)}</h2>
       <div className="mt-6 flex items-end gap-1">
@@ -143,10 +142,8 @@ function PlanCard({ plan, current, pending, disabled, onChoose }: { plan: Plan; 
       </div>
       <p className={`mt-5 min-h-12 text-sm leading-6 ${highlight ? 'text-stone-300' : 'text-stone-600'}`}>{planDescription(plan.id)}</p>
       <ul className={`mt-6 space-y-3 text-sm ${highlight ? 'text-stone-200' : 'text-stone-700'}`}>
-        <li>{plan.quota_tokens.toLocaleString()} 文本额度 / 月</li>
-        <li>本地项目无限 · 图片/音频/视频 BYOK</li>
-        <li>{plan.entitlements.advanced_export_enabled ? '正式剪辑工程导出' : '标准媒体与离线审片导出'}</li>
-        <li>{plan.entitlements.cloud_review_enabled ? `${formatStorage(plan.entitlements.review_storage_bytes)} 云审片 · ${plan.entitlements.included_seats} 席` : `${plan.entitlements.included_seats} 个席位`}</li>
+        <li>创作资源：{plan.quota_tokens.toLocaleString()} 平台文本额度 / 月</li>
+        {pricingEntitlementRows(plan.entitlements).map((row) => <li key={row.id}>{row.label}：{row.value}</li>)}
       </ul>
       <div className="mt-auto pt-8">
         {enterprise ? (
@@ -175,13 +172,5 @@ function planName(id: string) {
 }
 
 function planDescription(id: string) {
-  return ({
-    free: '完整跑通本地样片、镜头与离线审片流程。',
-    creator: '为独立创作者增加正式剪辑工程交付。',
-    studio: '为五人团队增加安全、限期的云端审片。',
-    enterprise: '私有网关、定制席位、容量与数据治理。',
-  } as Record<string, string>)[id] ?? ''
+  return PLAN_DESCRIPTIONS[id] ?? ''
 }
-
-function yesNo(value: boolean) { return value ? '支持' : '—' }
-function formatStorage(bytes: number) { return bytes >= 1_000_000_000 ? `${Math.round(bytes / 1_000_000_000)} GB` : `${Math.round(bytes / 1_000_000)} MB` }

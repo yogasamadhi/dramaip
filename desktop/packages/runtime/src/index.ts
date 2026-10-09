@@ -204,10 +204,41 @@ export interface RuntimeHandle {
   stop(): Promise<void>;
 }
 
+const profileConfiguration = new WeakMap<
+  PluginProfile,
+  ReadonlyMap<string, Buffer>
+>();
+
+function configurationReader() {
+  const files = new Map<string, Buffer>();
+  return {
+    files,
+    read(path: string | URL): string {
+      const filename =
+        typeof path === "string" ? resolve(path) : fileURLToPath(path);
+      let content = files.get(filename);
+      if (!content) {
+        content = readFileSync(path);
+        files.set(filename, content);
+      }
+      return content.toString("utf8");
+    },
+  };
+}
+
+function parseObservedProfile(
+  text: string,
+  reader: ReturnType<typeof configurationReader>,
+): PluginProfile {
+  const profile = profileFromGraph(
+    resolveEffectiveGraph(parseProfileDefinition(text), undefined, reader.read),
+  );
+  profileConfiguration.set(profile, reader.files);
+  return profile;
+}
+
 export function parseProfile(text: string): PluginProfile {
-  const parsed = parseProfileDefinition(text);
-  const graph = resolveEffectiveGraph(parsed);
-  return profileFromGraph(graph);
+  return parseObservedProfile(text, configurationReader());
 }
 
 function profileFromGraph(graph: EffectiveRuntimeGraph): PluginProfile {
@@ -220,19 +251,37 @@ function profileFromGraph(graph: EffectiveRuntimeGraph): PluginProfile {
 }
 
 export function loadProfile(path: string | URL): PluginProfile {
-  const profile = parseProfile(readFileSync(path, "utf8"));
-  return {
-    ...profile,
-    assembly: profile.assembly
+  const reader = configurationReader();
+  const observed = parseObservedProfile(reader.read(path), reader);
+  const profile = {
+    ...observed,
+    assembly: observed.assembly
       ? {
-          ...profile.assembly,
+          ...observed.assembly,
           files: [
-            ...profile.assembly.files,
+            ...observed.assembly.files,
             typeof path === "string" ? resolve(path) : fileURLToPath(path),
           ],
         }
       : undefined,
   };
+  // The Desktop launcher can legitimately load its named Profile JSON from
+  // the source tree while Core executes a detached build. Preserve those exact
+  // already-parsed bytes under its logical artifact path; never put external
+  // paths in the recovery journal or widen arbitrary receipt validation.
+  const inputs = new Map(reader.files);
+  const filename =
+    typeof path === "string" ? resolve(path) : fileURLToPath(path);
+  const recoveryPath = fileURLToPath(
+    new URL(`../../../profiles/${profile.name}.json`, import.meta.url),
+  );
+  const originalBytes = inputs.get(filename);
+  if (!originalBytes)
+    throw new Error("Original parsed Profile input is unavailable");
+  inputs.delete(filename);
+  inputs.set(recoveryPath, originalBytes);
+  profileConfiguration.set(profile, inputs);
+  return profile;
 }
 
 export async function bootRuntime(
@@ -543,6 +592,7 @@ export async function bootRuntime(
   if (config.development)
     development = new RuntimeDevelopment({
       base: fileURLToPath(new URL("../../../", import.meta.url)),
+      configuration: profileConfiguration.get(config.profile),
       registry: http.registry,
       kernel: () => {
         if (!kernel)
@@ -578,7 +628,18 @@ export async function bootRuntime(
             ? {
                 base: new URL("../../../", import.meta.url).href,
                 root: ["plugins", "packages", "framework", "core-runtime.js"],
-                run: (task) => development!.run(task),
+                run: (task, profile, unchanged) => {
+                  const inputs = profile
+                    ? profileConfiguration.get(profile)
+                    : undefined;
+                  if (profile && !inputs)
+                    throw new Error(
+                      "Accepted native configuration receipt is unavailable",
+                    );
+                  return development!.run(task, inputs, unchanged);
+                },
+                abortInitialization: (reason) =>
+                  development!.abortInitialization(reason),
                 rejectConfig: (reason) => development!.rejectConfig(reason),
                 restart: (reason) => development!.restart(reason),
                 recompose: () =>
@@ -618,10 +679,16 @@ export async function bootRuntime(
         http.registry.publish();
         kernel = staged.kernel;
       },
-      dispose: async (staged) => staged.kernel?.dispose(),
+      dispose: async (staged) => {
+        development?.abortInitialization(
+          new Error("Initial Runtime graph was not published"),
+        );
+        await staged.kernel?.dispose();
+      },
     });
     await development?.ready();
   } catch (error) {
+    development?.abortInitialization(error);
     await kernel?.dispose();
     events.dispose();
     database.close();

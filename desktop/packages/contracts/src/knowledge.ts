@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { defineServiceContract } from "./service-contract.js";
+export * from "./narrative-index.js";
+export * from "./narrative-story-index.js";
+export * from "./narrative-summary.js";
+export * from "./story-declaration.js";
+export * from "./story-assertion.js";
+export * from "./story-source-lifecycle.js";
+export * from "./story-node-observation.js";
 
 export const ResearchTopicStatusSchema = z.enum([
   "draft",
@@ -240,6 +247,9 @@ export const StoryBibleChangeSetSchema = z.object({
   chapterId: z.string().uuid(),
   sourceVersion: z.number().int().nonnegative(),
   status: StoryBibleChangeSetStatusSchema,
+  // Read-only comparison with the current Writing source, not a persisted
+  // lifecycle transition. Optional for historical records and older clients.
+  sourceState: z.enum(["current", "stale", "missing"]).optional(),
   summary: z.string(),
   taskId: z.string().uuid().optional(),
   conflictNotes: z.array(z.string()),

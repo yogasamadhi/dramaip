@@ -9,6 +9,7 @@ export async function mountTestPlugin(
   plugin: FirstPartyPlugin,
   services: Partial<Pick<PluginContext, "http" | "uow" | "domainEvents">>,
   dependencies: Record<string, unknown> = {},
+  onMounted?: (fiber: ReturnType<Context["plugin"]>) => void,
 ): Promise<Context> {
   const ctx = new Context();
   const values = {
@@ -45,6 +46,7 @@ export async function mountTestPlugin(
           .filter((id) => ctx.get(id) === undefined)
           .join(", ")}`,
       );
+    onMounted?.(fiber);
   } catch (error) {
     await ctx.fiber.dispose();
     throw error;

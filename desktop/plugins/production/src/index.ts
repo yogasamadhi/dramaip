@@ -1,6 +1,40 @@
+import { registerProductionProjectLineage } from "./project-lineage.js";
 import { WRITING_RESOURCE_SERVICE } from "@dramaip/contracts/writing";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
+import { AGENT_CONTEXT_SERVICE } from "@dramaip/contracts/agent-context";
+import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
+import { registerDiagnosis, diagnosisMigration } from "./diagnosis.js";
+import { screenplayImportReceiptMigration } from "./screenplay-import-receipt.js";
+import { episodeScriptRevisionMigration } from "./episode-script-revision.js";
+import { episodeTopologyRevisionMigration } from "./episode-topology-revision.js";
+import { episodeSourceRevisionMigration } from "./episode-source-revision.js";
+import { storyboardAttributionMigration } from "./storyboard-attribution.js";
+import { storyboardTopologyRetirementMigration } from "./storyboard-topology-retirement.js";
+import { storyboardRecordRetirementMigration } from "./storyboard-record-retirement.js";
+import { productionProjectPurgeRequestMigration } from "./project-purge-requests.js";
+import {
+  productionImportBatch,
+  productionImportBatchMigration,
+} from "./import-batches.js";
+import {
+  screenplayIntakeMigration,
+  registerScreenplayIntakes,
+} from "./screenplay-intake.js";
+import { directScriptSourceContent } from "./direct-script-source.js";
+import { registerScreenplaySources } from "./screenplay-sources.js";
+import { registerProductionQualitySources } from "./quality-sources.js";
+import { registerAuthorIntentSources } from "./author-intent-sources.js";
+import { registerSeasonPlans, seasonPlanMigration } from "./season-plan.js";
+import {
+  registerAdaptationStrategies,
+  adaptationStrategyMigration,
+} from "./adaptation-strategy.js";
+import {
+  registerEpisodeDevelopment,
+  episodeDevelopmentMigration,
+} from "./episode-development.js";
+import { CREATION_KNOWLEDGE_SERVICE } from "@dramaip/contracts/creation";
 import {
   registerProductionCreation,
   productionCreationMigration,
@@ -41,6 +75,8 @@ import {
   ScreenplayImportCommitSchema,
   ScreenplayImportPreviewInputSchema,
   ScreenplayImportPreviewSchema,
+  ScreenplayImportReceiptSchema,
+  ScreenplayImportTargetSchema,
   ScreenplayPatchSchema,
   type ProductionRecord,
   type ProductionRecordInput,
@@ -61,6 +97,7 @@ import {
 } from "@dramaip/contracts/review";
 import {
   WORKSPACE_PROJECT_SERVICE,
+  WORKSPACE_AUTHOR_INTENT_SERVICE,
   type WorkspaceProjectService,
 } from "@dramaip/contracts/workspace";
 import {
@@ -93,6 +130,10 @@ interface ProductionRow {
   version: number;
   created_at: string;
   updated_at: string;
+  retired_result_id: string | null;
+  retired_at: string | null;
+  retired_reason:
+    "author-scene-shot-plan" | "author-scene-topology-plan" | null;
 }
 
 interface SeasonRow {
@@ -143,6 +184,8 @@ interface ScreenplayImportPreviewRow {
   etag: string;
   status: ScreenplayImportPreview["status"];
   created_at: string;
+  target_json: string | null;
+  commit_receipt_json: string | null;
 }
 
 interface RouteContext {
@@ -181,6 +224,15 @@ function toRecord(row: ProductionRow): ProductionRecord {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(row.retired_result_id && row.retired_at
+      ? {
+          retirement: {
+            resultId: row.retired_result_id,
+            retiredAt: row.retired_at,
+            reason: row.retired_reason ?? "author-scene-shot-plan",
+          },
+        }
+      : {}),
   };
 }
 
@@ -274,15 +326,27 @@ function createRecord(
   context: PluginContext,
   kind: ProductionRecordKind,
   input: ProductionRecordInput,
+  transaction?: UnitOfWorkTransaction,
 ): ProductionRecord {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  return context.uow.execute((transaction) => {
+  const create = (transaction: UnitOfWorkTransaction) => {
+    if (input.parentId) {
+      const parent = transaction.get<ProductionRow>(
+        "SELECT * FROM production_records WHERE id = ? AND project_id = ?",
+        input.parentId,
+        input.projectId,
+      );
+      if (!parent || parent.retired_result_id)
+        throw new Error(
+          "上级制作条目已退役或归属不可核对，不能创建新的子条目。",
+        );
+    }
     const orderIndex =
       transaction.get<{ value: number }>(
         `SELECT COALESCE(MAX(order_index), -1) + 1 AS value
          FROM production_records
-         WHERE kind = ? AND ((parent_id = ?) OR (parent_id IS NULL AND ? IS NULL))`,
+         WHERE kind = ? AND retired_result_id IS NULL AND ((parent_id = ?) OR (parent_id IS NULL AND ? IS NULL))`,
         kind,
         input.parentId ?? null,
         input.parentId ?? null,
@@ -311,7 +375,8 @@ function createRecord(
     syncScriptDocument(transaction, value);
     appendEvent(transaction, `${kind}-created`, value);
     return value;
-  });
+  };
+  return transaction ? create(transaction) : context.uow.execute(create);
 }
 
 function listRecords(
@@ -322,12 +387,12 @@ function listRecords(
   return context.uow.execute((transaction) =>
     (filter.parentId
       ? transaction.all<ProductionRow>(
-          "SELECT * FROM production_records WHERE kind = ? AND parent_id = ? ORDER BY order_index, created_at",
+          "SELECT * FROM production_records WHERE kind = ? AND parent_id = ? AND retired_result_id IS NULL ORDER BY order_index, created_at",
           kind,
           filter.parentId,
         )
       : transaction.all<ProductionRow>(
-          "SELECT * FROM production_records WHERE kind = ? AND project_id = ? ORDER BY order_index, created_at",
+          "SELECT * FROM production_records WHERE kind = ? AND project_id = ? AND retired_result_id IS NULL ORDER BY order_index, created_at",
           kind,
           filter.projectId,
         )
@@ -513,6 +578,20 @@ function screenplayPreview(
     etag: row.etag,
     status: row.status,
     createdAt: row.created_at,
+    ...(row.target_json
+      ? {
+          target: ScreenplayImportTargetSchema.parse(
+            JSON.parse(row.target_json),
+          ),
+        }
+      : {}),
+    ...(row.commit_receipt_json
+      ? {
+          receipt: ScreenplayImportReceiptSchema.parse(
+            JSON.parse(row.commit_receipt_json),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -527,6 +606,24 @@ function screenplayRoutes(
     id: z.string().uuid(),
     format: z.enum(["fountain", "fdx"]),
   });
+  const targetMatches = (
+    projectId: string,
+    parentId: string | null | undefined,
+    target?: ScreenplayImportPreview["target"],
+  ) => {
+    const project = workspace.get(projectId);
+    const parent = parentId ? records.get(parentId) : undefined;
+    if (!project || (parentId && parent?.projectId !== projectId)) return false;
+    if (!target) return true; // Existing generic protocol remains compatible.
+    return (
+      project.version === target.projectVersion &&
+      project.modeConfig.mode === "single_season" &&
+      ["script", "inspiration"].includes(project.modeConfig.entryPath) &&
+      parent?.kind === "episodes" &&
+      parent.version === target.episodeVersion &&
+      parent.parentId === project.currentAdaptationId
+    );
+  };
   return [
     route(
       {
@@ -563,14 +660,17 @@ function screenplayRoutes(
             "剧本导入参数或项目无效。",
           );
         if (
-          input.data.parentId &&
-          records.get(input.data.parentId)?.projectId !== input.data.projectId
+          !targetMatches(
+            input.data.projectId,
+            input.data.parentId,
+            input.data.target,
+          )
         )
           return problem(
             requestContext,
             400,
             "VALIDATION_ERROR",
-            "剧本父级不属于目标项目。",
+            "剧本目标不属于当前实际分集，或确认的项目／分集版本已变化。",
           );
         const file = await host.readGrantedDocument(
           input.data.grantId,
@@ -604,8 +704,8 @@ function screenplayRoutes(
           transaction.run(
             `INSERT INTO screenplay_import_previews(
               id, project_id, parent_id, title, source_name, source_format,
-              blocks_json, loss_report_json, etag, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+              blocks_json, loss_report_json, etag, status, created_at, target_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
             id,
             input.data.projectId,
             input.data.parentId ?? null,
@@ -616,6 +716,7 @@ function screenplayRoutes(
             JSON.stringify(parsed.lossReport),
             etag,
             now,
+            input.data.target ? JSON.stringify(input.data.target) : null,
           );
           return transaction.get<ScreenplayImportPreviewRow>(
             "SELECT * FROM screenplay_import_previews WHERE id = ?",
@@ -681,6 +782,25 @@ function screenplayRoutes(
             "VALIDATION_ERROR",
             "剧本导入提交参数无效。",
           );
+        // Services own their read transactions. Preflight synchronously, with no
+        // await before the write transaction; never nest a peer service's UoW.
+        const checkedPreview = context.uow.execute((transaction) =>
+          transaction.get<ScreenplayImportPreviewRow>(
+            "SELECT * FROM screenplay_import_previews WHERE id = ?",
+            id,
+          ),
+        );
+        const targetCurrent = checkedPreview
+          ? targetMatches(
+              checkedPreview.project_id,
+              checkedPreview.parent_id,
+              checkedPreview.target_json
+                ? ScreenplayImportTargetSchema.parse(
+                    JSON.parse(checkedPreview.target_json),
+                  )
+                : undefined,
+            )
+          : false;
         const result = context.uow.execute((transaction) => {
           const preview = transaction.get<ScreenplayImportPreviewRow>(
             "SELECT * FROM screenplay_import_previews WHERE id = ?",
@@ -690,6 +810,29 @@ function screenplayRoutes(
           if (preview.status !== "pending") return { state: "used" as const };
           if (requestContext.req.header("If-Match")?.trim() !== preview.etag)
             return { state: "conflict" as const };
+          const target = preview.target_json
+            ? ScreenplayImportTargetSchema.parse(
+                JSON.parse(preview.target_json),
+              )
+            : undefined;
+          if (
+            !targetCurrent ||
+            preview.target_json !== checkedPreview?.target_json ||
+            preview.project_id !== checkedPreview.project_id ||
+            preview.parent_id !== checkedPreview.parent_id
+          )
+            return { state: "target-changed" as const };
+          if (
+            target &&
+            (!input.data.confirmation ||
+              !directScriptSourceContent(undefined, {
+                version: 0,
+                blocks_json: preview.blocks_json,
+                source_format: preview.source_format,
+                loss_report_json: preview.loss_report_json,
+              }))
+          )
+            return { state: "unconfirmed" as const };
           const scriptId = crypto.randomUUID();
           const documentId = crypto.randomUUID();
           const now = new Date().toISOString();
@@ -730,15 +873,27 @@ function screenplayRoutes(
             now,
             now,
           );
-          transaction.run(
-            "UPDATE screenplay_import_previews SET status = 'committed' WHERE id = ? AND status = 'pending'",
-            id,
-          );
           const document = screenplayDocument(
             transaction.get<ScreenplayDocumentRow>(
               "SELECT * FROM screenplay_documents WHERE id = ?",
               documentId,
             )!,
+          );
+          const receipt = ScreenplayImportReceiptSchema.parse({
+            scriptId: document.scriptId,
+            scriptVersion: transaction.get<{ version: number }>(
+              "SELECT version FROM production_records WHERE id = ?",
+              scriptId,
+            )!.version,
+            documentId: document.id,
+            documentVersion: document.version,
+            committedAt: now,
+            confirmation: input.data.confirmation,
+          });
+          transaction.run(
+            "UPDATE screenplay_import_previews SET status = 'committed', commit_receipt_json = ? WHERE id = ? AND status = 'pending'",
+            JSON.stringify(receipt),
+            id,
           );
           transaction.append({
             type: "production.screenplay-imported.v1",
@@ -762,9 +917,66 @@ function screenplayRoutes(
             requestContext,
             409,
             "SCREENPLAY_IMPORT_CONFLICT",
-            "导入预览已使用或版本已变化。",
+            result.state === "target-changed"
+              ? "确认的项目／实际分集已变化，未导入原稿；请重新预览。"
+              : result.state === "unconfirmed"
+                ? "请明确确认来源使用权及格式损失，并提供含真实动作／对白的原稿。"
+                : "导入预览已使用或版本已变化；请读取同一预览核验，不重复导入。",
           );
         return requestContext.json(result.document, 201);
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-import-discard",
+        pluginId: "production",
+        method: "delete",
+        path: "/api/v2/screenplay-import-previews/{id}",
+        operationId: "screenplayImport.discard",
+      },
+      openapi({
+        method: "delete",
+        path: "/api/v2/screenplay-import-previews/{id}",
+        operationId: "screenplayImport.discard",
+        params: previewParams,
+        response: ScreenplayImportPreviewSchema,
+      }),
+      (requestContext) => {
+        const result = context.uow.execute((transaction) => {
+          const preview = transaction.get<ScreenplayImportPreviewRow>(
+            "SELECT * FROM screenplay_import_previews WHERE id = ?",
+            requestContext.req.param("id"),
+          );
+          if (!preview) return { state: "missing" as const };
+          if (
+            preview.etag !== requestContext.req.header("If-Match")?.trim() ||
+            preview.status !== "pending"
+          )
+            return { state: "conflict" as const };
+          transaction.run(
+            "UPDATE screenplay_import_previews SET status = 'discarded' WHERE id = ? AND status = 'pending'",
+            preview.id,
+          );
+          return {
+            state: "discarded" as const,
+            preview: screenplayPreview({ ...preview, status: "discarded" }),
+          };
+        });
+        if (result.state === "missing")
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到同一剧本导入预览。",
+          );
+        if (result.state !== "discarded")
+          return problem(
+            requestContext,
+            409,
+            "SCREENPLAY_IMPORT_CONFLICT",
+            "预览已提交或版本已变化；请核验原回执，不能取消已导入原稿。",
+          );
+        return requestContext.json(result.preview);
       },
     ),
     route(
@@ -1141,6 +1353,13 @@ function productionResourceRoutes(
                 404,
                 "NOT_FOUND",
                 "未找到上级制作条目。",
+              );
+            if (parent.retirement)
+              return problem(
+                requestContext,
+                409,
+                "CONFLICT",
+                "上级制作条目已退役，保留历史但不能创建新子条目。",
               );
           }
           return requestContext.json(records.create(kind, input.data), 201);
@@ -1946,6 +2165,13 @@ function productionRoutes(
               "NOT_FOUND",
               "未找到上级制作条目。",
             );
+          if (parent.retirement)
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              "上级制作条目已退役，不能重新排序历史子条目。",
+            );
           if (!parsed.success)
             return problem(
               requestContext,
@@ -1956,7 +2182,7 @@ function productionRoutes(
           const reordered = context.uow.execute((transaction) => {
             const current = transaction
               .all<ProductionRow>(
-                "SELECT * FROM production_records WHERE kind = ? AND parent_id = ? ORDER BY order_index, created_at",
+                "SELECT * FROM production_records WHERE kind = ? AND parent_id = ? AND retired_result_id IS NULL ORDER BY order_index, created_at",
                 kind,
                 parentId,
               )
@@ -1988,7 +2214,7 @@ function productionRoutes(
             );
             const values = transaction
               .all<ProductionRow>(
-                "SELECT * FROM production_records WHERE kind = ? AND parent_id = ? ORDER BY order_index, created_at",
+                "SELECT * FROM production_records WHERE kind = ? AND parent_id = ? AND retired_result_id IS NULL ORDER BY order_index, created_at",
                 kind,
                 parentId,
               )
@@ -2215,8 +2441,12 @@ export function createProductionPlugin(host?: DesktopHostClient) {
   return definePlugin({
     inject: [
       WORKSPACE_PROJECT_SERVICE.id,
+      WORKSPACE_AUTHOR_INTENT_SERVICE.id,
       WRITING_CHAPTER_SERVICE.id,
       WRITING_RESOURCE_SERVICE.id,
+      AGENT_CONTEXT_SERVICE.id,
+      CREATION_WORKFLOW_SERVICE.id,
+      CREATION_KNOWLEDGE_SERVICE.id,
     ],
     descriptor: {
       id: "production",
@@ -2229,10 +2459,44 @@ export function createProductionPlugin(host?: DesktopHostClient) {
         "writing",
         "knowledge",
       ],
-      provides: ["production.records"],
+      provides: [
+        "production.records",
+        "production.screenplay-sources",
+        "production.quality-sources",
+      ],
       stability: "internal",
     },
     ui: [
+      {
+        id: "production.panel.adaptation-strategy",
+        pluginId: "production",
+        kind: "panel",
+        metadata: {
+          slot: "project.tools",
+          title: "独立改编策略",
+          toolKey: "adaptation-strategy",
+        },
+      },
+      {
+        id: "production.panel.episode-development",
+        pluginId: "production",
+        kind: "panel",
+        metadata: {
+          slot: "project.tools",
+          title: "单集开发",
+          toolKey: "episode-development",
+        },
+      },
+      {
+        id: "production.panel.season-plan",
+        pluginId: "production",
+        kind: "panel",
+        metadata: {
+          slot: "project.tools",
+          title: "整季方案",
+          toolKey: "season-plan",
+        },
+      },
       {
         id: "production.route.workspace",
         pluginId: "production",
@@ -2251,10 +2515,46 @@ export function createProductionPlugin(host?: DesktopHostClient) {
         kind: "editor",
         metadata: { target: "script", title: "剧本编辑器" },
       },
+      {
+        id: "production.panel.diagnosis",
+        pluginId: "production",
+        kind: "panel",
+        metadata: {
+          slot: "project.tools",
+          title: "改编诊断",
+          toolKey: "adaptation-diagnosis",
+        },
+      },
     ],
-    migrations: [...productionMigrations, productionCreationMigration],
+    migrations: [
+      ...productionMigrations,
+      productionCreationMigration,
+      diagnosisMigration,
+      seasonPlanMigration,
+      episodeDevelopmentMigration,
+      screenplayImportReceiptMigration,
+      screenplayIntakeMigration,
+      episodeScriptRevisionMigration,
+      adaptationStrategyMigration,
+      storyboardRecordRetirementMigration,
+      productionImportBatchMigration,
+      productionProjectPurgeRequestMigration,
+      episodeTopologyRevisionMigration,
+      storyboardTopologyRetirementMigration,
+      storyboardAttributionMigration,
+      episodeSourceRevisionMigration,
+    ],
     apply: (context) => {
+      registerProductionProjectLineage(context);
+      registerScreenplaySources(context);
+      registerProductionQualitySources(context);
       registerProductionCreation(context);
+      registerAuthorIntentSources(context);
+      registerDiagnosis(context);
+      registerAdaptationStrategies(context);
+      registerSeasonPlans(context);
+      registerEpisodeDevelopment(context);
+      registerScreenplayIntakes(context, host);
       const workspace = optionalService<WorkspaceProjectService>(
         context,
         WORKSPACE_PROJECT_SERVICE,
@@ -2266,6 +2566,11 @@ export function createProductionPlugin(host?: DesktopHostClient) {
       if (!workspace || !writing)
         throw new Error("production requires workspace and writing services");
       const service: ProductionRecordService = {
+        importBatch: productionImportBatch(
+          context,
+          (tx, kind, input) => createRecord(context, kind, input, tx),
+          (id) => !!workspace.get(id),
+        ),
         create: (kind, input) => createRecord(context, kind, input),
         list: (kind, filter) => listRecords(context, kind, filter),
         get: (id) =>
@@ -2283,6 +2588,7 @@ export function createProductionPlugin(host?: DesktopHostClient) {
               id,
             );
             if (!row) return undefined;
+            if (row.retired_result_id) return "conflict" as const;
             if (row.version !== patch.version) return "conflict" as const;
             transaction.run(
               `UPDATE production_records SET title = ?, payload_json = ?,
@@ -2311,10 +2617,16 @@ export function createProductionPlugin(host?: DesktopHostClient) {
             );
             if (
               !row ||
+              row.retired_result_id ||
               (expectedVersion !== undefined && row.version !== expectedVersion)
             )
               return false;
             const value = toRecord(row);
+            const retiredDescendant = transaction.get<{ id: string }>(
+              "WITH RECURSIVE descendants(id) AS (SELECT id FROM production_records WHERE parent_id = ? UNION ALL SELECT child.id FROM production_records child JOIN descendants parent ON child.parent_id = parent.id) SELECT record.id FROM production_records record JOIN descendants ON descendants.id = record.id WHERE record.retired_result_id IS NOT NULL LIMIT 1",
+              id,
+            );
+            if (retiredDescendant) return false;
             transaction.run("DELETE FROM production_records WHERE id = ?", id);
             transaction.append({
               type: `production.${row.kind}-removed.v1`,

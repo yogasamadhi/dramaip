@@ -7,10 +7,19 @@ import type {
   ProviderActionPreview,
   RevisionPreview,
   StoryBibleChangeSet,
+  Task,
 } from "@dramaip/contracts/product";
 import { BareButton, confirmDialog } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  providerEstimate,
+  providerReviewStatusLabel,
+  readProviderActionReview,
+  readProjectProviderReview,
+  readAssistantProviderReview,
+  requireUnchangedProviderReview,
+} from "../provider-action-review";
 import { Link, useLocation } from "react-router-dom";
 import {
   CREATIVE_DIAGNOSTIC_LABELS,
@@ -20,6 +29,14 @@ import {
 } from "../studio-shared";
 import { CreativeIntentSummary } from "../creative-intent";
 import { useStudioSession } from "../studio-session";
+import {
+  currentOwnerQuery,
+  CURRENT_OWNER_READ_OPTIONS,
+} from "../current-owner-read";
+import {
+  readLegacyDiagnosticHistory,
+  readLegacyAcknowledgementHistory,
+} from "../legacy-quality-history";
 export const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
   queued: "等待生成",
   draft: "待确认草案",
@@ -36,6 +53,9 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
   const session = useStudioSession();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const requestedChangeSetId = new URLSearchParams(location.search).get(
+    "changeSetId",
+  );
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -55,7 +75,11 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
     queryFn: () => client.storyBible.settings(projectId),
     enabled: Boolean(projectId),
   });
-  const { data: changeSets = [] } = useQuery({
+  const {
+    data: changeSets = [],
+    isLoading: changesLoading,
+    error: changesError,
+  } = useQuery({
     queryKey: ["story-bible-change-sets", projectId],
     queryFn: () => client.storyBible.list(projectId),
     enabled: Boolean(projectId),
@@ -65,6 +89,29 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
     queryFn: () => client.storyBible.stale(projectId),
     enabled: Boolean(projectId),
   });
+  useEffect(() => {
+    if (!projectId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = client.events.subscribe((event) => {
+      if (!event.type.startsWith("writing.chapter-") || timer) return;
+      if (
+        !event.payload ||
+        typeof event.payload !== "object" ||
+        (event.payload as { projectId?: string }).projectId !== projectId
+      )
+        return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        void queryClient.invalidateQueries({
+          queryKey: ["story-bible-change-sets", projectId],
+        });
+      }, 1000);
+    });
+    return () => {
+      unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
+  }, [client, projectId, queryClient]);
   useEffect(() => {
     if (props.projectId) setProjectId(props.projectId);
   }, [props.projectId]);
@@ -267,64 +314,104 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
         </div>
       )}
       <div className="mt-4 space-y-2">
-        {changeSets.map((item) => (
-          <article key={item.id} className="rounded-xl border border-line p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-medium">{item.summary}</p>
-                <p className="mt-1 text-xs text-muted">
-                  章节版本 {item.sourceVersion} ·{" "}
-                  {STORY_BIBLE_STATUS_LABELS[item.status] ?? "未知状态"}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {item.status === "draft" && (
-                  <>
-                    <BareButton
-                      className="rounded-md bg-brand px-2 py-1 text-xs text-white"
-                      onClick={() => void apply(item)}
-                    >
-                      采用
-                    </BareButton>
-                    <BareButton
-                      className="rounded-md border border-line px-2 py-1 text-xs text-muted"
-                      onClick={() => void setStatus(item, "paused")}
-                    >
-                      暂停
-                    </BareButton>
+        {requestedChangeSetId &&
+          !changeSets.some((item) => item.id === requestedChangeSetId) && (
+            <p
+              role={changesLoading ? "status" : "alert"}
+              className="text-sm text-muted"
+            >
+              {changesLoading
+                ? "正在核对指定变更…"
+                : changesError
+                  ? "指定变更未能读取，请检查连接；未打开其他变更代替。"
+                  : "指定变更已删除或不属于此项目，未打开其他变更代替。"}
+            </p>
+          )}
+        {changeSets
+          .filter(
+            (item) => !requestedChangeSetId || item.id === requestedChangeSetId,
+          )
+          .map((item) => (
+            <article
+              key={item.id}
+              data-change-set-id={item.id}
+              className="rounded-xl border border-line p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium">{item.summary}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    章节版本 {item.sourceVersion} ·{" "}
+                    {STORY_BIBLE_STATUS_LABELS[item.status] ?? "未知状态"}
+                  </p>
+                  {(item.sourceState === "stale" ||
+                    item.sourceState === "missing") && (
+                    <p role="alert" className="mt-1 text-xs text-amber-800">
+                      {item.sourceState === "missing"
+                        ? "来源章节不可用，不能采用此建议。"
+                        : "来源版本已变化，不能采用此建议；历史草案仍保留，请核对当前章节后重新生成。"}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {item.status === "draft" && (
+                    <>
+                      {item.sourceState !== "stale" &&
+                        item.sourceState !== "missing" && (
+                          <BareButton
+                            className="rounded-md bg-brand px-2 py-1 text-xs text-white"
+                            onClick={() => void apply(item)}
+                          >
+                            采用
+                          </BareButton>
+                        )}
+                      <BareButton
+                        className="rounded-md border border-line px-2 py-1 text-xs text-muted"
+                        onClick={() => void setStatus(item, "paused")}
+                      >
+                        暂停
+                      </BareButton>
+                    </>
+                  )}
+                  {item.status === "paused" &&
+                    item.sourceState !== "stale" &&
+                    item.sourceState !== "missing" && (
+                      <BareButton
+                        className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                        onClick={() => void setStatus(item, "queued")}
+                      >
+                        恢复
+                      </BareButton>
+                    )}
+                  {(["draft", "queued", "paused", "failed"].includes(
+                    item.status,
+                  ) ||
+                    (item.status === "stale" && !item.appliedAt)) && (
                     <BareButton
                       className="rounded-md border border-line px-2 py-1 text-xs text-muted"
                       onClick={() => void setStatus(item, "discarded")}
                     >
                       丢弃
                     </BareButton>
-                  </>
-                )}
-                {item.status === "paused" && (
-                  <BareButton
-                    className="rounded-md border border-line px-2 py-1 text-xs text-brand"
-                    onClick={() => void setStatus(item, "queued")}
-                  >
-                    恢复
-                  </BareButton>
-                )}
-                {(item.status === "applied" || item.status === "stale") && (
-                  <BareButton
-                    className="rounded-md border border-line px-2 py-1 text-xs text-brand"
-                    onClick={() => void undo(item)}
-                  >
-                    撤销采用
-                  </BareButton>
-                )}
+                  )}
+                  {(item.status === "applied" ||
+                    (item.status === "stale" && item.appliedAt)) && (
+                    <BareButton
+                      className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                      onClick={() => void undo(item)}
+                    >
+                      撤销采用
+                    </BareButton>
+                  )}
+                </div>
               </div>
-            </div>
-            {item.conflictNotes.length > 0 && (
-              <p className="mt-2 text-xs text-amber-800">
-                冲突：{item.conflictNotes.join("；")}
-              </p>
-            )}
-          </article>
-        ))}
+              {item.conflictNotes.length > 0 && (
+                <p className="mt-2 text-xs text-amber-800">
+                  冲突：{item.conflictNotes.join("；")}
+                </p>
+              )}
+            </article>
+          ))}
         {projectId && !changeSets.length && (
           <p className="rounded-lg border border-dashed border-line p-4 text-sm text-muted">
             尚无变更草案。选择一个已写入正文的章节后生成。
@@ -338,160 +425,105 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
 export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
   const client = useStudio();
   const session = useStudioSession();
-  const queryClient = useQueryClient();
-  const { data: projects = [] } = useQuery({
-    queryKey: ["creative-diagnostic-projects"],
-    queryFn: client.projects.list,
-  });
-  const { data: caseStudies = [] } = useQuery({
-    queryKey: ["creative-case-studies"],
-    queryFn: client.creative.listCaseStudies,
-  });
-  const [projectId, setProjectId] = useState(
-    props.projectId ?? session.activeProjectId ?? "",
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  // Explicit/current project wins synchronously; no old-project paint while an
+  // effect catches up after navigation.
+  const projectId =
+    props.projectId ?? session.activeProjectId ?? selectedProjectId;
+  const projects = currentOwnerQuery(
+    useQuery({
+      queryKey: ["creative-diagnostic-projects"],
+      queryFn: client.projects.list,
+      ...CURRENT_OWNER_READ_OPTIONS,
+    }),
   );
-  const [chapterId, setChapterId] = useState("");
   const [kinds, setKinds] = useState<CreativeDiagnosticKind[]>([
     "freshness",
+    "anti_trope",
     "quality_gate",
     "audience",
     "narrative_curve",
   ]);
-  const [caseStudyIds, setCaseStudyIds] = useState<string[]>([]);
-  const [notice, setNotice] = useState<string>();
-  const { data: chapters = [] } = useQuery({
-    queryKey: ["creative-diagnostic-chapters", projectId],
-    queryFn: () => client.chapters.list(projectId),
-    enabled: Boolean(projectId),
-  });
-  const { data: diagnostics = [] } = useQuery({
-    queryKey: ["creative-diagnostics", projectId],
-    queryFn: () => client.creative.listDiagnostics(projectId),
-    enabled: Boolean(projectId),
-  });
-  const { data: acknowledgements = [] } = useQuery({
-    queryKey: ["creative-issue-acknowledgements", projectId],
-    queryFn: () => client.creative.listIssueAcknowledgements(projectId),
-    enabled: Boolean(projectId),
-  });
-  useEffect(() => {
-    const next = props.projectId ?? session.activeProjectId;
-    if (next && projectId !== next) {
-      setProjectId(next);
-      setChapterId("");
-    }
-  }, [projectId, props.projectId, session.activeProjectId]);
-  useEffect(() => {
-    if (chapterId && !chapters.some((chapter) => chapter.id === chapterId))
-      setChapterId("");
-  }, [chapterId, chapters]);
-  const toggleKind = (kind: CreativeDiagnosticKind) =>
-    setKinds((items) =>
-      items.includes(kind)
-        ? items.filter((item) => item !== kind)
-        : [...items, kind],
-    );
-  const run = async () => {
-    if (!projectId || !kinds.length) return;
-    setNotice(undefined);
-    try {
-      const result = await client.creative.runDiagnostics({
-        projectId,
-        ...(chapterId
-          ? { targetKind: "chapter" as const, targetId: chapterId }
-          : {}),
-        kinds,
-        ...(caseStudyIds.length ? { caseStudyIds } : {}),
-      });
-      setNotice(`已保存 ${result.diagnostics.length} 份创意诊断报告。`);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["creative-diagnostics", projectId],
-        }),
-        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
-      ]);
-    } catch (cause) {
-      setNotice(message(cause));
-    }
-  };
-  const acknowledge = async (diagnosticId: string, issueKey: string) => {
-    if (!projectId) return;
-    try {
-      await client.creative.acknowledgeIssue({
-        projectId,
-        diagnosticId,
-        issueKey,
-        disposition: "accepted",
-        actorLabel: "本地用户",
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["creative-issue-acknowledgements", projectId],
-      });
-    } catch (cause) {
-      setNotice(message(cause));
-    }
-  };
-  const acknowledged = new Set(
-    acknowledgements.map((item) => `${item.diagnosticId}:${item.issueKey}`),
+  const history = currentOwnerQuery(
+    useQuery({
+      queryKey: ["creative-diagnostics", projectId],
+      queryFn: async () =>
+        readLegacyDiagnosticHistory(
+          await client.creative.listDiagnostics(projectId),
+          projectId,
+        ),
+      enabled: Boolean(projectId),
+      ...CURRENT_OWNER_READ_OPTIONS,
+    }),
   );
+  const declarations = currentOwnerQuery(
+    useQuery({
+      queryKey: ["creative-issue-acknowledgements", projectId],
+      queryFn: async () =>
+        readLegacyAcknowledgementHistory(
+          await client.creative.listIssueAcknowledgements(projectId),
+          projectId,
+        ),
+      enabled: Boolean(projectId),
+      ...CURRENT_OWNER_READ_OPTIONS,
+    }),
+  );
+  const diagnostics = history.data?.filter((item) => kinds.includes(item.kind));
   return (
-    <section className="rounded-xl border border-line bg-surface p-5">
+    <section
+      aria-label="旧兼容诊断历史（未认证）"
+      className="rounded-xl border border-line bg-surface p-5"
+    >
       <div>
-        <p className="text-sm text-muted">创意质量</p>
-        <h2 className="mt-1 text-2xl font-semibold">可审阅的创意诊断</h2>
+        <p className="text-sm text-muted">创意质量 · 历史兼容</p>
+        <h2 className="mt-1 text-2xl font-semibold">
+          历史诊断，不代表当前质量
+        </h2>
         <p className="mt-2 max-w-3xl text-sm text-muted">
-          本地规则基于已保存资料生成新鲜度、反套路、质量门禁、受众模拟与叙事曲线。它们只是辅助判断，不会自动改写小说、剧本或分镜。
+          旧兼容诊断使用固定分数或条目数量，未完成实际内容评议；已停止新生成和新增问题确认。
+          原记录与旧人工声明仅供只读查阅，不是当前质量、修复完成、受众判断或文学认证。
+        </p>
+        <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          需要新的评议时，请明确选择独立人工声明、程序规则或模型候选；不会自动运行、采用或修改作品。
         </p>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
           项目
           <select
             className="rounded-lg border border-line px-3 py-2"
             value={projectId}
+            disabled={Boolean(props.projectId)}
             onChange={(event) => {
-              const nextProjectId = event.target.value;
-              setProjectId(nextProjectId);
-              if (nextProjectId) session.selectProject(nextProjectId);
-              setChapterId("");
+              setSelectedProjectId(event.target.value);
+              if (event.target.value) session.selectProject(event.target.value);
             }}
           >
             <option value="">选择项目</option>
-            {projects.map((project) => (
+            {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.title}
               </option>
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
-          诊断目标
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            disabled={!projectId}
-            value={chapterId}
-            onChange={(event) => setChapterId(event.target.value)}
-          >
-            <option value="">整个项目</option>
-            {chapters.map((chapter) => (
-              <option key={chapter.id} value={chapter.id}>
-                章节：{chapter.title}
-              </option>
-            ))}
-          </select>
-        </label>
         <div className="flex items-end">
-          <BareButton
-            className="w-full rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={!projectId || !kinds.length}
-            onClick={() => void run()}
-          >
-            生成创意诊断
-          </BareButton>
+          {projectId ? (
+            <Link
+              className="rounded-lg border border-line px-4 py-2 text-sm text-brand"
+              to={`/projects/${projectId}/tools/quality-review`}
+            >
+              打开独立质量评议
+            </Link>
+          ) : (
+            <p className="text-sm text-muted">选择项目后可进入独立评议。</p>
+          )}
         </div>
       </div>
       <fieldset className="mt-4">
-        <legend className="text-sm font-medium">诊断类型</legend>
+        <legend className="text-sm font-medium">
+          筛选历史类型（不生成报告）
+        </legend>
         <div className="mt-2 flex flex-wrap gap-2">
           {(
             Object.keys(CREATIVE_DIAGNOSTIC_LABELS) as CreativeDiagnosticKind[]
@@ -503,48 +535,41 @@ export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
               <input
                 type="checkbox"
                 checked={kinds.includes(kind)}
-                onChange={() => toggleKind(kind)}
+                onChange={() =>
+                  setKinds((items) =>
+                    items.includes(kind)
+                      ? items.filter((item) => item !== kind)
+                      : [...items, kind],
+                  )
+                }
               />
               {CREATIVE_DIAGNOSTIC_LABELS[kind]}
             </label>
           ))}
         </div>
       </fieldset>
-      <div className="mt-4">
-        <p className="text-sm font-medium">参考案例（可选）</p>
-        {caseStudies.length ? (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {caseStudies.map((item) => (
-              <label
-                key={item.id}
-                className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={caseStudyIds.includes(item.id)}
-                  onChange={() =>
-                    setCaseStudyIds((ids) =>
-                      ids.includes(item.id)
-                        ? ids.filter((id) => id !== item.id)
-                        : [...ids, item.id],
-                    )
-                  }
-                />
-                {item.title}
-              </label>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-muted">尚无案例，可在下方新建。</p>
-        )}
-      </div>
-      {notice && (
-        <p className="mt-4 rounded-lg bg-brand-soft p-3 text-sm text-brand">
-          {notice}
+      {projectId && history.error && (
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-line p-3 text-sm"
+        >
+          历史诊断读取失败；未显示旧缓存，历史是否为空未知。
+          {message(history.error)}
+        </p>
+      )}
+      {projectId && !history.error && history.data === undefined && (
+        <p className="mt-4 text-sm text-muted">
+          正在实际读取本项目历史诊断；未显示旧缓存。
+        </p>
+      )}
+      {projectId && declarations.error && (
+        <p role="alert" className="mt-4 text-sm">
+          历史人工声明读取失败；未使用旧缓存或判定问题已修复。
+          {message(declarations.error)}
         </p>
       )}
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        {diagnostics.map((diagnostic) => (
+        {diagnostics?.map((diagnostic) => (
           <article
             key={diagnostic.id}
             className="rounded-xl border border-line p-4"
@@ -558,69 +583,68 @@ export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
                 </p>
               </div>
               <span className="rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">
-                已保存
+                历史记录 · 未认证
               </span>
             </div>
-            <p className="mt-3 text-sm text-muted">{diagnostic.summary}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {diagnostic.scores.map((item) => (
-                <span
-                  key={item.label}
-                  className="rounded-md bg-canvas px-2 py-1 text-xs"
-                >
-                  {item.label} {item.value.toFixed(1)}/10
-                </span>
-              ))}
-            </div>
-            {diagnostic.curve && (
-              <p className="mt-3 text-xs text-muted">
-                曲线：
-                {diagnostic.curve.map((value) => value.toFixed(1)).join(" → ")}
-              </p>
-            )}
-            <div className="mt-3 space-y-2 text-sm">
-              {diagnostic.findings.map((item) => {
-                const key = `${diagnostic.id}:${item}`;
-                return (
-                  <div
-                    key={item}
-                    className="flex items-start justify-between gap-2"
-                  >
-                    <p className="text-muted">{item}</p>
-                    {diagnostic.kind === "quality_gate" &&
-                      !acknowledged.has(key) && (
-                        <BareButton
-                          className="shrink-0 rounded-md border border-line px-2 py-1 text-xs text-brand"
-                          onClick={() => void acknowledge(diagnostic.id, item)}
-                        >
-                          确认知悉
-                        </BareButton>
-                      )}
-                    {diagnostic.kind === "quality_gate" &&
-                      acknowledged.has(key) && (
-                        <span className="shrink-0 text-xs text-brand">
-                          已确认
-                        </span>
-                      )}
-                  </div>
-                );
-              })}
-            </div>
+            <p className="mt-3 text-xs text-muted">
+              原 ID：{diagnostic.id} · 原保存时间：{diagnostic.createdAt}
+            </p>
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-brand">
-                查看改进建议
+                展开原记录（未认证，量纲未知）
               </summary>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
-                {diagnostic.recommendations.map((item) => (
-                  <li key={item}>{item}</li>
+              <p className="mt-3 text-muted">
+                原摘要（未认证）：{diagnostic.summary}
+              </p>
+              <p className="mt-2 text-xs text-muted">
+                原请求指纹不证明已读取正文或当前来源：
+                {diagnostic.sourceFingerprint}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {diagnostic.scores.map((item, index) => (
+                  <span
+                    key={index}
+                    className="rounded-md bg-canvas px-2 py-1 text-xs"
+                  >
+                    原数值（未认证／量纲未知）：{item.label}{" "}
+                    {String(item.value)}
+                  </span>
+                ))}
+              </div>
+              {diagnostic.curve && (
+                <p className="mt-3 text-xs text-muted">
+                  原曲线数值（未认证／量纲未知）：
+                  {diagnostic.curve.map(String).join(" → ")}
+                </p>
+              )}
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-muted">
+                {diagnostic.findings.map((item, index) => (
+                  <li key={index}>原问题（未认证）：{item}</li>
                 ))}
               </ul>
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-muted">
+                {diagnostic.recommendations.map((item, index) => (
+                  <li key={index}>原建议（未认证）：{item}</li>
+                ))}
+              </ul>
+              {(declarations.data ?? [])
+                .filter((item) => item.diagnosticId === diagnostic.id)
+                .map((item) => (
+                  <p key={item.id} className="mt-3 text-xs text-muted">
+                    旧人工声明（不认证修复或质量）：{item.issueKey} · 原状态{" "}
+                    {item.disposition}
+                    {item.actorLabel ? ` · ${item.actorLabel}` : ""}
+                    {item.note ? ` · ${item.note}` : ""}
+                  </p>
+                ))}
             </details>
           </article>
         ))}
-        {projectId && !diagnostics.length && (
+        {projectId && history.data !== undefined && !diagnostics?.length && (
           <p className="rounded-xl border border-dashed border-line p-4 text-sm text-muted">
-            选择诊断类型后生成第一份报告。
+            {history.data.length
+              ? "当前筛选下没有历史记录。"
+              : "已实际读取，本项目没有旧兼容诊断；不会生成固定分数。"}
           </p>
         )}
       </div>
@@ -878,7 +902,7 @@ export function AgentRevisionPreviewCard(props: {
   });
   const statusLabel =
     {
-      pending: "待确认",
+      pending: "等待审阅采用",
       committed: "已采用",
       discarded: "已放弃",
       conflicted: "版本冲突",
@@ -910,15 +934,17 @@ export function AgentRevisionPreviewCard(props: {
           {props.preview.proposedContent}
         </pre>
       </details>
-      {status === "pending" && (
+      {(status === "pending" || status === "conflicted") && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <BareButton
-            className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={commit.isPending || discard.isPending}
-            onClick={() => commit.mutate()}
-          >
-            {commit.isPending ? "正在采用…" : "确认采用修订"}
-          </BareButton>
+          {status === "pending" && (
+            <BareButton
+              className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              disabled={commit.isPending || discard.isPending}
+              onClick={() => commit.mutate()}
+            >
+              {commit.isPending ? "正在采用…" : "确认采用修订"}
+            </BareButton>
+          )}
           <BareButton
             className="rounded-lg border border-line px-3 py-2 text-sm text-muted disabled:opacity-50"
             disabled={commit.isPending || discard.isPending}
@@ -1090,68 +1116,206 @@ export function AgentChangePreviewCard(props: {
   );
 }
 
+export function AgentAssistantProviderActionPreviewCard(props: {
+  id: string;
+  projectId?: string;
+  conversationId: string;
+}) {
+  const client = useStudio();
+  const actual = useQuery({
+    queryKey: [
+      "assistant-provider-review",
+      props.id,
+      props.projectId,
+      props.conversationId,
+    ],
+    queryFn: () => readAssistantProviderReview(client, props),
+    refetchInterval: 1500,
+    retry: false,
+  });
+  if (actual.error || !actual.data)
+    return (
+      <p role={actual.error ? "alert" : "status"}>
+        {actual.error
+          ? message(actual.error)
+          : "正在核对实际对话、运行和原任务…"}
+      </p>
+    );
+  return (
+    <AgentProviderActionPreviewCard
+      preview={actual.data.preview}
+      task={actual.data.task}
+    />
+  );
+}
+
 export function AgentProviderActionPreviewCard(props: {
   preview: ProviderActionPreview;
+  task?: Task;
+  projectId?: string;
+}) {
+  const client = useStudio();
+  const binding = {
+    id: props.preview.id,
+    projectId: props.task?.projectId ?? props.projectId ?? "",
+    task: props.task,
+  };
+  const actual = useQuery({
+    queryKey: [
+      "provider-action-review",
+      binding.id,
+      binding.projectId,
+      props.task?.id,
+    ],
+    queryFn: () =>
+      props.task
+        ? readProviderActionReview(client, { ...binding, task: props.task })
+        : readProjectProviderReview(client, binding),
+    refetchInterval: 1500,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: false,
+  });
+  if (actual.error || !actual.data || !actual.isFetchedAfterMount)
+    return (
+      <p
+        role={actual.error ? "alert" : "status"}
+        className="mt-3 text-sm text-amber-800"
+      >
+        {actual.error
+          ? message(actual.error)
+          : "正在核对实际厂商预览、项目和原任务…"}
+      </p>
+    );
+  return (
+    <ReviewedProviderActionCard
+      key={`${binding.projectId}:${binding.id}:${props.task?.id ?? "owner-preview"}`}
+      preview={actual.data}
+      task={props.task}
+      projectId={binding.projectId}
+    />
+  );
+}
+
+function ReviewedProviderActionCard(props: {
+  preview: ProviderActionPreview;
+  task?: Task;
+  projectId?: string;
 }) {
   const client = useStudio();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState(props.preview.status);
   const [notice, setNotice] = useState<string>();
-  useEffect(
-    () => setStatus(props.preview.status),
-    [props.preview.id, props.preview.status],
-  );
+  const alive = useRef(false);
+  const executeKey = useRef(crypto.randomUUID());
+  const discardKey = useRef(crypto.randomUUID());
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const binding = {
+    id: props.preview.id,
+    projectId: props.task?.projectId ?? props.projectId ?? "",
+    task: props.task,
+  };
+  const readActual = () =>
+    props.task
+      ? readProviderActionReview(client, { ...binding, task: props.task })
+      : readProjectProviderReview(client, binding);
+  const estimate = providerEstimate(props.preview);
+  const kindLabel = {
+    image: "图片生成",
+    audio: "音频生成",
+    video: "视频生成",
+    remote_render: "远程渲染",
+  }[props.preview.kind];
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["provider-action-review", binding.id],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["task-actual-result", props.task?.id],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["pending-confirmations"] }),
+      queryClient.invalidateQueries({ queryKey: ["pending-provider-preview"] }),
+      queryClient.invalidateQueries({ queryKey: ["confirmation-context"] }),
+      queryClient.invalidateQueries({ queryKey: ["task-worklist"] }),
+    ]);
+  };
+  const report = (cause: unknown) => {
+    if (alive.current) setNotice(message(cause));
+  };
   const execute = useMutation({
-    mutationFn: () =>
-      client.providerActionPreviews.execute(
-        props.preview.id,
-        crypto.randomUUID(),
-      ),
-    onSuccess: async (task) => {
-      setStatus("executed");
-      setNotice(`已创建远程厂商任务：${task.id.slice(0, 8)}。`);
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    mutationFn: async (reviewed: ProviderActionPreview) => {
+      if (!alive.current) throw new Error("已经离开原预览，未执行旧确认。");
+      const current = await readActual();
+      if (!alive.current) throw new Error("已经离开原预览，未执行旧确认。");
+      requireUnchangedProviderReview(current, reviewed);
+      return client.providerActionPreviews.execute(
+        current.id,
+        executeKey.current,
+      );
     },
-    onError: (cause) => setNotice(message(cause)),
+    onSuccess: async () => {
+      setNotice(undefined);
+      await refresh();
+    },
+    onError: async (cause) => {
+      report(cause);
+      await refresh();
+    },
   });
   const discard = useMutation({
-    mutationFn: () =>
-      client.providerActionPreviews.discard(
-        props.preview.id,
-        crypto.randomUUID(),
-      ),
-    onSuccess: async (preview) => {
-      setStatus(preview.status);
-      setNotice("已放弃厂商调用，不会产生本次调用费用。");
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    mutationFn: async () => {
+      const current = await readActual();
+      if (!alive.current || current.status !== "pending")
+        throw new Error("实际预览已变化或已离开；未放弃另一对象。");
+      return client.providerActionPreviews.discard(
+        current.id,
+        discardKey.current,
+      );
     },
-    onError: (cause) => setNotice(message(cause)),
+    onSuccess: async () => {
+      setNotice(undefined);
+      await refresh();
+    },
+    onError: async (cause) => {
+      report(cause);
+      await refresh();
+    },
   });
-  const kindLabel =
-    {
-      image: "图片生成",
-      audio: "音频生成",
-      video: "视频生成",
-      remote_render: "远程渲染",
-    }[props.preview.kind] ?? "远程厂商调用";
-  const costUnknown = props.preview.estimatedCost === undefined;
+  const confirmExecution = async () => {
+    const reviewed = props.preview;
+    setNotice(undefined);
+    try {
+      const current = await readActual();
+      if (!alive.current) return;
+      requireUnchangedProviderReview(current, reviewed);
+      const confirmed = await confirmDialog(
+        `确认发起${kindLabel}吗？记录中的预估费用 ${providerEstimate(reviewed).label}；估值不是实际报价或结算账单。`,
+      );
+      if (confirmed && alive.current) execute.mutate(reviewed);
+    } catch (cause) {
+      report(cause);
+      await refresh();
+    }
+  };
   return (
-    <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+    <section
+      aria-label="实际厂商调用预览"
+      className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium text-ink">{kindLabel}调用预览</p>
           <p className="mt-1 text-xs text-muted">
-            当前仅为建议；确认后才会调用远程服务并可能产生费用。
+            读取实际记录后另行确认才会调用远程服务；生成建议或内容采用不构成费用与权利授权。
           </p>
         </div>
         <span className="rounded-full bg-surface-raised px-2 py-1 text-xs text-amber-800">
-          {status === "pending"
-            ? "待费用确认"
-            : status === "executed"
-              ? "已创建任务"
-              : status === "discarded"
-                ? "已放弃"
-                : "已过期"}
+          {providerReviewStatusLabel(props.preview.status)}
         </span>
       </div>
       <dl className="mt-3 grid gap-1 text-sm text-muted">
@@ -1166,35 +1330,27 @@ export function AgentProviderActionPreviewCard(props: {
           </div>
         )}
         <div>
-          <dt className="inline font-medium text-ink">预估费用：</dt>
-          <dd className="inline">
-            {props.preview.estimatedCost === undefined
-              ? "厂商尚未返回可靠估价，以实际账单为准"
-              : `${props.preview.estimatedCost.toFixed(4)} ${props.preview.currency ?? "USD"}`}
-          </dd>
+          <dt className="inline font-medium text-ink">记录中的预估费用：</dt>
+          <dd className="inline">{estimate.label}</dd>
         </div>
       </dl>
+      <p className="mt-2 text-xs text-muted">
+        估值（包括零）不等于真实报价或实际账单；实际费用与合法授权仍须相应证据。
+      </p>
       <details className="mt-3 rounded-md bg-surface-raised/80 p-3">
         <summary className="cursor-pointer text-sm font-medium text-amber-800">
-          查看建议参数
+          查看实际记录参数
         </summary>
         <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6 text-ink">
           {JSON.stringify(props.preview.parameters, null, 2)}
         </pre>
       </details>
-      {status === "pending" && (
+      {props.preview.status === "pending" && (
         <div className="mt-3 flex flex-wrap gap-2">
           <BareButton
             className="rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={costUnknown || execute.isPending || discard.isPending}
-            onClick={async () => {
-              const cost =
-                props.preview.estimatedCost === undefined
-                  ? "费用以厂商实际账单为准"
-                  : `预估费用 ${props.preview.estimatedCost.toFixed(4)} ${props.preview.currency ?? "USD"}`;
-              if (await confirmDialog(`确认发起${kindLabel}吗？${cost}。`))
-                execute.mutate();
-            }}
+            disabled={!estimate.known || execute.isPending || discard.isPending}
+            onClick={() => void confirmExecution()}
           >
             {execute.isPending ? "正在创建任务…" : "确认并创建远程任务"}
           </BareButton>
@@ -1207,12 +1363,16 @@ export function AgentProviderActionPreviewCard(props: {
           </BareButton>
         </div>
       )}
-      {status === "pending" && costUnknown && (
+      {props.preview.status === "pending" && !estimate.known && (
         <p className="mt-3 text-xs leading-5 text-amber-800">
-          厂商尚未返回可靠报价，远程任务已禁用。请更新服务商报价后重新生成调用预览；在此之前不会产生媒体生成费用。
+          预估费用或币种未知，远程任务已禁用。须重新取得明确记录并另行确认；此状态不推断实际账单为零。
         </p>
       )}
-      {notice && <p className="mt-3 text-xs leading-5 text-muted">{notice}</p>}
+      {notice && (
+        <p role="alert" className="mt-3 text-xs leading-5 text-amber-800">
+          {notice}
+        </p>
+      )}
     </section>
   );
 }

@@ -42,4 +42,20 @@ test("示例项目在统一资产中心展示筛选、状态和版本比较入�
     page.getByRole("button", { name: "音色", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "加入比较" })).toBeVisible();
+  // Assertions read the actual demo asset from its owner; no evidence response is mocked.
+  const asset = page
+    .locator("article")
+    .filter({ hasText: "林晚·雨夜服装设定" });
+  await expect(asset).toHaveCount(1);
+  await expect(asset).toContainText("待核验");
+  await expect(asset).toContainText("用户声明已核验，未提供核验凭证");
+  await expect(asset).toContainText("结算费用未知");
+  await expect(asset).toContainText("用户声明费用已知，未提供结算回执");
+  await expect(asset).toContainText("服务可用性未核验");
+  await expect(asset).toContainText("用户声明无需服务");
+  await expect(asset).not.toContainText("可用或无需服务");
+  await asset.scrollIntoViewIfNeeded();
+  await asset.screenshot({
+    path: "test-results/asset-declaration-status.png",
+  });
 });

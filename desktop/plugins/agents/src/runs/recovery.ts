@@ -4,7 +4,7 @@ import {
   AGENT_RUNTIME_DESCRIPTORS,
   createHostAgentRuntime,
 } from "@dramaip/desktop-host";
-import type { PluginContext } from "@dramaip/plugin-api/internal";
+import type { PluginContext, UnitOfWork } from "@dramaip/plugin-api/internal";
 
 interface RecoverableRunRow {
   id: string;
@@ -23,9 +23,13 @@ interface RecoverableRunRow {
 export async function recoverAvailableAgentRuns(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
+  isStopping: () => boolean = () => false,
 ): Promise<void> {
-  if (!host) return;
-  const runs = pluginContext.uow.execute((transaction) =>
+  if (!host || isStopping()) return;
+  // Native disposal deactivates service lookup before effects finish draining.
+  // Keep the original owned resource for already accepted recovery bookkeeping.
+  const uow = pluginContext.uow;
+  const runs = uow.execute((transaction) =>
     transaction.all<RecoverableRunRow>(
       `SELECT r.id, r.session_id, r.engine_kind, r.status, r.engine_run_id,
               r.checkpoint_json, r.recovery_attempts, r.last_engine_cursor, r.engine_generation,
@@ -37,9 +41,10 @@ export async function recoverAvailableAgentRuns(
     ),
   );
   for (const run of runs) {
+    if (isStopping()) return;
     if (!run.engine_run_id || !run.engine_session_id) {
       updateRecoveryStatus(
-        pluginContext,
+        uow,
         run.id,
         "orphaned",
         "Engine run handle is missing.",
@@ -48,8 +53,10 @@ export async function recoverAvailableAgentRuns(
     }
     const kind = run.engine_kind as AgentEngineKind;
     const runtime = createHostAgentRuntime(host, kind);
+    let recoveryAccepted = false;
     try {
       const health = await runtime.health();
+      if (isStopping()) return;
       if (!health.healthy || !health.configured) continue;
       // A different engine becoming ready must not recover a live run owned by
       // this generation. Startup already marks stale runs as recoverable.
@@ -58,6 +65,7 @@ export async function recoverAvailableAgentRuns(
         run.engine_generation === health.generation
       )
         continue;
+      recoveryAccepted = true;
       const recovered = await runtime.recoverRun({
         session: {
           sessionId: run.session_id,
@@ -68,7 +76,7 @@ export async function recoverAvailableAgentRuns(
       });
       if (recovered.disposition === "missing") {
         updateRecoveryStatus(
-          pluginContext,
+          uow,
           run.id,
           "orphaned",
           "Engine no longer recognizes the persisted run handle.",
@@ -76,11 +84,11 @@ export async function recoverAvailableAgentRuns(
         continue;
       }
       if (recovered.disposition === "resumed") {
-        updateRecoveryStatus(pluginContext, run.id, "running", null);
+        updateRecoveryStatus(uow, run.id, "running", null);
         continue;
       }
       const now = new Date().toISOString();
-      pluginContext.uow.execute((transaction) => {
+      uow.execute((transaction) => {
         transaction.run(
           `UPDATE agent_assistant_runs
            SET status = 'completed', checkpoint_json = ?, last_engine_cursor = ?,
@@ -115,8 +123,9 @@ export async function recoverAvailableAgentRuns(
         );
       });
     } catch (error) {
+      if (isStopping() && !recoveryAccepted) return;
       updateRecoveryStatus(
-        pluginContext,
+        uow,
         run.id,
         "recoverable",
         error instanceof Error ? error.message : String(error),
@@ -126,12 +135,12 @@ export async function recoverAvailableAgentRuns(
 }
 
 function updateRecoveryStatus(
-  pluginContext: PluginContext,
+  uow: UnitOfWork,
   runId: string,
   status: "interrupted" | "orphaned" | "recoverable" | "running",
   error: string | null,
 ): void {
-  pluginContext.uow.execute((transaction) =>
+  uow.execute((transaction) =>
     transaction.run(
       `UPDATE agent_assistant_runs
        SET status = ?, recovery_attempts = recovery_attempts + 1,

@@ -18,6 +18,7 @@ export default function TrustPage() {
       <p className="eyebrow">Trust is a production feature</p>
       <h1 className="mt-4 max-w-4xl text-5xl font-semibold tracking-tight text-ink">清楚知道什么留在本地，<br />什么会被发送，以及为什么。</h1>
       <p className="mt-6 max-w-3xl leading-7 text-stone-600">尽意 DramaIP Desktop 采用本地优先和 BYOK；Web 灵感空间则按云端账号持久化。提示词、记忆正文、私人收藏、创意指纹和模型响应不会进入管理员视图、应用日志或异常文本，也不会用于训练平台模型。跨端只通过用户确认的 schema v4 创作简报包衔接。</p>
+      <p className="mt-4 max-w-3xl leading-7 text-stone-600">本地优先描述作品与记录的归属，不等于离线模型推理。小说可以独立形成稿件，不要求媒体或云审片。规则分数、模型评议和观众模拟不证明文学质量、真实受众留存、必然能拍或商业爆款；优化中的改编诊断、整季方案与统一试制包按阶段验收。</p>
 
       <div className="mt-12 grid gap-4 md:grid-cols-2">
         {boundaries.map(([title, description], index) => (

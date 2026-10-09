@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { defineServiceContract } from "./service-contract.js";
+export * from "./narrative-quality.js";
+export * from "./narrative-local-quality.js";
 
 export const CREATIVE_QUALITY_SERVICE =
   defineServiceContract<CreativeQualityRecordService>({

@@ -19,9 +19,14 @@ import {
   modelSelection,
   isAgentEngineKind,
   projectAgentSettings,
+  restoreActiveAgentProvider,
 } from "../providers/routes.js";
 import { engineResponseText } from "../sessions/routes.js";
 import { AGENT_TASK_CATALOG, taskPrompt } from "../task-catalog.js";
+import { recordAgentUsage, readAgentUsagePage } from "./usage.js";
+import { readAgentRunExecution } from "./execution.js";
+const MODEL_REQUIRED =
+  "请在 AI 连接中选择本次使用的模型，工作流会固定这一选择。";
 export function createAgentTaskRunner(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
@@ -63,6 +68,78 @@ export function createAgentTaskRunner(
         contextSnapshotId: row.context_snapshot_id ?? undefined,
       };
     });
+  const prepare = (
+    input: import("@dramaip/contracts").AgentCreationContextInput,
+  ) => {
+    if (input.conversationId) {
+      const session = pluginContext.uow.execute((tx) =>
+        tx.get<{ project_id: string | null; chapter_id: string | null }>(
+          "SELECT project_id, chapter_id FROM agent_assistant_sessions WHERE id = ?",
+          input.conversationId!,
+        ),
+      );
+      if (
+        !session ||
+        session.project_id !== input.projectId ||
+        (session.chapter_id && session.chapter_id !== input.chapterId)
+      )
+        throw new Error(
+          "创作对象与原对话绑定不一致，请进入对应对象或新建对话。",
+        );
+    }
+    const chosen =
+      input.model === undefined
+        ? projectAgentSettings(pluginContext, input.projectId).defaultModel
+        : input.model;
+    const selected = chosen === undefined ? undefined : modelSelection(chosen);
+    if (chosen !== undefined && !selected) {
+      if (
+        chosen !== null &&
+        typeof chosen === "object" &&
+        !Array.isArray(chosen) &&
+        Object.keys(chosen).length === 0
+      )
+        throw new Error(MODEL_REQUIRED);
+      throw new Error(
+        "模型配置无效；仅支持 providerId、modelId、profileId，不会忽略其他参数。",
+      );
+    }
+    const providerId = activeAgentProviderId(pluginContext);
+    const entity = providerId
+      ? findProvider(pluginContext, providerId)
+      : undefined;
+    const provider = entity ? configuredProvider(entity) : undefined;
+    const model = {
+      ...selected,
+      ...(input.engineKind !== "codex"
+        ? {
+            providerId: selected?.providerId ?? providerId,
+            modelId: selected?.modelId ?? provider?.model,
+          }
+        : {}),
+    };
+    if (!model.modelId) throw new Error(MODEL_REQUIRED);
+    const contextInput = {
+      projectId: input.projectId,
+      chapterId: input.chapterId,
+      runIntent: "creation",
+      basePrompt: input.prompt,
+      tokenBudget: 64000,
+      destination: {
+        kind:
+          provider?.authentication === "none"
+            ? ("local" as const)
+            : ("cloud" as const),
+        provider:
+          input.engineKind === "codex"
+            ? "codex"
+            : (providerId ?? "unconfigured"),
+        model: model.modelId,
+      },
+      temporaryOverrides: [],
+    };
+    return { model, contextInput };
+  };
   return {
     configuration: (projectId) => {
       const settings = projectAgentSettings(pluginContext, projectId);
@@ -75,69 +152,33 @@ export function createAgentTaskRunner(
           : undefined,
       };
     },
-    prepareCreation: (input) => {
-      if (input.conversationId) {
-        const session = pluginContext.uow.execute((tx) =>
-          tx.get<{ project_id: string | null; chapter_id: string | null }>(
-            "SELECT project_id, chapter_id FROM agent_assistant_sessions WHERE id = ?",
-            input.conversationId!,
-          ),
-        );
-        if (
-          !session ||
-          session.project_id !== input.projectId ||
-          (session.chapter_id && session.chapter_id !== input.chapterId)
-        )
-          throw new Error(
-            "创作对象与原对话绑定不一致，请进入对应对象或新建对话。",
-          );
-      }
-      const chosen =
-        input.model ??
-        projectAgentSettings(pluginContext, input.projectId).defaultModel;
-      const providerId = activeAgentProviderId(pluginContext);
-      const entity = providerId
-        ? findProvider(pluginContext, providerId)
-        : undefined;
-      const provider = entity ? configuredProvider(entity) : undefined;
-      const selected = chosen ? modelSelection(chosen) : undefined;
-      const model = {
-        ...selected,
-        ...(input.engineKind !== "codex"
-          ? {
-              providerId: selected?.providerId ?? providerId,
-              modelId: selected?.modelId ?? provider?.model,
-            }
-          : {}),
+    previewCreation: (input) => {
+      const { model, contextInput } = prepare(input);
+      if (!agentContext.previewCreation)
+        throw new Error("上下文服务不支持无写入创作预检。");
+      return {
+        model,
+        preview: agentContext.previewCreation(contextInput, input.references),
       };
-      if (!model.modelId)
-        throw new Error(
-          "请在 AI 连接中选择本次使用的模型，工作流会固定这一选择。",
-        );
+    },
+    prepareCreation: (input) => {
+      const { model, contextInput } = prepare(input);
       if (!agentContext.prepareCreation)
         throw new Error("上下文服务不支持冻结业务资料。");
-      const snapshot = agentContext.prepareCreation(
-        {
-          projectId: input.projectId,
-          chapterId: input.chapterId,
-          runIntent: "creation",
-          basePrompt: input.prompt,
-          tokenBudget: 64000,
-          destination: {
-            kind: provider?.authentication === "none" ? "local" : "cloud",
-            provider:
-              input.engineKind === "codex"
-                ? "codex"
-                : (providerId ?? "unconfigured"),
-            model: model.modelId,
-          },
-          temporaryOverrides: [],
-        },
-        input.references,
-      );
-      return { model, snapshot };
+      return {
+        model,
+        snapshot: agentContext.prepareCreation(contextInput, input.references),
+      };
     },
     get: readRun,
+    usage: (runId, projectId, cursor, limit = 25) =>
+      pluginContext.uow.execute((tx) =>
+        readAgentUsagePage(tx, runId, projectId, cursor, limit),
+      ),
+    execution: (runId, projectId) =>
+      pluginContext.uow.execute((tx) =>
+        readAgentRunExecution(tx, runId, projectId),
+      ),
     cancel: async (id) => {
       const stop = active.get(id);
       if (stop) await stop();
@@ -163,11 +204,17 @@ export function createAgentTaskRunner(
             runId: input.runId,
           };
       }
+      const model =
+        input.model === undefined ? undefined : modelSelection(input.model);
+      if (input.model !== undefined && !model)
+        throw new Error(
+          "模型配置无效；仅支持 providerId、modelId、profileId，不会忽略其他参数。",
+        );
       if (!host)
         throw new Error(
           "当前 Runtime 未连接 Desktop Host，无法调用本地智能引擎。",
         );
-      const health = hostEngineHealth(
+      let health = hostEngineHealth(
         await host.engineHealth(input.engineKind).catch(() => undefined),
       );
       if (!health.available || !health.healthy)
@@ -184,10 +231,25 @@ export function createAgentTaskRunner(
             ? "请先完成 Codex 认证。"
             : "请先将一项模型服务设为智能助手模型。",
         );
-      const model = input.model ? modelSelection(input.model) : undefined;
-      if (input.model && !model) throw new Error("模型配置格式无效。");
       if (model?.providerId && model.providerId !== activeProvider)
         throw new Error("所选模型不属于当前启用的智能模型服务商。");
+      // A healthy transport can precede saved provider reconciliation after
+      // Desktop restart. Restore only the explicitly active provider before
+      // creating a session; never switch engines/models or invoke an
+      // unconfigured sidecar while waiting for the periodic reconciler.
+      if (input.engineKind !== "codex" && !health.configured) {
+        if (!(await restoreActiveAgentProvider(pluginContext, host)))
+          throw new Error(
+            "已保存模型配置尚未恢复到引擎，请检查凭据与引擎状态后重试。",
+          );
+        health = hostEngineHealth(
+          await host.engineHealth(input.engineKind).catch(() => undefined),
+        );
+        if (!health.available || !health.healthy || !health.configured)
+          throw new Error(
+            "所选引擎尚未接受已保存模型配置，不会换用其他引擎或模型。",
+          );
+      }
       const sessionId = crypto.randomUUID();
       const runId = input.runId ?? crypto.randomUUID();
       const taskId = crypto.randomUUID();
@@ -504,6 +566,17 @@ export function createAgentTaskRunner(
             if (event.type === "content.delta")
               content = `${content}${event.delta}`.slice(0, 500_000);
             pluginContext.uow.execute((transaction) => {
+              if (event.type === "usage") {
+                recordAgentUsage(transaction, {
+                  runId,
+                  engineRunId: engineRun.engineRunId ?? engineRun.runId,
+                  engineKind: input.engineKind,
+                  cursor: event.cursor,
+                  usage: event.usage,
+                  recordedAt: occurredAt,
+                });
+                return;
+              }
               transaction.run(
                 `UPDATE agent_assistant_runs
                  SET last_engine_cursor = ?, updated_at = ? WHERE id = ?`,

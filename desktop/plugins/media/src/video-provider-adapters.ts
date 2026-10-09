@@ -40,6 +40,38 @@ export interface MediaVideoProviderAdapter {
   parsePoll(value: unknown): NormalizedVideoProviderTask;
 }
 
+/** Validate the configured adapter's declaration, not live Provider guarantees. */
+export function videoProviderInputIssues(
+  capabilities: MediaVideoProviderCapabilities,
+  input: VideoGenerationInput,
+): string[] {
+  const issues: string[] = [];
+  const seconds = input.seconds ?? 5;
+  const durations = capabilities.durationSeconds;
+  if (
+    Array.isArray(durations)
+      ? !durations.includes(seconds)
+      : seconds < durations.minimum || seconds > durations.maximum
+  )
+    issues.push("请求时长超出服务商声明能力；不缩短或替换后提交。");
+  if (
+    input.size !== undefined &&
+    !capabilities.resolutions.some(
+      (resolution) => resolution.toLowerCase() === input.size!.toLowerCase(),
+    )
+  )
+    issues.push("请求分辨率不在服务商声明能力中；不替换为默认分辨率。");
+  return issues;
+}
+
+function assertVideoInput(
+  capabilities: MediaVideoProviderCapabilities,
+  input: VideoGenerationInput,
+) {
+  const issues = videoProviderInputIssues(capabilities, input);
+  if (issues.length) throw new Error(issues.join(" "));
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -96,7 +128,13 @@ const minimaxH3: MediaVideoProviderAdapter = {
     aspectRatios: ["9:16", "16:9", "1:1", "adaptive"],
   },
   create(provider, input) {
-    const resolution = input.size?.toUpperCase() === "2K" ? "2K" : "768P";
+    assertVideoInput(minimaxH3.capabilities, input);
+    const resolution =
+      input.size === undefined
+        ? "768P"
+        : minimaxH3.capabilities.resolutions.find(
+            (value) => value.toLowerCase() === input.size!.toLowerCase(),
+          )!;
     return {
       method: "POST",
       suffix: "/v2/video_generation",
@@ -159,6 +197,7 @@ const seedance: MediaVideoProviderAdapter = {
     aspectRatios: ["9:16", "16:9", "1:1"],
   },
   create(provider, input) {
+    assertVideoInput(seedance.capabilities, input);
     return {
       method: "POST",
       suffix: "/contents/generations/tasks",
@@ -167,7 +206,13 @@ const seedance: MediaVideoProviderAdapter = {
         content: [{ type: "text", text: input.prompt }],
         duration: input.seconds ?? 5,
         ratio: "9:16",
-        ...(input.size ? { resolution: input.size } : {}),
+        ...(input.size === undefined
+          ? {}
+          : {
+              resolution: seedance.capabilities.resolutions.find(
+                (value) => value.toLowerCase() === input.size!.toLowerCase(),
+              )!,
+            }),
       },
     };
   },

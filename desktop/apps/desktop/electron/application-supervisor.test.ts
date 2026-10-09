@@ -12,7 +12,12 @@ describe("desktop application shutdown", () => {
         { stop: async () => void events.push("engine-b") },
       ],
       runtime: { stop: async () => void events.push("runtime") },
-      host: { close: () => events.push("host") },
+      host: {
+        close: async () => {
+          await Promise.resolve();
+          events.push("host");
+        },
+      },
       disposeSupervision: () => events.push("supervision"),
     });
 
@@ -34,7 +39,7 @@ describe("desktop application shutdown", () => {
       },
       engines: [{ stop: () => new Promise<void>(() => undefined) }],
       runtime: { stop: async () => void events.push("runtime") },
-      host: { close: () => events.push("host") },
+      host: { close: () => void events.push("host") },
       disposeSupervision: () => events.push("supervision"),
       engineTimeoutMs: 5,
       runtimeTimeoutMs: 5,

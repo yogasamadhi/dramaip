@@ -34,6 +34,11 @@ import {
 } from "../providers/routes.js";
 import { queueInspirationMemoryJob } from "../inspiration/routes.js";
 import { taskPrompt, AGENT_TASK_CATALOG } from "../task-catalog.js";
+import {
+  recordAgentUsage,
+  readAgentUsageScope,
+  AgentUsageIntegrityError,
+} from "../runs/usage.js";
 export interface AssistantSessionRow {
   id: string;
   engine_session_id: string;
@@ -87,6 +92,7 @@ export interface AssistantRunRow {
   last_engine_cursor?: number;
   engine_generation?: number | null;
   checkpoint_json?: string | null;
+  context_snapshot_id?: string | null;
   recovery_attempts?: number;
   recovery_error?: string | null;
   created_at: string;
@@ -163,7 +169,21 @@ export function assistantTurn(row: AssistantTurnRow): Record<string, unknown> {
   };
 }
 
-export function assistantRun(row: AssistantRunRow): Record<string, unknown> {
+function safeUsageScope(
+  tx: import("@dramaip/plugin-api/internal").UnitOfWorkTransaction,
+  runId: string,
+) {
+  try {
+    return readAgentUsageScope(tx, runId);
+  } catch (error) {
+    if (error instanceof AgentUsageIntegrityError) return undefined;
+    throw error;
+  }
+}
+export function assistantRun(
+  row: AssistantRunRow,
+  usageScope?: import("@dramaip/contracts").AgentRunUsageScope,
+): Record<string, unknown> {
   const model = modelSelection(jsonValue(row.model_json));
   const checkpoint = jsonValue(row.checkpoint_json ?? null);
   return {
@@ -176,6 +196,10 @@ export function assistantRun(row: AssistantRunRow): Record<string, unknown> {
     ...(model ? { model } : {}),
     ...(row.turn_id ? { turnId: row.turn_id } : {}),
     ...(row.chapter_id ? { chapterId: row.chapter_id } : {}),
+    ...(usageScope ? { usageScope } : {}),
+    ...(row.context_snapshot_id
+      ? { contextSnapshotId: row.context_snapshot_id }
+      : {}),
     ...(row.error ? { error: row.error } : {}),
     ...(row.started_at ? { startedAt: row.started_at } : {}),
     ...(row.completed_at ? { completedAt: row.completed_at } : {}),
@@ -758,13 +782,12 @@ export function assistantConversationRoutes(
               .map(assistantTurn),
             runs: transaction
               .all<AssistantRunRow>(
-                `SELECT id, session_id, task_id, task_type, engine_kind, status,
-                        model_json, turn_id, chapter_id, error, started_at, completed_at,
-                        created_at, updated_at
-                 FROM agent_assistant_runs WHERE session_id = ? ORDER BY created_at, id`,
+                `SELECT * FROM agent_assistant_runs WHERE session_id = ? ORDER BY created_at, id`,
                 session.id,
               )
-              .map(assistantRun),
+              .map((row) =>
+                assistantRun(row, safeUsageScope(transaction, row.id)),
+              ),
             items: transaction
               .all<AssistantItemRow>(
                 `SELECT item.id, item.run_id, item.sequence, item.type, item.status,
@@ -1572,15 +1595,26 @@ export function assistantConversationRoutes(
                 );
                 let output: unknown;
                 for await (const event of runtime.subscribe(engineRun)) {
-                  pluginContext.uow.execute((transaction) =>
+                  pluginContext.uow.execute((transaction) => {
+                    if (event.type === "usage") {
+                      recordAgentUsage(transaction, {
+                        runId: started.runId,
+                        engineRunId: engineRun.engineRunId ?? engineRun.runId,
+                        engineKind: session.engine_kind as AgentEngineKind,
+                        cursor: event.cursor,
+                        usage: event.usage,
+                        recordedAt: new Date().toISOString(),
+                      });
+                      return;
+                    }
                     transaction.run(
                       `UPDATE agent_assistant_runs
                        SET last_engine_cursor = ?, updated_at = ? WHERE id = ?`,
                       event.cursor,
                       new Date().toISOString(),
                       started.runId,
-                    ),
-                  );
+                    );
+                  });
                   if (event.type === "content.delta") recordDelta(event.delta);
                   if (event.type === "tool") recordToolEvent(event);
                   if (event.type === "result") output = event.result;
@@ -1825,10 +1859,7 @@ export function typedAgentSessionRoutes(
   const findRun = (id: string): AssistantRunRow | undefined =>
     pluginContext.uow.execute((transaction) =>
       transaction.get<AssistantRunRow>(
-        `SELECT id, session_id, task_id, task_type, engine_kind, status,
-                model_json, turn_id, chapter_id, error, started_at, completed_at,
-                created_at, updated_at
-         FROM agent_assistant_runs WHERE id = ?`,
+        `SELECT * FROM agent_assistant_runs WHERE id = ?`,
         id,
       ),
     );
@@ -2032,7 +2063,12 @@ export function typedAgentSessionRoutes(
         routes.get("/api/v2/agent-runs/:id", (context) => {
           const run = findRun(context.req.param("id"));
           return run
-            ? context.json(assistantRun(run))
+            ? context.json(
+                assistantRun(
+                  run,
+                  pluginContext.uow.execute((tx) => safeUsageScope(tx, run.id)),
+                ),
+              )
             : problem(context, 404, "NOT_FOUND", "未找到 Agent 运行。");
         }),
     },

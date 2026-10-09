@@ -82,12 +82,29 @@ const replacementOperationIds = new Map([
   ["review-editor.editorExport", "timeline.exportDelivery"],
 ]);
 
+// Compatibility routes are retained to return structured errors, not to claim
+// that fixed numbers, absent content reads, or old acknowledgements are quality.
+const retiredUnsupportedOperations = new Map([
+  [
+    "creative.runDiagnostics",
+    "Fixed 72 and curve values without content reads; new diagnostic generation is unsupported, historical records remain unverified.",
+  ],
+  [
+    "creative.acknowledgeIssue",
+    "No new certification against unsupported legacy diagnostics; old declarations remain read-only and unverified.",
+  ],
+  [
+    "adaptation-analysis.run",
+    "Zero-filled analysis without reading actual episodes; no new generation or automatic replacement of historical records.",
+  ],
+]);
+
 const operations = baseline.operations.map((legacy) => {
-  const retired = legacy.owner === "retired-generic-router";
+  const genericRetired = legacy.owner === "retired-generic-router";
+  const retiredReason = retiredUnsupportedOperations.get(legacy.operationId);
+  const retired = genericRetired || Boolean(retiredReason);
   const replacementId = replacementOperationIds.get(legacy.operationId);
-  const replacement = replacementId
-    ? actualById.get(replacementId)
-    : undefined;
+  const replacement = replacementId ? actualById.get(replacementId) : undefined;
   const actual = replacement ?? actualById.get(legacy.operationId);
   const routeMatches = Boolean(
     actual &&
@@ -116,10 +133,10 @@ const operations = baseline.operations.map((legacy) => {
       tag: legacy.tag,
     },
     owner: legacy.owner,
-    contract: retired
+    contract: genericRetired
       ? "replaced by bounded-context contracts"
       : `@dramaip/contracts/${legacy.owner}`,
-    routeContribution: retired
+    routeContribution: genericRetired
       ? "removed"
       : actual
         ? {
@@ -151,6 +168,21 @@ const operations = baseline.operations.map((legacy) => {
     automatedEvidence: actual
       ? ["effective-runtime-openapi", "generated-client", "runtime-conformance"]
       : [],
+    ...(retiredReason
+      ? {
+          retirement: {
+            reason: retiredReason,
+            compatibility:
+              "HTTP 409 UNSUPPORTED_OPERATION; no new reports, tasks or events, no silent replacement operation",
+            history:
+              "Original persisted values retained; no quality/source/permission backfill",
+            evidence: [
+              "packages/runtime/src/workspace-writing.test.ts: legacy quality claims are unsupported",
+              "tests/electron/legacy-quality-history.spec.ts",
+            ],
+          },
+        }
+      : {}),
     status: retired
       ? "retired"
       : replacement
@@ -198,6 +230,7 @@ const matrix = {
   expected: {
     legacyOperations: baseline.operations.length,
     retiredGenericOperations: 5,
+    retiredUnsupportedOperations: retiredUnsupportedOperations.size,
     electronE2eJourneys: 34,
     visualBaselines: 12,
   },

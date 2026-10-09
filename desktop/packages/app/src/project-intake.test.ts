@@ -3,7 +3,25 @@ import {
   defaultProductionBrief,
   productionBriefText,
   projectInputFromBrief,
+  PROJECT_SOURCE_OPTIONS,
+  recommendedProjectMode,
+  projectModeBrief,
 } from "./project-intake";
+
+test("素材先于内部模式，三条入口完整且允许原著继续小说创作", () => {
+  expect(PROJECT_SOURCE_OPTIONS.map((item) => item.source)).toEqual([
+    "source-import",
+    "inspiration",
+    "script",
+  ]);
+  expect(recommendedProjectMode("script")).toBe("single_season");
+  expect(recommendedProjectMode("inspiration")).toBe("series_longform");
+  const novel = projectModeBrief("series_longform", "source-import");
+  expect(novel.creationSource).toBe("source-import");
+  expect(novel.targetAudience).toBe("小说读者");
+  expect(novel.shortDramaType).toBe("");
+  expect(novel.visualStyleDirection).toBe("");
+});
 
 test("生产简报保存创建路径、内容形态和试制默认值", () => {
   const draft = defaultProductionBrief("source-import");

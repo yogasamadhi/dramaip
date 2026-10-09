@@ -1,18 +1,24 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '../../components/ui/Button'
+import { desktopReleaseInfo, PRODUCT_POSITIONING } from '../../lib/product-positioning'
 
 export const metadata: Metadata = { title: '下载' }
 
-const releaseURL = process.env.NEXT_PUBLIC_DESKTOP_RELEASE_URL
-const releaseVersion = process.env.NEXT_PUBLIC_DESKTOP_VERSION ?? '2.0.0-rc.1'
-const releaseSHA256 = process.env.NEXT_PUBLIC_DESKTOP_SHA256
-const isReleaseReady = Boolean(releaseURL && releaseSHA256 && !releaseURL?.includes('example.invalid'))
+const release = desktopReleaseInfo({
+  url: process.env.NEXT_PUBLIC_DESKTOP_RELEASE_URL,
+  version: process.env.NEXT_PUBLIC_DESKTOP_VERSION,
+  sha256: process.env.NEXT_PUBLIC_DESKTOP_SHA256,
+})
+const releaseURL = release.url
+const releaseVersion = release.version ?? '未配置'
+const releaseSHA256 = release.sha256
+const isReleaseConfigured = release.configured
 
 const platforms = [
-  { name: 'macOS', build: 'Universal · DMG / ZIP', state: isReleaseReady ? '签名与公证状态见发布清单' : '等待 Developer ID 签名与公证证据' },
-  { name: 'Windows', build: 'x64 · NSIS / ZIP', state: isReleaseReady ? '签名状态见发布清单' : '等待受信代码签名证据' },
-  { name: 'Linux Beta', build: 'x64 · AppImage / deb', state: isReleaseReady ? 'Beta smoke 已记录' : '等待 Beta smoke 证据' },
+  { name: 'macOS', build: 'Universal · DMG / ZIP', state: isReleaseConfigured ? '签名与公证状态见发布清单' : '等待 Developer ID 签名与公证证据' },
+  { name: 'Windows', build: 'x64 · NSIS / ZIP', state: isReleaseConfigured ? '签名状态见发布清单' : '等待受信代码签名证据' },
+  { name: 'Linux Beta', build: 'x64 · AppImage / deb', state: isReleaseConfigured ? 'Beta smoke 状态见发布清单' : '等待 Beta smoke 证据' },
 ]
 
 export default function DownloadPage() {
@@ -22,17 +28,17 @@ export default function DownloadPage() {
       <div className="mt-4 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-5xl font-semibold tracking-tight text-ink">下载尽意 DramaIP</h1>
-          <p className="mt-5 max-w-2xl leading-7 text-stone-600">本地优先的 AI IP 创作工作台。无需登录、密钥或网络，先用内置样片跑通导演工作台、离线审片和标准交付。</p>
+          <p className="mt-5 max-w-2xl leading-7 text-stone-600">{PRODUCT_POSITIONING.category}。小说可独立写作与稿件交付，也可从创意、原著或已有剧本进入改编。模型生成需要连接与授权；离线样片不需要模型密钥，不代表离线 AI 能力。</p>
         </div>
-        <span className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${isReleaseReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
-          {isReleaseReady ? `v${releaseVersion}` : `v${releaseVersion} · RC 门禁中`}
+        <span className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${isReleaseConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
+          {release.version ? `v${releaseVersion} · 发布验收状态见清单` : '候选发布信息未配置'}
         </span>
       </div>
 
-      {!isReleaseReady ? (
+      {!isReleaseConfigured ? (
         <section className="mt-10 rounded-3xl border border-amber-300 bg-amber-50 p-6 text-amber-950">
-          <h2 className="font-semibold">安装包尚未通过 GA 门禁</h2>
-          <p className="mt-2 text-sm leading-6">正式 HTTPS 更新源、SHA-256 与平台签名证据尚未注入当前部署。页面保持 RC 状态，不提供未经验证的下载链接。</p>
+          <h2 className="font-semibold">发布验收状态尚未确认</h2>
+          <p className="mt-2 text-sm leading-6">当前部署尚未提供完整有效的 HTTPS 下载地址、版本与 SHA-256。这里不推断发布版本或签名结果，不提供未经配置校验的下载链接。配置完整也不等于三平台 GA，安装、升级、签名与公证证据仍以当次发布清单为准。</p>
         </section>
       ) : null}
 
@@ -43,7 +49,7 @@ export default function DownloadPage() {
             <p className="mt-3 text-sm text-stone-600">{platform.build}</p>
             <p className="mt-8 text-sm leading-6 text-stone-500">{platform.state}</p>
             <div className="mt-auto pt-8">
-              {isReleaseReady && releaseURL ? <a href={releaseURL} target="_blank" rel="noreferrer"><Button className="w-full">前往官方下载</Button></a> : <Button className="w-full" disabled>门禁通过后开放</Button>}
+              {isReleaseConfigured && releaseURL ? <a href={releaseURL} target="_blank" rel="noreferrer"><Button className="w-full">前往官方下载</Button></a> : <Button className="w-full" disabled>门禁通过后开放</Button>}
             </div>
           </article>
         ))}

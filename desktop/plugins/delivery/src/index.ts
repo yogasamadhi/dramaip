@@ -1,6 +1,12 @@
-import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import {
+  WORKSPACE_PROJECT_SERVICE,
+  type WorkspaceProjectService,
+} from "@dramaip/contracts/workspace";
+import {
+  WRITING_CHAPTER_SERVICE,
+  type WritingChapterService,
+} from "@dramaip/contracts/writing";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
-import { createHash } from "node:crypto";
 import { createRoute } from "@hono/zod-openapi";
 import {
   registerDeliveryCreation,
@@ -9,16 +15,16 @@ import {
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   DELIVERY_RECORD_SERVICE,
-  DeliveryCreativeVariantInputSchema,
   DeliveryRecordInputSchema,
   DeliveryRecordPatchSchema,
-  PlatformDeliveryPreflightInputSchema,
   type DeliveryRecord,
   type DeliveryRecordKind,
   type DeliveryRecordService,
 } from "@dramaip/contracts/delivery";
 import {
   PRODUCTION_RECORD_SERVICE,
+  PRODUCTION_EPISODE_DEVELOPMENT_SERVICE,
+  PRODUCTION_STORYBOARD_ATTRIBUTION_SERVICE,
   type ProductionRecordService,
 } from "@dramaip/contracts/production";
 import {
@@ -29,6 +35,21 @@ import {
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  manuscriptMigration,
+  manuscriptRoutes,
+  type ManuscriptHost,
+} from "./manuscript.js";
+import { pilotMigration, pilotRoutes } from "./pilot.js";
+import {
+  platformMetadataMigration,
+  platformMetadataRoutes,
+} from "./platform-metadata.js";
+import { TIMELINE_SERVICE } from "@dramaip/contracts/timeline";
+import {
+  MEDIA_RECORD_SERVICE,
+  MEDIA_LIKENESS_SERVICE,
+} from "@dramaip/contracts/media";
 
 interface Row {
   id: string;
@@ -326,210 +347,11 @@ function exportDocument(fileName: string, value: unknown) {
   };
 }
 
-function deliveryRoutes(
-  records: DeliveryRecordService,
-  production: ProductionRecordService,
-): RouteContribution[] {
+function deliveryRoutes(records: DeliveryRecordService): RouteContribution[] {
   const routes: RouteContribution[] = [];
   const add = (...args: Parameters<typeof contribution>) =>
     routes.push(contribution(...args));
 
-  add(
-    "get",
-    "/api/v2/platform-delivery/profiles",
-    "platform-delivery.listProfiles",
-    (context) => context.json(deliveryProfiles),
-  );
-  add(
-    "get",
-    "/api/v2/adaptations/{id}/delivery-variants",
-    "platform-delivery.listVariants",
-    (context) =>
-      context.json(
-        records
-          .list("delivery-variant", { parentId: context.req.param("id") })
-          .map(wire),
-      ),
-    { params: idParams },
-  );
-  add(
-    "post",
-    "/api/v2/adaptations/{id}/delivery-variants",
-    "platform-delivery.createVariant",
-    async (context) => {
-      const parsed = DeliveryCreativeVariantInputSchema.safeParse(
-        await context.req.json(),
-      );
-      const adaptation = production.get(context.req.param("id"));
-      if (!parsed.success)
-        return problem(context, 400, "VALIDATION_ERROR", "交付创意版本无效。");
-      if (!adaptation || adaptation.kind !== "adaptations")
-        return problem(context, 404, "NOT_FOUND", "未找到改编方案。");
-      return context.json(
-        wire(
-          records.create("delivery-variant", {
-            projectId: adaptation.projectId,
-            parentId: adaptation.id,
-            value: {
-              projectId: adaptation.projectId,
-              adaptationId: adaptation.id,
-              ...parsed.data,
-              status: "candidate",
-              versionNumber: 1,
-            },
-          }),
-        ),
-        201,
-      );
-    },
-    { params: idParams, body: DeliveryCreativeVariantInputSchema, status: 201 },
-  );
-  add(
-    "post",
-    "/api/v2/delivery-variants/{id}/adopt",
-    "platform-delivery.adoptVariant",
-    (context) => {
-      const current = records.get(context.req.param("id"));
-      if (!current || current.kind !== "delivery-variant")
-        return problem(context, 404, "NOT_FOUND", "未找到交付创意版本。");
-      for (const item of records.list("delivery-variant", {
-        parentId: current.parentId,
-      }))
-        if (item.id !== current.id && item.value["status"] === "adopted")
-          records.update(item.id, { status: "archived" });
-      const value = records.update(current.id, {
-        status: "adopted",
-        versionNumber: Number(current.value["versionNumber"] ?? 1) + 1,
-      });
-      return context.json(wire(value!));
-    },
-    { params: idParams },
-  );
-  add(
-    "get",
-    "/api/v2/episodes/{id}/platform-deliveries",
-    "platform-delivery.listArchives",
-    (context) =>
-      context.json(
-        records
-          .list("platform-archive", { parentId: context.req.param("id") })
-          .map(wire),
-      ),
-    { params: idParams },
-  );
-
-  const preflight = (
-    episodeId: string,
-    input: z.infer<typeof PlatformDeliveryPreflightInputSchema>,
-  ) => {
-    const episode = production.get(episodeId);
-    const profile = deliveryProfiles.find(
-      (item) => item.id === input.profileId,
-    );
-    const variant = records.get(input.creativeVariantId);
-    const blockers: string[] = [];
-    if (!episode || episode.kind !== "episodes")
-      blockers.push("未找到待交付分集。");
-    if (!profile) blockers.push("未找到平台交付档案。");
-    if (!variant || variant.kind !== "delivery-variant")
-      blockers.push("未找到交付创意版本。");
-    if (!input.manualFieldsConfirmed)
-      blockers.push("请先确认平台版权声明与发行地区等人工字段。");
-    const base = `${profile?.filenamePrefix ?? "dramaip"}-episode-${String(episode?.payload["集数"] ?? 1)}`;
-    const sourceFingerprint = createHash("sha256")
-      .update(
-        JSON.stringify({
-          episodeId,
-          profileId: input.profileId,
-          profileVersion: profile?.version,
-          creativeVariantId: input.creativeVariantId,
-          variantVersion: variant?.version,
-        }),
-      )
-      .digest("hex");
-    return {
-      ok: blockers.length === 0,
-      ...(profile ? { profile } : {}),
-      blockers,
-      warnings: ["发行前仍需在目标平台后台核对最新规格。"],
-      expectedFiles: [`${base}.mp4`, `${base}.srt`, `${base}.json`],
-      finalBaseName: base,
-      sourceFingerprint,
-    };
-  };
-
-  add(
-    "post",
-    "/api/v2/episodes/{id}/platform-delivery/preflight",
-    "platform-delivery.preflight",
-    async (context) => {
-      const parsed = PlatformDeliveryPreflightInputSchema.safeParse(
-        await context.req.json(),
-      );
-      return parsed.success
-        ? context.json(preflight(context.req.param("id"), parsed.data))
-        : problem(context, 400, "VALIDATION_ERROR", "交付预检参数无效。");
-    },
-    { params: idParams, body: PlatformDeliveryPreflightInputSchema },
-  );
-  add(
-    "post",
-    "/api/v2/episodes/{id}/platform-deliveries",
-    "platform-delivery.createArchive",
-    async (context) => {
-      const parsed = PlatformDeliveryPreflightInputSchema.safeParse(
-        await context.req.json(),
-      );
-      if (!parsed.success)
-        return problem(context, 400, "VALIDATION_ERROR", "交付归档参数无效。");
-      const episodeId = context.req.param("id");
-      const check = preflight(episodeId, parsed.data);
-      if (!check.ok)
-        return problem(
-          context,
-          409,
-          "PREFLIGHT_FAILED",
-          check.blockers.join("；"),
-        );
-      const episode = production.get(episodeId)!;
-      const value = records.create("platform-archive", {
-        projectId: episode.projectId,
-        parentId: episode.id,
-        value: {
-          projectId: episode.projectId,
-          adaptationId: episode.parentId,
-          episodeId: episode.id,
-          profileId: parsed.data.profileId,
-          profileVersion: check.profile!.version,
-          creativeVariantId: parsed.data.creativeVariantId,
-          deliveryVersion:
-            records.list("platform-archive", { parentId: episode.id }).length +
-            1,
-          sourceFingerprint: check.sourceFingerprint,
-        },
-      });
-      return context.json(wire(value), 201);
-    },
-    {
-      params: idParams,
-      body: PlatformDeliveryPreflightInputSchema,
-      status: 201,
-    },
-  );
-  add(
-    "get",
-    "/api/v2/platform-deliveries/{id}/export",
-    "platform-delivery.exportArchive",
-    (context) => {
-      const value = records.get(context.req.param("id"));
-      return value?.kind === "platform-archive"
-        ? context.json(
-            exportDocument(`platform-delivery-${value.id}.json`, wire(value)),
-          )
-        : problem(context, 404, "NOT_FOUND", "未找到平台交付归档。");
-    },
-    { params: idParams },
-  );
   add(
     "post",
     "/api/v2/localization/{id}/adopt",
@@ -725,45 +547,59 @@ function deliveryRoutes(
   return routes;
 }
 
-export const deliveryPlugin = definePlugin({
-  inject: [PRODUCTION_RECORD_SERVICE.id, WORKSPACE_PROJECT_SERVICE.id],
-  descriptor: {
-    id: "delivery",
-    version: "3.0.0-alpha.3",
-    apiVersion: "2",
-    requires: [
-      "foundation",
-      "workspace",
-      "production",
-      "media",
-      "timeline",
-      "review",
+export function createDeliveryPlugin(host?: ManuscriptHost) {
+  return definePlugin({
+    inject: [
+      PRODUCTION_RECORD_SERVICE.id,
+      WORKSPACE_PROJECT_SERVICE.id,
+      WRITING_CHAPTER_SERVICE.id,
+      PRODUCTION_EPISODE_DEVELOPMENT_SERVICE.id,
+      PRODUCTION_STORYBOARD_ATTRIBUTION_SERVICE.id,
+      TIMELINE_SERVICE.id,
+      MEDIA_RECORD_SERVICE.id,
+      MEDIA_LIKENESS_SERVICE.id,
     ],
-    provides: ["delivery.records", "delivery.platform-profiles"],
-    stability: "internal",
-  },
-  ui: [
-    {
-      id: "delivery.panel.platform",
-      pluginId: "delivery",
-      kind: "panel",
-      metadata: { slot: "review.delivery", title: "平台交付" },
-    },
-    {
-      id: "delivery.command.export",
-      pluginId: "delivery",
-      kind: "command",
-      metadata: { title: "导出交付包", command: "delivery.export" },
-    },
-  ],
-  migrations: [
-    deliveryCreationMigration,
-    {
-      id: "delivery.0001.records",
-      pluginId: "delivery",
+    descriptor: {
+      id: "delivery",
       version: "3.0.0-alpha.3",
-      dependsOn: ["review.0002.owned-records"],
-      sql: `
+      apiVersion: "2",
+      requires: [
+        "foundation",
+        "workspace",
+        "writing",
+        "production",
+        "media",
+        "timeline",
+        "review",
+      ],
+      provides: ["delivery.records", "delivery.platform-profiles"],
+      stability: "internal",
+    },
+    ui: [
+      {
+        id: "delivery.panel.platform",
+        pluginId: "delivery",
+        kind: "panel",
+        metadata: { slot: "review.delivery", title: "平台交付" },
+      },
+      {
+        id: "delivery.command.export",
+        pluginId: "delivery",
+        kind: "command",
+        metadata: { title: "导出交付包", command: "delivery.export" },
+      },
+    ],
+    migrations: [
+      deliveryCreationMigration,
+      manuscriptMigration,
+      pilotMigration,
+      platformMetadataMigration,
+      {
+        id: "delivery.0001.records",
+        pluginId: "delivery",
+        version: "3.0.0-alpha.3",
+        dependsOn: ["review.0002.owned-records"],
+        sql: `
         CREATE TABLE IF NOT EXISTS delivery_records (
           id TEXT PRIMARY KEY,
           kind TEXT NOT NULL CHECK(kind IN ('localization', 'delivery', 'delivery-variant', 'platform-archive')),
@@ -779,23 +615,60 @@ export const deliveryPlugin = definePlugin({
         CREATE INDEX IF NOT EXISTS delivery_records_kind_parent
           ON delivery_records(kind, parent_id, created_at, id);
       `,
+      },
+    ],
+    apply: (context) => {
+      registerDeliveryCreation(context);
+      const production = optionalService<ProductionRecordService>(
+        context,
+        PRODUCTION_RECORD_SERVICE,
+      );
+      if (!production) throw new Error("delivery requires production service");
+      const workspace = optionalService<WorkspaceProjectService>(
+        context,
+        WORKSPACE_PROJECT_SERVICE,
+      );
+      const writing = optionalService<WritingChapterService>(
+        context,
+        WRITING_CHAPTER_SERVICE,
+      );
+      if (!workspace || !writing)
+        throw new Error("delivery requires workspace and writing services");
+      const records = makeService(context);
+      context.effect(
+        () => provideService(context, DELIVERY_RECORD_SERVICE, records),
+        `service:${DELIVERY_RECORD_SERVICE}`,
+      );
+      for (const route of [
+        ...deliveryRoutes(records),
+        ...platformMetadataRoutes(
+          context,
+          records,
+          production,
+          workspace,
+          optionalService(context, MEDIA_RECORD_SERVICE)!,
+          deliveryProfiles,
+        ),
+        ...manuscriptRoutes(context, workspace, writing, host),
+        ...pilotRoutes(context, host),
+      ])
+        context.effect(() => context.http.register(route), `route:${route.id}`);
     },
-  ],
-  apply: (context) => {
-    registerDeliveryCreation(context);
-    const production = optionalService<ProductionRecordService>(
-      context,
-      PRODUCTION_RECORD_SERVICE,
-    );
-    if (!production) throw new Error("delivery requires production service");
-    const records = makeService(context);
-    context.effect(
-      () => provideService(context, DELIVERY_RECORD_SERVICE, records),
-      `service:${DELIVERY_RECORD_SERVICE}`,
-    );
-    for (const route of deliveryRoutes(records, production))
-      context.effect(() => context.http.register(route), `route:${route.id}`);
-  },
-});
+  });
+}
 
-export default deliveryPlugin;
+export const deliveryPlugin = createDeliveryPlugin();
+
+import type { Context } from "@deepseek-ai/cordis";
+export default {
+  name: "delivery-entry",
+  inject: ["pluginEnvironment"],
+  apply: (ctx: Context, config: Record<string, unknown>) => {
+    ctx.plugin(
+      createDeliveryPlugin(
+        ctx.pluginEnvironment.host as ManuscriptHost | undefined,
+      ),
+      config,
+    );
+  },
+};

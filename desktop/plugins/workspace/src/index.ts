@@ -1,6 +1,12 @@
+import { registerWorkspaceProjectLineage } from "./workspace-project-lineage.js";
+import {
+  importedProjectLineageMigration,
+  writeImportedProjectLineageArchives,
+} from "./project-lineage.js";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
+import { CreativeInitialGoalFactSchema } from "@dramaip/contracts/insights";
 import {
   CREATIVE_QUALITY_SERVICE,
   type CreativeQualityRecordService,
@@ -34,6 +40,7 @@ import {
   ProjectPurgeSchema,
   ProjectSchema,
   WORKSPACE_PROJECT_SERVICE,
+  WORKSPACE_AUTHOR_INTENT_SERVICE,
   type ProjectInitialization,
   type ProjectMode,
   type ProjectModeConfig,
@@ -54,6 +61,7 @@ import {
   definePlugin,
   type PluginContext,
   type RouteContribution,
+  type RoutePolicy,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z } from "zod";
@@ -66,6 +74,27 @@ import {
   sourceImportMigrations,
   sourceImportRoutes,
 } from "./source-imports.js";
+import {
+  authorIntentMigration,
+  authorIntentCreationMigration,
+  authorIntentRoutes,
+  createAuthorIntentService,
+} from "./author-intent.js";
+import {
+  authorIntentSourceReader,
+  registerAuthorIntentCreation,
+} from "./author-intent-creation.js";
+import {
+  ProjectCreationReceiptError,
+  projectCreationReceiptMigration,
+  projectCreationRequestHash,
+  readProjectCreationReceipt,
+  writeProjectCreationReceipt,
+} from "./project-creation-receipts.js";
+import {
+  ordinaryImportMigration,
+  SourceImportRecoveryError,
+} from "./source-import-recovery.js";
 
 interface ProjectRow {
   id: string;
@@ -129,8 +158,9 @@ function route(
   metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   declaration: unknown,
   handler: RouteHandler,
+  policy?: Partial<RoutePolicy>,
 ): RouteContribution {
-  return defineRouteContribution({ ...metadata, declaration, handler });
+  return defineRouteContribution({ ...metadata, declaration, handler, policy });
 }
 
 function problem(
@@ -180,9 +210,28 @@ function defaultModeConfig(mode: ProjectMode): ProjectModeConfig {
 
 function modeConfigFor(input: ProjectInput): ProjectModeConfig | undefined {
   const mode = input.mode ?? "series_longform";
+  if (
+    input.goalConfirmation &&
+    mode !==
+      (input.goalConfirmation.goal === "novel-first"
+        ? "series_longform"
+        : "single_season")
+  )
+    return;
   const candidate = input.modeConfig ?? defaultModeConfig(mode);
   const parsed = ProjectModeConfigSchema.safeParse(candidate);
   return parsed.success && parsed.data.mode === mode ? parsed.data : undefined;
+}
+
+/** Written creation fields only: legacy snapshots are not original request/goal proof. */
+function projectCreationSnapshotHash(input: ProjectInput): string {
+  return projectCreationRequestHash({
+    ...input,
+    title: input.title.trim(),
+    shortDramaType: input.shortDramaType?.trim() || "未分类",
+    modeConfig: modeConfigFor(input),
+    synopsis: input.synopsis ?? "",
+  });
 }
 
 function initializationPlan(mode: ProjectMode): ReadonlyArray<{
@@ -233,8 +282,9 @@ interface InitializationRow {
 function initialization(
   context: PluginContext,
   projectId: string,
+  transaction?: UnitOfWorkTransaction,
 ): ProjectInitialization {
-  return context.uow.execute((transaction) => {
+  const read = (transaction: UnitOfWorkTransaction) => {
     const current = transaction.get<{
       lifecycle_status: "initializing" | "ready" | "failed";
       updated_at: string;
@@ -262,7 +312,8 @@ function initialization(
       })),
       updatedAt: current?.updated_at ?? new Date().toISOString(),
     };
-  });
+  };
+  return transaction ? read(transaction) : context.uow.execute(read);
 }
 
 function supportedDerivation(
@@ -350,14 +401,20 @@ function appendProjectEvent(
 function createProjectRecord(
   context: PluginContext,
   input: ProjectInput,
-  options: { derivedFromProjectId?: string } = {},
+  options: {
+    derivedFromProjectId?: string;
+    transaction?: UnitOfWorkTransaction;
+  } = {},
 ): Project {
+  const parsed = ProjectInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error("项目创建信息无效。");
+  input = parsed.data;
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const mode = input.mode ?? "series_longform";
   const modeConfig = modeConfigFor(input);
   if (!modeConfig) throw new Error("项目模式配置无效。");
-  return context.uow.execute((transaction) => {
+  const write = (transaction: UnitOfWorkTransaction) => {
     transaction.run(
       `INSERT INTO projects(
         id, title, short_drama_type, mode, mode_config_json, lifecycle_status,
@@ -422,8 +479,33 @@ function createProjectRecord(
       transaction.get<ProjectRow>(`${projectSelect} WHERE p.id = ?`, id)!,
     );
     appendProjectEvent(transaction, "created", value);
+    if (input.goalConfirmation)
+      transaction.append({
+        type: "workspace.creation-goal-confirmed.v1",
+        pluginId: "workspace",
+        aggregateType: "project",
+        aggregateId: value.id,
+        aggregateVersion: value.version,
+        payload: CreativeInitialGoalFactSchema.parse({
+          eventVersion: 1,
+          projectId: value.id,
+          projectVersion: value.version,
+          workflowPath:
+            input.goalConfirmation.goal === "novel-first"
+              ? "novel"
+              : "adaptation",
+          goal: input.goalConfirmation.goal,
+          material: input.goalConfirmation.material,
+          evidenceKind: "explicit-initial-goal-confirmation",
+          modelEvidence: "unknown",
+          qualityState: "unverified",
+        }),
+      });
     return value;
-  });
+  };
+  return options.transaction
+    ? write(options.transaction)
+    : context.uow.execute(write);
 }
 
 function updateProjectRecord(
@@ -1088,17 +1170,6 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
             "IDEMPOTENCY_KEY_REQUIRED",
             "创建项目必须提供有效的 Idempotency-Key。",
           );
-        const replay = context.uow.execute((transaction) =>
-          transaction.get<{ response_json: string }>(
-            "SELECT response_json FROM workspace_project_create_idempotency WHERE idempotency_key = ?",
-            idempotencyKey,
-          ),
-        );
-        if (replay) {
-          const value = JSON.parse(replay.response_json);
-          requestContext.header("Idempotency-Replayed", "true");
-          return requestContext.json(value, 201);
-        }
         const parsed = ProjectInputSchema.safeParse(
           await requestContext.req.json(),
         );
@@ -1116,22 +1187,60 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
             "VALIDATION_ERROR",
             "项目模式与模式配置必须匹配。",
           );
-        const created = createProjectRecord(context, parsed.data);
-        const value = {
-          project: created,
-          initialization: initialization(context, created.id),
-        };
-        context.uow.execute((transaction) =>
-          transaction.run(
-            "INSERT INTO workspace_project_create_idempotency(idempotency_key, response_json, created_at) VALUES (?, ?, ?)",
-            idempotencyKey,
-            JSON.stringify(value),
-            new Date().toISOString(),
-          ),
-        );
-        requestContext.header("ETag", `"${created.version}"`);
-        return requestContext.json(value, 201);
+        const digest = projectCreationRequestHash(parsed.data);
+        try {
+          const result = context.uow.execute((transaction) => {
+            const replay = readProjectCreationReceipt(
+              transaction,
+              idempotencyKey,
+              "projects.create",
+              digest,
+              (value) => ProjectCreationResultSchema.parse(value),
+              (value) => {
+                const old = ProjectCreationResultSchema.safeParse(value);
+                if (!old.success) return;
+                const snapshot = ProjectInputSchema.safeParse(old.data.project);
+                return snapshot.success &&
+                  projectCreationSnapshotHash(snapshot.data) ===
+                    projectCreationSnapshotHash(parsed.data)
+                  ? "legacy-project-snapshot"
+                  : undefined;
+              },
+            );
+            if (replay) return { ...replay, replayed: true };
+            const created = createProjectRecord(context, parsed.data, {
+              transaction,
+            });
+            const value = {
+              project: created,
+              initialization: initialization(context, created.id, transaction),
+            };
+            writeProjectCreationReceipt(
+              transaction,
+              idempotencyKey,
+              "projects.create",
+              digest,
+              value,
+            );
+            return { value, binding: "request" as const, replayed: false };
+          });
+          if (result.replayed)
+            requestContext.header("Idempotency-Replayed", "true");
+          requestContext.header("Idempotency-Binding", result.binding);
+          requestContext.header("ETag", `"${result.value.project.version}"`);
+          return requestContext.json(result.value, 201);
+        } catch (error) {
+          if (error instanceof ProjectCreationReceiptError)
+            return problem(
+              requestContext,
+              error.status,
+              error.code,
+              error.message,
+            );
+          throw error;
+        }
       },
+      { idempotency: "required", idempotencyReplay: "handler" },
     ),
     route(
       {
@@ -1322,16 +1431,6 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
             "IDEMPOTENCY_KEY_REQUIRED",
             "提交派生项目必须提供有效的 Idempotency-Key。",
           );
-        const replay = context.uow.execute((transaction) =>
-          transaction.get<{ response_json: string }>(
-            "SELECT response_json FROM workspace_project_create_idempotency WHERE idempotency_key = ?",
-            idempotencyKey,
-          ),
-        );
-        if (replay) {
-          requestContext.header("Idempotency-Replayed", "true");
-          return requestContext.json(JSON.parse(replay.response_json), 201);
-        }
         const parsed = ProjectDerivationCommitInputSchema.safeParse(
           await requestContext.req.json(),
         );
@@ -1342,88 +1441,117 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
             "VALIDATION_ERROR",
             "派生预览无效。",
           );
-        const preview = context.uow.execute((transaction) =>
-          transaction.get<{
-            id: string;
-            source_project_id: string;
-            target_mode: ProjectMode;
-            target_mode_config_json: string;
-            title: string;
-            transformation: string;
-            expires_at: string;
-          }>(
-            "SELECT * FROM project_derivation_previews WHERE id = ? AND source_project_id = ?",
-            parsed.data.previewId,
-            sourceId,
-          ),
-        );
-        if (!preview || Date.parse(preview.expires_at) <= Date.now())
-          return problem(
-            requestContext,
-            409,
-            "PREVIEW_EXPIRED",
-            "派生预览已过期，请重新预览后再提交。",
-          );
-        const source = getProject(sourceId);
-        if (!source)
-          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
-        const targetModeConfig = ProjectModeConfigSchema.safeParse(
-          JSON.parse(preview.target_mode_config_json),
-        );
-        if (
-          !targetModeConfig.success ||
-          targetModeConfig.data.mode !== preview.target_mode ||
-          !supportedDerivation(source.mode, preview.target_mode)
-        )
-          return problem(
-            requestContext,
-            409,
-            "UNSUPPORTED_OPERATION",
-            "派生预览不再适用于当前项目。",
-          );
-        const created = createProjectRecord(
-          context,
-          {
-            title: preview.title,
-            shortDramaType: source.short_drama_type || undefined,
-            mode: preview.target_mode,
-            modeConfig: targetModeConfig.data,
-            targetAudience: source.target_audience ?? undefined,
-            synopsis: source.synopsis,
-          },
-          { derivedFromProjectId: sourceId },
-        );
-        const derivationId = crypto.randomUUID();
-        context.uow.execute((transaction) => {
-          transaction.run(
-            "INSERT INTO project_derivations(id, source_project_id, target_project_id, transformation, created_at) VALUES (?, ?, ?, ?, ?)",
-            derivationId,
-            sourceId,
-            created.id,
-            preview.transformation,
-            new Date().toISOString(),
-          );
-          transaction.run(
-            "DELETE FROM project_derivation_previews WHERE id = ?",
-            preview.id,
-          );
+        const digest = projectCreationRequestHash({
+          sourceId,
+          previewId: parsed.data.previewId,
         });
-        const value = {
-          project: created,
-          initialization: initialization(context, created.id),
-          derivationId,
-        };
-        context.uow.execute((transaction) =>
-          transaction.run(
-            "INSERT INTO workspace_project_create_idempotency(idempotency_key, response_json, created_at) VALUES (?, ?, ?)",
-            idempotencyKey,
-            JSON.stringify(value),
-            new Date().toISOString(),
-          ),
-        );
-        requestContext.header("ETag", `"${created.version}"`);
-        return requestContext.json(value, 201);
+        try {
+          const result = context.uow.execute((transaction) => {
+            const replay = readProjectCreationReceipt(
+              transaction,
+              idempotencyKey,
+              "projects.commitDerivation",
+              digest,
+              (value) => ProjectDerivationCommitResultSchema.parse(value),
+              () => undefined,
+            );
+            if (replay) return { ...replay, replayed: true };
+            const preview = transaction.get<{
+              id: string;
+              source_project_id: string;
+              target_mode: ProjectMode;
+              target_mode_config_json: string;
+              title: string;
+              transformation: string;
+              expires_at: string;
+            }>(
+              "SELECT * FROM project_derivation_previews WHERE id = ? AND source_project_id = ?",
+              parsed.data.previewId,
+              sourceId,
+            );
+            if (!preview || Date.parse(preview.expires_at) <= Date.now())
+              throw new ProjectCreationReceiptError(
+                "PREVIEW_EXPIRED",
+                "派生预览已过期，请重新预览后再提交。",
+              );
+            const source = transaction.get<ProjectRow>(
+              `${projectSelect} WHERE p.id = ? AND p.deleted_at IS NULL`,
+              sourceId,
+            );
+            if (!source)
+              throw new ProjectCreationReceiptError(
+                "NOT_FOUND",
+                "未找到项目。",
+                404,
+              );
+            const targetModeConfig = ProjectModeConfigSchema.safeParse(
+              JSON.parse(preview.target_mode_config_json),
+            );
+            if (
+              !targetModeConfig.success ||
+              targetModeConfig.data.mode !== preview.target_mode ||
+              !supportedDerivation(source.mode, preview.target_mode)
+            )
+              throw new ProjectCreationReceiptError(
+                "UNSUPPORTED_OPERATION",
+                "派生预览不再适用于当前项目。",
+              );
+            const created = createProjectRecord(
+              context,
+              {
+                title: preview.title,
+                shortDramaType: source.short_drama_type || undefined,
+                mode: preview.target_mode,
+                modeConfig: targetModeConfig.data,
+                targetAudience: source.target_audience ?? undefined,
+                synopsis: source.synopsis,
+              },
+              { derivedFromProjectId: sourceId, transaction },
+            );
+            const derivationId = crypto.randomUUID();
+            transaction.run(
+              "INSERT INTO project_derivations(id, source_project_id, target_project_id, transformation, created_at) VALUES (?, ?, ?, ?, ?)",
+              derivationId,
+              sourceId,
+              created.id,
+              preview.transformation,
+              new Date().toISOString(),
+            );
+            transaction.run(
+              "DELETE FROM project_derivation_previews WHERE id = ?",
+              preview.id,
+            );
+            const value = {
+              project: created,
+              initialization: initialization(context, created.id, transaction),
+              derivationId,
+            };
+            writeProjectCreationReceipt(
+              transaction,
+              idempotencyKey,
+              "projects.commitDerivation",
+              digest,
+              value,
+            );
+            return { value, binding: "request" as const, replayed: false };
+          });
+          if (result.replayed)
+            requestContext.header("Idempotency-Replayed", "true");
+          requestContext.header("Idempotency-Binding", result.binding);
+          requestContext.header("ETag", `"${result.value.project.version}"`);
+          return requestContext.json(result.value, 201);
+        } catch (error) {
+          if (error instanceof ProjectCreationReceiptError)
+            return problem(
+              requestContext,
+              error.status,
+              error.code,
+              error.message,
+            );
+          throw error;
+        }
       },
+      { idempotency: "required", idempotencyReplay: "handler" },
     ),
     route(
       {
@@ -1457,6 +1585,7 @@ function projectRoutes(context: PluginContext): readonly RouteContribution[] {
         if (
           "mode" in raw ||
           "modeConfig" in raw ||
+          "goalConfirmation" in raw ||
           "derivedFromProjectId" in raw
         )
           return problem(
@@ -1725,7 +1854,7 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
       version: "3.0.0-alpha.3",
       apiVersion: "2",
       requires: ["foundation", "system"],
-      provides: ["workspace.projects"],
+      provides: ["workspace.projects", "workspace.author-intents"],
       stability: "internal",
     },
     ui: [
@@ -1781,46 +1910,68 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
       ...workspaceMaintenanceMigrations,
       ...workspaceMigrations.slice(1),
       ...sourceImportMigrations.slice(1),
+      authorIntentMigration,
+      authorIntentCreationMigration,
+      projectCreationReceiptMigration,
+      ordinaryImportMigration,
+      importedProjectLineageMigration,
     ],
     apply: (context) => {
+      // Both records belong to Workspace. Read through the caller's transaction
+      // so intent source/head checks and writes stay atomic without nesting UoW.
+      const readProject = (
+        transaction: UnitOfWorkTransaction,
+        id: string,
+        options?: { includeDeleted?: boolean },
+      ) => {
+        const row = transaction.get<ProjectRow>(
+          `${projectSelect} WHERE p.id = ?${options?.includeDeleted ? "" : " AND p.deleted_at IS NULL"}`,
+          id,
+        );
+        return row ? project(row) : undefined;
+      };
       const service: WorkspaceProjectService = {
         create: (input) => createProjectRecord(context, input),
         createIdempotent: (input, idempotencyKey) => {
-          const replay = context.uow.execute((transaction) =>
-            transaction.get<{ response_json: string }>(
-              "SELECT response_json FROM workspace_project_create_idempotency WHERE idempotency_key = ?",
+          // Project, initialization and durable replay receipt share one owner transaction.
+          const parsed = ProjectInputSchema.parse(input);
+          if (!modeConfigFor(parsed)) throw new Error("项目模式配置无效。");
+          const digest = projectCreationRequestHash(parsed);
+          return context.uow.execute((transaction) => {
+            const replay = readProjectCreationReceipt(
+              transaction,
               idempotencyKey,
-            ),
-          );
-          if (replay) {
-            const value = JSON.parse(replay.response_json) as {
-              project?: Project;
-            };
-            if (value.project) return value.project;
-          }
-          const created = createProjectRecord(context, input);
-          const value = {
-            project: created,
-            initialization: initialization(context, created.id),
-          };
-          context.uow.execute((transaction) =>
-            transaction.run(
-              "INSERT OR IGNORE INTO workspace_project_create_idempotency(idempotency_key, response_json, created_at) VALUES (?, ?, ?)",
+              "workspace.projects.createIdempotent",
+              digest,
+              (value) => z.object({ project: ProjectSchema }).parse(value),
+              (value) => {
+                const old = z
+                  .object({ requestInput: ProjectInputSchema })
+                  .safeParse(value);
+                return old.success &&
+                  projectCreationRequestHash(old.data.requestInput) === digest
+                  ? "legacy-input"
+                  : undefined;
+              },
+            );
+            if (replay) return replay.value.project;
+            const created = createProjectRecord(context, parsed, {
+              transaction,
+            });
+            writeProjectCreationReceipt(
+              transaction,
               idempotencyKey,
-              JSON.stringify(value),
-              new Date().toISOString(),
-            ),
-          );
-          return created;
+              "workspace.projects.createIdempotent",
+              digest,
+              { project: created, requestInput: parsed },
+            );
+            return created;
+          });
         },
         get: (id, options) =>
-          context.uow.execute((transaction) => {
-            const row = transaction.get<ProjectRow>(
-              `${projectSelect} WHERE p.id = ?${options?.includeDeleted ? "" : " AND p.deleted_at IS NULL"}`,
-              id,
-            );
-            return row ? project(row) : undefined;
-          }),
+          context.uow.execute((transaction) =>
+            readProject(transaction, id, options),
+          ),
         list: (options) =>
           context.uow.execute((transaction) =>
             transaction
@@ -1861,6 +2012,23 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
         () => provideService(context, WORKSPACE_PROJECT_SERVICE, service),
         `service:${WORKSPACE_PROJECT_SERVICE}`,
       );
+      const intentSources = authorIntentSourceReader(context);
+      const authorIntents = createAuthorIntentService(
+        context,
+        readProject,
+        intentSources.sourcesCurrent,
+      );
+      context.effect(
+        () =>
+          provideService(
+            context,
+            WORKSPACE_AUTHOR_INTENT_SERVICE,
+            authorIntents.publicService,
+          ),
+        `service:${WORKSPACE_AUTHOR_INTENT_SERVICE}`,
+      );
+      registerAuthorIntentCreation(context, authorIntents, intentSources);
+      registerWorkspaceProjectLineage(context);
       context.plugin({
         name: "workspace-series",
         inject: [WORKSPACE_PROJECT_SERVICE.id, "http", "uow", "domainEvents"],
@@ -1874,8 +2042,53 @@ export function createWorkspacePlugin(host?: DesktopHostClient) {
       });
       for (const contribution of [
         ...projectRoutes(context),
-        ...sourceImportRoutes(context, host, service),
-        ...workspaceMaintenanceRoutes(context, host, service),
+        ...sourceImportRoutes(context, host, service, {
+          project: readProject,
+          selectAdaptation: (transaction, id, target, adaptationId) => {
+            const current = readProject(transaction, id);
+            if (
+              !current ||
+              current.version !== target.projectVersion ||
+              (current.currentAdaptationId ?? null) !==
+                target.currentAdaptationId
+            )
+              throw new SourceImportRecoveryError(
+                409,
+                "CONFLICT",
+                "导入前的项目／当前改编头已变化；原制作批次保留，不覆盖新选择。",
+              );
+            transaction.run(
+              "UPDATE projects SET current_adaptation_id = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+              adaptationId,
+              new Date().toISOString(),
+              id,
+              target.projectVersion,
+            );
+            appendProjectEvent(
+              transaction,
+              "current-adaptation-updated",
+              readProject(transaction, id)!,
+            );
+          },
+        }),
+        ...workspaceMaintenanceRoutes(
+          context,
+          host,
+          service,
+          (input, archives) =>
+            context.uow.execute((transaction) => {
+              const created = createProjectRecord(context, input, {
+                transaction,
+              });
+              writeImportedProjectLineageArchives(
+                transaction,
+                created.id,
+                archives,
+              );
+              return created;
+            }),
+        ),
+        ...authorIntentRoutes(authorIntents, intentSources.catalog),
       ])
         context.effect(
           () => context.http.register(contribution),

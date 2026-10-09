@@ -31,6 +31,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { message, useStudio } from "../../studio-shared";
+import { AgentUsagePanel } from "../AgentUsagePanel";
+import { inspirationMemoryStatus } from "../AgentAuxiliaryUsage";
 import {
   projectInputFromBrief,
   projectModeBrief,
@@ -1440,12 +1442,20 @@ export function InspirationSpace() {
             </Button>
           </div>
           {memoryJobs[0] ? (
-            <p className="mt-3 rounded-xl bg-subtle px-3 py-2 text-[11px] leading-5 text-muted">
-              最近整理：
-              {memoryJobs[0].status === "completed"
-                ? `${memoryJobs[0].model ?? "未知模型"} · ${memoryJobs[0].inputTokens + memoryJobs[0].outputTokens} Token`
-                : `待整理 · ${memoryJobs[0].error ?? "等待后台处理"}`}
-            </p>
+            <div className="mt-3 rounded-xl bg-subtle px-3 py-2 text-[11px] leading-5 text-muted">
+              <p>
+                最近整理：
+                {inspirationMemoryStatus(memoryJobs[0])}
+              </p>
+              <p>上下文预算与字符估算不是实际 token；历史缺报告不补零。</p>
+              {memoryJobs[0].usageRuns?.map((run) => (
+                <AgentUsagePanel
+                  key={run.runId}
+                  runId={run.runId}
+                  projectId={run.projectId}
+                />
+              ))}
+            </div>
           ) : null}
         </section>
       </aside>

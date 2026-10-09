@@ -16,6 +16,14 @@
     "owner": "agents"
   },
   {
+    "table": "agent_auxiliary_usage_observations",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_auxiliary_usage_runs",
+    "owner": "agents"
+  },
+  {
     "table": "agent_capability_grants",
     "owner": "agents"
   },
@@ -29,6 +37,10 @@
   },
   {
     "table": "agent_context_policy_sets",
+    "owner": "agents"
+  },
+  {
+    "table": "agent_context_preparations",
     "owner": "agents"
   },
   {
@@ -96,6 +108,10 @@
     "owner": "agents"
   },
   {
+    "table": "agent_usage_observations",
+    "owner": "agents"
+  },
+  {
     "table": "agent_web_research_settings",
     "owner": "agents"
   },
@@ -108,11 +124,43 @@
     "owner": "automation"
   },
   {
+    "table": "automation_creative_candidate_receipts",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_creative_continuation_receipts",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_creative_request_receipts",
+    "owner": "automation"
+  },
+  {
     "table": "automation_idempotency",
     "owner": "automation"
   },
   {
     "table": "automation_pilot_plans",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_planning_candidate_receipts",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_planning_request_receipts",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_preview_revision_edits",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_preview_revision_event_baselines",
+    "owner": "automation"
+  },
+  {
+    "table": "automation_preview_revision_heads",
     "owner": "automation"
   },
   {
@@ -168,7 +216,23 @@
     "owner": "delivery"
   },
   {
+    "table": "delivery_manuscripts",
+    "owner": "delivery"
+  },
+  {
+    "table": "delivery_pilot_packages",
+    "owner": "delivery"
+  },
+  {
+    "table": "delivery_platform_requests",
+    "owner": "delivery"
+  },
+  {
     "table": "delivery_records",
+    "owner": "delivery"
+  },
+  {
+    "table": "delivery_variant_adopted_heads",
     "owner": "delivery"
   },
   {
@@ -224,6 +288,50 @@
     "owner": "foundation"
   },
   {
+    "table": "insights_creative_continuation_events",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_funnel_events",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_initial_goals",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_outcome_events",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_outcome_units",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_planning_adoptions",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_planning_funnel",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_planning_records",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_quality_reports",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_quality_targets",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_creative_source_confirmations",
+    "owner": "insights"
+  },
+  {
     "table": "insights_feedback_batches",
     "owner": "insights"
   },
@@ -244,7 +352,15 @@
     "owner": "insights"
   },
   {
+    "table": "insights_generation_cost_observations",
+    "owner": "insights"
+  },
+  {
     "table": "insights_generation_records",
+    "owner": "insights"
+  },
+  {
+    "table": "insights_novel_revision_events",
     "owner": "insights"
   },
   {
@@ -256,7 +372,15 @@
     "owner": "knowledge"
   },
   {
+    "table": "knowledge_audience_states_next",
+    "owner": "knowledge"
+  },
+  {
     "table": "knowledge_causal_edges",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_causal_edges_next",
     "owner": "knowledge"
   },
   {
@@ -284,7 +408,19 @@
     "owner": "knowledge"
   },
   {
+    "table": "knowledge_creation_record_receipts",
+    "owner": "knowledge"
+  },
+  {
     "table": "knowledge_ip_twin_snapshots",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_narrative_summaries",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_narrative_summary_heads",
     "owner": "knowledge"
   },
   {
@@ -312,6 +448,14 @@
     "owner": "knowledge"
   },
   {
+    "table": "knowledge_story_assertion_requests",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_story_assertions",
+    "owner": "knowledge"
+  },
+  {
     "table": "knowledge_story_bible_change_sets",
     "owner": "knowledge"
   },
@@ -324,6 +468,18 @@
     "owner": "knowledge"
   },
   {
+    "table": "knowledge_story_declaration_requests",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_story_declarations",
+    "owner": "knowledge"
+  },
+  {
+    "table": "knowledge_story_source_transitions",
+    "owner": "knowledge"
+  },
+  {
     "table": "media_animatic_drafts",
     "owner": "media"
   },
@@ -332,7 +488,39 @@
     "owner": "media"
   },
   {
+    "table": "media_audio_adoption_requests",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_revision_adopted_heads",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_revision_heads",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_revision_requests",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_revisions",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_track_revision_links",
+    "owner": "media"
+  },
+  {
+    "table": "media_audio_track_sources",
+    "owner": "media"
+  },
+  {
     "table": "media_audio_tracks",
+    "owner": "media"
+  },
+  {
+    "table": "media_byte_verifications",
     "owner": "media"
   },
   {
@@ -352,7 +540,23 @@
     "owner": "media"
   },
   {
+    "table": "media_record_source_bindings",
+    "owner": "media"
+  },
+  {
+    "table": "media_record_source_heads",
+    "owner": "media"
+  },
+  {
     "table": "media_records",
+    "owner": "media"
+  },
+  {
+    "table": "media_source_review_requests",
+    "owner": "media"
+  },
+  {
+    "table": "media_source_reviews",
     "owner": "media"
   },
   {
@@ -364,11 +568,103 @@
     "owner": "media"
   },
   {
+    "table": "narrative_local_quality_heads",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "narrative_local_quality_requests",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "narrative_local_quality_reviews",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "narrative_quality_heads",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "narrative_quality_reports",
+    "owner": "creative-quality"
+  },
+  {
+    "table": "narrative_quality_requests",
+    "owner": "creative-quality"
+  },
+  {
     "table": "plugin_migrations",
     "owner": "foundation"
   },
   {
+    "table": "production_adaptation_strategies",
+    "owner": "production"
+  },
+  {
+    "table": "production_adaptation_strategy_heads",
+    "owner": "production"
+  },
+  {
+    "table": "production_adaptation_strategy_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_adaptation_strategy_requests_next",
+    "owner": "production"
+  },
+  {
     "table": "production_creation_adoptions",
+    "owner": "production"
+  },
+  {
+    "table": "production_diagnoses",
+    "owner": "production"
+  },
+  {
+    "table": "production_diagnosis_heads",
+    "owner": "production"
+  },
+  {
+    "table": "production_diagnosis_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_diagnosis_requests_next",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_result_heads",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_results",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_script_revision_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_script_revisions",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_source_revision_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_source_revisions",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_topology_revision_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_episode_topology_revisions",
+    "owner": "production"
+  },
+  {
+    "table": "production_import_batches",
     "owner": "production"
   },
   {
@@ -376,11 +672,43 @@
     "owner": "production"
   },
   {
+    "table": "production_screenplay_intakes",
+    "owner": "production"
+  },
+  {
     "table": "production_season_chapter_mappings",
     "owner": "production"
   },
   {
+    "table": "production_season_plan_heads",
+    "owner": "production"
+  },
+  {
+    "table": "production_season_plan_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_season_plan_requests_next",
+    "owner": "production"
+  },
+  {
+    "table": "production_season_plans",
+    "owner": "production"
+  },
+  {
     "table": "production_seasons",
+    "owner": "production"
+  },
+  {
+    "table": "production_storyboard_attribution_heads",
+    "owner": "production"
+  },
+  {
+    "table": "production_storyboard_attribution_requests",
+    "owner": "production"
+  },
+  {
+    "table": "production_storyboard_attributions",
     "owner": "production"
   },
   {
@@ -413,6 +741,10 @@
   },
   {
     "table": "review_decisions",
+    "owner": "review"
+  },
+  {
+    "table": "review_media_packages",
     "owner": "review"
   },
   {
@@ -460,7 +792,27 @@
     "owner": "workspace"
   },
   {
+    "table": "timeline_audio_assembly_requests",
+    "owner": "timeline"
+  },
+  {
+    "table": "timeline_audio_resolution_requests",
+    "owner": "timeline"
+  },
+  {
+    "table": "timeline_audio_resolutions",
+    "owner": "timeline"
+  },
+  {
     "table": "timeline_deliveries",
+    "owner": "timeline"
+  },
+  {
+    "table": "timeline_media_copies",
+    "owner": "timeline"
+  },
+  {
+    "table": "timeline_media_copy_actions",
     "owner": "timeline"
   },
   {
@@ -472,6 +824,18 @@
     "owner": "timeline"
   },
   {
+    "table": "workspace_author_intent_heads",
+    "owner": "workspace"
+  },
+  {
+    "table": "workspace_author_intent_requests",
+    "owner": "workspace"
+  },
+  {
+    "table": "workspace_author_intents",
+    "owner": "workspace"
+  },
+  {
     "table": "workspace_backups",
     "owner": "workspace"
   },
@@ -480,7 +844,15 @@
     "owner": "workspace"
   },
   {
+    "table": "workspace_imported_lineage_archives",
+    "owner": "workspace"
+  },
+  {
     "table": "workspace_project_create_idempotency",
+    "owner": "workspace"
+  },
+  {
+    "table": "workspace_source_import_commits",
     "owner": "workspace"
   },
   {
@@ -508,7 +880,15 @@
     "owner": "writing"
   },
   {
+    "table": "writing_import_batches",
+    "owner": "writing"
+  },
+  {
     "table": "writing_resources",
+    "owner": "writing"
+  },
+  {
+    "table": "writing_volume_requests",
     "owner": "writing"
   },
   {

@@ -1,50 +1,26 @@
 import { z } from "zod";
 import { defineServiceContract } from "./service-contract.js";
-
-const ScreenplaySourceLocationSchema = z.object({
-  line: z.number().int().positive(),
-  column: z.number().int().positive().default(1),
-});
-
-const ScreenplayBlockBaseSchema = z.object({
-  id: z.string().uuid(),
-  sourceLocation: ScreenplaySourceLocationSchema.optional(),
-});
-
-export const ScreenplayBlockSchema = z.discriminatedUnion("type", [
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("scene_heading"),
-    text: z.string(),
-    sceneNumber: z.string().optional(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("action"),
-    text: z.string(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("character"),
-    text: z.string(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("dialogue"),
-    text: z.string(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("parenthetical"),
-    text: z.string(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("transition"),
-    text: z.string(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("note"),
-    text: z.string(),
-  }),
-  ScreenplayBlockBaseSchema.extend({
-    type: z.literal("page_break"),
-  }),
-]);
+import { ScreenplaySourceDocumentSchema } from "./screenplay-source.js";
+export { canonicalImportRequestJSON } from "./import-recovery.js";
+export * from "./adaptation-diagnosis.js";
+export * from "./adaptation-strategy.js";
+export * from "./season-plan.js";
+export * from "./episode-development.js";
+export * from "./episode-impact.js";
+export * from "./production-record-baseline.js";
+export * from "./production-record-merge.js";
+export * from "./episode-script-revision.js";
+export * from "./episode-topology-revision.js";
+export * from "./episode-source-receipt.js";
+export * from "./episode-source-revision.js";
+export * from "./storyboard-package.js";
+export * from "./storyboard-attribution.js";
+export * from "./storyboard-attribution-impact.js";
+export * from "./storyboard-source-review.js";
+export * from "./screenplay-intake.js";
+export * from "./screenplay-source.js";
+export { ScreenplayBlockSchema } from "./screenplay-block.js";
+import { ScreenplayBlockSchema } from "./screenplay-block.js";
 
 export const ScreenplayDocumentSchema = z.object({
   id: z.string().uuid(),
@@ -64,11 +40,29 @@ export const ScreenplayLossReportSchema = z.object({
   preserved: z.array(z.string()),
 });
 
+export const ScreenplayImportTargetSchema = z.object({
+  projectVersion: z.number().int().nonnegative(),
+  episodeVersion: z.number().int().nonnegative(),
+});
+export const ScreenplayImportConfirmationSchema = z.object({
+  rightsDeclared: z.literal(true),
+  lossReportReviewed: z.literal(true),
+});
+export const ScreenplayImportReceiptSchema = z.object({
+  scriptId: z.string().uuid(),
+  scriptVersion: z.number().int().nonnegative(),
+  documentId: z.string().uuid(),
+  documentVersion: z.number().int().nonnegative(),
+  committedAt: z.string().datetime(),
+  confirmation: ScreenplayImportConfirmationSchema.optional(),
+});
+
 export const ScreenplayImportPreviewInputSchema = z.object({
   projectId: z.string().uuid(),
   parentId: z.string().uuid().optional(),
   title: z.string().trim().min(1).max(240),
   grantId: z.string().uuid(),
+  target: ScreenplayImportTargetSchema.optional(),
 });
 
 export const ScreenplayImportPreviewSchema = z.object({
@@ -83,10 +77,13 @@ export const ScreenplayImportPreviewSchema = z.object({
   etag: z.string(),
   status: z.enum(["pending", "committed", "discarded"]),
   createdAt: z.string().datetime(),
+  target: ScreenplayImportTargetSchema.optional(),
+  receipt: ScreenplayImportReceiptSchema.optional(),
 });
 
 export const ScreenplayImportCommitSchema = z.object({
   previewId: z.string().uuid(),
+  confirmation: ScreenplayImportConfirmationSchema.optional(),
 });
 
 export const ScreenplayPatchSchema = z.object({
@@ -203,6 +200,14 @@ export const ProductionRecordSchema = z.object({
   version: z.number().int().nonnegative(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  retirement: z
+    .object({
+      resultId: z.string().uuid(),
+      retiredAt: z.string().datetime(),
+      reason: z.enum(["author-scene-shot-plan", "author-scene-topology-plan"]),
+    })
+    .strict()
+    .optional(),
 });
 
 export const ProductionRecordInputSchema = ProductionRecordSchema.pick({
@@ -299,6 +304,140 @@ export type ProductionRecordKind = z.infer<typeof ProductionRecordKindSchema>;
 export type ProductionRecord = z.infer<typeof ProductionRecordSchema>;
 export type ProductionRecordInput = z.infer<typeof ProductionRecordInputSchema>;
 
+const productionQualityIdentity = {
+  projectId: z.string().uuid(),
+  id: z.string().uuid(),
+  kind: z.enum(["script", "scene"]),
+  version: z.number().int().nonnegative(),
+  title: z.string().min(1).max(240),
+  parentId: z.string().uuid().optional(),
+};
+export const ProductionQualitySourceSummarySchema = z
+  .object({
+    ...productionQualityIdentity,
+    state: z.enum(["available", "unavailable"]),
+  })
+  .strict();
+export const ProductionQualitySourceSchema = z
+  .object({
+    ...productionQualityIdentity,
+    source: z.discriminatedUnion("state", [
+      z
+        .object({
+          state: z.literal("available"),
+          contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+          recordContentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+          record: ProductionRecordSchema,
+          document: ScreenplaySourceDocumentSchema.optional(),
+          documentContentHash: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/u)
+            .optional(),
+          ancestors: z
+            .array(
+              z
+                .object({
+                  id: z.string().uuid(),
+                  kind: z.enum(["adaptations", "episodes", "scripts"]),
+                  version: z.number().int().nonnegative(),
+                  contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+                  document: z
+                    .object({
+                      id: z.string().uuid(),
+                      version: z.number().int().nonnegative(),
+                      contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+                    })
+                    .strict()
+                    .optional(),
+                })
+                .strict(),
+            )
+            .max(3),
+          policyDependencies: z
+            .array(
+              z
+                .object({
+                  sourceId: z.string().min(1),
+                  sourceVersion: z.number().int().nonnegative(),
+                  fieldPath: z.string().startsWith("/").max(500),
+                })
+                .strict(),
+            )
+            .max(2000),
+        })
+        .strict(),
+      z
+        .object({
+          state: z.literal("unavailable"),
+          reason: z.enum([
+            "invalid-record",
+            "invalid-parent",
+            "empty-source",
+            "saved-document-missing",
+            "invalid-saved-document",
+            "lineage-unavailable",
+          ]),
+        })
+        .strict(),
+    ]),
+  })
+  .strict()
+  .superRefine((value, check) => {
+    if (value.source.state !== "available") return;
+    const { record, document, documentContentHash } = value.source;
+    if (
+      record.id !== value.id ||
+      record.projectId !== value.projectId ||
+      record.version !== value.version ||
+      record.title !== value.title ||
+      record.parentId !== value.parentId ||
+      record.kind !== (value.kind === "script" ? "scripts" : "scenes") ||
+      record.domain !== record.kind ||
+      (value.kind === "script"
+        ? !document || !documentContentHash
+        : Boolean(document || documentContentHash)) ||
+      (document &&
+        new Set(document.blocks.map((block) => block.id)).size !==
+          document.blocks.length) ||
+      new Set(value.source.ancestors.map((ancestor) => ancestor.id)).size !==
+        value.source.ancestors.length ||
+      value.source.ancestors.some(
+        (ancestor) =>
+          (ancestor.kind === "scripts") !== Boolean(ancestor.document),
+      )
+    )
+      check.addIssue({
+        code: "custom",
+        message: "实际剧本／场景、保存文档与父级身份无法核对。",
+      });
+  });
+export const ProductionQualitySourcePageSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    items: z.array(ProductionQualitySourceSummarySchema),
+    nextCursor: z.string().uuid().optional(),
+  })
+  .strict();
+export type ProductionQualitySource = z.infer<
+  typeof ProductionQualitySourceSchema
+>;
+export type ProductionQualitySourcePage = z.infer<
+  typeof ProductionQualitySourcePageSchema
+>;
+export const PRODUCTION_QUALITY_SOURCE_SERVICE = defineServiceContract<{
+  get(projectId: string, id: string): ProductionQualitySource | undefined;
+  list(
+    projectId: string,
+    options?: { cursor?: string; limit?: number },
+  ): ProductionQualitySourcePage;
+}>({
+  id: "production.quality-sources.v1",
+  owner: "production",
+  major: 1,
+  capabilities: ["read"],
+  degradable: true,
+});
+
 export const PRODUCTION_RECORD_SERVICE =
   defineServiceContract<ProductionRecordService>({
     id: "production.records.v1",
@@ -309,6 +448,11 @@ export const PRODUCTION_RECORD_SERVICE =
   });
 
 export interface ProductionRecordService {
+  importBatch(
+    input: ProductionImportBatchInput,
+  ):
+    | { state: "committed"; receipt: ProductionImportBatchReceipt }
+    | { state: "conflict" };
   create(
     kind: ProductionRecordKind,
     input: ProductionRecordInput,
@@ -328,3 +472,82 @@ export interface ProductionRecordService {
   ): ProductionRecord | "conflict" | undefined;
   remove(id: string, expectedVersion?: number): boolean;
 }
+
+export const ProductionImportBatchInputSchema = z
+  .object({
+    importId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    title: z.string().trim().min(1).max(200),
+    sourceName: z.string(),
+    episodes: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string().min(1).max(500),
+            episodeNumber: z.number().int().positive(),
+            title: z.string().trim().min(1).max(230),
+            content: z.string(),
+            scenes: z.array(z.record(z.string(), z.unknown())).max(2000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      new Set(value.episodes.map((episode) => episode.sourceKey)).size ===
+      value.episodes.length,
+  )
+  .refine((value) =>
+    value.episodes.every((episode) =>
+      episode.scenes.every(
+        (scene) =>
+          typeof scene.title !== "string" || scene.title.trim().length <= 240,
+      ),
+    ),
+  );
+export const ProductionImportBatchReceiptSchema = z
+  .object({
+    importId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    committedAt: z.string().datetime(),
+    adaptationId: z.string().uuid(),
+    episodes: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string().min(1).max(500),
+            episodeId: z.string().uuid(),
+            scriptId: z.string().uuid(),
+            sceneIds: z.array(z.string().uuid()).max(2000),
+            version: z.literal(0),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+  })
+  .strict()
+  .refine((value) => {
+    const ids = [
+      value.adaptationId,
+      ...value.episodes.flatMap((episode) => [
+        episode.episodeId,
+        episode.scriptId,
+        ...episode.sceneIds,
+      ]),
+    ];
+    return (
+      new Set(ids).size === ids.length &&
+      new Set(value.episodes.map((episode) => episode.sourceKey)).size ===
+        value.episodes.length
+    );
+  });
+export type ProductionImportBatchInput = z.infer<
+  typeof ProductionImportBatchInputSchema
+>;
+export type ProductionImportBatchReceipt = z.infer<
+  typeof ProductionImportBatchReceiptSchema
+>;

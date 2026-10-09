@@ -1,5 +1,60 @@
 import type { ScreenplayDocument } from "@dramaip/contracts/production";
-import type { ChapterPreviewMerge } from "@dramaip/contracts/automation";
+import {
+  createMediaReviewClient,
+  type MediaReviewClient,
+} from "./media-review.js";
+import {
+  createPlatformDeliveryClient,
+  type PlatformDeliveryClient,
+} from "./platform-delivery.js";
+import {
+  createScreenplayImportsClient,
+  type ScreenplayImportsClient,
+} from "./screenplay-imports.js";
+import {
+  createScreenplayIntakesClient,
+  type ScreenplayIntakesClient,
+} from "./screenplay-intakes.js";
+import {
+  createNarrativeSummariesClient,
+  type NarrativeSummariesClient,
+} from "./narrative-summaries.js";
+import {
+  createNarrativeIndexClient,
+  type NarrativeIndexClient,
+} from "./narrative-index.js";
+import {
+  createNarrativeQualityClient,
+  type NarrativeQualityClient,
+} from "./narrative-quality.js";
+import {
+  createPilotPackageClient,
+  type PilotPackageClient,
+} from "./pilot-packages.js";
+import {
+  createEpisodeDevelopmentClient,
+  type EpisodeDevelopmentClient,
+} from "./episode-developments.js";
+import { createDiagnosisClient, type DiagnosisClient } from "./diagnoses.js";
+import {
+  createSeasonPlanClient,
+  type SeasonPlanClient,
+} from "./season-plans.js";
+import {
+  createAuthorIntentClient,
+  type AuthorIntentClient,
+} from "./author-intents.js";
+import type {
+  ChapterPreviewMerge,
+  RevisionPreviewPage,
+} from "@dramaip/contracts/automation";
+import type { ChapterAdoptionPage } from "@dramaip/contracts/writing";
+import type {
+  ManuscriptPreviewInput,
+  ManuscriptSaveInput,
+  ManuscriptPreview,
+  ManuscriptPage,
+} from "@dramaip/contracts/delivery";
 /* 此文件封装由三引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
 import {
   type DomainEvent,
@@ -156,12 +211,6 @@ import type {
   ScriptReview,
   ShotReview,
   EpisodeAnalysis,
-  PlatformDeliveryProfile,
-  DeliveryCreativeVariant,
-  DeliveryCreativeVariantInput,
-  PlatformDeliveryPreflight,
-  PlatformDeliveryPreflightInput,
-  PlatformDeliveryArchive,
   EditorTimelineManifest,
   TimelineManifest,
   TimelineCommandInput,
@@ -243,6 +292,12 @@ import type {
 export type StudioClientOptions = RuntimeTransport;
 
 export interface StudioClient {
+  authorIntents: AuthorIntentClient;
+  diagnoses: DiagnosisClient;
+  seasonPlans: SeasonPlanClient;
+  episodeDevelopments: EpisodeDevelopmentClient;
+  screenplayImports: ScreenplayImportsClient;
+  screenplayIntakes: ScreenplayIntakesClient;
   runtime: { info(): Promise<RuntimeInfo> };
   creation: {
     merge(
@@ -250,10 +305,7 @@ export interface StudioClient {
     ): Promise<import("@dramaip/contracts/creation").CreationMerge>;
     rebase(
       id: string,
-      input: {
-        baseVersion: number;
-        choices: Record<string, "main" | "branch">;
-      },
+      input: import("@dramaip/contracts/creation").CreationRebaseRequest,
       key: string,
     ): Promise<CreationWorkflow>;
     start(input: CreationInput, key: string): Promise<CreationWorkflow>;
@@ -322,6 +374,11 @@ export interface StudioClient {
   };
   chapters: {
     list(projectId: string): Promise<Chapter[]>;
+    adoptions(
+      projectId: string,
+      cursor?: string,
+      limit?: number,
+    ): Promise<ChapterAdoptionPage>;
     get(id: string): Promise<Chapter>;
     create(input: ChapterInput): Promise<Chapter>;
     update(id: string, input: ChapterPatch): Promise<Chapter>;
@@ -425,6 +482,11 @@ export interface StudioClient {
     setAttention(id: string, status: "open" | "acknowledged"): Promise<Task>;
   };
   revisions: {
+    list(
+      projectId: string,
+      cursor?: string,
+      limit?: number,
+    ): Promise<RevisionPreviewPage>;
     create(
       input: RevisionInput,
       idempotencyKey: string,
@@ -705,25 +767,30 @@ export interface StudioClient {
     ): Promise<ExportDocument>;
   };
   delivery: { export(id: string): Promise<ExportDocument> };
-  platformDelivery: {
-    listProfiles(): Promise<PlatformDeliveryProfile[]>;
-    listVariants(adaptationId: string): Promise<DeliveryCreativeVariant[]>;
-    createVariant(
-      adaptationId: string,
-      input: DeliveryCreativeVariantInput,
-    ): Promise<DeliveryCreativeVariant>;
-    adoptVariant(id: string): Promise<DeliveryCreativeVariant>;
-    listArchives(episodeId: string): Promise<PlatformDeliveryArchive[]>;
-    preflight(
-      episodeId: string,
-      input: PlatformDeliveryPreflightInput,
-    ): Promise<PlatformDeliveryPreflight>;
-    createArchive(
-      episodeId: string,
-      input: PlatformDeliveryPreflightInput,
-    ): Promise<PlatformDeliveryArchive>;
-    exportArchive(id: string): Promise<ExportDocument>;
+  pilotPackages: PilotPackageClient;
+  narrativeQuality: NarrativeQualityClient;
+  narrativeIndex: NarrativeIndexClient;
+  narrativeSummaries: NarrativeSummariesClient;
+  manuscripts: {
+    preview(
+      projectId: string,
+      input: ManuscriptPreviewInput,
+      key: string,
+    ): Promise<ManuscriptPreview>;
+    list(
+      projectId: string,
+      cursor?: string,
+      limit?: number,
+    ): Promise<ManuscriptPage>;
+    get(id: string): Promise<ManuscriptPreview>;
+    save(
+      id: string,
+      input: ManuscriptSaveInput,
+      key: string,
+    ): Promise<ManuscriptPreview>;
   };
+  platformDelivery: PlatformDeliveryClient;
+  mediaReview: MediaReviewClient;
   timeline: {
     get(episodeId: string): Promise<TimelineManifest>;
     command(id: string, input: TimelineCommandInput): Promise<TimelineManifest>;
@@ -1095,6 +1162,16 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
   const subscribe = createEventSubscription(options);
   return {
     runtime: { info: () => request("/api/v2/runtime") },
+    authorIntents: createAuthorIntentClient(request),
+    diagnoses: createDiagnosisClient(request),
+    seasonPlans: createSeasonPlanClient(request),
+    episodeDevelopments: createEpisodeDevelopmentClient(request),
+    screenplayImports: createScreenplayImportsClient(request),
+    screenplayIntakes: createScreenplayIntakesClient(request),
+    pilotPackages: createPilotPackageClient(request),
+    narrativeQuality: createNarrativeQualityClient(request),
+    narrativeIndex: createNarrativeIndexClient(request),
+    narrativeSummaries: createNarrativeSummariesClient(request),
     creation: {
       merge: (id) =>
         request(`/api/v2/workflows/creation/${encodeURIComponent(id)}/merge`),
@@ -1306,6 +1383,13 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     chapters: {
       list: (projectId) => request(`/api/v2/projects/${projectId}/chapters`),
+      adoptions: (projectId, cursor, limit = 50) => {
+        const search = new URLSearchParams({ limit: String(limit) });
+        if (cursor) search.set("cursor", cursor);
+        return request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/chapter-adoptions?${search}`,
+        );
+      },
       get: (id) => request(`/api/v2/chapters/${id}`),
       create: (input) =>
         request("/api/v2/chapters", {
@@ -1451,6 +1535,14 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         }),
     },
     revisions: {
+      list: (projectId, cursor, limit) => {
+        const search = new URLSearchParams();
+        if (cursor) search.set("cursor", cursor);
+        if (limit) search.set("limit", String(limit));
+        return request(
+          `/api/v2/projects/${encodeURIComponent(projectId)}/revision-previews?${search}`,
+        );
+      },
       create: (input, idempotencyKey) =>
         request("/api/v2/revisions", {
           method: "POST",
@@ -1980,38 +2072,35 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       export: (id) =>
         request(`/api/v2/delivery/${encodeURIComponent(id)}/export`),
     },
-    platformDelivery: {
-      listProfiles: () => request("/api/v2/platform-delivery/profiles"),
-      listVariants: (adaptationId) =>
+    manuscripts: {
+      preview: (projectId, input, key) =>
         request(
-          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/delivery-variants`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/manuscripts`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": key },
+            body: JSON.stringify(input),
+          },
         ),
-      createVariant: (adaptationId, input) =>
+      list: (projectId, cursor, limit) =>
         request(
-          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/delivery-variants`,
-          { method: "POST", body: JSON.stringify(input) },
+          `/api/v2/projects/${encodeURIComponent(projectId)}/manuscripts?${new URLSearchParams(
+            {
+              ...(cursor ? { cursor } : {}),
+              ...(limit === undefined ? {} : { limit: String(limit) }),
+            },
+          )}`,
         ),
-      adoptVariant: (id) =>
-        request(`/api/v2/delivery-variants/${encodeURIComponent(id)}/adopt`, {
+      get: (id) => request(`/api/v2/manuscripts/${encodeURIComponent(id)}`),
+      save: (id, input, key) =>
+        request(`/api/v2/manuscripts/${encodeURIComponent(id)}/save`, {
           method: "POST",
+          headers: { "Idempotency-Key": key, "If-Match": `"${input.version}"` },
+          body: JSON.stringify(input),
         }),
-      listArchives: (episodeId) =>
-        request(
-          `/api/v2/episodes/${encodeURIComponent(episodeId)}/platform-deliveries`,
-        ),
-      preflight: (episodeId, input) =>
-        request(
-          `/api/v2/episodes/${encodeURIComponent(episodeId)}/platform-delivery/preflight`,
-          { method: "POST", body: JSON.stringify(input) },
-        ),
-      createArchive: (episodeId, input) =>
-        request(
-          `/api/v2/episodes/${encodeURIComponent(episodeId)}/platform-deliveries`,
-          { method: "POST", body: JSON.stringify(input) },
-        ),
-      exportArchive: (id) =>
-        request(`/api/v2/platform-deliveries/${encodeURIComponent(id)}/export`),
     },
+    platformDelivery: createPlatformDeliveryClient(options),
+    mediaReview: createMediaReviewClient(options),
     timeline: {
       get: (episodeId) =>
         request(`/api/v2/episodes/${encodeURIComponent(episodeId)}/timeline`),

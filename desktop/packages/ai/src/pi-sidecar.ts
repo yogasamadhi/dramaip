@@ -51,6 +51,8 @@ type PiRuntimeEvent =
     }
   | {
       type: "usage";
+      measurementScope?: "response-increment";
+      inputAccounting?: "excludes-cache";
       inputTokens: number;
       outputTokens: number;
       cachedTokens: number;

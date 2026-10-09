@@ -197,6 +197,21 @@ export function agentProviderConfiguration(
   };
 }
 
+function configuredUnitEstimate(value: unknown): number | undefined {
+  const decimal = typeof value === "string" ? value.trim() : undefined;
+  const amount =
+    typeof value === "number"
+      ? value
+      : decimal && /^\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu.test(decimal)
+        ? Number(decimal)
+        : undefined;
+  if (amount === 0 && decimal && /[1-9]/u.test(decimal.split(/e/iu)[0]!))
+    return undefined;
+  return typeof amount === "number" && Number.isFinite(amount) && amount >= 0
+    ? amount
+    : undefined;
+}
+
 export function configuredProvider(
   provider: ProviderEntity,
 ): ConfiguredProvider {
@@ -226,7 +241,9 @@ export function configuredProvider(
       throw new Error("服务商地址必须是无账号密码的 HTTP 或 HTTPS 地址。");
   }
   const concurrencyLimit = Number(provider.payload["并发上限"]);
-  const estimatedUnitCost = Number(provider.payload["单次预估费用"]);
+  const estimatedUnitCost = configuredUnitEstimate(
+    provider.payload["单次预估费用"],
+  );
   return {
     id: provider.id,
     title: provider.title,
@@ -247,9 +264,7 @@ export function configuredProvider(
     ...(Number.isInteger(concurrencyLimit) && concurrencyLimit > 0
       ? { concurrencyLimit }
       : {}),
-    ...(Number.isFinite(estimatedUnitCost) && estimatedUnitCost >= 0
-      ? { estimatedUnitCost }
-      : {}),
+    ...(estimatedUnitCost !== undefined ? { estimatedUnitCost } : {}),
     ...(text(provider.payload["费用币种"])
       ? { currency: text(provider.payload["费用币种"]) }
       : {}),
@@ -336,9 +351,20 @@ export function modelSelection(
   value: unknown,
 ): AgentModelSelection | undefined {
   if (!isRecord(value)) return undefined;
+  // Unsupported sampling/reasoning options must not disappear while the
+  // caller believes it is running a frozen evaluation configuration.
+  const keys = ["providerId", "modelId", "profileId"] as const;
+  if (
+    Object.keys(value).some(
+      (key) => !keys.includes(key as (typeof keys)[number]),
+    )
+  )
+    return undefined;
   const result: AgentModelSelection = {};
-  for (const key of ["providerId", "modelId", "profileId"] as const) {
+  for (const key of keys) {
     if (typeof value[key] !== "undefined" && typeof value[key] !== "string")
+      return undefined;
+    if (typeof value[key] === "string" && value[key].trim().length > 200)
       return undefined;
     if (typeof value[key] === "string" && value[key].trim())
       result[key] = value[key].trim();
@@ -569,55 +595,64 @@ export async function restoreCodexCustomProvider(
 export async function restoreSavedAgentConfiguration(
   pluginContext: PluginContext,
   host: DesktopHostClient | undefined,
-  onGeneration?: () => void | Promise<void>,
+  onGeneration?: (isStopping: () => boolean) => void | Promise<void>,
 ): Promise<void> {
   if (!host) return;
-  if (typeof host.engineHealth !== "function") {
-    await Promise.all([
-      restoreActiveAgentProvider(pluginContext, host),
-      restoreCodexCustomProvider(pluginContext, host),
-    ]);
-    return;
-  }
   let disposed = false;
-  let restoring = false;
+  let active: Promise<void> | undefined;
   let lastReconciledGeneration: string | undefined;
-  const reconcile = async (): Promise<void> => {
-    if (disposed || restoring) return;
-    restoring = true;
-    try {
-      const health = await Promise.all(
-        agentEngineKinds.map(async (kind) => ({
-          kind,
-          health: hostEngineHealth(
-            await host.engineHealth(kind).catch(() => undefined),
-          ),
-        })),
-      );
-      const generations = health
-        .filter((entry) => entry.health.generation !== undefined)
-        .map((entry) => `${entry.kind}:${entry.health.generation}`)
-        .join("|");
-      if (!generations || generations === lastReconciledGeneration) return;
-      const [providerRestored, codexRestored] = await Promise.all([
+  const perform = async (): Promise<void> => {
+    if (disposed) return;
+    if (typeof host.engineHealth !== "function") {
+      await Promise.all([
         restoreActiveAgentProvider(pluginContext, host),
         restoreCodexCustomProvider(pluginContext, host),
       ]);
-      if (providerRestored && codexRestored)
-        lastReconciledGeneration = generations;
-      if (providerRestored && codexRestored) await onGeneration?.();
-    } finally {
-      restoring = false;
+      return;
     }
+    const health = await Promise.all(
+      agentEngineKinds.map(async (kind) => ({
+        kind,
+        health: hostEngineHealth(
+          await host.engineHealth(kind).catch(() => undefined),
+        ),
+      })),
+    );
+    // A delayed health reply cannot start work in an inactive native fiber.
+    if (disposed) return;
+    const generations = health
+      .filter((entry) => entry.health.generation !== undefined)
+      .map((entry) => `${entry.kind}:${entry.health.generation}`)
+      .join("|");
+    if (!generations || generations === lastReconciledGeneration) return;
+    const [providerRestored, codexRestored] = await Promise.all([
+      restoreActiveAgentProvider(pluginContext, host),
+      restoreCodexCustomProvider(pluginContext, host),
+    ]);
+    if (disposed) return;
+    if (providerRestored && codexRestored)
+      lastReconciledGeneration = generations;
+    if (providerRestored && codexRestored) await onGeneration?.(() => disposed);
+  };
+  const reconcile = (): Promise<void> => {
+    if (disposed) return Promise.resolve();
+    if (active) return active;
+    const accepted = perform().finally(() => {
+      if (active === accepted) active = undefined;
+    });
+    active = accepted;
+    return accepted;
   };
   pluginContext.effect(() => {
-    const timer = setInterval(
-      () => void reconcile().catch(() => undefined),
-      2_000,
-    );
-    return () => {
+    const timer =
+      typeof host.engineHealth === "function"
+        ? setInterval(() => void reconcile().catch(() => undefined), 2_000)
+        : undefined;
+    return async () => {
       disposed = true;
-      clearInterval(timer);
+      if (timer !== undefined) clearInterval(timer);
+      // Drain accepted local steps; this does not claim provider cancellation.
+      await active?.catch(() => undefined);
     };
   }, "host-generation-configuration-reconciler");
   await reconcile();

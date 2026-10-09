@@ -4,7 +4,11 @@ import {
   AgentContextPreviewInputSchema,
   AgentContextPreviewSchema,
   AgentContextSnapshotSchema,
+  AgentContextPreparationRequestSchema,
+  agentContextManifestJSON,
+  AgentContextEntrySchema,
   type AgentContextEntry,
+  type AgentContextReference,
   type AgentContextPolicy,
   type AgentContextPolicyMode,
   type AgentContextPreview,
@@ -14,14 +18,33 @@ import {
 } from "@dramaip/contracts/agent-context";
 import { CREATIVE_KNOWLEDGE_SERVICE } from "@dramaip/contracts/creative-intelligence";
 import {
+  KNOWLEDGE_STORY_DECLARATION_SERVICE,
+  KNOWLEDGE_STORY_ASSERTION_SERVICE,
+} from "@dramaip/contracts/knowledge";
+import {
   WRITING_CHAPTER_SERVICE,
   WRITING_RESOURCE_SERVICE,
 } from "@dramaip/contracts/writing";
 import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import { contextPolicy } from "./policy.js";
+import { creationReference } from "@dramaip/contracts/creation";
 import type {
   PluginContext,
   UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
+
+export class ContextSourceUnavailableError extends Error {
+  constructor() {
+    super("正式叙事来源暂不可核对；未创建上下文或降级为手工图外发。");
+  }
+}
+function formalReferences(read: () => AgentContextReference[]) {
+  try {
+    return read();
+  } catch {
+    throw new ContextSourceUnavailableError();
+  }
+}
 
 interface PreviewRow {
   id: string;
@@ -49,6 +72,19 @@ interface SnapshotRow {
   estimated_tokens: number;
   destination_json: string;
   final_prompt: string;
+  manifest_sha256: string;
+  final_prompt_sha256: string;
+  created_at: string;
+}
+
+interface PreparationRow {
+  preparation_scope: string;
+  key_sha256: string;
+  request_sha256: string;
+  project_id: string;
+  context_sha256: string;
+  preview_id: string;
+  snapshot_id: string;
   manifest_sha256: string;
   final_prompt_sha256: string;
   created_at: string;
@@ -111,6 +147,7 @@ export function createAgentContextStore(
     raw: AgentContextPreviewInput,
     preparedReferences?: import("@dramaip/contracts").AgentContextReference[],
     frozenEntries?: AgentContextEntry[],
+    transient = false,
   ): AgentContextPreview => {
     const input = AgentContextPreviewInputSchema.parse(raw);
     const project = input.projectId
@@ -123,7 +160,8 @@ export function createAgentContextStore(
       : undefined;
     if (
       input.chapterId &&
-      (!input.projectId || !chapter || chapter.projectId !== input.projectId)
+      (!input.projectId ||
+        (chapter ? chapter.projectId !== input.projectId : !transient))
     )
       throw new Error("章节不存在或不属于当前项目。");
 
@@ -180,24 +218,78 @@ export function createAgentContextStore(
         value: jsonValue(input.selection),
         sensitivity: project ? "project" : "personal",
       });
-    if (knowledgeService && input.projectId) {
-      try {
-        const storyProjection = {
-          causalNodes: knowledgeService.listNodes(input.projectId),
-          causalEdges: knowledgeService.listEdges(input.projectId),
-          provenance: knowledgeService.listProvenance(input.projectId),
-        };
-        candidates.push({
-          sourceKind: "story_bible",
-          sourceId: input.projectId,
-          sourceVersion: 0,
-          fieldPath: "/story-bible/ip-twin",
-          value: jsonValue(storyProjection),
-          sensitivity: "project",
-        });
-      } catch {
-        // A missing optional projection is recorded by absence, not fabricated.
-      }
+    if (knowledgeService && input.projectId && !preparedReferences) {
+      const assertions = optionalService(
+        context,
+        KNOWLEDGE_STORY_ASSERTION_SERVICE,
+      );
+      if (!assertions) throw new ContextSourceUnavailableError();
+      // Manual graph projections have no formal source evidence. Do not convert arbitrary sourceType/sourceId or
+      // imported/candidate rows into authoritative story facts. Manual entries
+      // require explicit context inclusion and retain their own denial paths.
+      const causalNodes = knowledgeService
+        .listNodes(input.projectId)
+        .filter(
+          (node) =>
+            node.projectId === input.projectId &&
+            node.confirmed &&
+            node.sourceType === "manual",
+        );
+      const ids = new Set(causalNodes.map((node) => node.id));
+      const causalEdges = knowledgeService
+        .listEdges(input.projectId)
+        .filter(
+          (edge) =>
+            edge.projectId === input.projectId &&
+            edge.confirmed &&
+            ids.has(edge.fromNodeId) &&
+            ids.has(edge.toNodeId) &&
+            !assertions.isSourceAnchored(input.projectId!, "edge", edge.id),
+        );
+      const storyProjection = {
+        evidenceBasis: "explicit-manual-declarations-not-original-text",
+        originalTextVerified: false,
+        causalNodes,
+        causalEdges,
+      };
+      candidates.push({
+        sourceKind: "knowledge",
+        sourceId: input.projectId,
+        sourceVersion: 0,
+        fieldPath: "/story-bible/ip-twin",
+        policyDependencies: [
+          ...causalNodes.map((node) => ({
+            sourceId: node.id,
+            sourceVersion: node.version,
+            fieldPath: `/story-declarations/nodes/${node.id}`,
+          })),
+          ...causalEdges.map((edge) => ({
+            sourceId: edge.id,
+            sourceVersion: edge.version,
+            fieldPath: `/story-declarations/edges/${edge.id}`,
+          })),
+        ],
+        value: jsonValue(storyProjection),
+        sensitivity: "project",
+      });
+    }
+    if (input.projectId && !preparedReferences) {
+      const declarations = optionalService(
+        context,
+        KNOWLEDGE_STORY_DECLARATION_SERVICE,
+      );
+      if (declarations)
+        candidates.push(
+          ...formalReferences(() => declarations.references(input.projectId!)),
+        );
+      const assertions = optionalService(
+        context,
+        KNOWLEDGE_STORY_ASSERTION_SERVICE,
+      );
+      if (assertions)
+        candidates.push(
+          ...formalReferences(() => assertions.references(input.projectId!)),
+        );
     }
     if (resourceService && input.projectId)
       for (const kind of contextKinds)
@@ -207,6 +299,8 @@ export function createAgentContextStore(
             sourceId: resource.id,
             sourceVersion: resource.version,
             fieldPath: `/writing-resources/${resource.domain}/${resource.id}`,
+            policyDependencies: creationReference(resource.domain, resource)
+              .policyDependencies,
             value: jsonValue({
               title: resource.title,
               domain: resource.domain,
@@ -235,20 +329,27 @@ export function createAgentContextStore(
     if (baseTokens > input.tokenBudget)
       throw new Error("基础提示词已超过本次运行的 token 硬预算。");
     let entries = candidates.map((candidate) => {
-      const mode =
-        temporary.get(candidate.fieldPath) ??
-        projectPolicies.get(candidate.fieldPath) ??
-        "auto";
+      const policy = contextPolicy(candidate, projectPolicies, temporary);
+      const explicitDeclarationRequired =
+        (candidate.fieldPath === "/story-bible/ip-twin" ||
+          candidate.fieldPath.startsWith("/story-declarations/") ||
+          candidate.fieldPath.startsWith("/story-assertions/")) &&
+        policy.mode === "auto";
+      const { deniedDependency } = policy;
+      const mode = explicitDeclarationRequired ? "never" : policy.mode;
       return {
         ...candidate,
         mode,
         included: mode === "always",
-        reason:
-          mode === "always"
-            ? "字段策略要求始终包含。"
-            : mode === "never"
-              ? "字段策略禁止发送。"
-              : "等待依据任务相关度和 token 预算自动选择。",
+        reason: explicitDeclarationRequired
+          ? "人工认知／因果声明不默认外发，须在上下文预览明确选择；来源锚定不等于解释已核验。"
+          : deniedDependency
+            ? `派生来源 ${deniedDependency} 禁止发送，不能通过摘要或片段绕过。`
+            : mode === "always"
+              ? "字段策略要求始终包含。"
+              : mode === "never"
+                ? "字段策略禁止发送。"
+                : "等待依据任务相关度和 token 预算自动选择。",
         estimatedTokens: estimateTokens(candidate.value),
       } satisfies AgentContextEntry;
     });
@@ -285,12 +386,17 @@ export function createAgentContextStore(
       )
         throw new Error("候选与冻结资料超过本轮上下文预算，请缩小创作范围。");
     }
+    // Freeze the exact public JSON representation used by snapshot reads.
+    // Prepared owner references may carry additional metadata; hashing that
+    // pre-schema object and later stripping it would reject a valid snapshot.
+    // Source values and every supported denial dependency are preserved.
+    entries = entries.map((entry) => AgentContextEntrySchema.parse(entry));
     const finalPrompt = composePrompt(input.basePrompt, entries);
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
     const id = randomUUID();
     const manifestSha256 = sha256(
-      canonicalJson({
+      agentContextManifestJSON({
         projectId: input.projectId,
         destination: input.destination,
         tokenBudget: input.tokenBudget,
@@ -312,27 +418,10 @@ export function createAgentContextStore(
       createdAt: now,
       updatedAt: now,
     });
-    context.uow.execute((transaction) =>
-      transaction.run(
-        `INSERT INTO agent_context_previews(
-          id, project_id, input_json, entries_json, token_budget,
-          estimated_tokens, destination_json, final_prompt, manifest_sha256,
-          version, status, expires_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?, ?)`,
-        id,
-        input.projectId ?? null,
-        JSON.stringify(input),
-        JSON.stringify(entries),
-        input.tokenBudget,
-        preview.estimatedTokens,
-        JSON.stringify(input.destination),
-        finalPrompt,
-        manifestSha256,
-        expiresAt,
-        now,
-        now,
-      ),
-    );
+    if (!transient)
+      context.uow.execute((transaction) =>
+        persistPreview(transaction, input, preview),
+      );
     return preview;
   };
 
@@ -427,45 +516,7 @@ export function createAgentContextStore(
         Date.parse(preview.expires_at) <= Date.now()
       )
         return undefined;
-      const snapshotId = randomUUID();
-      const createdAt = new Date().toISOString();
-      const finalPromptSha256 = sha256(preview.final_prompt);
-      transaction.run(
-        `INSERT INTO agent_context_snapshots(
-          id, preview_id, project_id, entries_json, token_budget,
-          estimated_tokens, destination_json, final_prompt, manifest_sha256,
-          final_prompt_sha256, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        snapshotId,
-        preview.id,
-        preview.project_id,
-        preview.entries_json,
-        preview.token_budget,
-        preview.estimated_tokens,
-        preview.destination_json,
-        preview.final_prompt,
-        preview.manifest_sha256,
-        finalPromptSha256,
-        createdAt,
-      );
-      transaction.run(
-        "UPDATE agent_context_previews SET status = 'frozen', updated_at = ? WHERE id = ?",
-        createdAt,
-        id,
-      );
-      return snapshotFromRow({
-        id: snapshotId,
-        preview_id: preview.id,
-        project_id: preview.project_id,
-        entries_json: preview.entries_json,
-        token_budget: preview.token_budget,
-        estimated_tokens: preview.estimated_tokens,
-        destination_json: preview.destination_json,
-        final_prompt: preview.final_prompt,
-        manifest_sha256: preview.manifest_sha256,
-        final_prompt_sha256: finalPromptSha256,
-        created_at: createdAt,
-      });
+      return persistSnapshot(transaction, preview);
     });
 
   const replacePolicies: AgentContextStore["replacePolicies"] = (
@@ -520,9 +571,165 @@ export function createAgentContextStore(
 
   return {
     createPreview: build,
+    // Same allocation/policy/prompt algorithm, but no preview/snapshot writes.
+    // Only trusted prepared references can describe a prospective target.
+    previewCreation: (input, references) =>
+      build(input, references, undefined, true),
     prepareCreation: (input, references) => {
       const preview = build(input, references);
+      // Never override privacy or budgets, but do not run without a required
+      // adopted constraint either. Generic previews may still show exclusions.
+      for (const reference of references.filter(
+        (entry) => entry.sourceKind === "author_intent",
+      )) {
+        if (
+          !preview.entries.some(
+            (entry) =>
+              entry.included &&
+              entry.sourceKind === reference.sourceKind &&
+              entry.sourceId === reference.sourceId &&
+              entry.sourceVersion === reference.sourceVersion &&
+              entry.fieldPath === reference.fieldPath,
+          )
+        )
+          throw new Error(
+            "正式作者意图未完整纳入冻结上下文，请调整隐私策略或上下文预算后重试。",
+          );
+      }
       return freeze(preview.id, preview.version)!;
+    },
+    prepareCreationOnce: (raw, references, rawRequest) => {
+      const input = AgentContextPreviewInputSchema.parse(raw);
+      const request = AgentContextPreparationRequestSchema.parse(rawRequest);
+      const projectId = input.projectId;
+      if (!projectId) throw new Error("原请求上下文准备须绑定明确项目。");
+      // Read peer sources and current privacy outside our own transaction.
+      // Never rebind an old action to whatever its source now happens to be.
+      const checked = build(input, references, undefined, true);
+      for (const reference of references.filter(
+        (entry) => entry.sourceKind === "author_intent",
+      ))
+        if (
+          !checked.entries.some(
+            (entry) =>
+              entry.included &&
+              entry.sourceKind === reference.sourceKind &&
+              entry.sourceId === reference.sourceId &&
+              entry.sourceVersion === reference.sourceVersion &&
+              entry.fieldPath === reference.fieldPath,
+          )
+        )
+          throw new Error("正式作者意图未完整纳入原请求上下文准备。");
+      const finalPromptSha256 = sha256(checked.finalPromptPreview);
+      const contextSha256 = sha256(
+        agentContextManifestJSON({
+          input,
+          manifestSha256: checked.manifestSha256,
+          finalPromptSha256,
+        }),
+      );
+      return context.uow.execute((transaction) => {
+        const original = transaction.get<PreparationRow>(
+          "SELECT * FROM agent_context_preparations WHERE preparation_scope=? AND key_sha256=?",
+          request.scope,
+          request.keySha256,
+        );
+        if (original) {
+          if (
+            original.project_id !== input.projectId ||
+            original.request_sha256 !== request.requestSha256 ||
+            original.context_sha256 !== contextSha256
+          )
+            return { status: "conflict" as const };
+          const saved = transaction.get<SnapshotRow>(
+            "SELECT * FROM agent_context_snapshots WHERE id=?",
+            original.snapshot_id,
+          );
+          const parent = transaction.get<PreviewRow>(
+            "SELECT * FROM agent_context_previews WHERE id=?",
+            original.preview_id,
+          );
+          if (!saved || !parent) return { status: "unavailable" as const };
+          try {
+            const snapshot = snapshotFromRow(saved);
+            const preview = previewFromRow(parent);
+            const actualManifest = sha256(
+              agentContextManifestJSON({
+                projectId: snapshot.projectId,
+                destination: snapshot.destination,
+                tokenBudget: snapshot.tokenBudget,
+                entries: snapshot.entries,
+              }),
+            );
+            if (
+              snapshot.previewId !== original.preview_id ||
+              snapshot.projectId !== original.project_id ||
+              preview.status !== "frozen" ||
+              preview.version !== 0 ||
+              preview.projectId !== original.project_id ||
+              agentContextManifestJSON(JSON.parse(parent.input_json)) !==
+                agentContextManifestJSON(input) ||
+              snapshot.manifestSha256 !== original.manifest_sha256 ||
+              actualManifest !== original.manifest_sha256 ||
+              original.manifest_sha256 !== checked.manifestSha256 ||
+              snapshot.finalPromptSha256 !== original.final_prompt_sha256 ||
+              sha256(snapshot.finalPrompt) !== original.final_prompt_sha256 ||
+              original.final_prompt_sha256 !== finalPromptSha256 ||
+              snapshot.finalPrompt !== checked.finalPromptPreview ||
+              preview.finalPromptPreview !== snapshot.finalPrompt ||
+              preview.manifestSha256 !== snapshot.manifestSha256 ||
+              preview.tokenBudget !== snapshot.tokenBudget ||
+              preview.estimatedTokens !== snapshot.estimatedTokens ||
+              snapshot.estimatedTokens !== checked.estimatedTokens ||
+              agentContextManifestJSON(preview.destination) !==
+                agentContextManifestJSON(snapshot.destination) ||
+              agentContextManifestJSON(preview.entries) !==
+                agentContextManifestJSON(snapshot.entries)
+            )
+              return { status: "unavailable" as const };
+            return { status: "prepared" as const, snapshot };
+          } catch {
+            // A missing/corrupt original preparation is never repaired from
+            // current sources, and private malformed JSON never leaves Agents.
+            return { status: "unavailable" as const };
+          }
+        }
+        const preview = persistPreview(transaction, input, checked);
+        const snapshot = persistSnapshot(transaction, preview);
+        transaction.run(
+          `INSERT INTO agent_context_preparations(
+            preparation_scope,key_sha256,request_sha256,project_id,
+            context_sha256,preview_id,snapshot_id,manifest_sha256,
+            final_prompt_sha256,created_at
+          ) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          request.scope,
+          request.keySha256,
+          request.requestSha256,
+          input.projectId,
+          contextSha256,
+          snapshot.previewId,
+          snapshot.id,
+          snapshot.manifestSha256,
+          snapshot.finalPromptSha256,
+          snapshot.createdAt,
+        );
+        transaction.append({
+          type: "agents.context-prepared.v1",
+          pluginId: "agents",
+          aggregateType: "context-preparation",
+          aggregateId: snapshot.id,
+          aggregateVersion: 0,
+          payload: {
+            projectId,
+            scope: request.scope,
+            requestSha256: request.requestSha256,
+            snapshotId: snapshot.id,
+            manifestSha256: snapshot.manifestSha256,
+            finalPromptSha256: snapshot.finalPromptSha256,
+          },
+        });
+        return { status: "prepared" as const, snapshot };
+      });
     },
     deriveCreation: (id, prompt) => {
       const snapshot = getSnapshot(id);
@@ -575,6 +782,91 @@ export function createAgentContextStore(
   };
 }
 
+function persistPreview(
+  transaction: UnitOfWorkTransaction,
+  input: AgentContextPreviewInput,
+  preview: AgentContextPreview,
+): PreviewRow {
+  const row: PreviewRow = {
+    id: preview.id,
+    project_id: input.projectId ?? null,
+    input_json: JSON.stringify(input),
+    entries_json: JSON.stringify(preview.entries),
+    token_budget: preview.tokenBudget,
+    estimated_tokens: preview.estimatedTokens,
+    destination_json: JSON.stringify(preview.destination),
+    final_prompt: preview.finalPromptPreview,
+    manifest_sha256: preview.manifestSha256,
+    version: 0,
+    status: "pending",
+    expires_at: preview.expiresAt,
+    created_at: preview.createdAt,
+    updated_at: preview.updatedAt,
+  };
+  transaction.run(
+    `INSERT INTO agent_context_previews(
+      id,project_id,input_json,entries_json,token_budget,estimated_tokens,
+      destination_json,final_prompt,manifest_sha256,version,status,
+      expires_at,created_at,updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,0,'pending',?,?,?)`,
+    row.id,
+    row.project_id,
+    row.input_json,
+    row.entries_json,
+    row.token_budget,
+    row.estimated_tokens,
+    row.destination_json,
+    row.final_prompt,
+    row.manifest_sha256,
+    row.expires_at,
+    row.created_at,
+    row.updated_at,
+  );
+  return row;
+}
+
+function persistSnapshot(
+  transaction: UnitOfWorkTransaction,
+  preview: PreviewRow,
+): AgentContextSnapshot {
+  const row: SnapshotRow = {
+    id: randomUUID(),
+    preview_id: preview.id,
+    project_id: preview.project_id,
+    entries_json: preview.entries_json,
+    token_budget: preview.token_budget,
+    estimated_tokens: preview.estimated_tokens,
+    destination_json: preview.destination_json,
+    final_prompt: preview.final_prompt,
+    manifest_sha256: preview.manifest_sha256,
+    final_prompt_sha256: sha256(preview.final_prompt),
+    created_at: new Date().toISOString(),
+  };
+  transaction.run(
+    `INSERT INTO agent_context_snapshots(
+      id,preview_id,project_id,entries_json,token_budget,estimated_tokens,
+      destination_json,final_prompt,manifest_sha256,final_prompt_sha256,created_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    row.id,
+    row.preview_id,
+    row.project_id,
+    row.entries_json,
+    row.token_budget,
+    row.estimated_tokens,
+    row.destination_json,
+    row.final_prompt,
+    row.manifest_sha256,
+    row.final_prompt_sha256,
+    row.created_at,
+  );
+  transaction.run(
+    "UPDATE agent_context_previews SET status='frozen',updated_at=? WHERE id=?",
+    row.created_at,
+    row.preview_id,
+  );
+  return snapshotFromRow(row);
+}
+
 function deletePreview(transaction: UnitOfWorkTransaction, id: string): void {
   transaction.run("DELETE FROM agent_context_previews WHERE id = ?", id);
 }
@@ -619,6 +911,7 @@ function snapshotFromRow(row: SnapshotRow): AgentContextSnapshot {
 function priority(kind: AgentContextEntry["sourceKind"]): number {
   return {
     intent: 100,
+    author_intent: 110,
     selection: 90,
     chapter: 80,
     project: 70,
@@ -654,15 +947,4 @@ function estimateTokens(value: unknown): number {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value))
-    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
-  if (value && typeof value === "object")
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
-      .join(",")}}`;
-  return JSON.stringify(value);
 }

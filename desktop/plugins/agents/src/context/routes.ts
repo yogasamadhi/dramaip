@@ -6,6 +6,7 @@ import {
 import type { AgentRouteDraft } from "../internal/shared.js";
 import { expectedVersion, problem } from "../internal/shared.js";
 import type { AgentContextStore } from "./store.js";
+import { ContextSourceUnavailableError } from "./store.js";
 
 export function agentContextRoutes(
   store: AgentContextStore,
@@ -16,11 +17,29 @@ export function agentContextRoutes(
       pluginId: "agents",
       bind: (app) =>
         app.post("/api/v2/agent-context-previews", async (context) => {
-          const value = store.createPreview(
-            AgentContextPreviewInputSchema.parse(await context.req.json()),
-          );
-          context.header("ETag", `"${value.version}"`);
-          return context.json(value, 201);
+          try {
+            const value = store.createPreview(
+              AgentContextPreviewInputSchema.parse(await context.req.json()),
+            );
+            context.header("ETag", `"${value.version}"`);
+            return context.json(value, 201);
+          } catch (cause) {
+            if (!(cause instanceof ContextSourceUnavailableError)) throw cause;
+            return Response.json(
+              {
+                type: "https://dramaip.local/problems/context-source-unavailable",
+                title: "Context source unavailable",
+                detail: cause.message,
+                code: "CONTEXT_SOURCE_UNAVAILABLE",
+                status: 503,
+                traceId: crypto.randomUUID(),
+              },
+              {
+                status: 503,
+                headers: { "Content-Type": "application/problem+json" },
+              },
+            );
+          }
         }),
     },
     {

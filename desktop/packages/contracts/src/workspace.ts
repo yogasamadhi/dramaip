@@ -1,5 +1,10 @@
 import { z } from "zod";
+import { AuthorIntentCreationProvenanceSchema } from "./author-intent-creation.js";
+export * from "./author-intent-creation.js";
 import { defineServiceContract } from "./service-contract.js";
+import { ProjectGoalConfirmationInputSchema } from "./creative-goals.js";
+export { ProjectGoalConfirmationInputSchema } from "./creative-goals.js";
+export type { ProjectGoalConfirmationInput } from "./creative-goals.js";
 
 const optionalText = z.string().optional();
 
@@ -24,7 +29,7 @@ export const SeriesLongformModeConfigSchema = z.object({
 });
 export const SingleSeasonModeConfigSchema = z.object({
   mode: z.literal("single_season"),
-  entryPath: z.enum(["novel", "source-import", "script"]),
+  entryPath: z.enum(["novel", "source-import", "script", "inspiration"]),
   targetEpisodeCount: z.number().int().positive().optional(),
 });
 export const PersonalTheaterModeConfigSchema = z.object({
@@ -107,6 +112,7 @@ export const ProjectInputSchema = ProjectSchema.pick({
   mode: ProjectModeSchema.optional().default("series_longform"),
   modeConfig: ProjectModeConfigSchema.optional(),
   synopsis: z.string().optional(),
+  goalConfirmation: ProjectGoalConfirmationInputSchema.optional(),
 });
 
 export const ProjectInitializationStepSchema = z.object({
@@ -167,7 +173,7 @@ export const ProjectPatchSchema = ProjectInputSchema.partial()
   .extend({
     version: z.number().int().nonnegative(),
   })
-  .omit({ mode: true, modeConfig: true });
+  .omit({ mode: true, modeConfig: true, goalConfirmation: true });
 
 export const ProjectPurgeSchema = z.object({ confirmationTitle: z.string() });
 
@@ -257,6 +263,124 @@ export interface WorkspaceProjectService {
     projectId: string,
     adaptationId: string,
   ): Project | undefined;
+}
+
+const intentText = z.string().trim().min(1).max(4_000);
+const intentConstraints = z.array(z.string().trim().min(1).max(1_000)).max(100);
+export const AuthorIntentContentSchema = z.object({
+  themeStatement: intentText,
+  emotionalPromise: intentText,
+  targetAudience: intentText,
+  mustKeep: intentConstraints,
+  mayChange: intentConstraints,
+  mustAvoid: intentConstraints,
+  endingContract: z.string().trim().max(4_000),
+  toneAndVoice: intentText,
+});
+export const AuthorIntentSourceKindSchema = z.enum([
+  "manual",
+  "legacy-project",
+  "ai-generated",
+]);
+export const AuthorIntentSourceSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.enum(["manual", "legacy-project"]),
+    projectVersion: z.number().int().nonnegative(),
+    // Exact saved fields, never a parsed or automatically adopted author intent.
+    legacyFields: z.record(z.string(), z.string()).optional(),
+  }),
+  z
+    .object({
+      kind: z.literal("ai-generated"),
+      projectVersion: z.number().int().nonnegative(),
+      creation: AuthorIntentCreationProvenanceSchema,
+    })
+    .strict(),
+]);
+export const AuthorIntentStatusSchema = z.enum([
+  "pending",
+  "adopted",
+  "discarded",
+  "conflicted",
+]);
+const AuthorIntentObjectSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  version: z.number().int().positive(),
+  stateVersion: z.number().int().nonnegative(),
+  status: AuthorIntentStatusSchema,
+  content: AuthorIntentContentSchema,
+  source: AuthorIntentSourceSchema,
+  baseAdoptedId: z.string().uuid().optional(),
+  // Read-only projection; an adopted snapshot is immutable even if project
+  // metadata later changes. Only another explicit adoption changes the head.
+  sourceState: z.enum(["current", "stale"]),
+  isCurrent: z.boolean(),
+  adoptedAt: z.string().datetime().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export const AuthorIntentSchema = AuthorIntentObjectSchema.superRefine(
+  (value, check) => {
+    const basis =
+      value.source.kind === "ai-generated"
+        ? value.source.creation.basis
+        : undefined;
+    if (basis?.sourceBasis && basis.sourceBasis.projectId !== value.projectId)
+      check.addIssue({
+        code: "custom",
+        path: ["source"],
+        message: "意图混合来源必须属于原项目，不能以外项目解释覆盖。",
+      });
+  },
+);
+export const AuthorIntentSummarySchema = AuthorIntentObjectSchema.omit({
+  content: true,
+  source: true,
+}).extend({
+  sourceKind: AuthorIntentSourceKindSchema,
+  sourceProjectVersion: z.number().int().nonnegative(),
+  workflowId: z.string().uuid().optional(),
+});
+export const AuthorIntentPageSchema = z.object({
+  items: z.array(AuthorIntentSummarySchema),
+  nextCursor: z.string().uuid().optional(),
+});
+export const AuthorIntentCurrentSchema = z.object({
+  projectVersion: z.number().int().nonnegative(),
+  current: AuthorIntentSchema.optional(),
+  legacyReviewRequired: z.boolean(),
+});
+export const AuthorIntentPreviewInputSchema = z.object({
+  projectVersion: z.number().int().nonnegative(),
+  baseAdoptedId: z.string().uuid().optional(),
+  // Public manual previews cannot forge model provenance.
+  sourceKind: z.enum(["manual", "legacy-project"]),
+  content: AuthorIntentContentSchema,
+});
+export const AuthorIntentAdoptInputSchema = z.object({
+  confirmed: z.literal(true),
+});
+export type AuthorIntentContent = z.infer<typeof AuthorIntentContentSchema>;
+export type AuthorIntent = z.infer<typeof AuthorIntentSchema>;
+export type AuthorIntentSummary = z.infer<typeof AuthorIntentSummarySchema>;
+export type AuthorIntentPage = z.infer<typeof AuthorIntentPageSchema>;
+export type AuthorIntentCurrent = z.infer<typeof AuthorIntentCurrentSchema>;
+export type AuthorIntentPreviewInput = z.infer<
+  typeof AuthorIntentPreviewInputSchema
+>;
+
+export const WORKSPACE_AUTHOR_INTENT_SERVICE =
+  defineServiceContract<WorkspaceAuthorIntentService>({
+    id: "workspace.author-intents.v1",
+    owner: "workspace",
+    major: 1,
+    capabilities: ["read"],
+    degradable: true,
+  });
+export interface WorkspaceAuthorIntentService {
+  get(projectId: string, id: string): AuthorIntent | undefined;
+  current(projectId: string): AuthorIntent | undefined;
 }
 
 export const WorkspaceExportDocumentSchema = z.object({
@@ -411,6 +535,7 @@ export const SourceImportCommitInputSchema = z.object({
   destructiveConfirmed: z.boolean(),
   preview: SourceImportPreviewSchema,
 });
+export { canonicalImportRequestJSON } from "./import-recovery.js";
 
 export const ImportExtractionCandidateSchema = z.object({
   id: z.string().uuid(),
@@ -426,6 +551,7 @@ export const ImportExtractionCandidateSchema = z.object({
       end: z.number().int().nonnegative(),
       excerpt: z.string(),
       sourceVersion: z.number().int().nonnegative(),
+      chapterId: z.string().uuid().optional(),
     }),
   ),
   status: z.enum(["draft", "rejected", "adopted", "conflict"]),
@@ -468,6 +594,61 @@ export const SourceImportCommitResultSchema = z.object({
   checkpointCount: z.number().int().nonnegative(),
   extractionChangeSet: ImportExtractionChangeSetSchema.optional(),
 });
+
+export const SourceImportCommitRecoverySchema = z
+  .object({
+    importId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    state: z.enum(["pending", "committed"]),
+    input: SourceImportCommitInputSchema,
+    result: SourceImportCommitResultSchema.strict().optional(),
+    createdAt: z.string().datetime(),
+    committedAt: z.string().datetime().optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.projectId === value.input.projectId &&
+      (value.state === "committed"
+        ? !!value.result && !!value.committedAt
+        : value.result === undefined && value.committedAt === undefined),
+  )
+  .refine((value) => {
+    const result = value.result;
+    if (!result) return true;
+    if (
+      result.updatedChapters !== 0 ||
+      result.updatedScripts !== 0 ||
+      result.checkpointCount !== 0
+    )
+      return false;
+    return value.input.preview.contentKind === "script"
+      ? result.createdChapters === 0 &&
+          result.createdEpisodes === value.input.preview.episodes.length &&
+          result.createdScripts === value.input.preview.episodes.length &&
+          result.createdScenes ===
+            value.input.preview.episodes.reduce(
+              (count, episode) => count + episode.scenes.length,
+              0,
+            ) &&
+          !!result.adaptationProjectId &&
+          result.extractionChangeSet === undefined
+      : result.createdChapters === value.input.preview.chapters.length &&
+          result.createdEpisodes === 0 &&
+          result.createdScripts === 0 &&
+          result.createdScenes === 0 &&
+          result.adaptationProjectId === undefined &&
+          result.extractionChangeSet?.projectId === value.projectId;
+  });
+export type SourceImportCommitInput = z.infer<
+  typeof SourceImportCommitInputSchema
+>;
+export type SourceImportCommitResult = z.infer<
+  typeof SourceImportCommitResultSchema
+>;
+export type SourceImportCommitRecovery = z.infer<
+  typeof SourceImportCommitRecoverySchema
+>;
 
 export type SourceImportPreview = z.infer<typeof SourceImportPreviewSchema>;
 export type ImportExtractionCandidate = z.infer<

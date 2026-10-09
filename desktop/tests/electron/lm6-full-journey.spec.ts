@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
 import {
+  selectWorkspaceObject,
   openProductionStage,
   openProjectCreation,
   openProjectTool,
@@ -27,7 +28,7 @@ test.afterAll(async () => {
   await rm(userData, { recursive: true, force: true });
 });
 
-test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、交付并保留审片反馈", async () => {
+test("剧本入口直达本地规则检查，示例时间线与内部审片反馈贯通（不证明成片或发行）", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
 
@@ -36,28 +37,34 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
     page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
   ).toBeVisible();
   await openProjectCreation(page);
+  await page.getByRole("button", { name: "导入已有剧本" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /使用已有剧本/ }).click();
   await page
     .getByRole("textbox", { name: "项目名称" })
     .fill("P2 Gate 剧本入口");
   await page
     .getByRole("textbox", { name: "已有剧本内容" })
     .fill("【雨夜门口】\n林晚：这封信不能让任何人看见。");
+  await page
+    .getByLabel("我确认拥有此剧本的使用权，或已经取得必要授权。")
+    .check();
   await page.getByRole("button", { name: "创建单季短剧" }).click();
-  await openProjectTool(page, "试制计划");
-
-  const inputPilot = page.getByLabel("试制向导");
   await expect(
-    inputPilot.getByRole("checkbox", {
-      name: "来源章节：第 1 集剧本草稿",
-    }),
-  ).toBeChecked();
-  await inputPilot.getByRole("button", { name: "建立试制计划" }).click();
-  await inputPilot.getByRole("button", { name: "确认来源并生成首集" }).click();
-  await expect(inputPilot).toContainText("当前阶段：采用试制剧本");
+    page.getByRole("heading", { name: "剧本审查", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "开始审查", exact: true }).click();
   await expect(
-    inputPilot.getByRole("link", { name: "前往唯一待办" }),
+    page.getByText(
+      "已完成本地规则审查。它仅依据已保存的剧本和场景，不会冒充模型结论。",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "剧本审查", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("林晚：这封信不能让任何人看见。", { exact: true }),
   ).toBeVisible();
 
   await page.getByRole("link", { name: "尽意项目首页" }).click();
@@ -76,24 +83,16 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await expect(fixturePilot).toContainText("当前阶段：采用试制剧本");
 
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  await page
-    .getByLabel(/^项目选择项目/)
-    .selectOption({ label: "示例短剧：雨夜归来" });
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page
-    .getByRole("combobox", { name: "剧本" })
-    .selectOption({ label: "第 1 集剧本" });
-  await page
-    .getByRole("combobox", { name: "场景" })
-    .selectOption({ label: "场景 1：雨夜门口" });
-  await page
-    .getByRole("combobox", { name: "分镜" })
-    .selectOption({ label: "镜头 1：门缝中的雨夜" });
+  await selectWorkspaceObject(page, "项目", {
+    label: "示例短剧：雨夜归来",
+  });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "剧本", { label: "第 1 集剧本" });
+  await selectWorkspaceObject(page, "场景", { label: "场景 1：雨夜门口" });
+  await selectWorkspaceObject(page, "分镜", { label: "镜头 1：门缝中的雨夜" });
 
   await openProductionStage(page, "导演看板");
   await expect(page.getByLabel("导演分镜看板")).toBeVisible();
@@ -104,13 +103,25 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await expect(timeline).toBeVisible();
   for (const track of ["视频", "对白", "旁白", "配乐", "音效", "字幕"])
     await expect(timeline.getByText(track, { exact: true })).toBeVisible();
-  await timeline.getByRole("button", { name: "播放", exact: true }).click();
+  // Demo records have no actual media bytes. The product must not run an
+  // empty clock; real playback is separately covered by media-playback.spec.
+  await expect(
+    timeline.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
+  await timeline
+    .getByRole("button", { name: "加载实际同步预览", exact: true })
+    .click();
+  await expect(timeline.getByRole("alert")).toContainText(
+    "片段缺少明确可读素材",
+  );
+  await expect(
+    timeline.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
   await expect(
     timeline.getByRole("button", { name: "暂停", exact: true }),
-  ).toBeVisible();
-  await timeline.getByRole("button", { name: "暂停", exact: true }).click();
+  ).toHaveCount(0);
 
-  const delivery = timeline.getByLabel("已验证 NLE 交付");
+  const delivery = timeline.getByLabel("NLE 交付与媒体核验");
   for (const format of [
     "导出 FCPXML",
     "导出 OTIO",
@@ -118,20 +129,14 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
     "导出重链接清单",
   ])
     await expect(delivery.getByRole("button", { name: format })).toBeVisible();
-  await expect(delivery).toContainText(
-    "当前目录未声明该能力，因此未生成或伪造成片。",
-  );
+  await expect(delivery).toContainText("NLE 交付不包含 MP4 成片。");
 
   await page.getByRole("link", { name: "审核交付" }).click();
-  await page
-    .getByRole("combobox", { name: "项目", exact: true })
-    .selectOption({ label: "示例短剧：雨夜归来" });
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "项目", { label: "示例短剧：雨夜归来" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
   await page.getByRole("button", { name: "预览与修订", exact: true }).click();
   await page.getByRole("button", { name: "创建离线审片包" }).click();
   await expect(

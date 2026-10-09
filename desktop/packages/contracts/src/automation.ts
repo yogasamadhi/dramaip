@@ -91,6 +91,18 @@ export type TaskWorklistCategory = z.infer<typeof TaskWorklistCategorySchema>;
 export type TaskWorklistResponse = z.infer<typeof TaskWorklistResponseSchema>;
 export type TaskInput = z.infer<typeof TaskInputSchema>;
 export type RevisionPreview = z.infer<typeof RevisionPreviewSchema>;
+export const RevisionPreviewSummarySchema = RevisionPreviewSchema.omit({
+  proposedContent: true,
+  rationale: true,
+});
+export const RevisionPreviewPageSchema = z.object({
+  items: z.array(RevisionPreviewSummarySchema),
+  nextCursor: z.string().optional(),
+});
+export type RevisionPreviewSummary = z.infer<
+  typeof RevisionPreviewSummarySchema
+>;
+export type RevisionPreviewPage = z.infer<typeof RevisionPreviewPageSchema>;
 
 export const AUTOMATION_TASK_SERVICE =
   defineServiceContract<AutomationTaskService>({
@@ -187,6 +199,10 @@ export const ChangePreviewSchema = z.object({
   createdAt: z.string().datetime(),
   committedAt: z.string().datetime().optional(),
 });
+export {
+  ChapterPreviewRevisionEffortSchema,
+  type ChapterPreviewRevisionEffort,
+} from "./preview-revision-effort.js";
 export const ChangePreviewContentInputSchema = z.object({
   content: z.string().min(1),
 });
@@ -236,6 +252,25 @@ export const ProviderActionPreviewSchema = z.object({
   executedAt: z.string().datetime().optional(),
 });
 export type ProviderActionPreview = z.infer<typeof ProviderActionPreviewSchema>;
+
+// Read-only worklist metadata: never include prompts, parameters or credentials.
+export const ProviderActionPreviewSummarySchema =
+  ProviderActionPreviewSchema.omit({
+    parameters: true,
+  }).strict();
+export const ProviderActionPreviewSummaryPageSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    items: z.array(ProviderActionPreviewSummarySchema),
+    nextCursor: z.string().uuid().optional(),
+  })
+  .strict();
+export type ProviderActionPreviewSummary = z.infer<
+  typeof ProviderActionPreviewSummarySchema
+>;
+export type ProviderActionPreviewSummaryPage = z.infer<
+  typeof ProviderActionPreviewSummaryPageSchema
+>;
 
 export const TemplateRunInputSchema = z.object({
   projectId: z.string().uuid().optional(),

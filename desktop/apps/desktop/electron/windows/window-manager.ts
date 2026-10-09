@@ -48,6 +48,7 @@ export function createMainWindow(input: {
   preloadPath: string;
   developmentIconPath?: string;
   developmentUrl?: string;
+  background?: boolean;
 }): BrowserWindow {
   const dark = nativeTheme.shouldUseDarkColors;
   const nonce = issueRuntimeBootstrap(input.bootstrap);
@@ -57,6 +58,7 @@ export function createMainWindow(input: {
     minWidth: 1080,
     minHeight: 700,
     show: false,
+    ...(input.background ? { focusable: false, skipTaskbar: true } : {}),
     title: "尽意 DramaIP",
     backgroundColor: dark ? "#191a19" : "#f8f7f4",
     ...(input.developmentIconPath ? { icon: input.developmentIconPath } : {}),
@@ -81,6 +83,7 @@ export function createMainWindow(input: {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      ...(input.background ? { backgroundThrottling: false } : {}),
     },
   });
   const webContentsId = window.webContents.id;
@@ -103,7 +106,7 @@ export function createMainWindow(input: {
   });
   if (input.developmentUrl) void window.loadURL(input.developmentUrl);
   else void window.loadURL(`${rendererProtocol}://${rendererHost}/index.html`);
-  window.once("ready-to-show", () => window.show());
+  if (!input.background) window.once("ready-to-show", () => window.show());
   return window;
 }
 

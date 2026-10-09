@@ -8,7 +8,8 @@
     "start": "bun --bun run next start",
     "lint": "bun --bun run eslint .",
     "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test tests/*.test.ts"
+    "test": "bun test tests/*.test.ts",
+    "smoke:cases": "bun scripts/story-case-built-smoke.ts"
   },
   "dependencies": {
     "@dramaip/sdk": "workspace:*",

@@ -17,7 +17,19 @@ export async function saveRuntimeArtifact(
 }
 
 /** Supervisor-only code recovery. The journal contains code/config, never runtime data. */
-export async function restoreRuntimeArtifact(base: string): Promise<boolean> {
+export function isRuntimeConfigurationPath(path: string): boolean {
+  const local = path.replaceAll("\\", "/");
+  return (
+    local === "cordis.yml" ||
+    local.startsWith("profiles/") ||
+    local.startsWith("bundles/")
+  );
+}
+
+export async function restoreRuntimeArtifact(
+  base: string,
+  options: { preserveConfiguration?: boolean } = {},
+): Promise<boolean> {
   const content = await readFile(join(base, ".last-good.json"), "utf8").catch(
     (error) => {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -44,6 +56,11 @@ export async function restoreRuntimeArtifact(base: string): Promise<boolean> {
     return [target, Buffer.from(data, "base64")] as const;
   });
   for (const [target, data] of entries) {
+    if (
+      options.preserveConfiguration &&
+      isRuntimeConfigurationPath(relative(resolve(base), target))
+    )
+      continue;
     if ((await readFile(target).catch(() => undefined))?.equals(data)) continue;
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, data);

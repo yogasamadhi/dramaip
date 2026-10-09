@@ -1,3 +1,4 @@
+import { selectWorkspaceObject } from "./project-tools";
 import { expect, test } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,18 +22,12 @@ test("改编区显示可访问的集级四轨节奏看板", async () => {
   const page = await application.firstWindow();
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "改编" }).click();
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page
-    .getByRole("combobox", { name: "剧本" })
-    .selectOption({ label: "第 1 集剧本" });
-  await page
-    .getByRole("combobox", { name: "场景" })
-    .selectOption({ label: "场景 1：雨夜门口" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "剧本", { label: "第 1 集剧本" });
+  await selectWorkspaceObject(page, "场景", { label: "场景 1：雨夜门口" });
   await expect(page.getByLabel("集级节奏看板")).toBeVisible();
   await expect(page.getByLabel("节拍密度轨道")).toBeVisible();
   await expect(page.getByLabel("爽点轨道")).toBeVisible();

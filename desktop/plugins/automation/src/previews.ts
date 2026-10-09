@@ -1,4 +1,5 @@
 import { optionalService } from "@dramaip/plugin-api/internal";
+import { createHash } from "node:crypto";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -9,10 +10,13 @@ import {
   ChangePreviewContentInputSchema,
   ChangePreviewRebaseInputSchema,
   ChangePreviewSchema,
+  ChapterPreviewRevisionEffortSchema,
   ChapterPreviewMergeSchema,
   EpisodeWorkflowInputSchema,
   EpisodeWorkflowResultSchema,
   ProviderActionPreviewSchema,
+  ProviderActionPreviewSummarySchema,
+  ProviderActionPreviewSummaryPageSchema,
   PROVIDER_ACTION_EXECUTOR_SERVICE,
   TaskSchema,
   TemplateRunInputSchema,
@@ -24,13 +28,10 @@ import {
   type Task,
 } from "@dramaip/contracts/automation";
 import {
-  CREATIVE_QUALITY_SERVICE,
-  type CreativeQualityRecordService,
-} from "@dramaip/contracts/creative-quality";
-import {
   DELIVERY_RECORD_SERVICE,
   type DeliveryRecordService,
 } from "@dramaip/contracts/delivery";
+import { CREATIVE_QUALITY_SERVICE } from "@dramaip/contracts/creative-quality";
 import {
   MEDIA_RECORD_SERVICE,
   type MediaRecordService,
@@ -58,13 +59,26 @@ import {
   type PluginContext,
   type PluginMigration,
   type RouteContribution,
+  type RoutePolicy,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  previewRevisionEventMigration,
+  recordCandidateRevisionEvent,
+} from "./preview-revision-events.js";
+import {
+  previewRevisionMigration,
+  recordInitialCandidate,
+  recordCandidateEdit,
+  recordCandidateRebase,
+  readCandidateRevisionEffort,
+} from "./preview-revisions.js";
 
 interface RouteContext {
   req: {
     param(name: string): string;
+    query(name: string): string | undefined;
     header(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
   };
@@ -145,6 +159,7 @@ function declaration(input: {
   path: string;
   operationId: string;
   params?: ZodType;
+  query?: ZodType;
   body?: ZodType;
   response: ZodType;
   status?: 200 | 201 | 202;
@@ -157,6 +172,7 @@ function declaration(input: {
     tags: ["automation"],
     request: {
       ...(input.params ? { params: input.params } : {}),
+      ...(input.query ? { query: input.query } : {}),
       ...(input.body
         ? {
             body: {
@@ -189,6 +205,12 @@ function declaration(input: {
           "application/problem+json": { schema: ProblemDetailsSchema },
         },
       },
+      503: {
+        description: "Authoritative owner read temporarily unavailable",
+        content: {
+          "application/problem+json": { schema: ProblemDetailsSchema },
+        },
+      },
     },
   } as never);
 }
@@ -197,11 +219,13 @@ function route(
   metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: (context: RouteContext) => Response | Promise<Response>,
+  policy?: Partial<RoutePolicy>,
 ): RouteContribution {
   return defineRouteContribution({
     ...metadata,
     declaration: openapi,
     handler,
+    policy,
   });
 }
 
@@ -362,6 +386,8 @@ function previewService(context: PluginContext): AutomationPreviewService {
             id,
           )!,
         );
+        recordInitialCandidate(transaction, value);
+        recordCandidateRevisionEvent(transaction, value, "initial", 0);
         transaction.append({
           type: "automation.change-preview-created.v1",
           pluginId: "automation",
@@ -421,7 +447,7 @@ function previewService(context: PluginContext): AutomationPreviewService {
 function applyChange(
   context: PluginContext,
   preview: ChangePreview,
-): "conflict" | "unsupported" | "updated" {
+): "conflict" | "unsupported" | "updated" | "unavailable" | "quality-blocked" {
   const creationChapter =
     preview.targets.length === 1 && preview.targets[0]?.kind === "chapter"
       ? preview.targets[0]
@@ -567,10 +593,6 @@ function workflow(
     context,
     MEDIA_RECORD_SERVICE,
   );
-  const creative = optionalService<CreativeQualityRecordService>(
-    context,
-    CREATIVE_QUALITY_SERVICE,
-  );
   const review = optionalService<ReviewRecordService>(
     context,
     REVIEW_RECORD_SERVICE,
@@ -593,22 +615,6 @@ function workflow(
     shots: shots.length,
     evaluatedAt: new Date().toISOString(),
   };
-  if (input.kind === "quality-check" && creative) {
-    const record = creative.create("quality", {
-      projectId: input.projectId,
-      parentId: episode.id,
-      value: {
-        ...evidence,
-        score: Math.min(100, 40 + scripts.length * 15 + shots.length * 3),
-        findings: shots.length ? [] : ["尚未建立可审阅分镜。"],
-      },
-    });
-    return {
-      recordId: record.id,
-      recordOwner: "creative-quality",
-      summary: "分集质量检查已完成。",
-    };
-  }
   if (input.kind === "compliance-check" && review) {
     const record = review.create("compliance", {
       projectId: input.projectId,
@@ -684,6 +690,8 @@ function workflow(
 }
 
 export const automationPreviewMigrations: readonly PluginMigration[] = [
+  previewRevisionEventMigration,
+  previewRevisionMigration,
   {
     id: "automation.0003.previews-and-templates",
     pluginId: "automation",
@@ -755,6 +763,213 @@ export function automationPreviewRuntime(context: PluginContext): {
 } {
   const service = previewService(context);
   const routes: RouteContribution[] = [
+    route(
+      {
+        id: "automation:change-preview-revision-effort",
+        pluginId: "automation",
+        method: "get",
+        path: "/api/v2/change-previews/{id}/revision-effort",
+        operationId: "change-previews.revisionEffort",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/change-previews/{id}/revision-effort",
+        operationId: "change-previews.revisionEffort",
+        params: idParams,
+        query: z.object({
+          projectId: z.string().uuid(),
+          contentHash: z.string().min(1),
+        }),
+        response: ChapterPreviewRevisionEffortSchema,
+      }),
+      (requestContext) => {
+        const scope = z
+          .object({
+            projectId: z.string().uuid(),
+            contentHash: z.string().min(1),
+          })
+          .safeParse({
+            projectId: requestContext.req.query("projectId"),
+            contentHash: requestContext.req.query("contentHash"),
+          });
+        if (!scope.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "请指定原项目与候选指纹。",
+          );
+        try {
+          const result = context.uow.execute((tx) => {
+            const read = (id: string) => {
+              const row = tx.get<ChangeRow>(
+                "SELECT * FROM automation_change_previews WHERE id=?",
+                id,
+              );
+              return row ? change(row) : undefined;
+            };
+            const current = read(requestContext.req.param("id"));
+            if (!current || current.projectId !== scope.data.projectId)
+              return "missing" as const;
+            if (current.contentHash !== scope.data.contentHash)
+              return "changed" as const;
+            return readCandidateRevisionEffort(tx, current, read);
+          });
+          if (result === "missing")
+            return problem(
+              requestContext,
+              404,
+              "NOT_FOUND",
+              "原项目中的候选不存在。",
+            );
+          if (result === "changed")
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              "原候选已变化，请重新读取原预览。",
+            );
+          if (!result)
+            return problem(
+              requestContext,
+              409,
+              "UNSUPPORTED_OPERATION",
+              "本台账只记录单章候选的实际保存与合并。",
+            );
+          const response = requestContext.json(result);
+          response.headers.set("Cache-Control", "no-store");
+          response.headers.set(
+            "ETag",
+            `"${createHash("sha256").update(JSON.stringify(result)).digest("hex")}"`,
+          );
+          return response;
+        } catch {
+          return problem(
+            requestContext,
+            503,
+            "REVISION_HISTORY_UNAVAILABLE",
+            "原修订台账无法核对，不显示旧值或补零。",
+          );
+        }
+      },
+    ),
+    route(
+      {
+        id: "automation:provider-preview-summaries",
+        pluginId: "automation",
+        method: "get",
+        path: "/api/v2/projects/{projectId}/provider-action-preview-summaries",
+        operationId: "provider-action-previews.summaries",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/projects/{projectId}/provider-action-preview-summaries",
+        operationId: "provider-action-previews.summaries",
+        params: z.object({ projectId: z.string().uuid() }),
+        query: z.object({
+          cursor: z.string().uuid().optional(),
+          limit: z.coerce.number().int().min(1).max(100).optional(),
+        }),
+        response: ProviderActionPreviewSummaryPageSchema,
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        const query = z
+          .object({
+            cursor: z.string().uuid().optional(),
+            limit: z.coerce.number().int().min(1).max(100).default(50),
+          })
+          .safeParse({
+            cursor: requestContext.req.query("cursor"),
+            limit: requestContext.req.query("limit"),
+          });
+        if (!query.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "费用确认摘要游标或数量无效。",
+          );
+        try {
+          const project = optionalService(
+            context,
+            WORKSPACE_PROJECT_SERVICE,
+          )?.get(projectId);
+          if (!project || project.id !== projectId)
+            return problem(
+              requestContext,
+              404,
+              "NOT_FOUND",
+              "指定项目不存在或不可用。",
+            );
+          const page = context.uow.execute((tx) => {
+            const cursor = query.data.cursor
+              ? tx.get<ProviderRow>(
+                  "SELECT * FROM automation_provider_action_previews WHERE id = ? AND project_id = ?",
+                  query.data.cursor,
+                  projectId,
+                )
+              : undefined;
+            if (query.data.cursor && !cursor) return undefined;
+            const rows = cursor
+              ? tx.all<ProviderRow>(
+                  "SELECT * FROM automation_provider_action_previews WHERE project_id = ? AND (created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC, id DESC LIMIT ?",
+                  projectId,
+                  cursor.created_at,
+                  cursor.created_at,
+                  cursor.id,
+                  query.data.limit + 1,
+                )
+              : tx.all<ProviderRow>(
+                  "SELECT * FROM automation_provider_action_previews WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+                  projectId,
+                  query.data.limit + 1,
+                );
+            const items = rows.slice(0, query.data.limit).map((row) =>
+              ProviderActionPreviewSummarySchema.parse({
+                id: row.id,
+                projectId: row.project_id,
+                kind: row.kind,
+                providerId: row.provider_id,
+                ...(row.session_id ? { sessionId: row.session_id } : {}),
+                ...(row.run_id ? { runId: row.run_id } : {}),
+                ...(row.task_id ? { taskId: row.task_id } : {}),
+                ...(row.model_id ? { modelId: row.model_id } : {}),
+                ...(row.estimated_cost === null
+                  ? {}
+                  : { estimatedCost: row.estimated_cost }),
+                ...(row.currency === null ? {} : { currency: row.currency }),
+                status: row.status,
+                createdAt: row.created_at,
+                ...(row.executed_at ? { executedAt: row.executed_at } : {}),
+              }),
+            );
+            return ProviderActionPreviewSummaryPageSchema.parse({
+              projectId,
+              items,
+              ...(rows.length > query.data.limit
+                ? { nextCursor: items.at(-1)!.id }
+                : {}),
+            });
+          });
+          return page
+            ? requestContext.json(page)
+            : problem(
+                requestContext,
+                400,
+                "INVALID_CURSOR",
+                "游标不属于指定项目，未替换为第一页。",
+              );
+        } catch {
+          return problem(
+            requestContext,
+            503,
+            "SOURCE_UNAVAILABLE",
+            "本次费用确认摘要未核全，未返回旧记录或空成功。",
+          );
+        }
+      },
+    ),
     route(
       {
         id: "automation:change-preview-get",
@@ -884,6 +1099,11 @@ export function automationPreviewRuntime(context: PluginContext): {
           );
           const chapter = targets.find((target) => target.kind === "chapter");
           if (!chapter) return "unsupported" as const;
+          const revisionSequence = recordCandidateEdit(
+            transaction,
+            change(row),
+            input.data.content,
+          );
           chapter.patch = { ...chapter.patch, content: input.data.content };
           transaction.run(
             "UPDATE automation_change_previews SET targets_json = ?, content_hash = ? WHERE id = ?",
@@ -899,12 +1119,21 @@ export function automationPreviewRuntime(context: PluginContext): {
             aggregateVersion: 0,
             payload: { id: row.id, contentHash: stableHash(targets) },
           });
-          return change(
+          const updated = change(
             transaction.get<ChangeRow>(
               "SELECT * FROM automation_change_previews WHERE id = ?",
               row.id,
             )!,
           );
+          if (revisionSequence !== undefined)
+            recordCandidateRevisionEvent(
+              transaction,
+              updated,
+              "content-update",
+              revisionSequence,
+              change(row),
+            );
+          return updated;
         });
         if (value === "unsupported")
           return problem(
@@ -1067,6 +1296,14 @@ export function automationPreviewRuntime(context: PluginContext): {
               id,
             )!,
           );
+          recordCandidateRebase(transaction, rebased, change(latest));
+          recordCandidateRevisionEvent(
+            transaction,
+            rebased,
+            "rebase",
+            0,
+            change(latest),
+          );
           transaction.append({
             type: "automation.change-preview-rebased.v1",
             pluginId: "automation",
@@ -1158,10 +1395,37 @@ export function automationPreviewRuntime(context: PluginContext): {
             (action === "discard" && current.status === "discarded")
           )
             return requestContext.json(current);
-          if (current.status !== "pending")
+          // A rejected adoption must remain explicitly discardable; discarding
+          // changes only the preview and never retries a business write.
+          if (
+            current.status !== "pending" &&
+            !(action === "discard" && current.status === "conflicted")
+          )
             return problem(requestContext, 409, "CONFLICT", "变更预览已处理。");
           if (action === "commit") {
             const result = applyChange(context, current);
+            if (result === "quality-blocked") {
+              const response = problem(
+                requestContext,
+                409,
+                "QUALITY_REVIEW_REQUIRED",
+                "候选仍有未解决的严重问题；请保持原来源修订复检，原预览保持待确认。",
+              );
+              response.headers.set("Content-Type", "application/problem+json");
+              response.headers.set("Cache-Control", "no-store");
+              return response;
+            }
+            if (result === "unavailable") {
+              const response = problem(
+                requestContext,
+                503,
+                "SERVICE_UNAVAILABLE",
+                "本次权威来源读取暂不可用；原候选保持待确认，不推定内容已变化。",
+              );
+              response.headers.set("Content-Type", "application/problem+json");
+              response.headers.set("Cache-Control", "no-store");
+              return response;
+            }
             if (result !== "updated") {
               context.uow.execute((transaction) =>
                 transaction.run(
@@ -1318,6 +1582,29 @@ export function automationPreviewRuntime(context: PluginContext): {
             });
             return requestContext.json(updated);
           }
+          if (
+            typeof current.estimatedCost !== "number" ||
+            !Number.isFinite(current.estimatedCost) ||
+            current.estimatedCost < 0 ||
+            !current.currency?.trim()
+          )
+            return problem(
+              requestContext,
+              409,
+              "COST_UNKNOWN",
+              "厂商预览的预估费用或币种未知；未执行远程调用。",
+            );
+          const project = optionalService(
+            context,
+            WORKSPACE_PROJECT_SERVICE,
+          )?.get(current.projectId);
+          if (!project || project.id !== current.projectId)
+            return problem(
+              requestContext,
+              409,
+              "PROJECT_UNVERIFIED",
+              "厂商预览的实际项目未能核对；未执行远程调用。",
+            );
           const executor = optionalService<ProviderActionExecutorService>(
             context,
             PROVIDER_ACTION_EXECUTOR_SERVICE,
@@ -1488,13 +1775,110 @@ export function automationPreviewRuntime(context: PluginContext): {
             "工作流参数或 Idempotency-Key 无效。",
           );
         const previous = context.uow.execute((transaction) =>
-          transaction.get<{ response_json: string }>(
-            "SELECT response_json FROM automation_idempotency WHERE scope = 'workflows.runEpisode' AND idempotency_key = ?",
+          transaction.get<{ request_hash: string; response_json: string }>(
+            "SELECT request_hash, response_json FROM automation_idempotency WHERE scope = 'workflows.runEpisode' AND idempotency_key = ?",
             key,
           ),
         );
-        if (previous)
-          return requestContext.json(JSON.parse(previous.response_json), 201);
+        if (previous && previous.request_hash !== stableHash(input.data))
+          return problem(
+            requestContext,
+            409,
+            "IDEMPOTENCY_CONFLICT",
+            "原工作流动作键与本次项目、分集或操作不一致；未重放其他请求。",
+          );
+        if (previous) {
+          // The original legacy 32-bit hash is retained for compatibility, but
+          // it cannot authenticate these three fields. Bind the receipt to the
+          // actual original record's owner/project/immutable parent as well.
+          let original: unknown;
+          try {
+            original = JSON.parse(previous.response_json);
+          } catch {
+            original = undefined;
+          }
+          const parsed = EpisodeWorkflowResultSchema.safeParse(original);
+          if (
+            !parsed.success ||
+            !parsed.data.task.projectId ||
+            !parsed.data.recordId
+          )
+            return problem(
+              requestContext,
+              409,
+              "LEGACY_RECEIPT_BINDING_UNAVAILABLE",
+              "原历史回执的完整绑定不可用；未补造、换源或重新执行。",
+            );
+          const receipt = parsed.data;
+          const recordId = parsed.data.recordId;
+          if (
+            receipt.task.projectId !== input.data.projectId ||
+            receipt.task.kind !== input.data.kind
+          )
+            return problem(
+              requestContext,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "原回执属于其他项目或操作；未重放其他请求。",
+            );
+          const owner =
+            input.data.kind === "quality-check"
+              ? "creative-quality"
+              : input.data.kind === "delivery-preflight"
+                ? "delivery"
+                : input.data.kind === "render-preflight" ||
+                    input.data.kind === "animatic-draft"
+                  ? "media"
+                  : "review";
+          if (receipt.recordOwner !== owner)
+            return problem(
+              requestContext,
+              409,
+              "LEGACY_RECEIPT_BINDING_UNAVAILABLE",
+              "原历史回执的记录所有者不一致；未补造或重新执行。",
+            );
+          const record =
+            owner === "creative-quality"
+              ? optionalService(context, CREATIVE_QUALITY_SERVICE)?.get(
+                  recordId,
+                )
+              : owner === "delivery"
+                ? optionalService(context, DELIVERY_RECORD_SERVICE)?.get(
+                    recordId,
+                  )
+                : owner === "media"
+                  ? optionalService(context, MEDIA_RECORD_SERVICE)?.get(
+                      recordId,
+                    )
+                  : optionalService(context, REVIEW_RECORD_SERVICE)?.get(
+                      recordId,
+                    );
+          if (!record?.projectId || !record.parentId)
+            return problem(
+              requestContext,
+              409,
+              "LEGACY_RECEIPT_BINDING_UNAVAILABLE",
+              "原历史记录或分集绑定不可用；保留原回执，不补造或重新执行。",
+            );
+          if (
+            record.projectId !== input.data.projectId ||
+            record.parentId !== input.data.episodeId
+          )
+            return problem(
+              requestContext,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "原回执实际记录属于其他项目或分集；未因哈希相同重放其他请求。",
+            );
+          return requestContext.json(original, 201);
+        }
+        if (input.data.kind === "quality-check")
+          return problem(
+            requestContext,
+            409,
+            "UNSUPPORTED_OPERATION",
+            "旧兼容质量检查仅按条目数量给分，不能代表叙事质量；已停止新生成。历史记录保持未认证，请明确选择独立评议。",
+          );
         const outcome = workflow(context, input.data);
         if (outcome === undefined)
           return problem(requestContext, 404, "NOT_FOUND", "未找到分集。");
@@ -1524,6 +1908,7 @@ export function automationPreviewRuntime(context: PluginContext): {
         });
         return requestContext.json(response, 201);
       },
+      { idempotencyReplay: "handler" },
     ),
   ];
   return { service, routes };

@@ -1,12 +1,13 @@
 import {
   CreationWorkbench,
   CreationRecordWorkbench,
+  CreationRunCard,
 } from "../creation-workbench";
 import type { DomainEntity } from "@dramaip/contracts/product";
 import { BareButton, confirmDialog } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   buildEpisodePacingBoard,
   type PacingKind,
@@ -21,9 +22,85 @@ import {
   useStudio,
 } from "../../studio-shared";
 import { useStudioSession } from "../../studio-session";
+import {
+  currentOwnerQuery,
+  CURRENT_OWNER_READ_OPTIONS,
+} from "../../current-owner-read";
+import { readLegacyEpisodeAnalysis } from "../../legacy-quality-history";
 import { PluginResourceWorkspace, recordPayload } from "../studio-widgets";
 import { StoryBibleSidecar } from "../workspace/impl";
+import { LegacyEpisodeCompatibility } from "./LegacyEpisodeCompatibility";
+import {
+  ProductionContextBoundary,
+  WorkspaceObjectControls,
+} from "../ProductionContextBoundary";
+import {
+  productionReferenceKey,
+  withExactProductionRecord,
+  type ProductionObjectContext,
+} from "../../production-object-context";
+
+function ScriptContextControls(props: {
+  context?: { projectId: string; episodeTitle: string; scriptTitle: string };
+  awaitingOriginalScript?: boolean;
+  projectTitle?: string;
+  children: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (!props.context) return props.children;
+  return (
+    <>
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4">
+        <div>
+          <h1 className="font-semibold">{props.projectTitle}</h1>
+          <p className="mt-1 text-sm text-muted">
+            {props.context.episodeTitle} · {props.context.scriptTitle}
+            {props.awaitingOriginalScript
+              ? "；先从故事构思创作本集候选，审阅采用后再检查与拆分。"
+              : "；先核对剧本与连续性，再按需拆分场景和分镜。"}
+          </p>
+        </div>
+        <Link
+          className="text-sm font-medium text-brand"
+          to={`/projects/${props.context.projectId}/tools`}
+        >
+          项目工具
+        </Link>
+      </header>
+      <details
+        className="rounded-xl border border-line bg-surface p-4"
+        open={expanded}
+        onToggle={(event) => setExpanded(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-sm">
+          切换项目或分集（高级）
+        </summary>
+        <div className="mt-3">{props.children}</div>
+      </details>
+    </>
+  );
+}
 export function AdaptationWorkspace() {
+  const location = useLocation();
+  return (
+    <ProductionContextBoundary>
+      {(projectId, context) => (
+        <AdaptationWorkspaceInstance
+          key={JSON.stringify([
+            projectId,
+            productionReferenceKey(location.search),
+          ])}
+          projectId={projectId}
+          context={context}
+        />
+      )}
+    </ProductionContextBoundary>
+  );
+}
+function AdaptationWorkspaceInstance(props: {
+  projectId: string;
+  context: ProductionObjectContext;
+}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -33,54 +110,60 @@ export function AdaptationWorkspace() {
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState(session.activeProjectId ?? "");
-  const [adaptationId, setAdaptationId] = useState("");
-  const [episodeId, setEpisodeId] = useState("");
-  const [scriptId, setScriptId] = useState("");
-  const [sceneId, setSceneId] = useState("");
-  const [shotId, setShotId] = useState("");
+  const projectId = props.projectId;
+  const [selectedAdaptationId, setAdaptationId] = useState("");
+  const [selectedEpisodeId, setEpisodeId] = useState("");
+  const [selectedScriptId, setScriptId] = useState("");
+  const [selectedSceneId, setSceneId] = useState("");
+  const [selectedShotId, setShotId] = useState("");
+  const adaptationId = props.context.adaptationId?.id ?? selectedAdaptationId;
+  const episodeId = props.context.episodeId?.id ?? selectedEpisodeId;
+  const scriptId = props.context.scriptId?.id ?? selectedScriptId;
+  const sceneId = props.context.sceneId?.id ?? selectedSceneId;
+  const shotId = props.context.shotId?.id ?? selectedShotId;
   const [notice, setNotice] = useState<string>();
   const [stage, setStage] = useState<
     "adaptations" | "episodes" | "scripts" | "scenes" | "shots"
   >("adaptations");
-  const { data: adaptations = [] } = useQuery({
+  const { data: listedAdaptations = [] } = useQuery({
     queryKey: ["resource", "adaptations", projectId],
     queryFn: () => client.resources.list("adaptations", projectId),
     enabled: Boolean(projectId),
   });
-  const { data: episodes = [] } = useQuery({
+  const { data: listedEpisodes = [] } = useQuery({
     queryKey: ["resource", "episodes", projectId, adaptationId],
     queryFn: () => client.resources.list("episodes", projectId, adaptationId),
     enabled: Boolean(projectId && adaptationId),
   });
-  const { data: scripts = [] } = useQuery({
+  const { data: listedScripts = [] } = useQuery({
     queryKey: ["resource", "scripts", projectId, episodeId],
     queryFn: () => client.resources.list("scripts", projectId, episodeId),
     enabled: Boolean(projectId && episodeId),
   });
-  const { data: scenes = [] } = useQuery({
+  const { data: listedScenes = [] } = useQuery({
     queryKey: ["resource", "scenes", projectId, scriptId],
     queryFn: () => client.resources.list("scenes", projectId, scriptId),
     enabled: Boolean(projectId && scriptId),
   });
-  const { data: shots = [] } = useQuery({
+  const { data: listedShots = [] } = useQuery({
     queryKey: ["resource", "shots", projectId, sceneId],
     queryFn: () => client.resources.list("shots", projectId, sceneId),
     enabled: Boolean(projectId && sceneId),
   });
-  useEffect(() => {
-    if (
-      session.activeProjectId &&
-      projects.some((project) => project.id === session.activeProjectId) &&
-      projectId !== session.activeProjectId
-    )
-      setProjectId(session.activeProjectId);
-  }, [projectId, projects, session.activeProjectId]);
-  useEffect(() => {
-    const requested = new URLSearchParams(location.search).get("projectId");
-    if (requested && projects.some((project) => project.id === requested))
-      setProjectId(requested);
-  }, [location.search, projects]);
+  const adaptations = withExactProductionRecord(
+    listedAdaptations,
+    props.context.adaptationId,
+  );
+  const episodes = withExactProductionRecord(
+    listedEpisodes,
+    props.context.episodeId,
+  );
+  const scripts = withExactProductionRecord(
+    listedScripts,
+    props.context.scriptId,
+  );
+  const scenes = withExactProductionRecord(listedScenes, props.context.sceneId);
+  const shots = withExactProductionRecord(listedShots, props.context.shotId);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("stage");
     if (
@@ -123,6 +206,11 @@ export function AdaptationWorkspace() {
       setScriptId("");
   }, [scriptId, scripts]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("scriptId");
+    if (requested && scripts.some((item) => item.id === requested))
+      setScriptId(requested);
+  }, [scripts, location.search]);
+  useEffect(() => {
     if (sceneId && !scenes.some((item) => item.id === sceneId)) setSceneId("");
   }, [sceneId, scenes]);
   useEffect(() => {
@@ -140,6 +228,34 @@ export function AdaptationWorkspace() {
             : undefined;
   const parentRequired = stage !== "adaptations";
   const selectedScript = scripts.find((item) => item.id === scriptId);
+  const selectedProject = projects.find((item) => item.id === projectId);
+  const routeParams = new URLSearchParams(location.search);
+  const legacyWorkflowId = routeParams.get("workflowId") ?? undefined;
+  const legacyRun = useQuery({
+    queryKey: ["creation-workflow", legacyWorkflowId],
+    queryFn: () => client.creation.get(legacyWorkflowId!),
+    enabled: Boolean(legacyWorkflowId),
+  });
+  const originalScriptProject =
+    selectedProject?.modeConfig.mode === "single_season" &&
+    selectedProject.modeConfig.entryPath === "inspiration";
+  const awaitingOriginalScript =
+    originalScriptProject &&
+    selectedScript &&
+    !String(recordPayload(selectedScript.payload)["剧本内容"] ?? "").trim();
+  const directScriptContext =
+    new URLSearchParams(location.search).get("context") === "inherited" &&
+    new URLSearchParams(location.search).get("scriptId") === scriptId &&
+    selectedScript &&
+    episodeId &&
+    adaptationId
+      ? {
+          projectId,
+          episodeTitle:
+            episodes.find((item) => item.id === episodeId)?.title ?? "本集",
+          scriptTitle: selectedScript.title,
+        }
+      : undefined;
   const requestedStage = new URLSearchParams(location.search).get("stage");
   const structurallyRecommended = !adaptations.length
     ? "adaptations"
@@ -215,6 +331,9 @@ export function AdaptationWorkspace() {
   }) => {
     const search = new URLSearchParams();
     const values = {
+      context: new URLSearchParams(location.search).get("context") ?? "",
+      compatibility:
+        new URLSearchParams(location.search).get("compatibility") ?? "",
       projectId,
       stage,
       adaptationId,
@@ -232,218 +351,315 @@ export function AdaptationWorkspace() {
   return (
     <section className="space-y-5">
       <WorkspaceIntro
-        eyebrow="改编生产链路"
-        title="从故事到分镜"
-        description="确认来源与本集目标，AI 规划并生成剧本、场景和分镜，检查后以整集候选审阅采用。"
-        badge="结构化改编"
+        eyebrow={originalScriptProject ? "原创剧本开发" : "改编生产链路"}
+        title={originalScriptProject ? "从创意到分集剧本" : "从故事到单集开发"}
+        description={
+          originalScriptProject
+            ? "从保存的故事构思与创作方向开始，生成本集剧本候选；由你审阅采用，不要求先写小说或生成媒体。"
+            : "按诊断、独立策略、季纲与单集开发逐步审阅采用；分镜和媒体按需选择，历史记录与旧生成入口保留在兼容路径。"
+        }
+        badge={originalScriptProject ? "不经过小说阶段" : "结构化改编"}
       />
-      <section className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-5">
-        <label className="grid gap-1 text-sm">
-          项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            value={projectId}
-            onChange={(event) => {
-              const nextProjectId = event.target.value;
-              setProjectId(nextProjectId);
-              if (nextProjectId) session.selectProject(nextProjectId);
-              setAdaptationId("");
-              setEpisodeId("");
-              setScriptId("");
-              setSceneId("");
-              setShotId("");
-              syncRoute({
-                projectId: nextProjectId,
-                adaptationId: "",
-                episodeId: "",
-                scriptId: "",
-                sceneId: "",
-                shotId: "",
-              });
-            }}
-          >
-            <option value="">选择项目</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          改编项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            disabled={!projectId}
-            value={adaptationId}
-            onChange={(event) => {
-              const nextId = event.target.value;
-              setAdaptationId(nextId);
-              setEpisodeId("");
-              setScriptId("");
-              setSceneId("");
-              setShotId("");
-              syncRoute({
-                adaptationId: nextId,
-                episodeId: "",
-                scriptId: "",
-                sceneId: "",
-                shotId: "",
-              });
-              setNotice(undefined);
-              if (!nextId || !projectId) return;
-              void client.productionStructure
-                .selectCurrentAdaptation(projectId, { adaptationId: nextId })
-                .then(() => {
-                  setNotice(
-                    "已设为当前改编方案。下次打开项目会自动恢复此选择。",
-                  );
-                  void queryClient.invalidateQueries({
-                    queryKey: ["projects"],
+      <WorkspaceObjectControls
+        projectTitle={directScriptContext ? undefined : selectedProject?.title}
+        objectTitles={[
+          episodes.find((record) => record.id === episodeId)?.title,
+          selectedScript?.title,
+          shots.find((record) => record.id === shotId)?.title,
+        ].filter((title): title is string => Boolean(title))}
+      >
+        <ScriptContextControls
+          context={directScriptContext}
+          projectTitle={selectedProject?.title}
+          awaitingOriginalScript={Boolean(awaitingOriginalScript)}
+        >
+          <section className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-5">
+            <label className="grid gap-1 text-sm">
+              项目
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                value={projectId}
+                onChange={(event) => {
+                  const nextProjectId = event.target.value;
+                  if (nextProjectId) session.selectProject(nextProjectId);
+                  setAdaptationId("");
+                  setEpisodeId("");
+                  setScriptId("");
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({
+                    projectId: nextProjectId,
+                    adaptationId: "",
+                    episodeId: "",
+                    scriptId: "",
+                    sceneId: "",
+                    shotId: "",
                   });
-                })
-                .catch((cause) => setNotice(message(cause)));
-            }}
-          >
-            <option value="">选择改编项目</option>
-            {adaptations.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          分集
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            disabled={!adaptationId}
-            value={episodeId}
-            onChange={(event) => {
-              const nextId = event.target.value;
-              setEpisodeId(nextId);
-              setScriptId("");
-              setSceneId("");
-              setShotId("");
-              syncRoute({
-                episodeId: nextId,
-                scriptId: "",
-                sceneId: "",
-                shotId: "",
-              });
-            }}
-          >
-            <option value="">选择分集</option>
-            {episodes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          剧本
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            disabled={!episodeId}
-            value={scriptId}
-            onChange={(event) => {
-              const nextId = event.target.value;
-              setScriptId(nextId);
-              setSceneId("");
-              setShotId("");
-              syncRoute({ scriptId: nextId, sceneId: "", shotId: "" });
-            }}
-          >
-            <option value="">选择剧本</option>
-            {scripts.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          场景
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            disabled={!scriptId}
-            value={sceneId}
-            onChange={(event) => {
-              const nextId = event.target.value;
-              setSceneId(nextId);
-              setShotId("");
-              syncRoute({ sceneId: nextId, shotId: "" });
-            }}
-          >
-            <option value="">选择场景</option>
-            {scenes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        {stage === "shots" && (
-          <label className="grid gap-1 text-sm">
-            分镜
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!sceneId}
-              value={shotId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setShotId(nextId);
-                syncRoute({ shotId: nextId });
-              }}
-            >
-              <option value="">选择分镜</option>
-              {shots.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </section>
+                }}
+              >
+                <option value="">选择项目</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              改编项目
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!projectId}
+                value={adaptationId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setAdaptationId(nextId);
+                  setEpisodeId("");
+                  setScriptId("");
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({
+                    adaptationId: nextId,
+                    episodeId: "",
+                    scriptId: "",
+                    sceneId: "",
+                    shotId: "",
+                  });
+                  setNotice(undefined);
+                  if (!nextId || !projectId) return;
+                  void client.productionStructure
+                    .selectCurrentAdaptation(projectId, {
+                      adaptationId: nextId,
+                    })
+                    .then(() => {
+                      setNotice(
+                        "已设为当前改编方案。下次打开项目会自动恢复此选择。",
+                      );
+                      void queryClient.invalidateQueries({
+                        queryKey: ["projects"],
+                      });
+                    })
+                    .catch((cause) => setNotice(message(cause)));
+                }}
+              >
+                <option value="">选择改编项目</option>
+                {adaptations.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              分集
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!adaptationId}
+                value={episodeId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setEpisodeId(nextId);
+                  setScriptId("");
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({
+                    episodeId: nextId,
+                    scriptId: "",
+                    sceneId: "",
+                    shotId: "",
+                  });
+                }}
+              >
+                <option value="">选择分集</option>
+                {episodes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              剧本
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!episodeId}
+                value={scriptId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setScriptId(nextId);
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({ scriptId: nextId, sceneId: "", shotId: "" });
+                }}
+              >
+                <option value="">选择剧本</option>
+                {scripts.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              场景
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!scriptId}
+                value={sceneId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setSceneId(nextId);
+                  setShotId("");
+                  syncRoute({ sceneId: nextId, shotId: "" });
+                }}
+              >
+                <option value="">选择场景</option>
+                {scenes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {stage === "shots" && (
+              <label className="grid gap-1 text-sm">
+                分镜
+                <select
+                  className="rounded-lg border border-line px-3 py-2"
+                  disabled={!sceneId}
+                  value={shotId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setShotId(nextId);
+                    syncRoute({ shotId: nextId });
+                  }}
+                >
+                  <option value="">选择分镜</option>
+                  {shots.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </section>
+        </ScriptContextControls>
+      </WorkspaceObjectControls>
+      {projectId && !originalScriptProject && (
+        <Link
+          className="inline-flex rounded border border-line px-4 py-2 text-sm text-brand"
+          to={`/projects/${projectId}/tools/adaptation-diagnosis`}
+        >
+          先确认来源并进行改编诊断 →
+        </Link>
+      )}
       {projectId && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,480px)]">
-          <div className="rounded-lg border border-line p-5 text-sm leading-7">
-            <h2 className="mb-2 font-semibold">本集创作</h2>
-            <p>
-              AI
-              根据已采用正文与创作方向生成一集。确认候选时会一起采用剧本、场景和分镜；媒体提交在制作页进行预检与确认。
+        <>
+          <section
+            aria-label="独立创作主流程"
+            className="rounded-lg border border-line bg-surface p-5"
+          >
+            <h2 className="font-semibold">按正式版本逐步开发</h2>
+            <p className="mt-2 text-sm text-muted">
+              原著改编：诊断 → 独立策略 → 整季方案 → 单集大纲 → 标准剧本 →
+              可选分镜。已有剧本或直接创意可进入单集开发，不必先写小说或做改编诊断。旧目录保留在下方。
             </p>
-            <p className="mt-3 text-muted">
-              已有内容可从下方目录查看，或选择剧本提出修订要求。
-            </p>
+            <div className="mt-3 flex flex-wrap gap-4 text-sm text-brand">
+              <Link to={`/projects/${projectId}/tools/cockpit`}>
+                查看当前正式进度与推荐下一步 →
+              </Link>
+              <Link to={`/projects/${projectId}/tools/episode-development`}>
+                打开独立单集开发 →
+              </Link>
+            </div>
+          </section>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,480px)]">
+            <div className="rounded-lg border border-line p-5 text-sm leading-7">
+              <h2 className="mb-2 font-semibold">已有内容与兼容创作</h2>
+              {originalScriptProject ? (
+                <>
+                  <p>
+                    {selectedProject.synopsis.trim() ||
+                      "还没有填写故事构思。请在右侧补充本集目标，再生成剧本候选。"}
+                  </p>
+                  <p className="mt-3 text-muted">
+                    {awaitingOriginalScript
+                      ? "待创作剧本：目前只有分集目录和空草稿，不是已采用的剧本或季纲。"
+                      : "正式正文来自你保存或明确采用的内容。"}{" "}
+                    创作要求、候选和检查可恢复；采用前不会写入正式剧本。
+                  </p>
+                </>
+              ) : (
+                <p>
+                  旧兼容生成仍根据已采用正文与创作方向生成一集，明确采用时一起写入剧本、场景和分镜，不创建新主流程的独立正式版本。媒体提交在制作页另行预检与确认。
+                </p>
+              )}
+              <p className="mt-3 text-muted">
+                已有内容可从下方目录查看，或选择剧本提出修订要求。
+              </p>
+            </div>
+            {legacyWorkflowId ? (
+              <LegacyEpisodeCompatibility explicit>
+                {legacyRun.error ? (
+                  <p role="alert">{message(legacyRun.error)}</p>
+                ) : !legacyRun.data ? (
+                  <p>正在核对指定旧工作流…</p>
+                ) : legacyRun.data.input.projectId !== projectId ||
+                  legacyRun.data.input.operation !== "episode" ? (
+                  <p role="alert">
+                    指定工作流不属于当前项目的旧 episode
+                    路径；未替换为最新候选。
+                  </p>
+                ) : (
+                  <CreationRunCard
+                    key={legacyWorkflowId}
+                    id={legacyWorkflowId}
+                    projectId={projectId}
+                  />
+                )}
+              </LegacyEpisodeCompatibility>
+            ) : stage === "scripts" && scriptId ? (
+              <CreationRecordWorkbench
+                projectId={projectId}
+                targetId={scriptId}
+                domain="scripts"
+                operation="script-revision"
+                resultLabel={awaitingOriginalScript ? "本集剧本" : undefined}
+                defaultInstruction={
+                  awaitingOriginalScript
+                    ? "根据项目中保存的故事构思和创作简报，创作本集完整 Fountain 剧本。保持作者的题材、人物与表达方向；不要先写小说，不要声称已生成场景、分镜或媒体。"
+                    : undefined
+                }
+              />
+            ) : stage === "shots" && shotId ? (
+              <CreationRecordWorkbench
+                projectId={projectId}
+                targetId={shotId}
+                domain="shots"
+                operation="shot-prompt"
+              />
+            ) : (
+              <LegacyEpisodeCompatibility
+                explicit={routeParams.get("compatibility") === "episode"}
+              >
+                {episodeId || adaptationId ? (
+                  <CreationRecordWorkbench
+                    projectId={projectId}
+                    targetId={episodeId || adaptationId}
+                    domain={episodeId ? "episodes" : "adaptations"}
+                    operation="episode"
+                  />
+                ) : (
+                  <CreationWorkbench
+                    projectId={projectId}
+                    operation="episode"
+                  />
+                )}
+              </LegacyEpisodeCompatibility>
+            )}
           </div>
-          {stage === "scripts" && scriptId ? (
-            <CreationRecordWorkbench
-              projectId={projectId}
-              targetId={scriptId}
-              domain="scripts"
-              operation="script-revision"
-            />
-          ) : stage === "shots" && shotId ? (
-            <CreationRecordWorkbench
-              projectId={projectId}
-              targetId={shotId}
-              domain="shots"
-              operation="shot-prompt"
-            />
-          ) : episodeId || adaptationId ? (
-            <CreationRecordWorkbench
-              projectId={projectId}
-              targetId={episodeId || adaptationId}
-              domain={episodeId ? "episodes" : "adaptations"}
-              operation="episode"
-            />
-          ) : (
-            <CreationWorkbench projectId={projectId} operation="episode" />
-          )}
-        </div>
+        </>
       )}
       <StageNavigation
         label="改编阶段"
@@ -471,6 +687,12 @@ export function AdaptationWorkspace() {
               onOpenScript={(nextScriptId) => {
                 setScriptId(nextScriptId);
                 setStage("scripts");
+                syncRoute({
+                  scriptId: nextScriptId,
+                  sceneId: "",
+                  shotId: "",
+                  stage: "scripts",
+                });
               }}
             />
           )}
@@ -912,93 +1134,63 @@ export function pacingKindLabel(kind: PacingKind): string {
 
 export function EpisodeAnalysisPanel(props: { adaptationId: string }) {
   const client = useStudio();
-  const queryClient = useQueryClient();
-  const [notice, setNotice] = useState<string>();
-  const { data: analysis, isLoading } = useQuery({
-    queryKey: ["episode-analysis", props.adaptationId],
-    queryFn: () => client.adaptationAnalysis.get(props.adaptationId),
-  });
-  const run = async () => {
-    setNotice(undefined);
-    try {
-      await client.adaptationAnalysis.run(props.adaptationId);
-      setNotice("已根据已保存的分集资料生成覆盖分析；它不会虚构模型评估。");
-      void queryClient.invalidateQueries({
-        queryKey: ["episode-analysis", props.adaptationId],
-      });
-    } catch (cause) {
-      setNotice(message(cause));
-    }
-  };
-  const remove = async () => {
-    if (!(await confirmDialog("删除这份分集分析记录吗？"))) return;
-    try {
-      await client.adaptationAnalysis.remove(props.adaptationId);
-      setNotice("已删除分集分析记录。");
-      void queryClient.invalidateQueries({
-        queryKey: ["episode-analysis", props.adaptationId],
-      });
-    } catch (cause) {
-      setNotice(message(cause));
-    }
-  };
+  const history = currentOwnerQuery(
+    useQuery({
+      queryKey: ["episode-analysis", props.adaptationId],
+      queryFn: async () =>
+        readLegacyEpisodeAnalysis(
+          await client.adaptationAnalysis.get(props.adaptationId),
+          props.adaptationId,
+        ),
+      ...CURRENT_OWNER_READ_OPTIONS,
+    }),
+  );
+  const analysis = history.data;
   return (
-    <section className="rounded-xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold">分集结构分析</h2>
-          <p className="mt-1 text-sm text-muted">
-            汇总分集的钩子、结尾悬念和简介覆盖情况，可随时重新生成或删除。
+    <section
+      aria-label="旧分集分析（未认证）"
+      className="rounded-xl border border-line bg-surface p-4"
+    >
+      <h2 className="font-semibold">历史分集分析 · 未认证</h2>
+      <p className="mt-1 text-sm text-muted">
+        旧分析未读取实际分集而填写零分／零覆盖，已停止新生成和自动替换。
+        原记录仅供只读查阅，不代表当前覆盖、叙事质量或模型评议。
+      </p>
+      {history.error ? (
+        <p role="alert" className="mt-3 text-sm text-muted">
+          原分集分析读取失败；未显示旧缓存，是否存在历史未知。
+          {message(history.error)}
+        </p>
+      ) : analysis === undefined ? (
+        <p className="mt-3 text-sm text-muted">
+          正在实际读取原分集分析；未显示旧缓存。
+        </p>
+      ) : analysis === null ? (
+        <p className="mt-3 text-sm text-muted">
+          已实际读取，没有旧分集分析；不会生成固定零结论。
+        </p>
+      ) : (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer text-brand">
+            展开原分集分析（未认证／量纲未知）
+          </summary>
+          <p className="mt-3 text-xs text-muted">
+            原 ID：{analysis.id} · 原保存时间：{analysis.createdAt}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <BareButton
-            className="rounded-lg bg-brand px-3 py-2 text-sm text-white"
-            onClick={() => void run()}
-          >
-            {isLoading ? "读取中…" : analysis ? "重新分析" : "开始分析"}
-          </BareButton>
-          {analysis && (
-            <BareButton
-              className="rounded-lg border border-line px-3 py-2 text-sm text-muted"
-              onClick={() => void remove()}
-            >
-              删除分析
-            </BareButton>
-          )}
-        </div>
-      </div>
-      {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
-      {analysis ? (
-        <>
-          <p className="mt-3 text-sm">{analysis.summary}</p>
-          <dl className="mt-3 grid gap-2 sm:grid-cols-4">
-            {[
-              ["综合", analysis.overallScore],
-              ["钩子", analysis.hookCoverage],
-              ["结尾悬念", analysis.cliffhangerCoverage],
-              ["分集简介", analysis.outlineCoverage],
-            ].map(([label, score]) => (
-              <div
-                key={String(label)}
-                className="rounded-lg bg-brand-soft p-3 text-center"
-              >
-                <dt className="text-xs text-muted">{label}</dt>
-                <dd className="mt-1 text-lg font-semibold">{score}%</dd>
-              </div>
+          <p className="mt-3">原摘要（未认证）：{analysis.summary}</p>
+          <p className="mt-3 text-xs text-muted">
+            原条目数／数值（未认证，不证明覆盖）：分集 {analysis.episodeCount} ·
+            综合 {analysis.overallScore}· 钩子 {analysis.hookCoverage} ·
+            结尾悬念 {analysis.cliffhangerCoverage} · 简介{" "}
+            {analysis.outlineCoverage}
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-muted">
+            {analysis.suggestions.map((item, index) => (
+              <li key={index}>原建议（未认证）：{item}</li>
             ))}
-          </dl>
-          {analysis.suggestions.length > 0 && (
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted">
-              {analysis.suggestions.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-        </>
-      ) : !isLoading ? (
-        <p className="mt-3 text-sm text-muted">尚未生成分集分析记录。</p>
-      ) : null}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }
@@ -1433,6 +1625,11 @@ function ScreenplayReader(props: { scriptId: string }) {
     <article className="max-h-[600px] overflow-auto overscroll-contain rounded-lg border border-line bg-surface p-6">
       <h2 className="mb-4 font-semibold">{data?.title ?? "本集剧本"}</h2>
       {error && <p className="text-sm text-danger">{message(error)}</p>}
+      {data && !data.blocks.length && (
+        <p className="text-sm text-muted">
+          剧本正文尚未创作。补充本集目标，生成、审阅并采用候选，或在资料管理中保存你自己的剧本。
+        </p>
+      )}
       {data?.blocks.map((block) => (
         <div
           key={block.id}

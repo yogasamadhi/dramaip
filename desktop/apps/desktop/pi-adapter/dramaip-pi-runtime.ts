@@ -40,6 +40,8 @@ export type PiRuntimeEvent =
     }
   | {
       type: "usage";
+      measurementScope: "response-increment";
+      inputAccounting: "excludes-cache";
       inputTokens: number;
       outputTokens: number;
       cachedTokens: number;
@@ -297,6 +299,8 @@ function projectAgentEvent(
   if (event.type === "message_end" && event.message.role === "assistant") {
     onEvent({
       type: "usage",
+      measurementScope: "response-increment",
+      inputAccounting: "excludes-cache",
       inputTokens: event.message.usage.input,
       outputTokens: event.message.usage.output,
       cachedTokens: event.message.usage.cacheRead,

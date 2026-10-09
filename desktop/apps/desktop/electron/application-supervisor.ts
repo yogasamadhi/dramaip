@@ -3,7 +3,7 @@ export interface StoppableComponent {
 }
 
 export interface ClosableComponent {
-  close(): void;
+  close(): void | Promise<void>;
 }
 
 async function stopWithin(

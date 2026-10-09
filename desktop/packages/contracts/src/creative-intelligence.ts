@@ -279,6 +279,47 @@ export type AudienceKnowledgeState = z.infer<
   typeof AudienceKnowledgeStateSchema
 >;
 
+export const StoryRuleRecordReferenceSchema = z
+  .object({
+    kind: z.enum(["node", "edge", "cognition"]),
+    id: z.string().uuid(),
+    version: z.number().int().nonnegative(),
+  })
+  .strict();
+export const StoryRuleFindingSchema = z
+  .object({
+    id: z.string().regex(/^[a-f0-9]{64}$/),
+    code: z.enum([
+      "self-causal-link",
+      "declared-conflict",
+      "causal-cycle",
+      "cognition-order-conflict",
+      "cognition-decrease",
+      "secret-without-incoming-reveal",
+    ]),
+    severity: z.literal("review"),
+    summary: z.string().min(1).max(4_000),
+    advice: z.string().min(1).max(4_000),
+    records: z.array(StoryRuleRecordReferenceSchema).min(1),
+  })
+  .strict();
+export type StoryRuleFinding = z.infer<typeof StoryRuleFindingSchema>;
+export const StoryRuleAnalysisSchema = z
+  .object({
+    ruleSet: z.literal("story-structure-rules-v1"),
+    evidencePolicy: z.literal("frozen-author-declarations-not-semantic-proof"),
+    coverage: z
+      .object({
+        nodeCount: z.number().int().nonnegative(),
+        edgeCount: z.number().int().nonnegative(),
+        cognitionCount: z.number().int().nonnegative(),
+      })
+      .strict(),
+    findings: z.array(StoryRuleFindingSchema),
+  })
+  .strict();
+export type StoryRuleAnalysis = z.infer<typeof StoryRuleAnalysisSchema>;
+
 export const IPTwinSnapshotSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
@@ -288,6 +329,8 @@ export const IPTwinSnapshotSchema = z.object({
   edges: z.array(StoryCausalEdgeSchema),
   audienceStates: z.array(AudienceKnowledgeStateSchema),
   conflicts: z.array(z.string()),
+  // Absent on historical snapshots: never recompute or upgrade them on a GET.
+  ruleAnalysis: StoryRuleAnalysisSchema.optional(),
   createdAt: z.string().datetime(),
 });
 export type IPTwinSnapshot = z.infer<typeof IPTwinSnapshotSchema>;

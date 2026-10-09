@@ -11,6 +11,7 @@ import { BareButton, PageHeader } from "@dramaip/ui-shared";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useStudioClient } from "./runtime-connection";
+import { ProviderActionPreviewSchema } from "@dramaip/contracts/automation";
 export const NOVEL_GENRE_CHOICES = [
   "都市情感",
   "悬疑推理",
@@ -21,6 +22,12 @@ export const NOVEL_GENRE_CHOICES = [
 ] as const;
 
 export type ProjectToolKey =
+  | "quality-review"
+  | "author-intent"
+  | "adaptation-diagnosis"
+  | "adaptation-strategy"
+  | "season-plan"
+  | "episode-development"
   | "import"
   | "review"
   | "cockpit"
@@ -468,19 +475,6 @@ export function agentProviderActionPreview(
   const candidate = (value as Record<string, unknown>).providerActionPreview;
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
     return undefined;
-  const preview = candidate as Record<string, unknown>;
-  if (
-    typeof preview.id !== "string" ||
-    typeof preview.projectId !== "string" ||
-    typeof preview.providerId !== "string" ||
-    !["image", "audio", "video", "remote_render"].includes(
-      String(preview.kind),
-    ) ||
-    !["pending", "executed", "discarded", "expired"].includes(
-      String(preview.status),
-    ) ||
-    typeof preview.createdAt !== "string"
-  )
-    return undefined;
-  return preview as unknown as ProviderActionPreview;
+  const parsed = ProviderActionPreviewSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
 }

@@ -14,7 +14,8 @@
     "capabilities": [
       "preview",
       "freeze",
-      "read"
+      "read",
+      "prepare-once"
     ]
   },
   {
@@ -22,7 +23,17 @@
     "owner": "agents",
     "major": 1,
     "capabilities": [
-      "start"
+      "start",
+      "execution",
+      "usage"
+    ]
+  },
+  {
+    "id": "automation.creation-project-lineage.v1",
+    "owner": "automation",
+    "major": 1,
+    "capabilities": [
+      "read"
     ]
   },
   {
@@ -30,8 +41,10 @@
     "owner": "automation",
     "major": 1,
     "capabilities": [
+      "preflight",
       "start",
       "read",
+      "execution",
       "apply"
     ]
   },
@@ -68,6 +81,40 @@
     "major": 1,
     "capabilities": [
       "check"
+    ]
+  },
+  {
+    "id": "creative-quality.local-reviews.v1",
+    "owner": "creative-quality",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "creative-quality.narrative-creation.v1",
+    "owner": "creative-quality",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply"
+    ]
+  },
+  {
+    "id": "creative-quality.narrative-reports.v1",
+    "owner": "creative-quality",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "creative-quality.project-lineage.v1",
+    "owner": "creative-quality",
+    "major": 1,
+    "capabilities": [
+      "read"
     ]
   },
   {
@@ -144,6 +191,39 @@
     ]
   },
   {
+    "id": "knowledge.narrative-index.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "knowledge.narrative-story-index.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read",
+      "compile"
+    ]
+  },
+  {
+    "id": "knowledge.narrative-summaries.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "knowledge.project-lineage.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
     "id": "knowledge.research.v1",
     "owner": "knowledge",
     "major": 1,
@@ -151,6 +231,30 @@
       "read",
       "write",
       "search"
+    ]
+  },
+  {
+    "id": "knowledge.story-assertions.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "knowledge.story-declarations.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "knowledge.story-node-observations.v1",
+    "owner": "knowledge",
+    "major": 1,
+    "capabilities": [
+      "read"
     ]
   },
   {
@@ -191,6 +295,25 @@
     ]
   },
   {
+    "id": "production.adaptation-strategies.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "preview",
+      "read"
+    ]
+  },
+  {
+    "id": "production.author-intent-sources.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
     "id": "production.creation.v1",
     "owner": "production",
     "major": 1,
@@ -198,6 +321,45 @@
       "prepare",
       "validate",
       "apply"
+    ]
+  },
+  {
+    "id": "production.diagnoses.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "preview",
+      "read"
+    ]
+  },
+  {
+    "id": "production.episode-development.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply",
+      "read",
+      "merge"
+    ]
+  },
+  {
+    "id": "production.project-lineage.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "production.quality-sources.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read"
     ]
   },
   {
@@ -210,6 +372,25 @@
     ]
   },
   {
+    "id": "production.screenplay-sources.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "production.season-plans.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "preview",
+      "read"
+    ]
+  },
+  {
     "id": "production.seasons.v1",
     "owner": "production",
     "major": 1,
@@ -219,7 +400,23 @@
     ]
   },
   {
+    "id": "production.storyboard-attributions.v1",
+    "owner": "production",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
     "id": "review.creation-feedback.v1",
+    "owner": "review",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "review.media-evidence.v1",
     "owner": "review",
     "major": 1,
     "capabilities": [
@@ -243,6 +440,32 @@
       "read",
       "write",
       "export"
+    ]
+  },
+  {
+    "id": "workspace.author-intent-creation.v1",
+    "owner": "workspace",
+    "major": 1,
+    "capabilities": [
+      "prepare",
+      "validate",
+      "apply"
+    ]
+  },
+  {
+    "id": "workspace.author-intents.v1",
+    "owner": "workspace",
+    "major": 1,
+    "capabilities": [
+      "read"
+    ]
+  },
+  {
+    "id": "workspace.project-lineage.v1",
+    "owner": "workspace",
+    "major": 1,
+    "capabilities": [
+      "read"
     ]
   },
   {
@@ -290,6 +513,18 @@
     "capabilities": [
       "read",
       "write"
+    ]
+  },
+  {
+    "id": "writing.narrative-sources.v1",
+    "owner": "writing",
+    "major": 1,
+    "capabilities": [
+      "compile",
+      "planning",
+      "assertPlanningCurrent",
+      "production",
+      "assertProductionCurrent"
     ]
   },
   {

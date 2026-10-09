@@ -41,11 +41,19 @@
       "owner": "agents"
     },
     {
+      "type": "agents.auxiliary-usage-observed.v1",
+      "owner": "agents"
+    },
+    {
       "type": "agents.codex-custom-provider-cleared.v1",
       "owner": "agents"
     },
     {
       "type": "agents.codex-custom-provider-configured.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.context-prepared.v1",
       "owner": "agents"
     },
     {
@@ -125,6 +133,10 @@
       "owner": "agents"
     },
     {
+      "type": "agents.usage-observed.v1",
+      "owner": "agents"
+    },
+    {
       "type": "agents.web-research-consent-updated.v1",
       "owner": "agents"
     },
@@ -141,11 +153,55 @@
       "owner": "automation"
     },
     {
+      "type": "automation.chapter-candidate-revision-recorded.v1",
+      "owner": "automation"
+    },
+    {
       "type": "automation.creation-created.v1",
       "owner": "automation"
     },
     {
       "type": "automation.creation-updated.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-candidate-ready.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-continuation-requested.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-continuation-started.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-metric-state.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-requested.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-source-conflict.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-candidate-ready.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-metric-state.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-requested.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-source-conflict.v1",
       "owner": "automation"
     },
     {
@@ -173,7 +229,43 @@
       "owner": "automation"
     },
     {
+      "type": "creative-quality.local-review-changed.v1",
+      "owner": "creative-quality"
+    },
+    {
+      "type": "creative-quality.narrative-report-adopted.v1",
+      "owner": "creative-quality"
+    },
+    {
+      "type": "creative-quality.narrative-report-changed.v1",
+      "owner": "creative-quality"
+    },
+    {
       "type": "delivery.creation-adopted.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.manuscript-exported.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.manuscript-updated.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.pilot-package-exported.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.pilot-package-updated.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.platform-metadata-archived.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.platform-variant-adopted.v1",
       "owner": "delivery"
     },
     {
@@ -193,7 +285,19 @@
       "owner": "insights"
     },
     {
+      "type": "knowledge.chapter-memory-written.v1",
+      "owner": "knowledge"
+    },
+    {
       "type": "knowledge.creation-adopted.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "knowledge.narrative-summary-changed.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "knowledge.planning-batch-adopted.v1",
       "owner": "knowledge"
     },
     {
@@ -213,6 +317,18 @@
       "owner": "media"
     },
     {
+      "type": "media.audio-revision-confirmed.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-revision-discarded.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-revision-previewed.v1",
+      "owner": "media"
+    },
+    {
       "type": "media.audio-track-adopted.v1",
       "owner": "media"
     },
@@ -221,11 +337,23 @@
       "owner": "media"
     },
     {
+      "type": "media.complete-byte-verified.v1",
+      "owner": "media"
+    },
+    {
       "type": "media.likeness-consent-revoked.v1",
       "owner": "media"
     },
     {
       "type": "media.likeness-subject-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.source-review-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.storyboard-derivations-stale.v1",
       "owner": "media"
     },
     {
@@ -249,7 +377,55 @@
       "owner": "media"
     },
     {
+      "type": "production.adaptation-strategy-result-adopted.v1",
+      "owner": "production"
+    },
+    {
       "type": "production.creation-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.creation-source-confirmed.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.creative-adoption-rejected.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.diagnosis-result-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-outline-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-script-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-source-revision-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-source-revision-discarded.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-source-revision-previewed.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-topology-revision-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-topology-revision-discarded.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-topology-revision-previewed.v1",
       "owner": "production"
     },
     {
@@ -257,7 +433,15 @@
       "owner": "production"
     },
     {
+      "type": "production.screenplay-intake-state-changed.v1",
+      "owner": "production"
+    },
+    {
       "type": "production.screenplay-updated.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.script-result-adopted.v1",
       "owner": "production"
     },
     {
@@ -269,12 +453,56 @@
       "owner": "production"
     },
     {
+      "type": "production.season-plan-result-adopted.v1",
+      "owner": "production"
+    },
+    {
       "type": "production.season-review-required.v1",
       "owner": "production"
     },
     {
       "type": "production.season-updated.v1",
       "owner": "production"
+    },
+    {
+      "type": "production.storyboard-shots-redone.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.updated.v1",
+      "owner": "production"
+    },
+    {
+      "type": "review.media-package-created.v1",
+      "owner": "review"
+    },
+    {
+      "type": "timeline.audio-resolution-confirmed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.audio-resolution-discarded.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.audio-resolution-previewed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.audio-resolved.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.media-copy-action-requested.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.media-copy-observed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.media-copy-requested.v1",
+      "owner": "timeline"
     },
     {
       "type": "timeline.render-status-changed.v1",
@@ -286,6 +514,14 @@
     },
     {
       "type": "workspace.backup-restored.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.creation-goal-confirmed.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.creation-source-confirmed.v1",
       "owner": "workspace"
     },
     {
@@ -309,6 +545,10 @@
       "owner": "workspace"
     },
     {
+      "type": "writing.chapter-adopted.v1",
+      "owner": "writing"
+    },
+    {
       "type": "writing.chapter-updated.v1",
       "owner": "writing"
     },
@@ -318,6 +558,14 @@
     },
     {
       "type": "writing.creation-adopted.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.planning-adopted.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.planning-batch-adopted.v1",
       "owner": "writing"
     },
     {
@@ -379,7 +627,19 @@
       "owner": "knowledge"
     },
     {
+      "pattern": "^knowledge\\.story-[a-z0-9-]+-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.story-assertion-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
       "pattern": "^knowledge\\.story-bible-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.story-declaration-[a-z0-9-]+\\.v1$",
       "owner": "knowledge"
     },
     {
@@ -389,6 +649,18 @@
     {
       "pattern": "^media\\.[a-z0-9-]+\\.v1$",
       "owner": "media"
+    },
+    {
+      "pattern": "^media\\.source-review-[a-z0-9-]+\\.v1$",
+      "owner": "media"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+-adopted\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+-created\\.v1$",
+      "owner": "production"
     },
     {
       "pattern": "^production\\.[a-z0-9-]+-removed\\.v1$",
@@ -403,6 +675,22 @@
       "owner": "production"
     },
     {
+      "pattern": "^production\\.diagnosis-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.episode-script-revision-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.season-plan-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.storyboard-attribution-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
       "pattern": "^review\\.[a-z0-9-]+\\.v1$",
       "owner": "review"
     },
@@ -412,6 +700,10 @@
     },
     {
       "pattern": "^workspace\\.[a-z0-9-]+\\.v1$",
+      "owner": "workspace"
+    },
+    {
+      "pattern": "^workspace\\.author-intent-[a-z0-9-]+\\.v1$",
       "owner": "workspace"
     },
     {

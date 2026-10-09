@@ -1,11 +1,15 @@
 import { mountTestPlugin } from "./plugin-test-fixture.js";
 import type { Context } from "@deepseek-ai/cordis";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { applyMigrations, openDatabase } from "@dramaip/database";
 import { foundationPlugin } from "@dramaip/foundation";
 import { createAgentsPlugin } from "@dramaip/agents";
 import type { DesktopHostClient } from "@dramaip/desktop-host";
+import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import { WRITING_RESOURCE_SERVICE } from "@dramaip/contracts/writing";
+import { CREATIVE_KNOWLEDGE_SERVICE } from "@dramaip/contracts/creative-intelligence";
+import { KNOWLEDGE_STORY_ASSERTION_SERVICE } from "@dramaip/contracts/knowledge";
 import { createRuntimeHttp } from "@dramaip/http";
 import type {
   PluginContext,
@@ -13,6 +17,12 @@ import type {
   UnitOfWork,
 } from "@dramaip/plugin-api/internal";
 import { recoverAvailableAgentRuns } from "../../../plugins/agents/src/runs/recovery.js";
+import { runEvaluationCandidate } from "../../../plugins/agents/src/experiments/routes.js";
+import {
+  configuredProvider,
+  modelSelection,
+} from "../../../plugins/agents/src/providers/routes.js";
+import { createAgentTaskRunner } from "../../../plugins/agents/src/runs/task-runner.js";
 
 interface InstalledProviderRoutes {
   app: OpenAPIHono;
@@ -20,6 +30,7 @@ interface InstalledProviderRoutes {
   liveEvents: Array<{ type: string; payload: unknown }>;
   close(): void;
   eventCount(): number;
+  disposePlugin(): Promise<void>;
 }
 
 // Provider-route unit tests isolate Agents from unrelated domain services.
@@ -41,6 +52,7 @@ const nativeContexts: Context[] = [];
 
 async function installProviderRoutes(
   host?: DesktopHostClient,
+  dependencies: Record<string, unknown> = {},
 ): Promise<InstalledProviderRoutes> {
   const database = openDatabase(":memory:");
   const plugin = createAgentsPlugin(host);
@@ -50,6 +62,7 @@ async function installProviderRoutes(
   ]);
   const routes: RouteContribution[] = [];
   const liveEvents: Array<{ type: string; payload: unknown }> = [];
+  let disposePlugin = async () => undefined;
   nativeContexts.push(
     await mountTestPlugin(
       plugin,
@@ -75,7 +88,12 @@ async function installProviderRoutes(
           dispose: () => undefined,
         },
       },
-      agentDependencies,
+      { ...agentDependencies, ...dependencies },
+      (fiber) => {
+        disposePlugin = async () => {
+          await fiber.dispose();
+        };
+      },
     ),
   );
   const app = new OpenAPIHono();
@@ -90,6 +108,7 @@ async function installProviderRoutes(
     app,
     uow: database.uow,
     liveEvents,
+    disposePlugin,
     close: () => database.close(),
     eventCount: () => {
       const row = database.sqlite
@@ -108,6 +127,696 @@ afterEach(async () => {
 });
 
 describe("agents provider configurations", () => {
+  it("rejects unsupported evaluation model options instead of silently trimming them from the request", () => {
+    expect(
+      modelSelection({
+        modelId: " original-model ",
+        providerId: " original-provider ",
+        profileId: " original-profile ",
+      }),
+    ).toEqual({
+      modelId: "original-model",
+      providerId: "original-provider",
+      profileId: "original-profile",
+    });
+    expect(
+      modelSelection({ modelId: "original-model", profileId: "" }),
+    ).toEqual({ modelId: "original-model" });
+    for (const value of [
+      { modelId: "original-model", temperature: 0 },
+      { modelId: "original-model", maxTokens: 1000 },
+      { modelId: "original-model", reasoningEffort: "high" },
+      { modelId: "original-model", seed: 42 },
+      { modelId: "original-model", apiKey: "PRIVATE" },
+      { modelId: "original-model", endpoint: "PRIVATE" },
+      { modelId: "original-model", typo: undefined },
+      { modelId: "x".repeat(201) },
+      { modelId: 1 },
+      null,
+      [],
+      {},
+    ])
+      expect(modelSelection(value)).toBeUndefined();
+  });
+
+  it("rejects unsupported evaluation model options before context preparation, defaults, persistence or Host dispatch", async () => {
+    const execute = vi.fn(() => {
+      throw new Error("must not read defaults or allocate rows");
+    });
+    const createPreview = vi.fn();
+    const previewCreation = vi.fn();
+    const prepareCreation = vi.fn();
+    const engineHealth = vi.fn();
+    const engineOperation = vi.fn();
+    const runner = createAgentTaskRunner(
+      { effect: () => undefined, uow: { execute } } as unknown as PluginContext,
+      { engineHealth, engineOperation } as unknown as DesktopHostClient,
+      {
+        createPreview,
+        previewCreation,
+        prepareCreation,
+      } as unknown as Parameters<typeof createAgentTaskRunner>[2],
+    );
+    const input = {
+      projectId: crypto.randomUUID(),
+      engineKind: "codex" as const,
+      prompt: "controlled evaluation instruction",
+      model: { modelId: "original-model", temperature: 0 },
+    };
+    expect(() => runner.previewCreation!({ ...input, references: [] })).toThrow(
+      "不会忽略其他参数",
+    );
+    expect(() => runner.prepareCreation!({ ...input, references: [] })).toThrow(
+      "不会忽略其他参数",
+    );
+    await expect(
+      runner.start({ ...input, taskType: "creation_generating" }),
+    ).rejects.toThrow("不会忽略其他参数");
+    expect(() =>
+      runner.previewCreation!({ ...input, model: {}, references: [] }),
+    ).toThrow("选择本次使用的模型");
+    expect(() =>
+      runner.prepareCreation!({ ...input, model: {}, references: [] }),
+    ).toThrow("选择本次使用的模型");
+    for (const call of [
+      execute,
+      createPreview,
+      previewCreation,
+      prepareCreation,
+      engineHealth,
+      engineOperation,
+    ])
+      expect(call).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported evaluation model options through settings, sessions and blind evaluation HTTP without side effects", async () => {
+    const projectId = crypto.randomUUID();
+    const engineHealth = vi.fn(async () => ({
+      available: true,
+      healthy: true,
+      configured: true,
+      authenticated: true,
+    }));
+    const engineOperation = vi.fn();
+    const fixture = await installProviderRoutes(
+      { engineHealth, engineOperation } as unknown as DesktopHostClient,
+      {
+        [WORKSPACE_PROJECT_SERVICE.id]: {
+          get: (id: string) =>
+            id === projectId
+              ? { id, title: "受控配置校验", version: 0 }
+              : undefined,
+        },
+      },
+    );
+    const before = fixture.uow.execute((tx) =>
+      tx.all("SELECT * FROM domain_events"),
+    );
+    const callsBefore = engineHealth.mock.calls.length;
+    for (const extra of [
+      { temperature: 0 },
+      { reasoningEffort: "high" },
+      { apiKey: "PRIVATE" },
+    ]) {
+      const model = { modelId: "original-model", ...extra };
+      for (const request of [
+        {
+          path: "/api/v2/agent-settings",
+          method: "PUT",
+          body: { defaultEngineKind: "codex", defaultModel: model },
+        },
+        {
+          path: `/api/v2/projects/${projectId}/agent-settings`,
+          method: "PUT",
+          body: { defaultEngineKind: "codex", defaultModel: model },
+        },
+        {
+          path: "/api/v2/assistant-conversations",
+          method: "POST",
+          body: { engineKind: "codex", surface: "global", model },
+        },
+        {
+          path: "/api/v2/agent-experiments",
+          method: "POST",
+          body: { projectId, taskType: "diagnosis", model },
+        },
+      ]) {
+        const response = await fixture.app.request(
+          `http://runtime.test${request.path}`,
+          {
+            method: request.method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request.body),
+          },
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("VALIDATION_ERROR");
+        expect(text).not.toContain("PRIVATE");
+      }
+    }
+    expect(engineOperation).not.toHaveBeenCalled();
+    expect(engineHealth.mock.calls.length).toBe(callsBefore);
+    expect(
+      fixture.uow.execute((tx) => tx.all("SELECT * FROM domain_events")),
+    ).toEqual(before);
+    for (const table of [
+      "agent_assistant_sessions",
+      "agent_assistant_runs",
+      "agent_evaluations",
+      "agent_context_previews",
+      "agent_context_snapshots",
+      "agent_project_settings",
+    ])
+      expect(
+        fixture.uow.execute((tx) => tx.all(`SELECT * FROM ${table}`)),
+      ).toEqual([]);
+  });
+
+  it("native stop drains delayed generation health without starting configuration or run recovery", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let announce: () => void = () => undefined;
+    const entered = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    let delayed = false;
+    let healthCalls = 0;
+    let activations = 0;
+    let recoveries = 0;
+    const host = {
+      engineHealth: async () => {
+        healthCalls++;
+        if (delayed) {
+          announce();
+          await gate;
+        }
+        return {
+          available: true,
+          healthy: true,
+          configured: true,
+          generation: delayed ? 2 : 1,
+        };
+      },
+      activateAgentProvider: async () => {
+        activations++;
+        return { available: true };
+      },
+      engineOperation: async () => {
+        recoveries++;
+        return { disposition: "missing" };
+      },
+    } as unknown as DesktopHostClient;
+    let stopping: Promise<void> | undefined;
+    try {
+      const fixture = await installProviderRoutes(host);
+      seedGenerationRecovery(fixture);
+      delayed = true;
+      await vi.advanceTimersByTimeAsync(2_000);
+      await entered;
+      let closed = false;
+      stopping = fixture.disposePlugin().then(() => {
+        closed = true;
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(closed).toBe(false);
+      const before = healthCalls;
+      release();
+      await stopping;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(healthCalls).toBe(before);
+      expect(activations).toBe(0);
+      expect(recoveries).toBe(0);
+      expect(recoveryRows(fixture).map((row) => row.status)).toEqual([
+        "recoverable",
+        "recoverable",
+      ]);
+    } finally {
+      release();
+      await stopping;
+      vi.useRealTimers();
+    }
+  });
+
+  it("native stop rejects a late per-run health reply before any recovery call or bookkeeping change", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let announce: () => void = () => undefined;
+    const entered = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    let generation = 1;
+    let piHealthCalls = 0;
+    let recoveries = 0;
+    const host = {
+      engineHealth: async (kind: string) => {
+        if (kind === "pi" && ++piHealthCalls === 3) {
+          announce();
+          await gate;
+          throw new Error("controlled late health failure");
+        }
+        return { available: true, healthy: true, configured: true, generation };
+      },
+      activateAgentProvider: async () => ({ available: true }),
+      engineOperation: async () => {
+        recoveries++;
+        return { disposition: "missing" };
+      },
+    } as unknown as DesktopHostClient;
+    let stopping: Promise<void> | undefined;
+    try {
+      const fixture = await installProviderRoutes(host);
+      seedGenerationRecovery(fixture);
+      const original = recoveryRows(fixture);
+      generation = 2;
+      await vi.advanceTimersByTimeAsync(2_000);
+      await entered;
+      let closed = false;
+      stopping = fixture.disposePlugin().then(() => {
+        closed = true;
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(closed).toBe(false);
+      release();
+      await stopping;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(recoveries).toBe(0);
+      expect(recoveryRows(fixture)).toEqual(original);
+    } finally {
+      release();
+      await stopping;
+      vi.useRealTimers();
+    }
+  });
+
+  it("native stop waits for accepted provider activation and does not begin run recovery afterwards", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let announce: () => void = () => undefined;
+    const entered = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    let generation = 1;
+    let activations = 0;
+    let recoveries = 0;
+    const host = {
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        configured: true,
+        generation,
+      }),
+      activateAgentProvider: async () => {
+        activations++;
+        announce();
+        await gate;
+        return { available: true };
+      },
+      engineOperation: async () => {
+        recoveries++;
+        return { disposition: "missing" };
+      },
+    } as unknown as DesktopHostClient;
+    let stopping: Promise<void> | undefined;
+    try {
+      const fixture = await installProviderRoutes(host);
+      seedGenerationRecovery(fixture);
+      generation = 2;
+      await vi.advanceTimersByTimeAsync(2_000);
+      await entered;
+      let closed = false;
+      stopping = fixture.disposePlugin().then(() => {
+        closed = true;
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(closed).toBe(false);
+      release();
+      await stopping;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(activations).toBe(1);
+      expect(recoveries).toBe(0);
+      expect(recoveryRows(fixture).map((row) => row.status)).toEqual([
+        "recoverable",
+        "recoverable",
+      ]);
+    } finally {
+      release();
+      await stopping;
+      vi.useRealTimers();
+    }
+  });
+
+  it("native stop lets an accepted recovery persist on its original unit of work but never starts the next run", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let announce: () => void = () => undefined;
+    const entered = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    let generation = 1;
+    let recoveries = 0;
+    const host = {
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        configured: true,
+        generation,
+      }),
+      activateAgentProvider: async () => ({ available: true }),
+      engineOperation: async () => {
+        recoveries++;
+        announce();
+        await gate;
+        return { disposition: "missing" };
+      },
+    } as unknown as DesktopHostClient;
+    let stopping: Promise<void> | undefined;
+    try {
+      const fixture = await installProviderRoutes(host);
+      seedGenerationRecovery(fixture);
+      generation = 2;
+      await vi.advanceTimersByTimeAsync(2_000);
+      await entered;
+      let closed = false;
+      stopping = fixture.disposePlugin().then(() => {
+        closed = true;
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(closed).toBe(false);
+      release();
+      await stopping;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(recoveries).toBe(1);
+      expect(recoveryRows(fixture)).toEqual([
+        { id: "generation-run-1", status: "orphaned", recovery_attempts: 1 },
+        { id: "generation-run-2", status: "recoverable", recovery_attempts: 0 },
+      ]);
+    } finally {
+      release();
+      await stopping;
+      vi.useRealTimers();
+    }
+  });
+
+  it("never promotes missing, blank or nonnumeric configured estimates to a reported zero", () => {
+    const entity = {
+      id: crypto.randomUUID(),
+      domain: "providers" as const,
+      title: "受控费用配置，不是结算凭证",
+      version: 0,
+      createdAt: "2026-10-04T00:00:00.000Z",
+      updatedAt: "2026-10-04T00:00:00.000Z",
+      payload: {
+        模型名称: "controlled-model",
+        凭据引用: "controlled-opaque-reference",
+      },
+    };
+    for (const value of [
+      undefined,
+      null,
+      "",
+      "   ",
+      false,
+      true,
+      [],
+      [0],
+      {},
+      -1,
+      NaN,
+      Infinity,
+      "unknown",
+      "0x10",
+      "1e-1000",
+    ])
+      expect(
+        configuredProvider({
+          ...entity,
+          payload: { ...entity.payload, 单次预估费用: value },
+        }),
+      ).not.toHaveProperty("estimatedUnitCost");
+    for (const [value, expected] of [
+      [0, 0],
+      ["0", 0],
+      [" 0.00 ", 0],
+      [0.125, 0.125],
+      ["0.125", 0.125],
+      ["1e-3", 0.001],
+    ])
+      expect(
+        configuredProvider({
+          ...entity,
+          payload: { ...entity.payload, 单次预估费用: value },
+        }).estimatedUnitCost,
+      ).toBe(expected);
+  });
+
+  it("does not allocate a blind experiment when engine readiness returns after the plugin has stopped", async () => {
+    let entered!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    let delayReadiness = false;
+    const host = {
+      engineHealth: async () => {
+        if (delayReadiness) {
+          entered();
+          await gate;
+        }
+        return {
+          available: true,
+          healthy: true,
+          configured: true,
+          authenticated: true,
+        };
+      },
+      async *engineStream() {
+        calls++;
+        yield { type: "result", result: { text: "不得派发" } };
+      },
+    } as unknown as DesktopHostClient;
+    const fixture = await installProviderRoutes(host);
+    delayReadiness = true;
+    const pending = fixture.app.request(
+      "http://runtime.test/api/v2/agent-experiments",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: crypto.randomUUID(),
+          taskType: "outline",
+          prompt: "只用于停止期间的健康检查延迟测试",
+        }),
+      },
+    );
+    try {
+      await started;
+      await fixture.disposePlugin();
+      release();
+      const response = await pending;
+      expect(response.status).toBe(503);
+      expect(response.headers.get("content-type")).toContain(
+        "application/problem+json",
+      );
+      expect(await response.json()).toMatchObject({
+        code: "AGENT_PLUGIN_STOPPING",
+        status: 503,
+      });
+      expect(calls).toBe(0);
+      for (const table of [
+        "agent_evaluations",
+        "agent_context_snapshots",
+        "agent_evaluation_candidates",
+        "agent_capability_grants",
+        "agent_auxiliary_usage_runs",
+      ])
+        expect(
+          fixture.uow.execute((tx) =>
+            tx.get<{ count: number }>(`SELECT COUNT(*) AS count FROM ${table}`),
+          )?.count,
+        ).toBe(0);
+    } finally {
+      release();
+      await pending;
+    }
+  });
+
+  it("drains all dispatched blind candidates before native plugin disposal completes and rejects a new request during stopping", async () => {
+    const projectId = crypto.randomUUID();
+    let release!: () => void;
+    let releaseFirst!: () => void;
+    let entered!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const releasing = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let calls = 0;
+    let destroying = 0;
+    let destroyed = 0;
+    const host = {
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        configured: true,
+        authenticated: true,
+      }),
+      engineOperation: async (kind: string, operation: string) => {
+        if (operation === "create") return { id: `controlled-${kind}` };
+        if (operation === "destroy") {
+          destroying++;
+          if (destroying === 3) entered();
+          await (destroying === 1 ? firstGate : gate);
+          destroyed++;
+          return { ok: true };
+        }
+        throw new Error(`Unexpected ${operation}`);
+      },
+      async *engineStream() {
+        calls++;
+        yield { type: "usage", inputTokens: 0, outputTokens: 12 };
+        yield {
+          type: "result",
+          result: { text: "受控盲测候选，不是模型质量证据" },
+        };
+      },
+    } as unknown as DesktopHostClient;
+    const fixture = await installProviderRoutes(host, {
+      [WORKSPACE_PROJECT_SERVICE.id]: {
+        get: () => ({ id: projectId, title: "受控项目", version: 0 }),
+      },
+      [WRITING_RESOURCE_SERVICE.id]: { list: () => [] },
+      [CREATIVE_KNOWLEDGE_SERVICE.id]: {
+        listNodes: () => [],
+        listEdges: () => [],
+      },
+      [KNOWLEDGE_STORY_ASSERTION_SERVICE.id]: {
+        references: () => [],
+        isSourceAnchored: () => false,
+      },
+    });
+    fixture.uow.execute((tx) => {
+      const now = new Date().toISOString();
+      tx.run(
+        `INSERT INTO agent_provider_configurations
+         (id, title, payload_json, version, created_at, updated_at)
+         VALUES (?, ?, ?, 0, ?, ?)`,
+        "controlled-provider",
+        "受控延迟测试服务商",
+        JSON.stringify({ 凭据引用: "controlled-opaque-reference" }),
+        now,
+        now,
+      );
+      tx.run(
+        `INSERT INTO agent_provider_settings(singleton, provider_id, updated_at)
+         VALUES (1, ?, ?)`,
+        "controlled-provider",
+        now,
+      );
+    });
+    const create = () =>
+      fixture.app.request("http://runtime.test/api/v2/agent-experiments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          taskType: "outline",
+          prompt: "只用于工程延迟验证",
+        }),
+      });
+    let stopping: Promise<void> | undefined;
+    try {
+      const response = await create();
+      expect(response.status, await response.clone().text()).toBe(202);
+      await releasing;
+      expect(calls).toBe(3);
+      let closed = false;
+      stopping = fixture.disposePlugin().then(() => {
+        closed = true;
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(closed).toBe(false);
+      expect(destroyed).toBe(0);
+      const rejected = await create();
+      expect(rejected.status).toBe(503);
+      expect(rejected.headers.get("content-type")).toContain(
+        "application/problem+json",
+      );
+      expect(await rejected.json()).toMatchObject({
+        code: "AGENT_PLUGIN_STOPPING",
+        status: 503,
+      });
+      expect(calls).toBe(3);
+      releaseFirst();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(destroyed).toBe(1);
+      expect(closed).toBe(false);
+      expect(
+        fixture.uow.execute((tx) =>
+          tx.get<{ status: string }>(
+            "SELECT status FROM agent_evaluations LIMIT 1",
+          ),
+        )?.status,
+      ).toBe("running");
+      expect(
+        fixture.uow.execute((tx) =>
+          tx.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM domain_events WHERE type = 'agents.evaluation-ready.v1'",
+          ),
+        )?.count,
+      ).toBe(0);
+      release();
+      await stopping;
+      expect(destroyed).toBe(3);
+      expect(
+        fixture.uow.execute((tx) =>
+          tx.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM agent_auxiliary_usage_observations",
+          ),
+        )?.count,
+      ).toBe(3);
+      expect(
+        fixture.uow.execute((tx) =>
+          tx.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM agent_capability_grants WHERE consumed_at IS NOT NULL",
+          ),
+        )?.count,
+      ).toBe(3);
+      expect(
+        fixture.uow.execute((tx) =>
+          tx.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM domain_events WHERE type = 'agents.evaluation-ready.v1'",
+          ),
+        )?.count,
+      ).toBe(1);
+    } finally {
+      releaseFirst();
+      release();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await stopping;
+    }
+  });
+
   it("does not recover a live run when another engine becomes ready, but recovers a restarted generation", async () => {
     const fixture = await installProviderRoutes();
     const now = new Date().toISOString();
@@ -328,6 +1037,11 @@ describe("agents provider configurations", () => {
             model: "hidden-model",
             provider: "hidden-provider",
             latencyMs: index + 1,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedTokens: 0,
+            estimatedCost: 0,
+            currency: "USD",
           }),
         );
     });
@@ -350,6 +1064,11 @@ describe("agents provider configurations", () => {
       expect(candidate.metrics).not.toHaveProperty("engineVersion");
       expect(candidate.metrics).not.toHaveProperty("model");
       expect(candidate.metrics).not.toHaveProperty("provider");
+      expect(candidate.metrics).not.toHaveProperty("inputTokens");
+      expect(candidate.metrics).not.toHaveProperty("outputTokens");
+      expect(candidate.metrics).not.toHaveProperty("cachedTokens");
+      expect(candidate.metrics).not.toHaveProperty("estimatedCost");
+      expect(candidate.metrics).not.toHaveProperty("currency");
     }
 
     const review = await fixture.app.request(
@@ -378,6 +1097,238 @@ describe("agents provider configurations", () => {
         (candidate) => candidate.engineKind,
       ),
     ).toEqual(["pi", "codex", "langgraph"]);
+    for (const candidate of revealed.candidates as Array<
+      Record<string, unknown>
+    >) {
+      expect(candidate.metrics).not.toHaveProperty("inputTokens");
+      expect(candidate.metrics).not.toHaveProperty("estimatedCost");
+    }
+  });
+
+  it("persists each evaluation report including failed and unreported runs, and rejects API reads until explicit reveal", async () => {
+    let modelCalls = 0;
+    let destroyed = 0;
+    const host = {
+      engineHealth: async () => ({
+        available: true,
+        healthy: true,
+        configured: true,
+        authenticated: true,
+      }),
+      engineOperation: async (_kind: string, operation: string) => {
+        if (operation === "create") return { id: "private-vendor-session" };
+        if (operation === "destroy") {
+          destroyed++;
+          return { ok: true };
+        }
+        throw new Error(`Unexpected operation ${operation}`);
+      },
+      async *engineStream(kind: string) {
+        modelCalls++;
+        if (kind !== "langgraph")
+          yield {
+            type: "usage",
+            inputTokens: 0,
+            outputTokens: 12,
+            measurementScope: "response-increment",
+            inputAccounting: "includes-cache",
+            prompt: "PRIVATE",
+            estimatedCost: 999,
+            credential: "SECRET",
+          };
+        if (kind === "codex") {
+          yield {
+            type: "error",
+            code: "CONTROLLED_FAILURE",
+            message: "controlled failure after report",
+          };
+          return;
+        }
+        if (kind === "pi")
+          yield {
+            type: "usage",
+            inputTokens: 100,
+            outputTokens: 50,
+            cachedTokens: 0,
+            measurementScope: "session-total",
+            inputAccounting: "unspecified",
+          };
+        yield {
+          type: "result",
+          result: { text: "controlled candidate, not model quality" },
+        };
+      },
+    } as unknown as DesktopHostClient;
+    const fixture = await installProviderRoutes(host);
+    const evaluationId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const snapshotId = crypto.randomUUID();
+    const at = new Date().toISOString();
+    const runs = ["pi", "codex", "langgraph"].map((engine, index) => ({
+      engine: engine as "pi" | "codex" | "langgraph",
+      candidate: ["a", "b", "c"][index] as "a" | "b" | "c",
+      runId: crypto.randomUUID(),
+    }));
+    fixture.uow.execute((tx) => {
+      tx.run(
+        `INSERT INTO agent_context_previews(id, project_id, input_json, entries_json, token_budget,
+        estimated_tokens, destination_json, final_prompt, manifest_sha256, status, expires_at, created_at, updated_at)
+        VALUES (?, ?, '{}', '[]', 1000, 1, '{}', 'controlled', ?, 'frozen', ?, ?, ?)`,
+        snapshotId,
+        projectId,
+        "a".repeat(64),
+        at,
+        at,
+        at,
+      );
+      tx.run(
+        `INSERT INTO agent_context_snapshots(id, preview_id, project_id, entries_json, token_budget,
+        estimated_tokens, destination_json, final_prompt, manifest_sha256, final_prompt_sha256, created_at)
+        VALUES (?, ?, ?, '[]', 1000, 1, '{}', 'controlled', ?, ?, ?)`,
+        snapshotId,
+        snapshotId,
+        projectId,
+        "a".repeat(64),
+        "b".repeat(64),
+        at,
+      );
+      tx.run(
+        `INSERT INTO agent_evaluations(id, project_id, task_type, prompt, context_snapshot_json,
+        context_snapshot_id, status, created_at, updated_at) VALUES (?, ?, 'outline', 'controlled', '{}', ?, 'running', ?, ?)`,
+        evaluationId,
+        projectId,
+        snapshotId,
+        at,
+        at,
+      );
+      for (const run of runs)
+        tx.run(
+          `INSERT INTO agent_evaluation_candidates(id, evaluation_id, candidate,
+        engine_kind, run_id, status, metrics_json) VALUES (?, ?, ?, ?, ?, 'queued', '{}')`,
+          crypto.randomUUID(),
+          evaluationId,
+          run.candidate,
+          run.engine,
+          run.runId,
+        );
+    });
+    for (const run of runs)
+      await runEvaluationCandidate(
+        { uow: fixture.uow } as PluginContext,
+        host,
+        {
+          ...run,
+          evaluationId,
+          projectId,
+          prompt: "controlled only",
+        },
+      );
+    expect(modelCalls).toBe(3);
+    expect(destroyed).toBe(3);
+    const beforeRead = fixture.eventCount();
+    const report = (runId: string, suffix = "") =>
+      fixture.app.request(
+        `http://runtime.test/api/v2/agent-runs/${runId}/usage-observations?projectId=${projectId}${suffix}`,
+      );
+    for (const run of runs) {
+      const blocked = await report(run.runId);
+      expect(blocked.status).toBe(409);
+      expect(blocked.headers.get("content-type")).toContain(
+        "application/problem+json",
+      );
+      expect(JSON.stringify(await blocked.json())).not.toContain(run.engine);
+    }
+    const anonymous = (await (
+      await fixture.app.request(
+        `http://runtime.test/api/v2/agent-experiments/${evaluationId}`,
+      )
+    ).json()) as {
+      candidates: Array<{
+        usageRunId?: string;
+        metrics: Record<string, unknown>;
+      }>;
+    };
+    for (const candidate of anonymous.candidates) {
+      expect(candidate).not.toHaveProperty("usageRunId");
+      expect(candidate.metrics).not.toHaveProperty("inputTokens");
+      expect(candidate.metrics).not.toHaveProperty("estimatedCost");
+    }
+    expect(
+      (
+        await fixture.app.request(
+          `http://runtime.test/api/v2/agent-experiments/${evaluationId}/review`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ preferredCandidate: "a", accepted: true }),
+          },
+        )
+      ).status,
+    ).toBe(200);
+    expect((await report(runs[0]!.runId)).status).toBe(409);
+    const revealed = (await (
+      await fixture.app.request(
+        `http://runtime.test/api/v2/agent-experiments/${evaluationId}/reveal`,
+        { method: "POST" },
+      )
+    ).json()) as {
+      candidates: Array<{ usageRunId?: string; status: string }>;
+    };
+    expect(revealed.candidates.map((item) => item.usageRunId)).toEqual(
+      runs.map((item) => item.runId),
+    );
+    expect(revealed.candidates[1]!.status).toBe("failed");
+    const a = await (await report(runs[0]!.runId, "&limit=1")).json();
+    expect(a).toMatchObject({
+      observationCount: 2,
+      nextCursor: 2,
+      items: [{ cursor: 2, measurementScope: "session-total" }],
+    });
+    const original = await (await report(runs[0]!.runId, "&cursor=2")).json();
+    expect(original).toMatchObject({
+      items: [
+        {
+          inputTokens: { status: "reported", value: 0 },
+          cachedTokens: { status: "unreported" },
+        },
+      ],
+    });
+    expect(await (await report(runs[1]!.runId)).json()).toMatchObject({
+      observationCount: 1,
+    });
+    expect(await (await report(runs[2]!.runId)).json()).toMatchObject({
+      observationCount: 0,
+      items: [],
+      coverage: "partial-or-unknown",
+    });
+    expect(JSON.stringify(original)).not.toMatch(
+      /PRIVATE|SECRET|estimatedCost|credential/u,
+    );
+    expect(modelCalls).toBe(3);
+    // Review/reveal are explicit writes; report reads are not additional model calls or usage facts.
+    expect(fixture.eventCount()).toBeGreaterThanOrEqual(beforeRead);
+    const afterReveal = fixture.eventCount();
+    await report(runs[0]!.runId);
+    expect(fixture.eventCount()).toBe(afterReveal);
+    expect((await report(runs[0]!.runId, "&cursor=99")).status).toBe(400);
+    expect(
+      (
+        await fixture.app.request(
+          `http://runtime.test/api/v2/agent-runs/${runs[0]!.runId}/usage-observations`,
+        )
+      ).status,
+    ).toBe(404);
+    fixture.uow.execute((tx) =>
+      tx.run(
+        "UPDATE agent_auxiliary_usage_observations SET observation_json = '{}' WHERE run_id = ? AND engine_cursor = 2",
+        runs[0]!.runId,
+      ),
+    );
+    const corrupt = await report(runs[0]!.runId);
+    expect(corrupt.status).toBe(503);
+    expect(await corrupt.text()).not.toMatch(
+      /PRIVATE|SECRET|observation_json/u,
+    );
   });
 
   it("exposes the typed Agent session contract without a generic engine-operation API", async () => {
@@ -1049,6 +2000,19 @@ describe("agents provider configurations", () => {
         });
         yield { type: "content.delta", delta: "DramaIP 已收到。" };
         yield {
+          type: "usage",
+          measurementScope: "response-increment",
+          inputTokens: 0,
+          outputTokens: 12,
+        };
+        yield {
+          type: "usage",
+          measurementScope: "session-total",
+          inputTokens: 200,
+          outputTokens: 50,
+          cachedTokens: 0,
+        };
+        yield {
           type: "result",
           result: { parts: [{ type: "text", text: "你好，DramaIP 已收到。" }] },
         };
@@ -1176,6 +2140,120 @@ describe("agents provider configurations", () => {
       runs: [expect.objectContaining({ status: "completed" })],
       items: [expect.objectContaining({ content: "你好，DramaIP 已收到。" })],
     });
+    const usage = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations?limit=1`,
+    );
+    expect(usage.status).toBe(200);
+    await expect(usage.json()).resolves.toMatchObject({
+      observationCount: 2,
+      coverage: "partial-or-unknown",
+      items: [
+        {
+          cursor: 4,
+          measurementScope: "session-total",
+          inputTokens: { status: "reported", value: 200 },
+          cachedTokens: { status: "reported", value: 0 },
+        },
+      ],
+      nextCursor: 4,
+    });
+    const priorUsage = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations?cursor=4`,
+    );
+    await expect(priorUsage.json()).resolves.toMatchObject({
+      items: [
+        {
+          cursor: 3,
+          inputTokens: { status: "reported", value: 0 },
+          cachedTokens: { status: "unreported" },
+        },
+      ],
+    });
+    expect(
+      (
+        await fixture.app.request(
+          `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations?projectId=wrong`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await fixture.app.request(
+          `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations?cursor=2`,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      fixture.uow.execute((tx) =>
+        tx.get(
+          "SELECT COUNT(*) AS count FROM agent_usage_observations WHERE run_id = ?",
+          sentBody.run.id,
+        ),
+      ),
+    ).toEqual({ count: 2 });
+    const count = fixture.eventCount();
+    fixture.uow.execute((tx) =>
+      tx.run(
+        "UPDATE agent_assistant_sessions SET project_id = 'later-project' WHERE id = ?",
+        conversation.id,
+      ),
+    );
+    const boundDetail = await fixture.app.request(
+      `http://runtime.test/api/v2/assistant-conversations/${conversation.id}`,
+    );
+    await expect(boundDetail.json()).resolves.toMatchObject({
+      conversation: { projectId: "later-project" },
+      runs: [
+        {
+          usageScope: {
+            runId: sentBody.run.id,
+            sessionId: conversation.id,
+            origin: "frozen-context",
+          },
+        },
+      ],
+    });
+    const boundRun = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}`,
+    );
+    const runValue = (await boundRun.json()) as {
+      lastEngineCursor: number;
+      usageScope: { projectId?: string };
+    };
+    expect(runValue.lastEngineCursor).toBe(5);
+    expect(runValue.usageScope).not.toHaveProperty("projectId");
+    expect(
+      (
+        await fixture.app.request(
+          `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations?projectId=later-project`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await fixture.app.request(
+          `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations`,
+        )
+      ).status,
+    ).toBe(200);
+    fixture.uow.execute((tx) =>
+      tx.run(
+        "UPDATE agent_usage_observations SET observation_json = json_set(observation_json, '$.inputTokens.value', 123456) WHERE run_id = ? AND engine_cursor = 4",
+        sentBody.run.id,
+      ),
+    );
+    const unverifiable = await fixture.app.request(
+      `http://runtime.test/api/v2/agent-runs/${sentBody.run.id}/usage-observations`,
+    );
+    expect(unverifiable.status).toBe(503);
+    expect(unverifiable.headers.get("Content-Type")).toContain(
+      "application/problem+json",
+    );
+    await expect(unverifiable.json()).resolves.toMatchObject({
+      code: "AGENT_USAGE_UNVERIFIABLE",
+      status: 503,
+    });
+    expect(fixture.eventCount()).toBe(count);
   });
 
   it("keeps inspiration conversations projectless and persists their cards and consent", async () => {
@@ -1622,3 +2700,52 @@ describe("agents provider configurations", () => {
     });
   });
 });
+
+function seedGenerationRecovery(fixture: InstalledProviderRoutes): void {
+  const now = new Date().toISOString();
+  fixture.uow.execute((tx) => {
+    tx.run(
+      `INSERT INTO agent_provider_configurations(id, title, payload_json, version, created_at, updated_at)
+      VALUES ('generation-provider', '受控恢复配置，无真实凭据', ?, 0, ?, ?)`,
+      JSON.stringify({
+        服务类型: "智能模型",
+        模型名称: "controlled-model",
+        凭据引用: "controlled-reference",
+      }),
+      now,
+      now,
+    );
+    tx.run(
+      "INSERT INTO agent_provider_settings(singleton, provider_id, updated_at) VALUES (1, 'generation-provider', ?)",
+      now,
+    );
+    for (const ordinal of [1, 2]) {
+      tx.run(
+        `INSERT INTO agent_assistant_sessions(id, engine_session_id, engine_kind, surface, status, last_opened_at, created_at, updated_at)
+        VALUES (?, ?, 'pi', 'chapter', 'running', ?, ?, ?)`,
+        `generation-session-${ordinal}`,
+        `controlled-session-${ordinal}`,
+        now,
+        now,
+        now,
+      );
+      tx.run(
+        `INSERT INTO agent_assistant_runs(id, session_id, task_id, task_type, engine_kind, status, engine_run_id, engine_generation, created_at, updated_at)
+        VALUES (?, ?, 'task', 'expand', 'pi', 'recoverable', ?, 1, ?, ?)`,
+        `generation-run-${ordinal}`,
+        `generation-session-${ordinal}`,
+        `controlled-run-${ordinal}`,
+        now,
+        now,
+      );
+    }
+  });
+}
+
+function recoveryRows(fixture: InstalledProviderRoutes) {
+  return fixture.uow.execute((tx) =>
+    tx.all<{ id: string; status: string; recovery_attempts: number }>(
+      "SELECT id, status, recovery_attempts FROM agent_assistant_runs WHERE id LIKE 'generation-run-%' ORDER BY id",
+    ),
+  );
+}

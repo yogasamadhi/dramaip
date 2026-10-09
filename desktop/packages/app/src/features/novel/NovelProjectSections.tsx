@@ -1,4 +1,4 @@
-import { CreationWorkbench } from "../creation-workbench";
+import { NarrativePlanningWorkbench } from "./NarrativePlanningWorkbench";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { StudioClient } from "@dramaip/client";
@@ -534,7 +534,7 @@ function NovelResourceSection(props: {
       else
         await props.client.resources.update(props.domain, editor.id, {
           title: title.trim(),
-          payload,
+          payload: { ...payloadRecord(editor.payload), ...payload },
           version: editor.version,
         });
       setEditor(undefined);
@@ -573,7 +573,7 @@ function NovelResourceSection(props: {
       </div>
       {props.generator && (
         <>
-          <CreationWorkbench
+          <NarrativePlanningWorkbench
             projectId={props.projectId}
             operation={
               props.generator.taskType === "generate_characters"

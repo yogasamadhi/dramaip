@@ -30,10 +30,16 @@ export const DOMAIN_EVENT_MANIFEST = {
   "agents.assistant-turn-started.v1": {
     owner: "agents",
   },
+  "agents.auxiliary-usage-observed.v1": {
+    owner: "agents",
+  },
   "agents.codex-custom-provider-cleared.v1": {
     owner: "agents",
   },
   "agents.codex-custom-provider-configured.v1": {
+    owner: "agents",
+  },
+  "agents.context-prepared.v1": {
     owner: "agents",
   },
   "agents.engine-default-updated.v1": {
@@ -93,6 +99,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   "agents.session-forked.v1": {
     owner: "agents",
   },
+  "agents.usage-observed.v1": {
+    owner: "agents",
+  },
   "agents.web-research-consent-updated.v1": {
     owner: "agents",
   },
@@ -105,10 +114,43 @@ export const DOMAIN_EVENT_MANIFEST = {
   "automation.change-preview-rebased.v1": {
     owner: "automation",
   },
+  "automation.chapter-candidate-revision-recorded.v1": {
+    owner: "automation",
+  },
   "automation.creation-created.v1": {
     owner: "automation",
   },
   "automation.creation-updated.v1": {
+    owner: "automation",
+  },
+  "automation.creative-candidate-ready.v1": {
+    owner: "automation",
+  },
+  "automation.creative-continuation-requested.v1": {
+    owner: "automation",
+  },
+  "automation.creative-continuation-started.v1": {
+    owner: "automation",
+  },
+  "automation.creative-metric-state.v1": {
+    owner: "automation",
+  },
+  "automation.creative-requested.v1": {
+    owner: "automation",
+  },
+  "automation.creative-source-conflict.v1": {
+    owner: "automation",
+  },
+  "automation.planning-candidate-ready.v1": {
+    owner: "automation",
+  },
+  "automation.planning-metric-state.v1": {
+    owner: "automation",
+  },
+  "automation.planning-requested.v1": {
+    owner: "automation",
+  },
+  "automation.planning-source-conflict.v1": {
     owner: "automation",
   },
   "automation.provider-action-preview-created.v1": {
@@ -129,7 +171,34 @@ export const DOMAIN_EVENT_MANIFEST = {
   "automation.template-run-created.v1": {
     owner: "automation",
   },
+  "creative-quality.local-review-changed.v1": {
+    owner: "creative-quality",
+  },
+  "creative-quality.narrative-report-adopted.v1": {
+    owner: "creative-quality",
+  },
+  "creative-quality.narrative-report-changed.v1": {
+    owner: "creative-quality",
+  },
   "delivery.creation-adopted.v1": {
+    owner: "delivery",
+  },
+  "delivery.manuscript-exported.v1": {
+    owner: "delivery",
+  },
+  "delivery.manuscript-updated.v1": {
+    owner: "delivery",
+  },
+  "delivery.pilot-package-exported.v1": {
+    owner: "delivery",
+  },
+  "delivery.pilot-package-updated.v1": {
+    owner: "delivery",
+  },
+  "delivery.platform-metadata-archived.v1": {
+    owner: "delivery",
+  },
+  "delivery.platform-variant-adopted.v1": {
     owner: "delivery",
   },
   "insights.feedback-clustered.v1": {
@@ -144,7 +213,16 @@ export const DOMAIN_EVENT_MANIFEST = {
   "insights.generation-updated.v1": {
     owner: "insights",
   },
+  "knowledge.chapter-memory-written.v1": {
+    owner: "knowledge",
+  },
   "knowledge.creation-adopted.v1": {
+    owner: "knowledge",
+  },
+  "knowledge.narrative-summary-changed.v1": {
+    owner: "knowledge",
+  },
+  "knowledge.planning-batch-adopted.v1": {
     owner: "knowledge",
   },
   "knowledge.story-bible-settings-updated.v1": {
@@ -159,16 +237,34 @@ export const DOMAIN_EVENT_MANIFEST = {
   "media.artifact-archived.v1": {
     owner: "media",
   },
+  "media.audio-revision-confirmed.v1": {
+    owner: "media",
+  },
+  "media.audio-revision-discarded.v1": {
+    owner: "media",
+  },
+  "media.audio-revision-previewed.v1": {
+    owner: "media",
+  },
   "media.audio-track-adopted.v1": {
     owner: "media",
   },
   "media.audio-track-created.v1": {
     owner: "media",
   },
+  "media.complete-byte-verified.v1": {
+    owner: "media",
+  },
   "media.likeness-consent-revoked.v1": {
     owner: "media",
   },
   "media.likeness-subject-created.v1": {
+    owner: "media",
+  },
+  "media.source-review-created.v1": {
+    owner: "media",
+  },
+  "media.storyboard-derivations-stale.v1": {
     owner: "media",
   },
   "media.video-generation-canceled.v1": {
@@ -186,13 +282,55 @@ export const DOMAIN_EVENT_MANIFEST = {
   "media.voice-profile-created.v1": {
     owner: "media",
   },
+  "production.adaptation-strategy-result-adopted.v1": {
+    owner: "production",
+  },
   "production.creation-adopted.v1": {
+    owner: "production",
+  },
+  "production.creation-source-confirmed.v1": {
+    owner: "production",
+  },
+  "production.creative-adoption-rejected.v1": {
+    owner: "production",
+  },
+  "production.diagnosis-result-adopted.v1": {
+    owner: "production",
+  },
+  "production.episode-outline-adopted.v1": {
+    owner: "production",
+  },
+  "production.episode-script-adopted.v1": {
+    owner: "production",
+  },
+  "production.episode-source-revision-adopted.v1": {
+    owner: "production",
+  },
+  "production.episode-source-revision-discarded.v1": {
+    owner: "production",
+  },
+  "production.episode-source-revision-previewed.v1": {
+    owner: "production",
+  },
+  "production.episode-topology-revision-adopted.v1": {
+    owner: "production",
+  },
+  "production.episode-topology-revision-discarded.v1": {
+    owner: "production",
+  },
+  "production.episode-topology-revision-previewed.v1": {
     owner: "production",
   },
   "production.screenplay-imported.v1": {
     owner: "production",
   },
+  "production.screenplay-intake-state-changed.v1": {
+    owner: "production",
+  },
   "production.screenplay-updated.v1": {
+    owner: "production",
+  },
+  "production.script-result-adopted.v1": {
     owner: "production",
   },
   "production.season-chapter-mapped.v1": {
@@ -201,11 +339,44 @@ export const DOMAIN_EVENT_MANIFEST = {
   "production.season-created.v1": {
     owner: "production",
   },
+  "production.season-plan-result-adopted.v1": {
+    owner: "production",
+  },
   "production.season-review-required.v1": {
     owner: "production",
   },
   "production.season-updated.v1": {
     owner: "production",
+  },
+  "production.storyboard-shots-redone.v1": {
+    owner: "production",
+  },
+  "production.updated.v1": {
+    owner: "production",
+  },
+  "review.media-package-created.v1": {
+    owner: "review",
+  },
+  "timeline.audio-resolution-confirmed.v1": {
+    owner: "timeline",
+  },
+  "timeline.audio-resolution-discarded.v1": {
+    owner: "timeline",
+  },
+  "timeline.audio-resolution-previewed.v1": {
+    owner: "timeline",
+  },
+  "timeline.audio-resolved.v1": {
+    owner: "timeline",
+  },
+  "timeline.media-copy-action-requested.v1": {
+    owner: "timeline",
+  },
+  "timeline.media-copy-observed.v1": {
+    owner: "timeline",
+  },
+  "timeline.media-copy-requested.v1": {
+    owner: "timeline",
   },
   "timeline.render-status-changed.v1": {
     owner: "timeline",
@@ -214,6 +385,12 @@ export const DOMAIN_EVENT_MANIFEST = {
     owner: "workspace",
   },
   "workspace.backup-restored.v1": {
+    owner: "workspace",
+  },
+  "workspace.creation-goal-confirmed.v1": {
+    owner: "workspace",
+  },
+  "workspace.creation-source-confirmed.v1": {
     owner: "workspace",
   },
   "workspace.project-initialization-progress.v1": {
@@ -231,6 +408,9 @@ export const DOMAIN_EVENT_MANIFEST = {
   "workspace.project-package-previewed.v1": {
     owner: "workspace",
   },
+  "writing.chapter-adopted.v1": {
+    owner: "writing",
+  },
   "writing.chapter-updated.v1": {
     owner: "writing",
   },
@@ -238,6 +418,12 @@ export const DOMAIN_EVENT_MANIFEST = {
     owner: "writing",
   },
   "writing.creation-adopted.v1": {
+    owner: "writing",
+  },
+  "writing.planning-adopted.v1": {
+    owner: "writing",
+  },
+  "writing.planning-batch-adopted.v1": {
     owner: "writing",
   },
   "writing.volume-created.v1": {
@@ -297,7 +483,19 @@ export const DOMAIN_EVENT_PATTERNS = [
     owner: "knowledge",
   },
   {
+    pattern: "^knowledge\\.story-[a-z0-9-]+-[a-z0-9-]+\\.v1$",
+    owner: "knowledge",
+  },
+  {
+    pattern: "^knowledge\\.story-assertion-[a-z0-9-]+\\.v1$",
+    owner: "knowledge",
+  },
+  {
     pattern: "^knowledge\\.story-bible-[a-z0-9-]+\\.v1$",
+    owner: "knowledge",
+  },
+  {
+    pattern: "^knowledge\\.story-declaration-[a-z0-9-]+\\.v1$",
     owner: "knowledge",
   },
   {
@@ -307,6 +505,18 @@ export const DOMAIN_EVENT_PATTERNS = [
   {
     pattern: "^media\\.[a-z0-9-]+\\.v1$",
     owner: "media",
+  },
+  {
+    pattern: "^media\\.source-review-[a-z0-9-]+\\.v1$",
+    owner: "media",
+  },
+  {
+    pattern: "^production\\.[a-z0-9-]+-adopted\\.v1$",
+    owner: "production",
+  },
+  {
+    pattern: "^production\\.[a-z0-9-]+-created\\.v1$",
+    owner: "production",
   },
   {
     pattern: "^production\\.[a-z0-9-]+-removed\\.v1$",
@@ -321,6 +531,22 @@ export const DOMAIN_EVENT_PATTERNS = [
     owner: "production",
   },
   {
+    pattern: "^production\\.diagnosis-[a-z0-9-]+\\.v1$",
+    owner: "production",
+  },
+  {
+    pattern: "^production\\.episode-script-revision-[a-z0-9-]+\\.v1$",
+    owner: "production",
+  },
+  {
+    pattern: "^production\\.season-plan-[a-z0-9-]+\\.v1$",
+    owner: "production",
+  },
+  {
+    pattern: "^production\\.storyboard-attribution-[a-z0-9-]+\\.v1$",
+    owner: "production",
+  },
+  {
     pattern: "^review\\.[a-z0-9-]+\\.v1$",
     owner: "review",
   },
@@ -330,6 +556,10 @@ export const DOMAIN_EVENT_PATTERNS = [
   },
   {
     pattern: "^workspace\\.[a-z0-9-]+\\.v1$",
+    owner: "workspace",
+  },
+  {
+    pattern: "^workspace\\.author-intent-[a-z0-9-]+\\.v1$",
     owner: "workspace",
   },
   {

@@ -1,5 +1,7 @@
 # 通用桌面软件架构：Level 2 大型封闭项目版
 
+本 Level 描述第一方组合与生命周期复杂度，不是 DramaIP 的市场定位。业务取舍遵循 [产品定位](../../product/POSITIONING.md)，同时保护独立小说和改编剧本闭环；实际实现与产品验收分别查阅 [本目录索引](./README.md) 和产品执行计划。
+
 > 文档类型：Normative Level Profile
 >
 > 架构版本：2.1

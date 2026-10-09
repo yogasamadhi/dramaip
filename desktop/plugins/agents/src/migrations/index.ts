@@ -572,4 +572,73 @@ export const agentMigrations = [
         ON agent_inspiration_memory_jobs(context_snapshot_id);
     `,
   },
+  {
+    id: "agents.0013.usage-observations",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0012.context-policies-and-snapshots"],
+    sql: `
+      CREATE TABLE agent_usage_observations (
+        run_id TEXT NOT NULL REFERENCES agent_assistant_runs(id) ON DELETE CASCADE,
+        engine_cursor INTEGER NOT NULL CHECK(engine_cursor > 0),
+        observation_json TEXT NOT NULL,
+        content_sha256 TEXT NOT NULL CHECK(length(content_sha256) = 64),
+        PRIMARY KEY(run_id, engine_cursor)
+      );
+    `,
+  },
+  {
+    id: "agents.0014.auxiliary-usage-observations",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0013.usage-observations"],
+    sql: `
+      CREATE TABLE agent_auxiliary_usage_runs (
+        run_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        engine_run_id TEXT NOT NULL,
+        engine_kind TEXT NOT NULL CHECK(engine_kind IN ('pi', 'codex', 'langgraph')),
+        project_id TEXT,
+        context_snapshot_id TEXT NOT NULL REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT,
+        context_manifest_sha256 TEXT NOT NULL CHECK(length(context_manifest_sha256) = 64),
+        evaluation_candidate_id TEXT REFERENCES agent_evaluation_candidates(id) ON DELETE CASCADE,
+        memory_job_id TEXT REFERENCES agent_inspiration_memory_jobs(id) ON DELETE CASCADE,
+        binding_sha256 TEXT NOT NULL CHECK(length(binding_sha256) = 64),
+        last_engine_cursor INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        CHECK((evaluation_candidate_id IS NOT NULL) + (memory_job_id IS NOT NULL) = 1)
+      );
+      CREATE INDEX agent_auxiliary_usage_memory_job ON agent_auxiliary_usage_runs(memory_job_id, created_at, run_id);
+      CREATE TABLE agent_auxiliary_usage_observations (
+        run_id TEXT NOT NULL REFERENCES agent_auxiliary_usage_runs(run_id) ON DELETE CASCADE,
+        engine_cursor INTEGER NOT NULL CHECK(engine_cursor > 0),
+        observation_json TEXT NOT NULL,
+        content_sha256 TEXT NOT NULL CHECK(length(content_sha256) = 64),
+        PRIMARY KEY(run_id, engine_cursor)
+      );
+    `,
+  },
+  {
+    id: "agents.0015.original-context-preparations",
+    pluginId: "agents",
+    version: "3.0.0-alpha.3",
+    dependsOn: ["agents.0014.auxiliary-usage-observations"],
+    sql: `
+      CREATE TABLE agent_context_preparations (
+        preparation_scope TEXT NOT NULL,
+        key_sha256 TEXT NOT NULL CHECK(length(key_sha256) = 64),
+        request_sha256 TEXT NOT NULL CHECK(length(request_sha256) = 64),
+        project_id TEXT NOT NULL,
+        context_sha256 TEXT NOT NULL CHECK(length(context_sha256) = 64),
+        preview_id TEXT NOT NULL UNIQUE REFERENCES agent_context_previews(id) ON DELETE RESTRICT,
+        snapshot_id TEXT NOT NULL UNIQUE REFERENCES agent_context_snapshots(id) ON DELETE RESTRICT,
+        manifest_sha256 TEXT NOT NULL CHECK(length(manifest_sha256) = 64),
+        final_prompt_sha256 TEXT NOT NULL CHECK(length(final_prompt_sha256) = 64),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(preparation_scope, key_sha256)
+      );
+      CREATE INDEX agent_context_preparations_project
+        ON agent_context_preparations(project_id, created_at, snapshot_id);
+    `,
+  },
 ] as const satisfies readonly PluginMigration[];

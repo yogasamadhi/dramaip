@@ -84,6 +84,11 @@ const LazyTaskPage = lazy(() =>
     default: module.AutomationFeature,
   })),
 );
+const LazyPendingPage = lazy(() =>
+  import("./features/automation").then((module) => ({
+    default: module.PendingConfirmationFeature,
+  })),
+);
 const LazySettingsPage = lazy(() =>
   import("./features/settings").then((module) => ({
     default: module.SettingsFeature,
@@ -267,6 +272,9 @@ function Studio(props: { uiContributions: readonly UiContributionMetadata[] }) {
         )}
         {routeEnabled("automation.route.tasks") && (
           <Route path="/tasks" element={<LazyTaskPage />} />
+        )}
+        {routeEnabled("automation.route.pending") && (
+          <Route path="/pending" element={<LazyPendingPage />} />
         )}
         {routeEnabled("agents.route.inspiration") && (
           <Route path="/inspiration" element={<LazyInspirationSpace />} />

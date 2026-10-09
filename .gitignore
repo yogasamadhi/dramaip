@@ -64,8 +64,7 @@ htmlcov/
 venv/
 .python-version
 
-# Do not ignore a bare `env/` directory: source trees may legitimately use it
-# (for example desktop/vendor/opencode/packages/opencode/src/env/).
+# Do not ignore a bare `env/` directory: source trees may legitimately use it.
 
 # ---- Node.js / Bun (monorepo-wide) ----
 node_modules/

@@ -1,5 +1,7 @@
 # Troubleshooting
 
+本手册服务 [当前产品定位](../../../docs/product/POSITIONING.md) 下的小说创作与改编两条路径。小说可以独立续写和导出，不需要配置媒体 Provider；本地优先不等于离线 AI。没有模型连接时不能声称发生了真实生成，工程恢复成功也不保证内容质量。
+
 | Symptom                          | Action                                                                                                                                                                           |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | “Server 未能启动”                | Choose retry. If it repeats, collect the desktop logs and verify the `userData` directory is writable.                                                                           |

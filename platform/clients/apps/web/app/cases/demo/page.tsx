@@ -2,14 +2,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '../../../components/ui/Button'
 
-export const metadata: Metadata = { title: '内置样片案例' }
+export const metadata: Metadata = { title: '历史受控制作示例' }
 
 const stages = [
-  ['01', '建立生产基线', '虚构短剧《雾港来信》含 10 个镜头、故事设定、两名角色、三个场景与全部许可记录。'],
+  ['01', '说明示例范围', '历史展示描述 10 个镜头、故事设定、两名角色与三个场景；数量及流程说明不是当前安装清单或授权凭证。'],
   ['02', '查看素材覆盖', '角色正脸、转身、表情、姿态、服装和场景布局按槽位显示缺失、已采用、过期与锁定。'],
-  ['03', '比较与局部 Retake', '在不可变候选之间比较；只修改表情或构图，原结果、成本和输入指纹全部保留。'],
+  ['03', '比较与局部 Retake', '展示不可变候选及局部变化的目标行为；示例数值不是实际模型质量或账单，未核验费用保持未知。'],
   ['04', '处理生产影响', '采用上游新版本后，相关参考锁、静帧、审片包与交付包自动标记过期。'],
-  ['05', '审片与交付', '生成免登录离线审片包，并从同一时间线清单导出媒体、字幕和剪辑工程。'],
+  ['05', '审片与交付边界', '离线审片、媒体、字幕与剪辑工程各有自己的验收范围；本页不提供当前保存回执、完整媒体交付或外部剪辑器导入证明。'],
 ]
 
 export default function DemoCasePage() {
@@ -18,10 +18,10 @@ export default function DemoCasePage() {
       <section className="border-b border-stone-200 bg-[#e9dfd1]">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:grid-cols-[.9fr_1.1fr] lg:px-8">
           <div>
-            <p className="eyebrow">Built-in production case</p>
-            <h1 className="mt-4 text-5xl font-semibold tracking-tight text-ink">《雾港来信》<br />从十个镜头看完整生产闭环。</h1>
-            <p className="mt-6 max-w-xl leading-7 text-stone-700">这不是预渲染宣传片，而是随桌面端安装的可编辑项目。所有生成步骤明确标注 Mock Provider，结果确定、离线可复现。</p>
-            <Link href="/download" className="mt-8 inline-block"><Button className="h-12 px-7">在桌面端体验</Button></Link>
+            <p className="eyebrow">Historical controlled demonstration</p>
+            <h1 className="mt-4 text-5xl font-semibold tracking-tight text-ink">《雾港来信》<br />十镜头历史受控展示。</h1>
+            <p className="mt-6 max-w-xl leading-7 text-stone-700">保留既有 Mock Provider 制作说明，不证明当前安装已包含此项目，也不代表当前三个智能引擎的真实输出。页面中的场景卡是示意，不是可播放成片；小说或无媒体改编不必经过这个流程。</p>
+            <Link href="/download" className="mt-8 inline-block"><Button className="h-12 px-7">查看下载状态</Button></Link>
           </div>
           <div className="grid grid-cols-2 gap-3 self-end">
             <div className="aspect-[4/5] rounded-[28px] bg-gradient-to-b from-[#47616a] to-[#151a1b] p-5 text-sm text-white">SH_003<br /><span className="text-white/60">码头 · 雨夜</span></div>
@@ -41,9 +41,9 @@ export default function DemoCasePage() {
           ))}
         </div>
         <section className="mt-14 rounded-3xl bg-ink p-8 text-white">
-          <p className="text-sm text-stone-400">样片许可</p>
-          <h2 className="mt-2 text-2xl font-semibold">完全虚构，不含第三方 IP。</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-300">角色、场景、文字、位图和音轨均附自有或可再分发许可元数据。复制样片后成为普通本地项目。</p>
+          <p className="text-sm text-stone-400">证据边界</p>
+          <h2 className="mt-2 text-2xl font-semibold">本页未提供完整可核验授权凭证。</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-300">历史展示标签或许可元数据不当作文件来源、具体使用授权和公开许可已经核全的证明。本页没有实际账单、用户研究或发行回执，不作可发行或完整验收保证。</p>
         </section>
       </section>
     </main>

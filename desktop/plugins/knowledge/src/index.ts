@@ -1,3 +1,4 @@
+import { registerKnowledgeProjectLineage } from "./project-lineage.js";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import {
@@ -46,6 +47,24 @@ import {
   creativeIntelligenceService,
 } from "./creative-intelligence.js";
 import { WebResearchAdapter } from "./web-research.js";
+import {
+  registerNarrativeIndex,
+  narrativeIndexMigration,
+} from "./narrative-index.js";
+import { registerNarrativeStoryIndex } from "./narrative-story-index.js";
+import {
+  registerNarrativeSummaries,
+  narrativeSummaryMigration,
+} from "./narrative-summary.js";
+import {
+  registerStoryDeclarations,
+  storyDeclarationMigration,
+} from "./story-declarations.js";
+import {
+  registerStoryAssertions,
+  storyAssertionMigration,
+} from "./story-assertions.js";
+import { storySourceLifecycleMigration } from "./story-source-lifecycle.js";
 
 interface ChangeSetRow {
   id: string;
@@ -276,6 +295,16 @@ function routes(context: PluginContext): readonly RouteContribution[] {
         id,
       ),
     );
+  const sourceState = (
+    current: ChangeSetRow,
+    chapter = writing.get(current.chapter_id),
+  ): NonNullable<StoryBibleChangeSet["sourceState"]> => {
+    if (!chapter || chapter.projectId !== current.project_id) return "missing";
+    return chapter.version === current.source_version &&
+      fingerprint(chapter.content) === current.source_fingerprint
+      ? "current"
+      : "stale";
+  };
   const settingsInput = z.object({ autoSuggest: z.boolean() });
   const statusInput = z.object({
     status: z.enum(["queued", "paused", "skipped", "discarded"]),
@@ -768,21 +797,30 @@ function routes(context: PluginContext): readonly RouteContribution[] {
           const projectId = requestContext.req.param("id");
           if (!workspace.get(projectId))
             return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+          if (suffix === "change-sets") {
+            const rows = context.uow.execute((transaction) =>
+              transaction.all<ChangeSetRow>(
+                "SELECT * FROM knowledge_story_bible_change_sets WHERE project_id = ? ORDER BY updated_at DESC",
+                projectId,
+              ),
+            );
+            // Knowledge owns the history; Writing owns the current chapter.
+            // Reading must not rewrite status, timestamps, memories or events.
+            return requestContext.json(
+              rows.map((row) => ({
+                ...changeSet(row),
+                sourceState: sourceState(row),
+              })),
+            );
+          }
           return requestContext.json(
             context.uow.execute((transaction) =>
-              suffix === "change-sets"
-                ? transaction
-                    .all<ChangeSetRow>(
-                      "SELECT * FROM knowledge_story_bible_change_sets WHERE project_id = ? ORDER BY updated_at DESC",
-                      projectId,
-                    )
-                    .map(changeSet)
-                : transaction
-                    .all<StaleRow>(
-                      "SELECT * FROM knowledge_story_bible_stale_marks WHERE project_id = ? AND resolved_at IS NULL ORDER BY updated_at DESC",
-                      projectId,
-                    )
-                    .map(stale),
+              transaction
+                .all<StaleRow>(
+                  "SELECT * FROM knowledge_story_bible_stale_marks WHERE project_id = ? AND resolved_at IS NULL ORDER BY updated_at DESC",
+                  projectId,
+                )
+                .map(stale),
             ),
           );
         },
@@ -830,10 +868,12 @@ function routes(context: PluginContext): readonly RouteContribution[] {
           const duplicate = transaction.get<ChangeSetRow>(
             `SELECT * FROM knowledge_story_bible_change_sets
              WHERE project_id = ? AND chapter_id = ? AND source_fingerprint = ?
+               AND source_version = ?
                AND status IN ('queued', 'draft', 'paused')`,
             chapter.projectId,
             chapter.id,
             sourceFingerprint,
+            chapter.version,
           );
           if (duplicate) return changeSet(duplicate);
           const id = crypto.randomUUID();
@@ -906,11 +946,7 @@ function routes(context: PluginContext): readonly RouteContribution[] {
             "仅草稿状态的变更集可以采纳。",
           );
         const chapter = writing.get(current.chapter_id);
-        if (
-          !chapter ||
-          chapter.version !== current.source_version ||
-          fingerprint(chapter.content) !== current.source_fingerprint
-        ) {
+        if (sourceState(current, chapter) !== "current") {
           context.uow.execute((transaction) => {
             const at = now();
             transaction.run(
@@ -929,6 +965,7 @@ function routes(context: PluginContext): readonly RouteContribution[] {
               at,
               at,
             );
+            emit(transaction, "source-conflicted", { id, status: "stale" });
           });
           return problem(
             requestContext,
@@ -1097,13 +1134,19 @@ function routes(context: PluginContext): readonly RouteContribution[] {
         const current = find(id);
         if (!current)
           return problem(requestContext, 404, "NOT_FOUND", "未找到变更集。");
-        if (["applied", "stale"].includes(current.status))
+        if (
+          current.status === "applied" ||
+          (current.status === "stale" &&
+            (input.data.status !== "discarded" || current.applied_at !== null))
+        )
           return problem(
             requestContext,
             409,
             "CONFLICT",
             "已采纳或过期的变更集不能改为此状态。",
           );
+        if (current.status === input.data.status)
+          return requestContext.json(changeSet(current));
         return requestContext.json(
           context.uow.execute((transaction) => {
             transaction.run(
@@ -1225,6 +1268,12 @@ export function createKnowledgePlugin(host?: DesktopHostClient) {
         "knowledge.story-bible",
         "knowledge.creative-intelligence",
         "knowledge.web-research",
+        "knowledge.narrative-index",
+        "knowledge.narrative-summaries",
+        "knowledge.story-declarations",
+        "knowledge.story-node-observations",
+        "knowledge.story-assertions",
+        "knowledge.narrative-story-index",
       ],
       stability: "internal",
     },
@@ -1242,9 +1291,22 @@ export function createKnowledgePlugin(host?: DesktopHostClient) {
         metadata: { target: "chapter", title: "故事圣经侧栏" },
       },
     ],
-    migrations: [...knowledgeMigrations, knowledgeCreationMigration],
+    migrations: [
+      ...knowledgeMigrations,
+      knowledgeCreationMigration,
+      narrativeIndexMigration,
+      narrativeSummaryMigration,
+      storyDeclarationMigration,
+      storyAssertionMigration,
+      storySourceLifecycleMigration,
+    ],
     apply: (context) => {
-      registerKnowledgeCreation(context);
+      registerNarrativeIndex(context);
+      registerKnowledgeCreation(context, registerNarrativeSummaries(context));
+      registerStoryDeclarations(context);
+      registerStoryAssertions(context);
+      registerNarrativeStoryIndex(context);
+      registerKnowledgeProjectLineage(context);
       const workspace = optionalService<WorkspaceProjectService>(
         context,
         WORKSPACE_PROJECT_SERVICE,

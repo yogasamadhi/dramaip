@@ -2,6 +2,8 @@
 
 This server provides optional cloud capabilities for the canonical [DramaIP product positioning](../../docs/product/POSITIONING.md), including identity, subscriptions, collaboration, review, operations, and cross-client APIs. It does not replace Desktop as the local authoritative creation environment or redefine the product as a cloud content generator.
 
+Novel writing and adaptation have separate creator outcomes. Neither requires automatic upload of local manuscripts or a server-owned novel/editor workflow. Product goals and cloud scope do not imply all planned collaboration or cross-client features are released; see [Platform scope](../README.md) and [execution plan](../../docs/PLAN.md).
+
 Maven reactor modules are `common`, `migration`, `gateway`, and seven independently deployable services in dependency order: `identity`, `notification`, `reporting`, `creation`, `quota`, `ai`, `billing`.
 
 Run all verification:

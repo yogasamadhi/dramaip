@@ -1,6 +1,24 @@
 [
   {
     "method": "get",
+    "path": "/api/v2/adaptation-strategies/{id}",
+    "operationId": "adaptationStrategies.get",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/adaptation-strategies/{id}/adopt",
+    "operationId": "adaptationStrategies.adopt",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/adaptation-strategies/{id}/discard",
+    "operationId": "adaptationStrategies.discard",
+    "owner": "production"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/adaptations",
     "operationId": "adaptations.list",
     "owner": "production"
@@ -177,6 +195,12 @@
     "method": "post",
     "path": "/api/v2/agent-runs/{id}/steer",
     "operationId": "agent-sessions.steer",
+    "owner": "agents"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/agent-runs/{runId}/usage-observations",
+    "operationId": "agentUsageObservations.list",
     "owner": "agents"
   },
   {
@@ -402,6 +426,42 @@
     "owner": "agents"
   },
   {
+    "method": "get",
+    "path": "/api/v2/audio-resolutions/{id}",
+    "operationId": "audio-resolutions.get",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-resolutions/{id}/confirm",
+    "operationId": "audio-resolutions.confirm",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-resolutions/{id}/discard",
+    "operationId": "audio-resolutions.discard",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/audio-revisions/{id}",
+    "operationId": "audio-revisions.get",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-revisions/{id}/confirm",
+    "operationId": "audio-revisions.confirm",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-revisions/{id}/discard",
+    "operationId": "audio-revisions.discard",
+    "owner": "media"
+  },
+  {
     "method": "post",
     "path": "/api/v2/audio-tracks",
     "operationId": "episode-media.createAudioTrack",
@@ -411,6 +471,18 @@
     "method": "post",
     "path": "/api/v2/audio-tracks/{id}/adopt",
     "operationId": "episode-media.adoptAudioTrack",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/audio-tracks/{id}/revision-previews",
+    "operationId": "audio-revisions.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/audio-tracks/{id}/revision-previews",
+    "operationId": "audio-revisions.preview",
     "owner": "media"
   },
   {
@@ -442,6 +514,24 @@
     "path": "/api/v2/audio/{id}",
     "operationId": "audio.update",
     "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/author-intents/{id}",
+    "operationId": "author-intents.get",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/author-intents/{id}/adopt",
+    "operationId": "author-intents.adopt",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/author-intents/{id}/discard",
+    "operationId": "author-intents.discard",
+    "owner": "workspace"
   },
   {
     "method": "get",
@@ -531,6 +621,12 @@
     "method": "post",
     "path": "/api/v2/change-previews/{id}/rebase",
     "operationId": "change-previews.rebase",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/change-previews/{id}/revision-effort",
+    "operationId": "change-previews.revisionEffort",
     "owner": "automation"
   },
   {
@@ -730,6 +826,12 @@
     "path": "/api/v2/content-versions/{id}/restore",
     "operationId": "content-versions.restore",
     "owner": "writing"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/creative-continuations/summary",
+    "operationId": "creativeOutcomes.continuationSummary",
+    "owner": "insights"
   },
   {
     "method": "get",
@@ -1003,6 +1105,54 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/diagnoses/{id}",
+    "operationId": "diagnoses.get",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/diagnoses/{id}/adopt",
+    "operationId": "diagnoses.adopt",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/diagnoses/{id}/discard",
+    "operationId": "diagnoses.discard",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-development/{id}",
+    "operationId": "episodeDevelopments.get",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-development/{id}/impact",
+    "operationId": "episodeDevelopments.impact",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-development/{id}/script-revision-previews",
+    "operationId": "episodeDevelopments.previewScriptRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-development/{id}/source-revision-previews",
+    "operationId": "episodeDevelopments.previewSourceRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-development/{id}/topology-revision-previews",
+    "operationId": "episodeDevelopments.previewTopologyRevision",
+    "owner": "production"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/episode-pacing-marks",
     "operationId": "episode-pacing-marks.list",
     "owner": "creative-quality"
@@ -1030,6 +1180,66 @@
     "path": "/api/v2/episode-pacing-marks/{id}",
     "operationId": "episode-pacing-marks.update",
     "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-script-revisions/{id}",
+    "operationId": "episodeDevelopments.getScriptRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-script-revisions/{id}/adopt",
+    "operationId": "episodeDevelopments.adoptScriptRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-script-revisions/{id}/discard",
+    "operationId": "episodeDevelopments.discardScriptRevision",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-source-revisions/{id}",
+    "operationId": "episodeDevelopments.getSourceRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-source-revisions/{id}/adopt",
+    "operationId": "episodeDevelopments.adoptSourceRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-source-revisions/{id}/discard",
+    "operationId": "episodeDevelopments.discardSourceRevision",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-source-revisions/{id}/source-context",
+    "operationId": "episodeDevelopments.getSourceRevisionContext",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episode-topology-revisions/{id}",
+    "operationId": "episodeDevelopments.getTopologyRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-topology-revisions/{id}/adopt",
+    "operationId": "episodeDevelopments.adoptTopologyRevision",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episode-topology-revisions/{id}/discard",
+    "operationId": "episodeDevelopments.discardTopologyRevision",
+    "owner": "production"
   },
   {
     "method": "get",
@@ -1099,6 +1309,12 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/episodes/{episodeId}/timeline-renders",
+    "operationId": "timeline.renderCatalog",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/episodes/{episodeId}/timeline",
     "operationId": "timeline.get",
     "owner": "timeline"
@@ -1137,6 +1353,18 @@
     "method": "post",
     "path": "/api/v2/episodes/{id}/compliance-preflight",
     "operationId": "compliance.preflight",
+    "owner": "review"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/episodes/{id}/media-review-packages",
+    "operationId": "review-media.createPackage",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/episodes/{id}/media-review-preview",
+    "operationId": "review-media.preview",
     "owner": "review"
   },
   {
@@ -1323,6 +1551,12 @@
     "method": "patch",
     "path": "/api/v2/generation-ledger/{id}",
     "operationId": "generation.update",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/generation-ledger/{id}/cost-observations",
+    "operationId": "generation.costObservations",
     "owner": "insights"
   },
   {
@@ -1627,6 +1861,108 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/manuscripts/{id}",
+    "operationId": "manuscripts.get",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/manuscripts/{id}/save",
+    "operationId": "manuscripts.save",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-byte-verifications/{id}",
+    "operationId": "media-byte-verifications.get",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}",
+    "operationId": "media-sources.record",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/byte-verifications",
+    "operationId": "media-byte-verifications.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/media-records/{id}/byte-verifications",
+    "operationId": "media-byte-verifications.create",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/byte-verifications/requests/{key}",
+    "operationId": "media-byte-verifications.recover",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/delivery-evidence",
+    "operationId": "media.deliveryEvidence",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/playback",
+    "operationId": "media-playback.describe",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/playback/content",
+    "operationId": "media-playback.read",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/source-reviews",
+    "operationId": "media-sources.list",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/media-records/{id}/source-reviews",
+    "operationId": "media-sources.preview",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-records/{id}/source",
+    "operationId": "media-sources.status",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-review-requests/{id}",
+    "operationId": "review-media.recoverRequest",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/media-source-reviews/{id}",
+    "operationId": "media-sources.get",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/media-source-reviews/{id}/adopt",
+    "operationId": "media-sources.adopt",
+    "owner": "media"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/media-source-reviews/{id}/discard",
+    "operationId": "media-sources.discard",
+    "owner": "media"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/memory",
     "operationId": "memory.list",
     "owner": "knowledge"
@@ -1654,6 +1990,36 @@
     "path": "/api/v2/memory/{id}",
     "operationId": "memory.update",
     "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/narrative-local-reviews/{id}",
+    "operationId": "narrativeLocalQuality.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/narrative-local-reviews/{id}/decision",
+    "operationId": "narrativeLocalQuality.decide",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/narrative-local-reviews/{id}/dispositions",
+    "operationId": "narrativeLocalQuality.disposition",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/narrative-quality-reports/{id}",
+    "operationId": "narrativeQuality.get",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/narrative-quality-reports/{id}/dispositions",
+    "operationId": "narrativeQuality.disposition",
+    "owner": "creative-quality"
   },
   {
     "method": "get",
@@ -1686,6 +2052,18 @@
     "owner": "writing"
   },
   {
+    "method": "get",
+    "path": "/api/v2/pilot-packages/{id}",
+    "operationId": "pilotPackages.get",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/pilot-packages/{id}/save",
+    "operationId": "pilotPackages.save",
+    "owner": "delivery"
+  },
+  {
     "method": "post",
     "path": "/api/v2/pilot-plans",
     "operationId": "pilot-plans.create",
@@ -1707,6 +2085,12 @@
     "method": "get",
     "path": "/api/v2/platform-delivery/profiles",
     "operationId": "platform-delivery.listProfiles",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/platform-delivery/requests/{id}",
+    "operationId": "platform-delivery.recoverRequest",
     "owner": "delivery"
   },
   {
@@ -1903,6 +2287,54 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/projects/{id}/ip-twins/{snapshotId}",
+    "operationId": "ip-twin.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/narrative-local-review-sources",
+    "operationId": "narrativeLocalQuality.preview",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/narrative-local-review-summaries",
+    "operationId": "narrativeLocalQuality.summaries",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/narrative-local-reviews",
+    "operationId": "narrativeLocalQuality.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{id}/narrative-local-reviews",
+    "operationId": "narrativeLocalQuality.create",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/narrative-quality-reports",
+    "operationId": "narrativeQuality.list",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/narrative-quality-sources",
+    "operationId": "narrativeQuality.sources",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/narrative-quality-summaries",
+    "operationId": "narrativeQuality.summaries",
+    "owner": "creative-quality"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/projects/{id}/novel-workspace",
     "operationId": "novel-workspace.get",
     "owner": "writing"
@@ -2004,6 +2436,12 @@
     "owner": "knowledge"
   },
   {
+    "method": "get",
+    "path": "/api/v2/projects/{id}/story-simulations/{simulationId}",
+    "operationId": "story-simulations.get",
+    "owner": "knowledge"
+  },
+  {
     "method": "post",
     "path": "/api/v2/projects/{id}/trash",
     "operationId": "projects.trash",
@@ -2023,6 +2461,66 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/projects/{projectId}/adaptation-strategies",
+    "operationId": "adaptationStrategies.list",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/adaptation-strategy-previews",
+    "operationId": "adaptationStrategies.summaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/adaptation-strategy-sources",
+    "operationId": "adaptationStrategies.sources",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/audio-resolution-summaries",
+    "operationId": "audio-resolutions.summaries",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/audio-revision-summaries",
+    "operationId": "audio-revisions.summaries",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/author-intent-sources",
+    "operationId": "author-intents.sources",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/author-intent",
+    "operationId": "author-intents.current",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/author-intents",
+    "operationId": "author-intents.list",
+    "owner": "workspace"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/author-intents",
+    "operationId": "author-intents.preview",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/chapter-adoptions",
+    "operationId": "chapters.adoptions",
+    "owner": "writing"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/projects/{projectId}/chapters",
     "operationId": "chapters.list",
     "owner": "writing"
@@ -2034,9 +2532,111 @@
     "owner": "writing"
   },
   {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/creative-outcomes",
+    "operationId": "creativeOutcomes.list",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/creative-outcomes/executions",
+    "operationId": "creativeOutcomes.executions",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/creative-outcomes/executions/{workflowId}",
+    "operationId": "creativeOutcomes.execution",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/creative-outcomes/revision-effort",
+    "operationId": "creativeOutcomes.revisionEffort",
+    "owner": "insights"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/creative-outcomes/summary",
+    "operationId": "creativeOutcomes.summary",
+    "owner": "insights"
+  },
+  {
     "method": "post",
     "path": "/api/v2/projects/{projectId}/current-adaptation",
     "operationId": "production-structure.selectCurrentAdaptation",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/diagnoses",
+    "operationId": "diagnoses.list",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/diagnosis-previews",
+    "operationId": "diagnoses.summaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/diagnosis-sources",
+    "operationId": "diagnoses.sources",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-development-sources",
+    "operationId": "episodeDevelopments.sources",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-development-summaries",
+    "operationId": "episodeDevelopments.summaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-development",
+    "operationId": "episodeDevelopments.list",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-script-revision-summaries",
+    "operationId": "episodeDevelopments.scriptRevisionSummaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-script-revisions",
+    "operationId": "episodeDevelopments.listScriptRevisions",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-source-revision-summaries",
+    "operationId": "episodeDevelopments.sourceRevisionSummaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-source-revisions",
+    "operationId": "episodeDevelopments.listSourceRevisions",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-topology-revision-summaries",
+    "operationId": "episodeDevelopments.topologyRevisionSummaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/episode-topology-revisions",
+    "operationId": "episodeDevelopments.listTopologyRevisions",
     "owner": "production"
   },
   {
@@ -2059,6 +2659,96 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/projects/{projectId}/manuscripts",
+    "operationId": "manuscripts.list",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/manuscripts",
+    "operationId": "manuscripts.preview",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/media-source-review-summaries",
+    "operationId": "media-sources.summaries",
+    "owner": "media"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-context-index",
+    "operationId": "narrativeIndex.catalog",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-context-index/chapters/{chapterId}",
+    "operationId": "narrativeIndex.chapter",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-story-index",
+    "operationId": "narrativeStoryIndex.catalog",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-summaries",
+    "operationId": "narrativeSummaries.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-summaries/{summaryId}",
+    "operationId": "narrativeSummaries.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-summaries/scopes",
+    "operationId": "narrativeSummaries.scopes",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/narrative-summaries/summaries",
+    "operationId": "narrativeSummaries.summaries",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/pilot-packages",
+    "operationId": "pilotPackages.list",
+    "owner": "delivery"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/pilot-packages",
+    "operationId": "pilotPackages.preview",
+    "owner": "delivery"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/production-quality-sources",
+    "operationId": "productionQualitySources.list",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/production-quality-sources/{recordId}",
+    "operationId": "productionQualitySources.get",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/provider-action-preview-summaries",
+    "operationId": "provider-action-previews.summaries",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/projects/{projectId}/research-topics",
     "operationId": "research.topics.list",
     "owner": "knowledge"
@@ -2068,6 +2758,42 @@
     "path": "/api/v2/projects/{projectId}/research-topics",
     "operationId": "research.topics.create",
     "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/revision-previews",
+    "operationId": "revisions.list",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/screenplay-sources",
+    "operationId": "screenplaySources.list",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/screenplay-sources/{scriptId}",
+    "operationId": "screenplaySources.get",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/season-plan-previews",
+    "operationId": "seasonPlans.summaries",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/season-plan-sources",
+    "operationId": "seasonPlans.sources",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/season-plans",
+    "operationId": "seasonPlans.list",
+    "owner": "production"
   },
   {
     "method": "get",
@@ -2092,6 +2818,132 @@
     "path": "/api/v2/projects/{projectId}/series-story-bible/{id}/upgrade",
     "operationId": "series.upgradeStoryBible",
     "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/story-assertions",
+    "operationId": "storyAssertions.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-assertions",
+    "operationId": "storyAssertions.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}",
+    "operationId": "storyAssertions.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/adopt",
+    "operationId": "storyAssertions.adopt",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/discard",
+    "operationId": "storyAssertions.discard",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/replace",
+    "operationId": "storyAssertions.replace",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/withdraw",
+    "operationId": "storyAssertions.withdraw",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/story-declarations",
+    "operationId": "storyDeclarations.list",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-declarations",
+    "operationId": "storyDeclarations.create",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}",
+    "operationId": "storyDeclarations.get",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/adopt",
+    "operationId": "storyDeclarations.adopt",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/discard",
+    "operationId": "storyDeclarations.discard",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/replace",
+    "operationId": "storyDeclarations.replace",
+    "owner": "knowledge"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/withdraw",
+    "operationId": "storyDeclarations.withdraw",
+    "owner": "knowledge"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/storyboard-attribution-sources/{id}",
+    "operationId": "storyboardAttribution.sources",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/storyboard-attributions",
+    "operationId": "storyboardAttribution.list",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/storyboard-attributions",
+    "operationId": "storyboardAttribution.create",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/storyboard-attributions/{id}",
+    "operationId": "storyboardAttribution.get",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/storyboard-attributions/{id}/decision",
+    "operationId": "storyboardAttribution.decide",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/projects/{projectId}/storyboard-attributions/summaries",
+    "operationId": "storyboardAttribution.summaries",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/projects/{projectId}/volume-memberships",
+    "operationId": "volumes.assignChapters",
+    "owner": "writing"
   },
   {
     "method": "get",
@@ -2311,6 +3163,12 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/review-packages/{id}/delivery-evidence",
+    "operationId": "review-media.evidence",
+    "owner": "review"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/review-packages/{id}/export",
     "operationId": "review-editor.exportPackage",
     "owner": "review"
@@ -2319,6 +3177,12 @@
     "method": "post",
     "path": "/api/v2/review-packages/{id}/import-offline",
     "operationId": "review-editor.importOffline",
+    "owner": "review"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/review-packages/{id}/media-review-export",
+    "operationId": "review-media.exportOriginal",
     "owner": "review"
   },
   {
@@ -2484,6 +3348,12 @@
     "owner": "production"
   },
   {
+    "method": "delete",
+    "path": "/api/v2/screenplay-import-previews/{id}",
+    "operationId": "screenplayImport.discard",
+    "owner": "production"
+  },
+  {
     "method": "get",
     "path": "/api/v2/screenplay-import-previews/{id}",
     "operationId": "screenplayImport.getPreview",
@@ -2493,6 +3363,30 @@
     "method": "post",
     "path": "/api/v2/screenplay-import-previews/{id}/commit",
     "operationId": "screenplayImport.commit",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/screenplay-intakes",
+    "operationId": "screenplayIntakes.preview",
+    "owner": "production"
+  },
+  {
+    "method": "delete",
+    "path": "/api/v2/screenplay-intakes/{id}",
+    "operationId": "screenplayIntakes.discard",
+    "owner": "production"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/screenplay-intakes/{id}",
+    "operationId": "screenplayIntakes.get",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/screenplay-intakes/{id}/commit",
+    "operationId": "screenplayIntakes.commit",
     "owner": "production"
   },
   {
@@ -2572,6 +3466,30 @@
     "path": "/api/v2/search/{query}",
     "operationId": "search.global",
     "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/season-plans/{id}",
+    "operationId": "seasonPlans.get",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/season-plans/{id}/adopt",
+    "operationId": "seasonPlans.adopt",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/season-plans/{id}/discard",
+    "operationId": "seasonPlans.discard",
+    "owner": "production"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/season-plans/{id}/reorder",
+    "operationId": "seasonPlans.reorder",
+    "owner": "production"
   },
   {
     "method": "patch",
@@ -2715,6 +3633,12 @@
     "method": "delete",
     "path": "/api/v2/source-imports/{id}",
     "operationId": "source-imports.discard",
+    "owner": "workspace"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/source-imports/{id}/commit",
+    "operationId": "source-imports.getCommit",
     "owner": "workspace"
   },
   {
@@ -3127,6 +4051,30 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/timeline-media-copies/{id}",
+    "operationId": "timeline-media-copies.get",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timeline-media-copies/{id}/cancel",
+    "operationId": "timeline-media-copies.cancel",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timeline-media-copies/{id}/refresh",
+    "operationId": "timeline-media-copies.refresh",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timeline-media-copies/{id}/reveal",
+    "operationId": "timeline-media-copies.reveal",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/timeline-media/{id}/preview",
     "operationId": "timeline.preview",
     "owner": "timeline"
@@ -3156,6 +4104,24 @@
     "owner": "timeline"
   },
   {
+    "method": "get",
+    "path": "/api/v2/timelines/{id}/audio-resolution-previews",
+    "operationId": "audio-resolutions.list",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/audio-resolution-previews",
+    "operationId": "audio-resolutions.preview",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timelines/{id}/audio-source-options",
+    "operationId": "audio-resolutions.options",
+    "owner": "timeline"
+  },
+  {
     "method": "post",
     "path": "/api/v2/timelines/{id}/commands",
     "operationId": "timeline.command",
@@ -3165,6 +4131,30 @@
     "method": "get",
     "path": "/api/v2/timelines/{id}/history",
     "operationId": "timeline.history",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timelines/{id}/media-copies",
+    "operationId": "timeline-media-copies.list",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/media-copies",
+    "operationId": "timeline-media-copies.create",
+    "owner": "timeline"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/timelines/{id}/media-copy-directory",
+    "operationId": "timeline-media-copies.selectDirectory",
+    "owner": "timeline"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/timelines/{id}/playback-plan",
+    "operationId": "timeline.playbackPlan",
     "owner": "timeline"
   },
   {
@@ -3445,6 +4435,12 @@
   },
   {
     "method": "get",
+    "path": "/api/v2/workflows/creation/{id}/execution",
+    "operationId": "creation.execution",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
     "path": "/api/v2/workflows/creation/{id}/merge",
     "operationId": "creation.merge",
     "owner": "automation"
@@ -3453,6 +4449,18 @@
     "method": "post",
     "path": "/api/v2/workflows/creation/{id}/rebase",
     "operationId": "creation.rebase",
+    "owner": "automation"
+  },
+  {
+    "method": "get",
+    "path": "/api/v2/workflows/creation/{id}/record-merge",
+    "operationId": "creation.recordMerge",
+    "owner": "automation"
+  },
+  {
+    "method": "post",
+    "path": "/api/v2/workflows/creation/{id}/record-rebase",
+    "operationId": "creation.recordRebase",
     "owner": "automation"
   },
   {

@@ -3,16 +3,23 @@ import { AUTOMATION_TASK_SERVICE } from "@dramaip/contracts/automation";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import {
+  writingImportBatch,
+  writingImportBatchMigration,
+} from "./import-batches.js";
+import {
   registerWritingCreation,
   writingCreationMigration,
 } from "./creation.js";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   WORKSPACE_PROJECT_SERVICE,
+  WORKSPACE_AUTHOR_INTENT_SERVICE,
   type WorkspaceProjectService,
 } from "@dramaip/contracts/workspace";
 import {
   ChapterInputSchema,
+  ChapterAdoptionSchema,
+  ChapterAdoptionPageSchema,
   ChapterPatchSchema,
   ChapterReorderInputSchema,
   ChapterSchema,
@@ -32,6 +39,8 @@ import {
   WritingVolumePageSchema,
   WritingVolumePatchSchema,
   WritingVolumeSchema,
+  WritingVolumeAssignmentInputSchema,
+  WritingVolumeAssignmentReceiptSchema,
   type Chapter,
   type CreatorContentKind,
   type CreatorContentRecord,
@@ -51,6 +60,13 @@ import {
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  chapterVolumeScopeIsValid,
+  ChapterVolumeScopeError,
+  validVolumeRequestKey,
+  volumeWrites,
+  writingVolumeRequestsMigration,
+} from "./volumes.js";
 import {
   writingAdvancedMigrations,
   writingAdvancedRoutes,
@@ -123,6 +139,7 @@ interface WritingResourceRow {
 
 interface RouteContext {
   req: {
+    header(name: string): string | undefined;
     param(name: string): string;
     query(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
@@ -145,6 +162,7 @@ function declaration(input: {
   responseStatus?: 200 | 201;
   body?: ZodType;
   params?: ZodType;
+  query?: ZodType;
 }): unknown {
   const status = input.responseStatus ?? 200;
   return createRoute({
@@ -152,10 +170,11 @@ function declaration(input: {
     path: input.path,
     operationId: input.operationId,
     tags: ["chapters"],
-    ...(input.body || input.params
+    ...(input.body || input.params || input.query
       ? {
           request: {
             ...(input.params ? { params: input.params } : {}),
+            ...(input.query ? { query: input.query } : {}),
             ...(input.body
               ? {
                   body: {
@@ -205,6 +224,12 @@ function contribution(
 ): RouteContribution {
   return defineRouteContribution({
     ...metadata,
+    ...([
+      "writing:volumes-create",
+      "writing:volume-memberships-assign",
+    ].includes(metadata.id)
+      ? { policy: { idempotencyReplay: "handler" as const } }
+      : {}),
     declaration: openapi,
     handler,
   });
@@ -509,10 +534,11 @@ function writingResourceRoutes(
 function createVolume(
   context: PluginContext,
   input: z.infer<typeof WritingVolumeInputSchema>,
+  transaction?: UnitOfWorkTransaction,
 ): WritingVolume {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  return context.uow.execute((transaction) => {
+  const create = (transaction: UnitOfWorkTransaction) => {
     const orderIndex =
       transaction.get<{ value: number }>(
         "SELECT COALESCE(MAX(order_index), -1) + 1 AS value FROM writing_volumes WHERE project_id = ?",
@@ -545,7 +571,8 @@ function createVolume(
       payload: JSON.parse(JSON.stringify(value)),
     });
     return value;
-  });
+  };
+  return transaction ? create(transaction) : context.uow.execute(create);
 }
 
 function listVolumes(
@@ -725,6 +752,94 @@ function creatorContentRoutes(
   return result;
 }
 
+function chapterAdoptionRoutes(
+  context: PluginContext,
+  workspace: WorkspaceProjectService,
+): readonly RouteContribution[] {
+  return [
+    contribution(
+      {
+        id: "writing:chapter-adoptions-list",
+        pluginId: "writing",
+        method: "get",
+        path: "/api/v2/projects/{projectId}/chapter-adoptions",
+        operationId: "chapters.adoptions",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/projects/{projectId}/chapter-adoptions",
+        operationId: "chapters.adoptions",
+        params: projectIdParams,
+        query: z.object({
+          cursor: z.string().optional(),
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+        }),
+        response: ChapterAdoptionPageSchema,
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("projectId");
+        if (!workspace.get(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        const cursor = requestContext.req.query("cursor");
+        const parts = cursor?.split("|") ?? [];
+        const limit = z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .safeParse(requestContext.req.query("limit") ?? 50);
+        if (
+          !limit.success ||
+          (cursor !== undefined &&
+            (parts.length !== 2 ||
+              !z.string().datetime().safeParse(parts[0]).success ||
+              !z.string().uuid().safeParse(parts[1]).success))
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "采用记录分页参数无效。",
+          );
+        const rows = context.uow.execute((tx) =>
+          tx.all<{
+            workflow_id: string;
+            result_json: string;
+            created_at: string;
+          }>(
+            `SELECT a.workflow_id, a.result_json, a.created_at
+             FROM writing_creation_adoptions a
+             JOIN chapters c ON c.id = json_extract(a.result_json, '$.chapterId')
+             WHERE c.project_id = ?
+               AND (? IS NULL OR a.created_at < ? OR (a.created_at = ? AND a.workflow_id < ?))
+             ORDER BY a.created_at DESC, a.workflow_id DESC LIMIT ?`,
+            projectId,
+            parts[0] ?? null,
+            parts[0] ?? null,
+            parts[0] ?? null,
+            parts[1] ?? null,
+            limit.data + 1,
+          ),
+        );
+        const page = rows.slice(0, limit.data);
+        const last = page.at(-1);
+        return requestContext.json({
+          items: page.map((row) =>
+            ChapterAdoptionSchema.parse({
+              ...JSON.parse(row.result_json),
+              workflowId: row.workflow_id,
+              adoptedAt: row.created_at,
+            }),
+          ),
+          ...(rows.length > limit.data && last
+            ? { nextCursor: `${last.created_at}|${last.workflow_id}` }
+            : {}),
+        });
+      },
+    ),
+  ];
+}
+
 function volumeRoutes(
   workspace: WorkspaceProjectService,
   service: WritingVolumeService,
@@ -786,10 +901,71 @@ function volumeRoutes(
             "VALIDATION_ERROR",
             "卷信息无效。",
           );
-        return requestContext.json(
-          service.create({ ...parsed.data, projectId }),
-          201,
+        const key = requestContext.req.header("Idempotency-Key");
+        if (key !== undefined) {
+          if (!validVolumeRequestKey(key))
+            return problem(
+              requestContext,
+              400,
+              "VALIDATION_ERROR",
+              "须保留有效的原卷创建请求键。",
+            );
+          const result = service.createOnce({ ...parsed.data, projectId }, key);
+          if (result.state !== "committed")
+            return problem(
+              requestContext,
+              409,
+              result.code,
+              "原卷创建请求或回执无法核对，未另建卷。",
+            );
+          requestContext.header("ETag", `"${result.value.version}"`);
+          return requestContext.json(result.value, 201);
+        }
+        const value = service.create({ ...parsed.data, projectId });
+        requestContext.header("ETag", `"${value.version}"`);
+        return requestContext.json(value, 201);
+      },
+    ),
+    contribution(
+      {
+        id: "writing:volume-memberships-assign",
+        pluginId: "writing",
+        method: "post",
+        path: "/api/v2/projects/{projectId}/volume-memberships",
+        operationId: "volumes.assignChapters",
+      },
+      declaration({
+        method: "post",
+        path: "/api/v2/projects/{projectId}/volume-memberships",
+        operationId: "volumes.assignChapters",
+        params: projectIdParams,
+        body: WritingVolumeAssignmentInputSchema,
+        response: WritingVolumeAssignmentReceiptSchema,
+      }),
+      async (requestContext) => {
+        const input = WritingVolumeAssignmentInputSchema.safeParse(
+          await requestContext.req.json(),
         );
+        const key = requestContext.req.header("Idempotency-Key"),
+          projectId = requestContext.req.param("projectId");
+        if (!input.success || !key || !validVolumeRequestKey(key))
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "请明确章节、卷版本及原归属请求键。",
+          );
+        if (!workspace.get(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        const result = service.assignChapters(projectId, input.data, key);
+        return result.state === "committed"
+          ? requestContext.json(result.value)
+          : problem(
+              requestContext,
+              409,
+              result.code,
+              "章节／卷已变化、归属无效或原回执无法核对；未部分修改。",
+            );
       },
     ),
     contribution(
@@ -947,15 +1123,23 @@ function updateCreatorContent(
 function createChapter(
   context: PluginContext,
   input: z.infer<typeof ChapterInputSchema>,
+  proposal?: Pick<Chapter, "id" | "orderIndex">,
+  transaction?: UnitOfWorkTransaction,
 ): Chapter {
   const now = new Date().toISOString();
-  const id = crypto.randomUUID();
-  return context.uow.execute((transaction) => {
+  const id = proposal?.id ?? crypto.randomUUID();
+  const create = (transaction: UnitOfWorkTransaction) => {
+    if (
+      !chapterVolumeScopeIsValid(transaction, input.projectId, input.volumeId)
+    )
+      throw new ChapterVolumeScopeError();
     const next =
       transaction.get<{ value: number }>(
         "SELECT COALESCE(MAX(order_index), -1) + 1 AS value FROM chapters WHERE project_id = ?",
         input.projectId,
       )?.value ?? 0;
+    if (proposal && proposal.orderIndex !== next)
+      throw new Error("续章目录在预检后已变化，请重新确认，不创建旧位置目标。");
     transaction.run(
       `INSERT INTO chapters(
         id, project_id, volume_id, title, order_index, summary, outline, content,
@@ -985,7 +1169,8 @@ function createChapter(
     );
     appendChapterEvent(transaction, "created", value);
     return value;
-  });
+  };
+  return transaction ? create(transaction) : context.uow.execute(create);
 }
 
 function writingRoutes(
@@ -1083,6 +1268,21 @@ function writingRoutes(
           );
         if (!workspace.get(parsed.data.projectId))
           return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
+        if (
+          !context.uow.execute((tx) =>
+            chapterVolumeScopeIsValid(
+              tx,
+              parsed.data.projectId,
+              parsed.data.volumeId,
+            ),
+          )
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "章节只能归属当前项目中存在的卷。",
+          );
         const created = createChapter(context, parsed.data);
         requestContext.header("ETag", `"${created.version}"`);
         return requestContext.json(created, 201);
@@ -1124,6 +1324,14 @@ function writingRoutes(
           if (!current) return { state: "missing" as const };
           if (current.version !== parsed.data.version)
             return { state: "conflict" as const };
+          if (
+            !chapterVolumeScopeIsValid(
+              transaction,
+              current.project_id,
+              parsed.data.volumeId,
+            )
+          )
+            return { state: "invalid-volume" as const };
           transaction.run(
             `INSERT INTO writing_chapter_versions(
               id, chapter_id, version_number, snapshot_json, created_at
@@ -1175,6 +1383,13 @@ function writingRoutes(
             409,
             "CONFLICT",
             "章节已在其他操作中更新，请刷新后重试。",
+          );
+        if (result.state === "invalid-volume")
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "章节只能归属当前项目中存在的卷，未改写原版本。",
           );
         requestContext.header("ETag", `"${result.value.version}"`);
         return requestContext.json(result.value);
@@ -1575,6 +1790,7 @@ export const writingPlugin = definePlugin({
     AUTOMATION_TASK_SERVICE.id,
     CREATION_WORKFLOW_SERVICE.id,
     WORKSPACE_PROJECT_SERVICE.id,
+    WORKSPACE_AUTHOR_INTENT_SERVICE.id,
   ],
   descriptor: {
     id: "writing",
@@ -1610,7 +1826,12 @@ export const writingPlugin = definePlugin({
       metadata: { target: "chapter", title: "章节编辑器" },
     },
   ],
-  migrations: [...writingMigrations, writingCreationMigration],
+  migrations: [
+    ...writingMigrations,
+    writingCreationMigration,
+    writingImportBatchMigration,
+    writingVolumeRequestsMigration,
+  ],
   apply: (context) => {
     registerWritingCreation(context);
     const workspace = optionalService<WorkspaceProjectService>(
@@ -1619,6 +1840,11 @@ export const writingPlugin = definePlugin({
     );
     if (!workspace) throw new Error("writing requires workspace.projects.v1");
     const chapterService: WritingChapterService = {
+      importBatch: writingImportBatch(
+        context,
+        (tx, input) => createChapter(context, input, undefined, tx),
+        (id) => !!workspace.get(id),
+      ),
       create: (input) => createChapter(context, input),
       get: (id) =>
         context.uow.execute((transaction) => {
@@ -1645,6 +1871,14 @@ export const writingPlugin = definePlugin({
           );
           if (!current) return { state: "missing" as const };
           if (current.version !== input.version)
+            return { state: "conflict" as const, current: chapter(current) };
+          if (
+            !chapterVolumeScopeIsValid(
+              transaction,
+              current.project_id,
+              input.volumeId,
+            )
+          )
             return { state: "conflict" as const, current: chapter(current) };
           const at = new Date().toISOString();
           transaction.run(
@@ -1875,6 +2109,18 @@ export const writingPlugin = definePlugin({
         }),
     };
     const volumeService: WritingVolumeService = {
+      ...volumeWrites(
+        context,
+        (input, tx) => createVolume(context, input, tx),
+        (tx, id) => {
+          const row = tx.get<ChapterRow>(
+            "SELECT * FROM chapters WHERE id = ?",
+            id,
+          );
+          return row ? chapter(row) : undefined;
+        },
+        (id) => !!workspace.get(id),
+      ),
       create: (input) => createVolume(context, input),
       list: (projectId, options) => listVolumes(context, projectId, options),
       get: (id) =>
@@ -1920,10 +2166,17 @@ export const writingPlugin = definePlugin({
     );
     for (const route of [
       ...writingRoutes(context, workspace),
+      ...chapterAdoptionRoutes(context, workspace),
       ...writingResourceRoutes(workspace, resourceService),
       ...volumeRoutes(workspace, volumeService),
       ...creatorContentRoutes(workspace, creatorContentService),
-      ...writingAdvancedRoutes(context, chapterService),
+      ...writingAdvancedRoutes(context, chapterService, (proposal) =>
+        createChapter(
+          context,
+          { projectId: proposal.projectId, title: proposal.title },
+          proposal,
+        ),
+      ),
     ])
       context.effect(() => context.http.register(route), `route:${route.id}`);
   },

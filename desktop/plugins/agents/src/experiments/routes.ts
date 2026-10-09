@@ -1,4 +1,5 @@
 import {
+  ProblemDetailsSchema,
   type AgentContextService,
   type AgentEngineKind,
 } from "@dramaip/contracts";
@@ -16,6 +17,10 @@ import {
   text,
 } from "../providers/routes.js";
 import { assistantTaskType, engineResponseText } from "../sessions/routes.js";
+import {
+  recordAuxiliaryUsage,
+  registerAuxiliaryUsageRun,
+} from "../runs/auxiliary-usage.js";
 export type EvaluationCandidate = "a" | "b" | "c";
 export const evaluationCandidates: readonly EvaluationCandidate[] = [
   "a",
@@ -67,15 +72,39 @@ export function publicEvaluationMetrics(
   revealed: boolean,
 ): Record<string, unknown> {
   const metrics = evaluationMetrics(value);
-  if (revealed) return metrics;
-  const {
-    engine: _engine,
-    engineVersion: _engineVersion,
-    model: _model,
-    provider: _provider,
-    ...redacted
-  } = metrics;
-  return redacted;
+  const result: Record<string, unknown> = {};
+  for (const key of [
+    "completed",
+    "formatError",
+    "toolViolation",
+    "adopted",
+    "success",
+  ])
+    if (typeof metrics[key] === "boolean") result[key] = metrics[key];
+  for (const key of [
+    "latencyMs",
+    "ttftMs",
+    "durationMs",
+    "toolCalls",
+    "toolErrors",
+    "retryCount",
+    "promptCharacters",
+  ])
+    if (
+      typeof metrics[key] === "number" &&
+      Number.isFinite(metrics[key]) &&
+      metrics[key] >= 0
+    )
+      result[key] = metrics[key];
+  if (
+    typeof metrics.failureCode === "string" &&
+    /^[A-Z_]{1,100}$/u.test(metrics.failureCode)
+  )
+    result.failureCode = metrics.failureCode;
+  if (revealed)
+    for (const key of ["engine", "engineVersion", "model", "provider"])
+      if (typeof metrics[key] === "string") result[key] = metrics[key];
+  return result;
 }
 
 export function evaluationPayload(
@@ -121,6 +150,14 @@ export function evaluationPayload(
           ...(output !== undefined ? { output } : {}),
           ...(evaluation.revealed_at
             ? { engineKind: candidate.engine_kind }
+            : {}),
+          ...(evaluation.revealed_at &&
+          transaction.get(
+            "SELECT run_id FROM agent_auxiliary_usage_runs WHERE run_id = ? AND evaluation_candidate_id = ?",
+            candidate.run_id,
+            candidate.id,
+          )
+            ? { usageRunId: candidate.run_id }
             : {}),
           metrics: publicEvaluationMetrics(
             candidate.metrics_json,
@@ -179,16 +216,16 @@ export async function runEvaluationCandidate(
     model?: AgentModelSelection;
   },
 ): Promise<void> {
+  // Native plugin disposal revokes service lookups immediately. This accepted
+  // owner retains its already acquired UoW until the registered drain finishes.
+  const uow = pluginContext.uow;
   const startedAt = Date.now();
   let ttftMs: number | undefined;
   let output = "";
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cachedTokens = 0;
-  let estimatedCost: number | undefined;
   let toolCalls = 0;
   let toolErrors = 0;
   let failureCode: string | undefined;
+  let disposeSession: (() => Promise<void>) | undefined;
   const capabilityGrant = {
     endpoint: "",
     token: crypto.randomUUID(),
@@ -196,7 +233,7 @@ export async function runEvaluationCandidate(
   };
   try {
     if (!host) throw new Error("CAPABILITY_UNAVAILABLE");
-    pluginContext.uow.execute((transaction) => {
+    uow.execute((transaction) => {
       transaction.run(
         `UPDATE agent_evaluation_candidates
          SET status = 'running' WHERE evaluation_id = ? AND candidate = ?`,
@@ -229,11 +266,31 @@ export async function runEvaluationCandidate(
       ...(input.model ? { model: input.model } : {}),
       capabilityGrant,
     });
+    disposeSession = () => runtime.dispose(session);
     const run = await runtime.prompt(session, {
       runId: input.runId,
       prompt: input.prompt,
       responseMode: "structured",
       capabilityGrant,
+    });
+    uow.execute((transaction) => {
+      const evaluation = transaction.get<{
+        context_snapshot_id: string | null;
+      }>(
+        "SELECT context_snapshot_id FROM agent_evaluations WHERE id = ?",
+        input.evaluationId,
+      );
+      if (!evaluation?.context_snapshot_id)
+        throw new Error("CONTEXT_UNAVAILABLE");
+      registerAuxiliaryUsageRun(transaction, {
+        runId: input.runId,
+        sessionId: session.sessionId,
+        engineRunId: run.engineRunId ?? run.runId,
+        engineKind: input.engine,
+        contextSnapshotId: evaluation.context_snapshot_id,
+        createdAt: new Date().toISOString(),
+        owner: { evaluationId: input.evaluationId, candidate: input.candidate },
+      });
     });
     for await (const event of runtime.subscribe(run)) {
       if (event.type === "content.delta") {
@@ -245,10 +302,16 @@ export async function runEvaluationCandidate(
         if (textOutput) output = textOutput;
       }
       if (event.type === "usage") {
-        inputTokens = event.usage.inputTokens ?? inputTokens;
-        outputTokens = event.usage.outputTokens ?? outputTokens;
-        cachedTokens = event.usage.cachedTokens ?? cachedTokens;
-        estimatedCost = event.usage.estimatedCost ?? estimatedCost;
+        uow.execute((transaction) =>
+          recordAuxiliaryUsage(transaction, {
+            runId: input.runId,
+            engineRunId: run.engineRunId ?? run.runId,
+            engineKind: input.engine,
+            cursor: event.cursor,
+            usage: event.usage,
+            recordedAt: new Date().toISOString(),
+          }),
+        );
       }
       if (event.type === "tool") {
         toolCalls += 1;
@@ -261,7 +324,7 @@ export async function runEvaluationCandidate(
     }
     if (!output.trim()) throw new Error("EMPTY_RESULT");
     const now = new Date().toISOString();
-    pluginContext.uow.execute((transaction) => {
+    uow.execute((transaction) => {
       transaction.run(
         `UPDATE agent_evaluation_candidates
          SET status = 'succeeded', output_json = ?, metrics_json = ? WHERE evaluation_id = ? AND candidate = ?`,
@@ -273,18 +336,14 @@ export async function runEvaluationCandidate(
           latencyMs: Date.now() - startedAt,
           ttftMs,
           durationMs: Date.now() - startedAt,
-          inputTokens,
-          outputTokens,
-          cachedTokens,
           engine: input.engine,
           engineVersion: runtime.descriptor.version,
           model: input.model?.modelId,
           provider: input.model?.providerId,
           success: true,
-          ...(estimatedCost !== undefined ? { estimatedCost } : {}),
           toolCalls,
           toolErrors,
-          contextTokens: input.prompt.length,
+          promptCharacters: input.prompt.length,
           retryCount: 0,
           adopted: false,
         }),
@@ -303,7 +362,7 @@ export async function runEvaluationCandidate(
     failureCode ??= /^[A-Z_]+$/u.test(message)
       ? message
       : "ENGINE_OPERATION_FAILED";
-    pluginContext.uow.execute((transaction) => {
+    uow.execute((transaction) => {
       const now = new Date().toISOString();
       transaction.run(
         `UPDATE agent_evaluation_candidates
@@ -314,16 +373,13 @@ export async function runEvaluationCandidate(
           toolViolation: false,
           latencyMs: Date.now() - startedAt,
           durationMs: Date.now() - startedAt,
-          inputTokens,
-          outputTokens,
-          cachedTokens,
           engine: input.engine,
           model: input.model?.modelId,
           provider: input.model?.providerId,
           success: false,
           toolCalls,
           toolErrors,
-          contextTokens: input.prompt.length,
+          promptCharacters: input.prompt.length,
           retryCount: 0,
           failureCode,
           adopted: false,
@@ -338,7 +394,8 @@ export async function runEvaluationCandidate(
       );
     });
   } finally {
-    pluginContext.uow.execute((transaction) => {
+    await disposeSession?.().catch(() => undefined);
+    uow.execute((transaction) => {
       transaction.run(
         "UPDATE agent_capability_grants SET consumed_at = COALESCE(consumed_at, ?) WHERE id = ?",
         new Date().toISOString(),
@@ -349,7 +406,21 @@ export async function runEvaluationCandidate(
          WHERE evaluation_id = ? AND status IN ('queued', 'running')`,
         input.evaluationId,
       )?.count;
-      if (remaining === 0) {
+      const evaluation = transaction.get<{ status: string }>(
+        "SELECT status FROM agent_evaluations WHERE id = ?",
+        input.evaluationId,
+      );
+      const releasing = transaction.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM agent_capability_grants grant_row
+         JOIN agent_evaluation_candidates candidate ON candidate.run_id = grant_row.run_id
+         WHERE candidate.evaluation_id = ? AND grant_row.consumed_at IS NULL`,
+        input.evaluationId,
+      )?.count;
+      if (
+        remaining === 0 &&
+        releasing === 0 &&
+        evaluation?.status === "running"
+      ) {
         const now = new Date().toISOString();
         transaction.run(
           `UPDATE agent_evaluations SET status = 'ready_for_review', updated_at = ? WHERE id = ?`,
@@ -374,19 +445,63 @@ export function evaluationRoutes(
   host: DesktopHostClient | undefined,
   agentContext: AgentContextService,
 ): readonly AgentRouteDraft[] {
+  let stopping = false;
+  const active = new Set<Promise<void>>();
+  pluginContext.effect(
+    () => async () => {
+      stopping = true;
+      // Every dispatched candidate owns its original session and final writes.
+      // Drain all owners even if one fails; this is not provider cancellation.
+      const results = await Promise.allSettled(active);
+      if (results.some((result) => result.status === "rejected"))
+        throw new Error("Agent evaluation cleanup did not complete");
+    },
+    "worker:agent-evaluations",
+  );
+  const stoppingResponse = () =>
+    new Response(
+      JSON.stringify(
+        ProblemDetailsSchema.parse({
+          type: "https://dramaip.local/problems/agent-plugin-stopping",
+          title: "Agent plugin stopping",
+          status: 503,
+          detail: "智能体插件正在停止，暂不接收新的盲测任务。",
+          code: "AGENT_PLUGIN_STOPPING",
+          traceId: crypto.randomUUID(),
+        }),
+      ),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/problem+json",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
   return [
     {
       id: "agents:evaluations-create",
       pluginId: "agents",
       bind: (routes) =>
         routes.post("/api/v2/agent-experiments", async (context) => {
+          if (stopping) return stoppingResponse();
           const body = await context.req.json().catch(() => undefined);
+          if (stopping) return stoppingResponse();
           if (
             !isRecord(body) ||
             !text(body.projectId) ||
             !assistantTaskType(body.taskType)
           )
             return problem(context, 400, "VALIDATION_ERROR", "盲测参数无效。");
+          const model =
+            body.model === undefined ? undefined : modelSelection(body.model);
+          if (body.model !== undefined && !model)
+            return problem(
+              context,
+              400,
+              "VALIDATION_ERROR",
+              "盲测模型配置无效；仅支持 providerId、modelId、profileId，不会忽略其他参数。",
+            );
           if (!host)
             return problem(
               context,
@@ -402,6 +517,7 @@ export function evaluationRoutes(
                 engine.kind as AgentEngineKind,
               ) && engine.canRun !== true,
           );
+          if (stopping) return stoppingResponse();
           if (unavailable.length)
             return problem(
               context,
@@ -415,7 +531,6 @@ export function evaluationRoutes(
           const now = new Date().toISOString();
           const prompt =
             text(body.prompt) ?? "请基于已授权的项目上下文完成此项任务。";
-          const model = modelSelection(body.model);
           const selectedProvider = model?.providerId
             ? findProvider(pluginContext, model.providerId)
             : undefined;
@@ -499,18 +614,24 @@ export function evaluationRoutes(
               aggregateType: "agent-evaluation",
               aggregateId: evaluationId,
               aggregateVersion: 1,
-              payload: { evaluationId, engines: 4 },
+              payload: {
+                evaluationId,
+                engines: activeEvaluationEngines.length,
+              },
             });
             return inputs;
           });
-          for (const candidate of runInputs)
-            void runEvaluationCandidate(pluginContext, host, {
+          for (const candidate of runInputs) {
+            const work = runEvaluationCandidate(pluginContext, host, {
               evaluationId,
               ...candidate,
               prompt: contextSnapshot.finalPrompt,
               projectId: text(body.projectId)!,
               ...(model ? { model } : {}),
             });
+            active.add(work);
+            void work.finally(() => active.delete(work)).catch(() => undefined);
+          }
           return context.json(
             evaluationPayload(pluginContext, evaluationId),
             202,

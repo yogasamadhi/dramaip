@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineServiceContract } from "./service-contract.js";
+export * from "./review-media.js";
 
 export const REVIEW_RECORD_SERVICE = defineServiceContract<ReviewRecordService>(
   {

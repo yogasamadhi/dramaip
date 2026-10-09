@@ -2,7 +2,7 @@
 appId: com.sdns.studio
 productName: 尽意 DramaIP
 afterSign: ../../scripts/notarize-mac.cjs
-# 版本号从 apps/desktop/package.json 读取；GA 前必须由 v2 release gate 验证。
+# 版本号从 apps/desktop/package.json 读取；GA 前必须由当次发布门禁验证。
 directories:
   output: dist
   buildResources: build

@@ -1,7 +1,12 @@
+import { registerQualityProjectLineage } from "./project-lineage.js";
 import { CREATIVE_KNOWLEDGE_SERVICE } from "@dramaip/contracts";
 import { provideService } from "@dramaip/plugin-api/internal";
 import { registerCreationQuality } from "./creation.js";
-import { createHash } from "node:crypto";
+import { narrativeLocalQualityMigration } from "./narrative-local.js";
+import {
+  narrativeQualityMigration,
+  registerNarrativeQuality,
+} from "./narrative.js";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -401,50 +406,12 @@ function routes(records: CreativeQualityRecordService): RouteContribution[] {
       );
       if (!parsed.success)
         return problem(context, 400, "VALIDATION_ERROR", "创意诊断参数无效。");
-      const now = new Date().toISOString();
-      const diagnostics = parsed.data.kinds.map((kind) =>
-        wire(
-          records.create("diagnostic", {
-            projectId: parsed.data.projectId,
-            parentId: parsed.data.targetId,
-            value: {
-              projectId: parsed.data.projectId,
-              targetKind: parsed.data.targetKind ?? "project",
-              ...(parsed.data.targetId
-                ? { targetId: parsed.data.targetId }
-                : {}),
-              targetTitle: parsed.data.targetId ? "选定创意对象" : "当前项目",
-              kind,
-              title: `${kind} 创意诊断`,
-              summary: "已基于当前持久资料完成确定性诊断；结论需由创作者确认。",
-              scores: [{ label: "资料完整度", value: 72 }],
-              findings: ["当前资料已形成可继续评估的创意基线。"],
-              recommendations: ["结合目标受众与制作限制进行人工复核。"],
-              ...(kind === "narrative_curve"
-                ? { curve: [35, 52, 68, 81] }
-                : {}),
-              sourceFingerprint: createHash("sha256")
-                .update(JSON.stringify({ ...parsed.data, kind }))
-                .digest("hex"),
-              createdAt: now,
-            },
-          }),
-        ),
+      return problem(
+        context,
+        409,
+        "UNSUPPORTED_OPERATION",
+        "旧兼容诊断未读取实际内容，固定分数与曲线不能作为质量结论；已停止新生成。历史记录保留为未认证资料，请明确选择独立人工、规则或模型评议。",
       );
-      return context.json({
-        task: {
-          id: crypto.randomUUID(),
-          kind: "creative_diagnostics",
-          status: "completed",
-          title: "创意诊断",
-          progress: 1,
-          projectId: parsed.data.projectId,
-          result: { diagnosticIds: diagnostics.map((item) => item.id) },
-          createdAt: now,
-          updatedAt: now,
-        },
-        diagnostics,
-      });
     },
     { body: CreativeDiagnosticInputSchema },
   );
@@ -470,15 +437,11 @@ function routes(records: CreativeQualityRecordService): RouteContribution[] {
       );
       if (!parsed.success)
         return problem(context, 400, "VALIDATION_ERROR", "问题确认内容无效。");
-      return context.json(
-        wire(
-          records.create("acknowledgement", {
-            projectId: parsed.data.projectId,
-            parentId: parsed.data.diagnosticId,
-            value: { ...parsed.data, createdAt: new Date().toISOString() },
-          }),
-        ),
-        201,
+      return problem(
+        context,
+        409,
+        "UNSUPPORTED_OPERATION",
+        "旧兼容诊断缺少实际质量基准，不再新增问题确认；已有确认仅为历史声明，不证明修复或质量通过。请在独立评议中明确记录新的人工决定。",
       );
     },
     { body: CreativeAcknowledgementInputSchema, status: 201 },
@@ -500,24 +463,12 @@ function routes(records: CreativeQualityRecordService): RouteContribution[] {
     "/api/v2/adaptations/{id}/episode-analysis",
     "adaptation-analysis.run",
     (context) => {
-      const adaptationId = context.req.param("id");
-      records
-        .list("episode-analysis", { parentId: adaptationId })
-        .forEach((item) => records.remove(item.id));
-      const value = records.create("episode-analysis", {
-        parentId: adaptationId,
-        value: {
-          adaptationId,
-          episodeCount: 0,
-          hookCoverage: 0,
-          cliffhangerCoverage: 0,
-          outlineCoverage: 0,
-          overallScore: 0,
-          summary: "尚需补充分集钩子、悬念和大纲资料后重新分析。",
-          suggestions: ["为每一集补充开场钩子与结尾悬念。"],
-        },
-      });
-      return context.json(wire(value), 201);
+      return problem(
+        context,
+        409,
+        "UNSUPPORTED_OPERATION",
+        "旧分集分析未读取实际分集而填写零分／零覆盖；已停止新生成和自动替换旧历史。原记录保持未认证，正式结构与质量请在实际来源上明确评议。",
+      );
     },
     { params: idParams, status: 201 },
   );
@@ -822,6 +773,16 @@ export const creativeQualityPlugin = definePlugin({
   },
   ui: [
     {
+      id: "creative-quality.panel.narrative-review",
+      pluginId: "creative-quality",
+      kind: "panel",
+      metadata: {
+        slot: "project.tools",
+        title: "质量报告",
+        toolKey: "quality-review",
+      },
+    },
+    {
       id: "creative-quality.route.workspace",
       pluginId: "creative-quality",
       kind: "route",
@@ -893,9 +854,13 @@ export const creativeQualityPlugin = definePlugin({
       `,
     },
     ...creativeIntelligenceQualityMigrations,
+    narrativeQualityMigration,
+    narrativeLocalQualityMigration,
   ],
   apply: (context) => {
     registerCreationQuality(context);
+    registerNarrativeQuality(context);
+    registerQualityProjectLineage(context);
     const records = makeService(context);
     context.effect(
       () => provideService(context, CREATIVE_QUALITY_SERVICE, records),

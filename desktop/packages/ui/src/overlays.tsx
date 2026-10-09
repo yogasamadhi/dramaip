@@ -91,7 +91,13 @@ const DialogDescription = forwardRef<
 ));
 DialogDescription.displayName = "Dialog.Description";
 
-export const Dialog = Object.assign(DialogPrimitive.Root, {
+// Radix Root is shared by Dialog and Drawer. Do not attach both sets of
+// statics to it: the second Object.assign would overwrite the first Content.
+const DialogRoot = (
+  props: ComponentPropsWithoutRef<typeof DialogPrimitive.Root>,
+) => <DialogPrimitive.Root {...props} />;
+
+export const Dialog = Object.assign(DialogRoot, {
   Trigger: DialogPrimitive.Trigger,
   Close: DialogPrimitive.Close,
   Title: DialogTitle,
@@ -216,7 +222,11 @@ const DrawerContent = forwardRef<
 );
 DrawerContent.displayName = "Drawer.Content";
 
-export const Drawer = Object.assign(DialogPrimitive.Root, {
+const DrawerRoot = (
+  props: ComponentPropsWithoutRef<typeof DialogPrimitive.Root>,
+) => <DialogPrimitive.Root {...props} />;
+
+export const Drawer = Object.assign(DrawerRoot, {
   Trigger: DialogPrimitive.Trigger,
   Close: DialogPrimitive.Close,
   Title: DialogTitle,

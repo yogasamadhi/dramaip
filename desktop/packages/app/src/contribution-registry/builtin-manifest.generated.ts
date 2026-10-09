@@ -53,6 +53,18 @@ export const BUILTIN_UI_MANIFEST = {
     metadataHash:
       "978c474ed825fb7a0cd76d30a9113a4475883eec9318c12ee6ff8b21e0f2d946",
   },
+  "automation.navigation.pending": {
+    pluginId: "automation",
+    kind: "navigation",
+    metadata: {
+      section: "main",
+      order: 25,
+      label: "待确认",
+      to: "/pending",
+    },
+    metadataHash:
+      "539d5721f8ee692929edda6f924fddf8a4eed49936be3b44b7597fea020d1480",
+  },
   "automation.navigation.tasks": {
     pluginId: "automation",
     kind: "navigation",
@@ -74,6 +86,16 @@ export const BUILTIN_UI_MANIFEST = {
     },
     metadataHash:
       "d31246261653517cbe07f4f5dfb5970f8fd83bd428ec0ada30d283f18e6e0354",
+  },
+  "automation.route.pending": {
+    pluginId: "automation",
+    kind: "route",
+    metadata: {
+      path: "/pending",
+      title: "待确认",
+    },
+    metadataHash:
+      "05891dd185ee31eede033774e925734183eaec871799a1f2c7a0bca44fad6642",
   },
   "automation.route.tasks": {
     pluginId: "automation",
@@ -106,6 +128,17 @@ export const BUILTIN_UI_MANIFEST = {
     },
     metadataHash:
       "3b441f5d55eb96fa5eeb7a50742e9638821b7d7108b02e6f3b1c5d52ffc720a8",
+  },
+  "creative-quality.panel.narrative-review": {
+    pluginId: "creative-quality",
+    kind: "panel",
+    metadata: {
+      slot: "project.tools",
+      title: "质量报告",
+      toolKey: "quality-review",
+    },
+    metadataHash:
+      "db48bf441569a62399f99b2c48c383bd027ffda5ec3e90c5dccc185c264566ab",
   },
   "creative-quality.route.workspace": {
     pluginId: "creative-quality",
@@ -233,6 +266,50 @@ export const BUILTIN_UI_MANIFEST = {
     metadataHash:
       "72980d35526f0305c0b6e6e2b26c63261d805bef861d544693d2dbeafdddd3cd",
   },
+  "production.panel.adaptation-strategy": {
+    pluginId: "production",
+    kind: "panel",
+    metadata: {
+      slot: "project.tools",
+      title: "独立改编策略",
+      toolKey: "adaptation-strategy",
+    },
+    metadataHash:
+      "9d3c51b740c48170d49cfca4d062aac5f4efe2cfed9de0b287d5240fe362eef9",
+  },
+  "production.panel.diagnosis": {
+    pluginId: "production",
+    kind: "panel",
+    metadata: {
+      slot: "project.tools",
+      title: "改编诊断",
+      toolKey: "adaptation-diagnosis",
+    },
+    metadataHash:
+      "c45ed3f0543c074fd5618feaa44dfd01d84516954fb45d6ff7b4b721449061ac",
+  },
+  "production.panel.episode-development": {
+    pluginId: "production",
+    kind: "panel",
+    metadata: {
+      slot: "project.tools",
+      title: "单集开发",
+      toolKey: "episode-development",
+    },
+    metadataHash:
+      "48012a391a12cc8174b960dc64cb292829d749e8d93a6c8d529f005e14c056e5",
+  },
+  "production.panel.season-plan": {
+    pluginId: "production",
+    kind: "panel",
+    metadata: {
+      slot: "project.tools",
+      title: "整季方案",
+      toolKey: "season-plan",
+    },
+    metadataHash:
+      "4fb0048d669229a86d1c504310edbbee690c6bde70fdcc24577bfa855897ce94",
+  },
   "production.route.workspace": {
     pluginId: "production",
     kind: "route",
@@ -327,6 +404,16 @@ export const BUILTIN_UI_MANIFEST = {
     },
     metadataHash:
       "27adb5452f11f7ecbeee29000d789ee1352f0242b8507cb1dcf277c1749182f4",
+  },
+  "timeline.panel.render-jobs": {
+    pluginId: "timeline",
+    kind: "panel",
+    metadata: {
+      slot: "production.renders",
+      title: "本地实验静音渲染",
+    },
+    metadataHash:
+      "d705f84648785bcd4f1cb300daec9e4e56c7b11fecefa6354e4b7dafab1bf7c4",
   },
   "timeline.toolbar.commands": {
     pluginId: "timeline",

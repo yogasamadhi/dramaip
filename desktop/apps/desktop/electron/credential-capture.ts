@@ -58,6 +58,7 @@ export class CredentialCaptureManager {
   constructor(
     private readonly vault: LocalCredentialVault,
     private readonly preloadPath: string,
+    private readonly background = false,
   ) {}
 
   register(): void {
@@ -138,13 +139,15 @@ export class CredentialCaptureManager {
       minimizable: false,
       maximizable: false,
       show: false,
-      modal: Boolean(parent),
+      ...(this.background ? { focusable: false, skipTaskbar: true } : {}),
+      modal: !this.background && Boolean(parent),
       ...(parent ? { parent } : {}),
       webPreferences: {
         preload: this.preloadPath,
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,
+        ...(this.background ? { backgroundThrottling: false } : {}),
         additionalArguments: [`${CREDENTIAL_CAPTURE_ARG}${captureSessionId}`],
       },
     });
@@ -164,7 +167,7 @@ export class CredentialCaptureManager {
     await window.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(html(request.label ?? request.purpose, mode))}`,
     );
-    window.show();
+    if (!this.background) window.show();
     return this.result(state);
   }
 

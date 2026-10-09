@@ -1,5 +1,9 @@
 import { optionalService } from "@dramaip/plugin-api/internal";
-import { CREATION_WORKFLOW_SERVICE } from "@dramaip/contracts/creation";
+import {
+  CREATION_WORKFLOW_SERVICE,
+  type CreationInput,
+} from "@dramaip/contracts/creation";
+import { createHash } from "node:crypto";
 import { createRoute } from "@hono/zod-openapi";
 import {
   AGENT_TASK_RUNNER_SERVICE,
@@ -129,6 +133,9 @@ function route(
 ): RouteContribution {
   return defineRouteContribution({
     ...metadata,
+    ...(metadata.id === "writing:continue-chapter"
+      ? { policy: { idempotencyReplay: "handler" as const } }
+      : {}),
     declaration: openapi,
     handler,
   });
@@ -199,8 +206,21 @@ export const writingAdvancedMigrations: readonly PluginMigration[] = [
 export function writingAdvancedRoutes(
   context: PluginContext,
   chapters: WritingChapterService,
+  createContinuation: (proposal: Chapter) => Chapter,
 ): readonly RouteContribution[] {
   const idParams = z.object({ id: z.string().uuid() });
+  const continuations = new Map<
+    string,
+    { hash: string; response: Promise<Response> }
+  >();
+  let disposed = false;
+  context.effect(
+    () => () => {
+      disposed = true;
+      continuations.clear();
+    },
+    "requests:continue-chapter",
+  );
   return [
     route(
       {
@@ -333,115 +353,200 @@ export function writingAdvancedRoutes(
             "VALIDATION_ERROR",
             "续写参数或 Idempotency-Key 无效。",
           );
-        const previous = replay(context, "continue-chapter", idempotencyKey);
-        if (previous) return requestContext.json(previous, 202);
-        const source = chapters.get(input.data.sourceChapterId);
-        if (!source || source.projectId !== requestContext.req.param("id"))
-          return problem(
-            requestContext,
-            404,
-            "NOT_FOUND",
-            "未找到要承接的章节。",
-          );
-        if (source.version !== input.data.baseVersion)
-          return problem(
-            requestContext,
-            409,
-            "CONFLICT",
-            "上一章已变化，请刷新后重试。",
-          );
-        if (!source.content.trim())
-          return problem(
-            requestContext,
-            409,
-            "TASK_REJECTED",
-            "请先完成当前章节正文。",
-          );
-        const targetReplay = replay(
-          context,
-          "continue-target",
-          idempotencyKey,
-        ) as { id?: string } | undefined;
-        const next = targetReplay?.id
-          ? chapters.get(targetReplay.id)
-          : chapters.create({
-              projectId: source.projectId,
-              title: `第 ${chapters.list(source.projectId).length + 1} 章`,
-            });
-        if (!next || next.projectId !== source.projectId)
-          return problem(
-            requestContext,
-            409,
-            "CONFLICT",
-            "续章目标已失效，请从当前章节重新发起。",
-          );
-        if (!targetReplay)
-          recordReplay(context, "continue-target", idempotencyKey, {
-            id: next.id,
-          });
-        const runner = optionalService<AgentTaskRunnerService>(
-          context,
-          AGENT_TASK_RUNNER_SERVICE,
-        );
-        if (!runner) {
-          return problem(
-            requestContext,
-            409,
-            "CAPABILITY_UNAVAILABLE",
-            "Agent Runtime 尚未就绪。",
-          );
+        const requestHash = createHash("sha256")
+          .update(
+            JSON.stringify({
+              projectId: requestContext.req.param("id"),
+              input: input.data,
+            }),
+          )
+          .digest("hex");
+        const pending = continuations.get(idempotencyKey);
+        if (pending) {
+          if (pending.hash !== requestHash)
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              "同一续章幂等标识不能用于不同项目、来源或创作要求。",
+            );
+          return (await pending.response).clone();
         }
-        try {
+        const run = async (): Promise<Response> => {
+          if (disposed)
+            return problem(
+              requestContext,
+              409,
+              "CAPABILITY_UNAVAILABLE",
+              "写作服务正在关闭。",
+            );
+          const targetReplay = replay(
+            context,
+            "continue-target",
+            idempotencyKey,
+          ) as { id?: string; requestHash?: string } | undefined;
+          if (targetReplay && targetReplay.requestHash !== requestHash)
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              targetReplay.requestHash
+                ? "同一续章幂等标识不能用于不同项目、来源或创作要求。"
+                : "历史续章目标缺少完整请求绑定，请从运行历史继续；不会用旧标识创建新的章节。",
+            );
+          const previous = replay(context, "continue-chapter", idempotencyKey);
+          if (previous) return requestContext.json(previous, 202);
+          const source = chapters.get(input.data.sourceChapterId);
+          if (!source || source.projectId !== requestContext.req.param("id"))
+            return problem(
+              requestContext,
+              404,
+              "NOT_FOUND",
+              "未找到要承接的章节。",
+            );
+          if (source.version !== input.data.baseVersion)
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              "上一章已变化，请刷新后重试。",
+            );
+          if (!source.content.trim())
+            return problem(
+              requestContext,
+              409,
+              "TASK_REJECTED",
+              "请先完成当前章节正文。",
+            );
+          const runner = optionalService<AgentTaskRunnerService>(
+            context,
+            AGENT_TASK_RUNNER_SERVICE,
+          );
           const workflowService = optionalService(
             context,
             CREATION_WORKFLOW_SERVICE,
           );
-          if (!workflowService) throw new Error("创作工作流未启用。");
-          const created = workflowService.start(
-            {
-              projectId: source.projectId,
-              operation: "chapter",
-              targetId: next.id,
-              baseVersion: next.version,
-              engineKind: input.data.engineKind,
-              model: input.data.model,
-              instruction:
-                input.data.prompt ||
-                "承接上一章结尾与全书规划，推进新的剧情，生成下一章完整候选正文。",
-              wordGoal: input.data.wordGoal,
-              sourceIds: [],
-            },
-            idempotencyKey,
-          );
-          const workflow = await workflowService.launch(created.id);
-          if (
-            !workflow.runId ||
-            !workflow.sessionId ||
-            workflow.stage === "failed"
-          )
-            throw new Error(workflow.error ?? "创作运行未成功启动。");
-          const started = {
-            taskId: workflow.taskId,
-            runId: workflow.runId,
-            sessionId: workflow.sessionId,
+          if (!runner || !workflowService?.preflight)
+            return problem(
+              requestContext,
+              409,
+              "CAPABILITY_UNAVAILABLE",
+              "创作运行或无写入预检尚未就绪，不创建续章。",
+            );
+          const all = chapters.list(source.projectId);
+          const at = new Date().toISOString();
+          const proposal: Chapter = {
+            id: crypto.randomUUID(),
+            projectId: source.projectId,
+            title: `第 ${all.length + 1} 章`,
+            orderIndex:
+              all.reduce(
+                (max, chapter) => Math.max(max, chapter.orderIndex),
+                -1,
+              ) + 1,
+            summary: "",
+            content: "",
+            version: 0,
+            createdAt: at,
+            updatedAt: at,
           };
-          const response = {
-            chapter: next,
-            run: {
-              ...started,
-              chapterId: next.id,
-              autoCommitWhenReady: false,
+          const target = targetReplay?.id
+            ? chapters.get(targetReplay.id)
+            : proposal;
+          if (!target || target.projectId !== source.projectId)
+            return problem(
+              requestContext,
+              409,
+              "CONFLICT",
+              "续章目标已失效，请从当前章节重新发起。",
+            );
+          const creation: CreationInput = {
+            projectId: source.projectId,
+            operation: "chapter",
+            targetId: target.id,
+            baseVersion: target.version,
+            engineKind: input.data.engineKind,
+            model: input.data.model,
+            instruction:
+              input.data.prompt ||
+              "承接上一章结尾与全书规划，推进新的剧情，生成下一章完整候选正文。",
+            wordGoal: input.data.wordGoal,
+            sourceIds: [],
+            narrativeContextRequest: input.data.narrativeContextRequest ?? {
+              format: "narrative-context-v1",
+              chapters: [
+                {
+                  id: source.id,
+                  version: source.version,
+                  representation: "original",
+                },
+              ],
             },
           };
-          recordReplay(context, "continue-chapter", idempotencyKey, response);
-          return requestContext.json(response, 202);
-        } catch (error) {
-          return problem(
-            requestContext,
-            409,
-            "ENGINE_UNAVAILABLE",
-            error instanceof Error ? error.message : "续写启动失败。",
-          );
+          try {
+            // No await between real allocation/source checks and Writing's
+            // create + normal workflow start. Peer transactions stay separate.
+            workflowService.preflight(
+              creation,
+              targetReplay ? undefined : { prospectiveChapter: target },
+            );
+          } catch (error) {
+            return problem(
+              requestContext,
+              409,
+              "CONTEXT_REJECTED",
+              error instanceof Error
+                ? error.message
+                : "续章来源预检失败，不创建空章节。",
+            );
+          }
+          try {
+            const next = targetReplay ? target : createContinuation(target);
+            if (!targetReplay)
+              recordReplay(context, "continue-target", idempotencyKey, {
+                id: next.id,
+                requestHash,
+              });
+            // Recompile/freeze the actual persisted target in the normal path.
+            // Post-start failures retain this exact target and workflow.
+            const created = workflowService.start(creation, idempotencyKey);
+            const workflow = await workflowService.launch(created.id);
+            if (
+              !workflow.runId ||
+              !workflow.sessionId ||
+              workflow.stage === "failed"
+            )
+              throw new Error(workflow.error ?? "创作运行未成功启动。");
+            const response = {
+              chapter: next,
+              run: {
+                taskId: workflow.taskId,
+                runId: workflow.runId,
+                sessionId: workflow.sessionId,
+                chapterId: next.id,
+                autoCommitWhenReady: false,
+              },
+            };
+            recordReplay(context, "continue-chapter", idempotencyKey, response);
+            return requestContext.json(response, 202);
+          } catch (error) {
+            return problem(
+              requestContext,
+              409,
+              "ENGINE_UNAVAILABLE",
+              error instanceof Error
+                ? error.message
+                : "续写启动失败，已创建的目标与运行保留在历史中。",
+            );
+          }
+        };
+        const response = Promise.resolve().then(run);
+        continuations.set(idempotencyKey, { hash: requestHash, response });
+        try {
+          return (await response).clone();
+        } finally {
+          if (continuations.get(idempotencyKey)?.response === response)
+            continuations.delete(idempotencyKey);
         }
       },
     ),

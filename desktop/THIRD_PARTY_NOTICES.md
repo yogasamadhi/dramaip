@@ -25,9 +25,6 @@ Bundled runtime components:
   in the packaged application resources. Desktop's build manifests are generated
   separately; the vendor snapshot is not modified.
 
-Reference-only vendor snapshots under `vendor/` are not automatically bundled.
-Their own license files remain authoritative for those sources.
-
 The optional FFmpeg+x264 renderer is not part of DramaIP Desktop. It must be
 installed by an explicit user action as a separately signed process and must
 ship its own license, corresponding source offer, build recipe and artifact

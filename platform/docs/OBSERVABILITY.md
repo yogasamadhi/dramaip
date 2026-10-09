@@ -1,5 +1,7 @@
 # Platform 可观测性 Runbook
 
+本手册监测可选云服务的运行健康，不替代 [产品定位](../../docs/product/POSITIONING.md) 中小说与改编两路的采用、连续性和交付质量评价。请求量、token 和任务成功不是内容价值指标；产品漏斗设计仍按 [执行计划](../../docs/PLAN.md) 单独验收，不扩大正文、Prompt 或私人创作数据的采集范围。
+
 Platform 的固定数据流如下，Desktop 不接入此栈：
 
 - Metrics：Java `/actuator/prometheus` → Prometheus → Grafana。

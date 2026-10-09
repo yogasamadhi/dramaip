@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
-import { openProductionStage } from "./project-tools";
+import { selectWorkspaceObject, openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -23,30 +23,22 @@ test.afterAll(async () => {
   await rm(userData, { recursive: true, force: true });
 });
 
-test("canonical timeline 提供已验证 NLE 交付及受控的媒体重链接出口", async () => {
+test("canonical timeline 提供 NLE 交付与明确媒体核验，不把占位清单或元数据当作成片", async () => {
   const page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page
-    .getByRole("combobox", { name: "剧本" })
-    .selectOption({ label: "第 1 集剧本" });
-  await page
-    .getByRole("combobox", { name: "场景" })
-    .selectOption({ label: "场景 1：雨夜门口" });
-  await page
-    .getByRole("combobox", { name: "分镜" })
-    .selectOption({ label: "镜头 1：门缝中的雨夜" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "剧本", { label: "第 1 集剧本" });
+  await selectWorkspaceObject(page, "场景", { label: "场景 1：雨夜门口" });
+  await selectWorkspaceObject(page, "分镜", { label: "镜头 1：门缝中的雨夜" });
   await openProductionStage(page, "多轨时间线");
 
   const editor = page.getByLabel("多轨时间线编辑器");
-  const delivery = editor.getByLabel("已验证 NLE 交付");
+  const delivery = editor.getByLabel("NLE 交付与媒体核验");
   await expect(delivery).toBeVisible();
   await expect(
     delivery.getByRole("button", { name: "导出 FCPXML" }),
@@ -60,7 +52,9 @@ test("canonical timeline 提供已验证 NLE 交付及受控的媒体重链接�
   await expect(
     delivery.getByRole("button", { name: "导出重链接清单" }),
   ).toBeVisible();
+  await expect(delivery.getByText(/NLE 交付不包含 MP4 成片/)).toBeVisible();
+  await expect(delivery).toContainText("存档 SHA-256 不等于字节／权利核验");
   await expect(
-    delivery.getByText(/MP4 仅在 Provider 显式声明 timeline_render/),
+    delivery.getByRole("button", { name: "核验清单媒体完整字节", exact: true }),
   ).toBeVisible();
 });

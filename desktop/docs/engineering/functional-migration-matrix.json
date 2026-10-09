@@ -3,24 +3,25 @@
   "productBaseline": "desktop/legacy/desktop (read-only)",
   "sourceOfTruth": "studio/e2e Effective Runtime Graph OpenAPI",
   "baselineSha256": "57eadb81adbda208978d5f46ca36c26a5a128ab303dbae2cff789bdd372cab3c",
-  "effectiveOpenApiSha256": "02f60e6f26a82b6e6c39245803d66456ba23ef96c07f624572b6ee1a98369974",
+  "effectiveOpenApiSha256": "38aa12ce150da22fd04d3536219cfa5853384b8950da3249af1110fe6bec0773",
   "expected": {
     "legacyOperations": 217,
     "retiredGenericOperations": 5,
+    "retiredUnsupportedOperations": 3,
     "electronE2eJourneys": 34,
     "visualBaselines": 12
   },
   "actual": {
-    "effectiveOperations": 577,
-    "uniqueOperationIds": 577,
-    "uniqueMethodPaths": 577,
-    "newV2Operations": 366
+    "effectiveOperations": 745,
+    "uniqueOperationIds": 745,
+    "uniqueMethodPaths": 745,
+    "newV2Operations": 534
   },
   "summary": {
-    "implemented": 210,
+    "implemented": 207,
     "not_migrated": 0,
     "replaced": 2,
-    "retired": 5,
+    "retired": 8,
     "byOwner": {
       "retired-generic-router": 5,
       "delivery": 11,
@@ -243,16 +244,25 @@
         "path": "/api/v2/adaptations/{id}/episode-analysis",
         "profile": "studio/e2e"
       },
-      "migration": "owned-forward-only",
-      "event": "same-transaction-domain-event",
+      "migration": "not-applicable",
+      "event": "not-applicable",
       "client": "@dramaip/client#adaptation-analysis.run",
-      "uiContribution": "creative-quality",
+      "uiContribution": "not-applicable",
       "automatedEvidence": [
         "effective-runtime-openapi",
         "generated-client",
         "runtime-conformance"
       ],
-      "status": "implemented"
+      "retirement": {
+        "reason": "Zero-filled analysis without reading actual episodes; no new generation or automatic replacement of historical records.",
+        "compatibility": "HTTP 409 UNSUPPORTED_OPERATION; no new reports, tasks or events, no silent replacement operation",
+        "history": "Original persisted values retained; no quality/source/permission backfill",
+        "evidence": [
+          "packages/runtime/src/workspace-writing.test.ts: legacy quality claims are unsupported",
+          "tests/electron/legacy-quality-history.spec.ts"
+        ]
+      },
+      "status": "retired"
     },
     {
       "legacyBehavior": "production-structure.reorderEpisodes",
@@ -1829,16 +1839,25 @@
         "path": "/api/v2/creative/diagnostics",
         "profile": "studio/e2e"
       },
-      "migration": "owned-forward-only",
-      "event": "same-transaction-domain-event",
+      "migration": "not-applicable",
+      "event": "not-applicable",
       "client": "@dramaip/client#creative.runDiagnostics",
-      "uiContribution": "creative-quality",
+      "uiContribution": "not-applicable",
       "automatedEvidence": [
         "effective-runtime-openapi",
         "generated-client",
         "runtime-conformance"
       ],
-      "status": "implemented"
+      "retirement": {
+        "reason": "Fixed 72 and curve values without content reads; new diagnostic generation is unsupported, historical records remain unverified.",
+        "compatibility": "HTTP 409 UNSUPPORTED_OPERATION; no new reports, tasks or events, no silent replacement operation",
+        "history": "Original persisted values retained; no quality/source/permission backfill",
+        "evidence": [
+          "packages/runtime/src/workspace-writing.test.ts: legacy quality claims are unsupported",
+          "tests/electron/legacy-quality-history.spec.ts"
+        ]
+      },
+      "status": "retired"
     },
     {
       "legacyBehavior": "creative.acknowledgeIssue",
@@ -1855,16 +1874,25 @@
         "path": "/api/v2/creative/issue-acknowledgements",
         "profile": "studio/e2e"
       },
-      "migration": "owned-forward-only",
-      "event": "same-transaction-domain-event",
+      "migration": "not-applicable",
+      "event": "not-applicable",
       "client": "@dramaip/client#creative.acknowledgeIssue",
-      "uiContribution": "creative-quality",
+      "uiContribution": "not-applicable",
       "automatedEvidence": [
         "effective-runtime-openapi",
         "generated-client",
         "runtime-conformance"
       ],
-      "status": "implemented"
+      "retirement": {
+        "reason": "No new certification against unsupported legacy diagnostics; old declarations remain read-only and unverified.",
+        "compatibility": "HTTP 409 UNSUPPORTED_OPERATION; no new reports, tasks or events, no silent replacement operation",
+        "history": "Original persisted values retained; no quality/source/permission backfill",
+        "evidence": [
+          "packages/runtime/src/workspace-writing.test.ts: legacy quality claims are unsupported",
+          "tests/electron/legacy-quality-history.spec.ts"
+        ]
+      },
+      "status": "retired"
     },
     {
       "legacyBehavior": "platform-delivery.adoptVariant",
@@ -5679,6 +5707,54 @@
       ]
     },
     {
+      "operationId": "adaptationStrategies.adopt",
+      "method": "POST",
+      "path": "/api/v2/adaptation-strategies/{id}/adopt",
+      "tags": [
+        "adaptation-strategies"
+      ]
+    },
+    {
+      "operationId": "adaptationStrategies.discard",
+      "method": "POST",
+      "path": "/api/v2/adaptation-strategies/{id}/discard",
+      "tags": [
+        "adaptation-strategies"
+      ]
+    },
+    {
+      "operationId": "adaptationStrategies.get",
+      "method": "GET",
+      "path": "/api/v2/adaptation-strategies/{id}",
+      "tags": [
+        "adaptation-strategies"
+      ]
+    },
+    {
+      "operationId": "adaptationStrategies.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/adaptation-strategies",
+      "tags": [
+        "adaptation-strategies"
+      ]
+    },
+    {
+      "operationId": "adaptationStrategies.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/adaptation-strategy-sources",
+      "tags": [
+        "adaptation-strategies"
+      ]
+    },
+    {
+      "operationId": "adaptationStrategies.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/adaptation-strategy-previews",
+      "tags": [
+        "adaptation-strategies"
+      ]
+    },
+    {
       "operationId": "agent-context.createPreview",
       "method": "POST",
       "path": "/api/v2/agent-context-previews",
@@ -5780,6 +5856,14 @@
       "path": "/api/v2/agent-schemes/{id}",
       "tags": [
         "automation"
+      ]
+    },
+    {
+      "operationId": "agentUsageObservations.list",
+      "method": "GET",
+      "path": "/api/v2/agent-runs/{runId}/usage-observations",
+      "tags": [
+        "agents"
       ]
     },
     {
@@ -5887,6 +5971,84 @@
       ]
     },
     {
+      "operationId": "audio-resolutions.confirm",
+      "method": "POST",
+      "path": "/api/v2/audio-resolutions/{id}/confirm",
+      "tags": []
+    },
+    {
+      "operationId": "audio-resolutions.discard",
+      "method": "POST",
+      "path": "/api/v2/audio-resolutions/{id}/discard",
+      "tags": []
+    },
+    {
+      "operationId": "audio-resolutions.get",
+      "method": "GET",
+      "path": "/api/v2/audio-resolutions/{id}",
+      "tags": []
+    },
+    {
+      "operationId": "audio-resolutions.list",
+      "method": "GET",
+      "path": "/api/v2/timelines/{id}/audio-resolution-previews",
+      "tags": []
+    },
+    {
+      "operationId": "audio-resolutions.options",
+      "method": "GET",
+      "path": "/api/v2/timelines/{id}/audio-source-options",
+      "tags": []
+    },
+    {
+      "operationId": "audio-resolutions.preview",
+      "method": "POST",
+      "path": "/api/v2/timelines/{id}/audio-resolution-previews",
+      "tags": []
+    },
+    {
+      "operationId": "audio-resolutions.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/audio-resolution-summaries",
+      "tags": []
+    },
+    {
+      "operationId": "audio-revisions.confirm",
+      "method": "POST",
+      "path": "/api/v2/audio-revisions/{id}/confirm",
+      "tags": []
+    },
+    {
+      "operationId": "audio-revisions.discard",
+      "method": "POST",
+      "path": "/api/v2/audio-revisions/{id}/discard",
+      "tags": []
+    },
+    {
+      "operationId": "audio-revisions.get",
+      "method": "GET",
+      "path": "/api/v2/audio-revisions/{id}",
+      "tags": []
+    },
+    {
+      "operationId": "audio-revisions.list",
+      "method": "GET",
+      "path": "/api/v2/audio-tracks/{id}/revision-previews",
+      "tags": []
+    },
+    {
+      "operationId": "audio-revisions.preview",
+      "method": "POST",
+      "path": "/api/v2/audio-tracks/{id}/revision-previews",
+      "tags": []
+    },
+    {
+      "operationId": "audio-revisions.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/audio-revision-summaries",
+      "tags": []
+    },
+    {
       "operationId": "audio.create",
       "method": "POST",
       "path": "/api/v2/audio",
@@ -5924,6 +6086,62 @@
       "path": "/api/v2/audio/{id}",
       "tags": [
         "media"
+      ]
+    },
+    {
+      "operationId": "author-intents.adopt",
+      "method": "POST",
+      "path": "/api/v2/author-intents/{id}/adopt",
+      "tags": [
+        "author-intents"
+      ]
+    },
+    {
+      "operationId": "author-intents.current",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/author-intent",
+      "tags": [
+        "author-intents"
+      ]
+    },
+    {
+      "operationId": "author-intents.discard",
+      "method": "POST",
+      "path": "/api/v2/author-intents/{id}/discard",
+      "tags": [
+        "author-intents"
+      ]
+    },
+    {
+      "operationId": "author-intents.get",
+      "method": "GET",
+      "path": "/api/v2/author-intents/{id}",
+      "tags": [
+        "author-intents"
+      ]
+    },
+    {
+      "operationId": "author-intents.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/author-intents",
+      "tags": [
+        "author-intents"
+      ]
+    },
+    {
+      "operationId": "author-intents.preview",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/author-intents",
+      "tags": [
+        "author-intents"
+      ]
+    },
+    {
+      "operationId": "author-intents.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/author-intent-sources",
+      "tags": [
+        "author-intents"
       ]
     },
     {
@@ -5983,6 +6201,14 @@
       ]
     },
     {
+      "operationId": "change-previews.revisionEffort",
+      "method": "GET",
+      "path": "/api/v2/change-previews/{id}/revision-effort",
+      "tags": [
+        "automation"
+      ]
+    },
+    {
       "operationId": "chapter-memories.create",
       "method": "POST",
       "path": "/api/v2/chapter-memories",
@@ -6020,6 +6246,14 @@
       "path": "/api/v2/chapter-memories/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "chapters.adoptions",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/chapter-adoptions",
+      "tags": [
+        "chapters"
       ]
     },
     {
@@ -6151,6 +6385,14 @@
       ]
     },
     {
+      "operationId": "creation.execution",
+      "method": "GET",
+      "path": "/api/v2/workflows/creation/{id}/execution",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
       "operationId": "creation.get",
       "method": "GET",
       "path": "/api/v2/workflows/creation/{id}",
@@ -6178,6 +6420,22 @@
       "operationId": "creation.rebase",
       "method": "POST",
       "path": "/api/v2/workflows/creation/{id}/rebase",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.recordMerge",
+      "method": "GET",
+      "path": "/api/v2/workflows/creation/{id}/record-merge",
+      "tags": [
+        "creation"
+      ]
+    },
+    {
+      "operationId": "creation.recordRebase",
+      "method": "POST",
+      "path": "/api/v2/workflows/creation/{id}/record-rebase",
       "tags": [
         "creation"
       ]
@@ -6292,6 +6550,54 @@
       "path": "/api/v2/creative-fingerprint/settings",
       "tags": [
         "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "creativeOutcomes.continuationSummary",
+      "method": "GET",
+      "path": "/api/v2/creative-continuations/summary",
+      "tags": [
+        "creative-outcomes"
+      ]
+    },
+    {
+      "operationId": "creativeOutcomes.execution",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/creative-outcomes/executions/{workflowId}",
+      "tags": [
+        "creative-outcomes"
+      ]
+    },
+    {
+      "operationId": "creativeOutcomes.executions",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/creative-outcomes/executions",
+      "tags": [
+        "creative-outcomes"
+      ]
+    },
+    {
+      "operationId": "creativeOutcomes.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/creative-outcomes",
+      "tags": [
+        "creative-outcomes"
+      ]
+    },
+    {
+      "operationId": "creativeOutcomes.revisionEffort",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/creative-outcomes/revision-effort",
+      "tags": [
+        "creative-outcomes"
+      ]
+    },
+    {
+      "operationId": "creativeOutcomes.summary",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/creative-outcomes/summary",
+      "tags": [
+        "creative-outcomes"
       ]
     },
     {
@@ -6479,6 +6785,54 @@
       ]
     },
     {
+      "operationId": "diagnoses.adopt",
+      "method": "POST",
+      "path": "/api/v2/diagnoses/{id}/adopt",
+      "tags": [
+        "adaptation-diagnoses"
+      ]
+    },
+    {
+      "operationId": "diagnoses.discard",
+      "method": "POST",
+      "path": "/api/v2/diagnoses/{id}/discard",
+      "tags": [
+        "adaptation-diagnoses"
+      ]
+    },
+    {
+      "operationId": "diagnoses.get",
+      "method": "GET",
+      "path": "/api/v2/diagnoses/{id}",
+      "tags": [
+        "adaptation-diagnoses"
+      ]
+    },
+    {
+      "operationId": "diagnoses.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/diagnoses",
+      "tags": [
+        "adaptation-diagnoses"
+      ]
+    },
+    {
+      "operationId": "diagnoses.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/diagnosis-sources",
+      "tags": [
+        "adaptation-diagnoses"
+      ]
+    },
+    {
+      "operationId": "diagnoses.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/diagnosis-previews",
+      "tags": [
+        "adaptation-diagnoses"
+      ]
+    },
+    {
       "operationId": "episode-pacing-marks.create",
       "method": "POST",
       "path": "/api/v2/episode-pacing-marks",
@@ -6516,6 +6870,198 @@
       "path": "/api/v2/episode-pacing-marks/{id}",
       "tags": [
         "creative-quality"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.adoptScriptRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-script-revisions/{id}/adopt",
+      "tags": [
+        "author-script-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.adoptSourceRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-source-revisions/{id}/adopt",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.adoptTopologyRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-topology-revisions/{id}/adopt",
+      "tags": [
+        "author-topology-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.discardScriptRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-script-revisions/{id}/discard",
+      "tags": [
+        "author-script-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.discardSourceRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-source-revisions/{id}/discard",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.discardTopologyRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-topology-revisions/{id}/discard",
+      "tags": [
+        "author-topology-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.get",
+      "method": "GET",
+      "path": "/api/v2/episode-development/{id}",
+      "tags": [
+        "episode-development"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.getScriptRevision",
+      "method": "GET",
+      "path": "/api/v2/episode-script-revisions/{id}",
+      "tags": [
+        "author-script-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.getSourceRevision",
+      "method": "GET",
+      "path": "/api/v2/episode-source-revisions/{id}",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.getSourceRevisionContext",
+      "method": "GET",
+      "path": "/api/v2/episode-source-revisions/{id}/source-context",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.getTopologyRevision",
+      "method": "GET",
+      "path": "/api/v2/episode-topology-revisions/{id}",
+      "tags": [
+        "author-topology-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.impact",
+      "method": "GET",
+      "path": "/api/v2/episode-development/{id}/impact",
+      "tags": [
+        "episode-development"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-development",
+      "tags": [
+        "episode-development"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.listScriptRevisions",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-script-revisions",
+      "tags": [
+        "author-script-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.listSourceRevisions",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-source-revisions",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.listTopologyRevisions",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-topology-revisions",
+      "tags": [
+        "author-topology-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.previewScriptRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-development/{id}/script-revision-previews",
+      "tags": [
+        "author-script-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.previewSourceRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-development/{id}/source-revision-previews",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.previewTopologyRevision",
+      "method": "POST",
+      "path": "/api/v2/episode-development/{id}/topology-revision-previews",
+      "tags": [
+        "author-topology-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.scriptRevisionSummaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-script-revision-summaries",
+      "tags": [
+        "author-script-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.sourceRevisionSummaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-source-revision-summaries",
+      "tags": [
+        "author-source-revisions"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-development-sources",
+      "tags": [
+        "episode-development"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-development-summaries",
+      "tags": [
+        "episode-development"
+      ]
+    },
+    {
+      "operationId": "episodeDevelopments.topologyRevisionSummaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/episode-topology-revision-summaries",
+      "tags": [
+        "author-topology-revisions"
       ]
     },
     {
@@ -6676,6 +7222,14 @@
       "path": "/api/v2/foreshadowings/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "generation.costObservations",
+      "method": "GET",
+      "path": "/api/v2/generation-ledger/{id}/cost-observations",
+      "tags": [
+        "insights"
       ]
     },
     {
@@ -6927,6 +7481,14 @@
       ]
     },
     {
+      "operationId": "ip-twin.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/ip-twins/{snapshotId}",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
       "operationId": "likenessSubjects.attachPhoto",
       "method": "POST",
       "path": "/api/v2/likeness-subjects/{id}/photos",
@@ -7045,6 +7607,136 @@
       "tags": []
     },
     {
+      "operationId": "manuscripts.get",
+      "method": "GET",
+      "path": "/api/v2/manuscripts/{id}",
+      "tags": [
+        "delivery"
+      ]
+    },
+    {
+      "operationId": "manuscripts.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/manuscripts",
+      "tags": [
+        "delivery"
+      ]
+    },
+    {
+      "operationId": "manuscripts.preview",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/manuscripts",
+      "tags": [
+        "delivery"
+      ]
+    },
+    {
+      "operationId": "manuscripts.save",
+      "method": "POST",
+      "path": "/api/v2/manuscripts/{id}/save",
+      "tags": [
+        "delivery"
+      ]
+    },
+    {
+      "operationId": "media-byte-verifications.create",
+      "method": "POST",
+      "path": "/api/v2/media-records/{id}/byte-verifications",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "media-byte-verifications.get",
+      "method": "GET",
+      "path": "/api/v2/media-byte-verifications/{id}",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "media-byte-verifications.list",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/byte-verifications",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "media-byte-verifications.recover",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/byte-verifications/requests/{key}",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "operationId": "media-playback.describe",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/playback",
+      "tags": []
+    },
+    {
+      "operationId": "media-playback.read",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/playback/content",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.adopt",
+      "method": "POST",
+      "path": "/api/v2/media-source-reviews/{id}/adopt",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.discard",
+      "method": "POST",
+      "path": "/api/v2/media-source-reviews/{id}/discard",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.get",
+      "method": "GET",
+      "path": "/api/v2/media-source-reviews/{id}",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.list",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/source-reviews",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.preview",
+      "method": "POST",
+      "path": "/api/v2/media-records/{id}/source-reviews",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.record",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.status",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/source",
+      "tags": []
+    },
+    {
+      "operationId": "media-sources.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/media-source-review-summaries",
+      "tags": []
+    },
+    {
+      "operationId": "media.deliveryEvidence",
+      "method": "GET",
+      "path": "/api/v2/media-records/{id}/delivery-evidence",
+      "tags": []
+    },
+    {
       "operationId": "memory.create",
       "method": "POST",
       "path": "/api/v2/memory",
@@ -7082,6 +7774,158 @@
       "path": "/api/v2/memory/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "narrativeIndex.catalog",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-context-index",
+      "tags": [
+        "narrative-context-index"
+      ]
+    },
+    {
+      "operationId": "narrativeIndex.chapter",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-context-index/chapters/{chapterId}",
+      "tags": [
+        "narrative-context-index"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/narrative-local-reviews",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.decide",
+      "method": "POST",
+      "path": "/api/v2/narrative-local-reviews/{id}/decision",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.disposition",
+      "method": "POST",
+      "path": "/api/v2/narrative-local-reviews/{id}/dispositions",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.get",
+      "method": "GET",
+      "path": "/api/v2/narrative-local-reviews/{id}",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/narrative-local-reviews",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.preview",
+      "method": "POST",
+      "path": "/api/v2/projects/{id}/narrative-local-review-sources",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeLocalQuality.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/narrative-local-review-summaries",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeQuality.disposition",
+      "method": "POST",
+      "path": "/api/v2/narrative-quality-reports/{id}/dispositions",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeQuality.get",
+      "method": "GET",
+      "path": "/api/v2/narrative-quality-reports/{id}",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeQuality.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/narrative-quality-reports",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeQuality.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/narrative-quality-sources",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeQuality.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/narrative-quality-summaries",
+      "tags": [
+        "creative-quality"
+      ]
+    },
+    {
+      "operationId": "narrativeStoryIndex.catalog",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-story-index",
+      "tags": [
+        "narrative-story-index"
+      ]
+    },
+    {
+      "operationId": "narrativeSummaries.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-summaries/{summaryId}",
+      "tags": [
+        "knowledge"
+      ]
+    },
+    {
+      "operationId": "narrativeSummaries.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-summaries",
+      "tags": [
+        "knowledge"
+      ]
+    },
+    {
+      "operationId": "narrativeSummaries.scopes",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-summaries/scopes",
+      "tags": [
+        "knowledge"
+      ]
+    },
+    {
+      "operationId": "narrativeSummaries.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/narrative-summaries/summaries",
+      "tags": [
+        "knowledge"
       ]
     },
     {
@@ -7130,6 +7974,62 @@
       "path": "/api/v2/outlines/{id}",
       "tags": [
         "chapters"
+      ]
+    },
+    {
+      "operationId": "pilotPackages.get",
+      "method": "GET",
+      "path": "/api/v2/pilot-packages/{id}",
+      "tags": [
+        "pilot-packages"
+      ]
+    },
+    {
+      "operationId": "pilotPackages.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/pilot-packages",
+      "tags": [
+        "pilot-packages"
+      ]
+    },
+    {
+      "operationId": "pilotPackages.preview",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/pilot-packages",
+      "tags": [
+        "pilot-packages"
+      ]
+    },
+    {
+      "operationId": "pilotPackages.save",
+      "method": "POST",
+      "path": "/api/v2/pilot-packages/{id}/save",
+      "tags": [
+        "pilot-packages"
+      ]
+    },
+    {
+      "operationId": "platform-delivery.recoverRequest",
+      "method": "GET",
+      "path": "/api/v2/platform-delivery/requests/{id}",
+      "tags": [
+        "delivery"
+      ]
+    },
+    {
+      "operationId": "productionQualitySources.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/production-quality-sources/{recordId}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "productionQualitySources.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/production-quality-sources",
+      "tags": [
+        "production"
       ]
     },
     {
@@ -7226,6 +8126,14 @@
       "path": "/api/v2/provenance",
       "tags": [
         "creative-intelligence"
+      ]
+    },
+    {
+      "operationId": "provider-action-previews.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/provider-action-preview-summaries",
+      "tags": [
+        "automation"
       ]
     },
     {
@@ -7405,6 +8313,46 @@
       ]
     },
     {
+      "operationId": "review-media.createPackage",
+      "method": "POST",
+      "path": "/api/v2/episodes/{id}/media-review-packages",
+      "tags": [
+        "review"
+      ]
+    },
+    {
+      "operationId": "review-media.evidence",
+      "method": "GET",
+      "path": "/api/v2/review-packages/{id}/delivery-evidence",
+      "tags": [
+        "review"
+      ]
+    },
+    {
+      "operationId": "review-media.exportOriginal",
+      "method": "GET",
+      "path": "/api/v2/review-packages/{id}/media-review-export",
+      "tags": [
+        "review"
+      ]
+    },
+    {
+      "operationId": "review-media.preview",
+      "method": "GET",
+      "path": "/api/v2/episodes/{id}/media-review-preview",
+      "tags": [
+        "review"
+      ]
+    },
+    {
+      "operationId": "review-media.recoverRequest",
+      "method": "GET",
+      "path": "/api/v2/media-review-requests/{id}",
+      "tags": [
+        "review"
+      ]
+    },
+    {
       "operationId": "review.records.create",
       "method": "POST",
       "path": "/api/v2/review",
@@ -7442,6 +8390,14 @@
       "path": "/api/v2/review/{id}",
       "tags": [
         "review"
+      ]
+    },
+    {
+      "operationId": "revisions.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/revision-previews",
+      "tags": [
+        "revisions"
       ]
     },
     {
@@ -7541,11 +8497,51 @@
       ]
     },
     {
+      "operationId": "screenplayImport.discard",
+      "method": "DELETE",
+      "path": "/api/v2/screenplay-import-previews/{id}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
       "operationId": "screenplayImport.getPreview",
       "method": "GET",
       "path": "/api/v2/screenplay-import-previews/{id}",
       "tags": [
         "production"
+      ]
+    },
+    {
+      "operationId": "screenplayIntakes.commit",
+      "method": "POST",
+      "path": "/api/v2/screenplay-intakes/{id}/commit",
+      "tags": [
+        "screenplay-intakes"
+      ]
+    },
+    {
+      "operationId": "screenplayIntakes.discard",
+      "method": "DELETE",
+      "path": "/api/v2/screenplay-intakes/{id}",
+      "tags": [
+        "screenplay-intakes"
+      ]
+    },
+    {
+      "operationId": "screenplayIntakes.get",
+      "method": "GET",
+      "path": "/api/v2/screenplay-intakes/{id}",
+      "tags": [
+        "screenplay-intakes"
+      ]
+    },
+    {
+      "operationId": "screenplayIntakes.preview",
+      "method": "POST",
+      "path": "/api/v2/screenplay-intakes",
+      "tags": [
+        "screenplay-intakes"
       ]
     },
     {
@@ -7568,6 +8564,22 @@
       "operationId": "screenplays.update",
       "method": "PATCH",
       "path": "/api/v2/scripts/{id}/screenplay",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplaySources.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/screenplay-sources/{scriptId}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "screenplaySources.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/screenplay-sources",
       "tags": [
         "production"
       ]
@@ -7610,6 +8622,62 @@
       "path": "/api/v2/scripts/{id}",
       "tags": [
         "production"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.adopt",
+      "method": "POST",
+      "path": "/api/v2/season-plans/{id}/adopt",
+      "tags": [
+        "season-plans"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.discard",
+      "method": "POST",
+      "path": "/api/v2/season-plans/{id}/discard",
+      "tags": [
+        "season-plans"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.get",
+      "method": "GET",
+      "path": "/api/v2/season-plans/{id}",
+      "tags": [
+        "season-plans"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/season-plans",
+      "tags": [
+        "season-plans"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.reorder",
+      "method": "POST",
+      "path": "/api/v2/season-plans/{id}/reorder",
+      "tags": [
+        "season-plans"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/season-plan-sources",
+      "tags": [
+        "season-plans"
+      ]
+    },
+    {
+      "operationId": "seasonPlans.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/season-plan-previews",
+      "tags": [
+        "season-plans"
       ]
     },
     {
@@ -7722,6 +8790,14 @@
       "path": "/api/v2/shots/{id}",
       "tags": [
         "production"
+      ]
+    },
+    {
+      "operationId": "source-imports.getCommit",
+      "method": "GET",
+      "path": "/api/v2/source-imports/{id}/commit",
+      "tags": [
+        "source-imports"
       ]
     },
     {
@@ -7917,6 +8993,14 @@
       ]
     },
     {
+      "operationId": "story-simulations.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{id}/story-simulations/{simulationId}",
+      "tags": [
+        "creative-intelligence"
+      ]
+    },
+    {
       "operationId": "story.create",
       "method": "POST",
       "path": "/api/v2/story",
@@ -7954,6 +9038,166 @@
       "path": "/api/v2/story/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.adopt",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/adopt",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-assertions",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.discard",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/discard",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/story-assertions",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.replace",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/replace",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyAssertions.withdraw",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-assertions/{assertionId}/withdraw",
+      "tags": [
+        "story-assertions"
+      ]
+    },
+    {
+      "operationId": "storyboardAttribution.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/storyboard-attributions",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "storyboardAttribution.decide",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/storyboard-attributions/{id}/decision",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "storyboardAttribution.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/storyboard-attributions/{id}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "storyboardAttribution.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/storyboard-attributions",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "storyboardAttribution.sources",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/storyboard-attribution-sources/{id}",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "storyboardAttribution.summaries",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/storyboard-attributions/summaries",
+      "tags": [
+        "production"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.adopt",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/adopt",
+      "tags": [
+        "story-declarations"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.create",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-declarations",
+      "tags": [
+        "story-declarations"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.discard",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/discard",
+      "tags": [
+        "story-declarations"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.get",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}",
+      "tags": [
+        "story-declarations"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.list",
+      "method": "GET",
+      "path": "/api/v2/projects/{projectId}/story-declarations",
+      "tags": [
+        "story-declarations"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.replace",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/replace",
+      "tags": [
+        "story-declarations"
+      ]
+    },
+    {
+      "operationId": "storyDeclarations.withdraw",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/story-declarations/{declarationId}/withdraw",
+      "tags": [
+        "story-declarations"
       ]
     },
     {
@@ -8219,6 +9463,62 @@
       ]
     },
     {
+      "operationId": "timeline-media-copies.cancel",
+      "method": "POST",
+      "path": "/api/v2/timeline-media-copies/{id}/cancel",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline-media-copies.create",
+      "method": "POST",
+      "path": "/api/v2/timelines/{id}/media-copies",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline-media-copies.get",
+      "method": "GET",
+      "path": "/api/v2/timeline-media-copies/{id}",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline-media-copies.list",
+      "method": "GET",
+      "path": "/api/v2/timelines/{id}/media-copies",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline-media-copies.refresh",
+      "method": "POST",
+      "path": "/api/v2/timeline-media-copies/{id}/refresh",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline-media-copies.reveal",
+      "method": "POST",
+      "path": "/api/v2/timeline-media-copies/{id}/reveal",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline-media-copies.selectDirectory",
+      "method": "POST",
+      "path": "/api/v2/timelines/{id}/media-copy-directory",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
       "operationId": "timeline.cancelRender",
       "method": "POST",
       "path": "/api/v2/timeline-renders/{id}/cancel",
@@ -8238,6 +9538,22 @@
       "operationId": "timeline.getRender",
       "method": "GET",
       "path": "/api/v2/timeline-renders/{id}",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.playbackPlan",
+      "method": "GET",
+      "path": "/api/v2/timelines/{id}/playback-plan",
+      "tags": [
+        "timeline"
+      ]
+    },
+    {
+      "operationId": "timeline.renderCatalog",
+      "method": "GET",
+      "path": "/api/v2/episodes/{episodeId}/timeline-renders",
       "tags": [
         "timeline"
       ]
@@ -8464,6 +9780,14 @@
       "path": "/api/v2/visual-settings/{id}",
       "tags": [
         "story-bible"
+      ]
+    },
+    {
+      "operationId": "volumes.assignChapters",
+      "method": "POST",
+      "path": "/api/v2/projects/{projectId}/volume-memberships",
+      "tags": [
+        "chapters"
       ]
     },
     {

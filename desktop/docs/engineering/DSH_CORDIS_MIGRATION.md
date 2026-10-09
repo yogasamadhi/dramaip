@@ -2,6 +2,8 @@
 
 Desktop 第一方插件使用当前锁定的 DSH `0.1.0-rc.5` 框架源码。Platform、第三方 Extension Host、公开 Plugin API 和 Agent Runtime 的隔离边界保持独立。
 
+框架迁移服务 [产品定位](../../../docs/product/POSITIONING.md) 下的独立小说与改编两路创作、连续性和版本资产，不将通用 Agent/扩展平台作为产品市场定位。本文的工程验收不证明真实模型文学质量、新主流程完成或正式跨平台发布。
+
 ## 源码与安装
 
 来源为 `vendor/deepseek-harness/vendor` 的九个包：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。锁文件记录的完整源码树 SHA-256 是 `95d51af3030846df809851673b021b34e52b8b32468dfb431acb7119ec512366`，包含 7,412 个文件。每个包保留 DSH 名称、版本和 MIT 许可证。

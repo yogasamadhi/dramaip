@@ -56,6 +56,8 @@ input.on("line", line => {
     result(request.id, { turn: { id: turnId } });
     setImmediate(() => {
       notify("turn/started", { threadId, turn: { id: turnId } });
+      notify("thread/tokenUsage/updated", { threadId, turnId: "previous-turn", tokenUsage: { total: { inputTokens: 9999 } } });
+      notify("thread/tokenUsage/updated", { threadId, turnId, tokenUsage: { total: { inputTokens: 0, outputTokens: 12 } } });
       notify("item/agentMessage/delta", { threadId, delta: "resumed:hello" });
       notify("turn/completed", { threadId, turn: { id: turnId, status: "completed" } });
     });
@@ -185,6 +187,26 @@ input.on("line", line => {
       (message) => message.type === "response" && message.requestId === "run",
     );
     expect(run.error).toBeUndefined();
+    expect(
+      messages.filter(
+        (message) =>
+          message.type === "event" &&
+          (message.event as Record<string, unknown>)?.type === "usage",
+      ),
+    ).toEqual([
+      {
+        type: "event",
+        runId: "run-after-restart",
+        event: {
+          type: "usage",
+          measurementScope: "session-total",
+          inputAccounting: "unspecified",
+          inputTokens: 0,
+          outputTokens: 12,
+          cachedTokens: undefined,
+        },
+      },
+    ]);
     expect((run.result as Record<string, unknown>).content).toBe(
       "resumed:hello",
     );

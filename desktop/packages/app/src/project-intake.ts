@@ -12,6 +12,44 @@ export const PROJECT_CREATION_SOURCES = [
 
 export type ProjectCreationSource = (typeof PROJECT_CREATION_SOURCES)[number];
 
+/** Old novel-based single-season projects retain their existing writing route. */
+export function isDirectScriptProject(project: {
+  modeConfig: ProjectModeConfig;
+}): boolean {
+  return (
+    project.modeConfig.mode === "single_season" &&
+    ["script", "inspiration"].includes(project.modeConfig.entryPath)
+  );
+}
+
+export const PROJECT_SOURCE_OPTIONS = [
+  {
+    source: "source-import" as const,
+    title: "导入小说或大纲",
+    description: "预览并确认来源权利，再选择继续写小说或改编剧本。",
+    outcome: "导入预览不会创建项目或覆盖原稿",
+    recommended: true,
+  },
+  {
+    source: "inspiration" as const,
+    title: "从创意开始",
+    description: "提供故事想法，选择写小说或直接开发短剧、漫剧剧本。",
+    outcome: "保留创作方向，由你审阅与采用",
+  },
+  {
+    source: "script" as const,
+    title: "导入已有剧本",
+    description: "粘贴已有剧本或预览文件，不要求先写一部小说。",
+    outcome: "从已有内容继续检查与制作",
+  },
+] as const;
+
+export function recommendedProjectMode(
+  source: ProjectCreationSource,
+): ProjectMode {
+  return source === "inspiration" ? "series_longform" : "single_season";
+}
+
 export type ProductionBriefDraft = {
   creationSource: ProjectCreationSource;
   title: string;
@@ -137,14 +175,18 @@ export function projectModeBrief(
   const base = defaultProductionBrief(source);
   const modeDefaults: Record<ProjectMode, Partial<ProductionBriefDraft>> = {
     series_longform: {
-      shortDramaType: "逆袭爽文",
+      shortDramaType: "",
+      targetAudience: "小说读者",
+      targetPlatform: "",
+      aspectRatio: "",
+      visualStyleDirection: "",
       targetChapterCount: "300",
       targetSeasonCount: "5",
       targetEpisodesPerSeason: "80",
       episodeDuration: "60—90 秒",
     },
     single_season: {
-      shortDramaType: "逆袭爽剧",
+      shortDramaType: "",
       targetEpisodeCount: "80",
       episodeDuration: "60—90 秒",
     },
@@ -201,7 +243,7 @@ export function projectModeConfigFromDraft(
               ? "script"
               : source === "source-import"
                 ? "source-import"
-                : "novel",
+                : "inspiration",
           targetEpisodeCount,
         }
       : undefined;

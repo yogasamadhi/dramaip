@@ -492,15 +492,17 @@ function onNotification(method: string, params: Record<string, any>): void {
     const active = activeRuns.get(String(params.threadId ?? ""));
     const total = params.tokenUsage?.total as
       Record<string, unknown> | undefined;
-    if (active && total)
+    if (active && total && active.turnId && params.turnId === active.turnId)
       parentPort!.postMessage({
         type: "event",
         runId: active.runId,
         event: {
           type: "usage",
-          inputTokens: Number(total.inputTokens ?? 0),
-          outputTokens: Number(total.outputTokens ?? 0),
-          cachedTokens: Number(total.cachedInputTokens ?? 0),
+          measurementScope: "session-total",
+          inputAccounting: "unspecified",
+          inputTokens: total.inputTokens,
+          outputTokens: total.outputTokens,
+          cachedTokens: total.cachedInputTokens,
         },
       });
     return;

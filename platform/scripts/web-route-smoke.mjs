@@ -46,7 +46,7 @@ const checks = [
   },
   {
     file: 'clients/apps/web/components/PricingPlans.tsx',
-    patterns: ["router.push(loginPath('/pricing'))", 'checkoutProviders', 'channel: provider', 'router.push(`/account/orders/${encodeURIComponent(result.checkout_id)}`)'],
+    patterns: ["router.push(loginPath('/pricing'))", 'apiClient.getPaymentProviders()', ".filter((item) => item.state === 'verified')", 'apiClient.createOrder({', 'planCode,', 'provider,', "idempotencyKey: lifecycleKey('web-order-create')", 'router.push(`/account/orders/${encodeURIComponent(result.id)}`)'],
     forbidden: ["'production'", '"production"'],
   },
   {
@@ -61,7 +61,35 @@ const checks = [
   },
   {
     file: 'clients/apps/web/app/account/orders/[orderId]/page.tsx',
-    patterns: ['<RequireAuth>', 'apiClient.getOrder', 'apiClient.confirmSimulatedPayment', 'refetchInterval', 'retryCheckout', 'expires_at'],
+    patterns: ['<RequireAuth>', 'apiClient.getOrder', 'apiClient.confirmSimulatedPayment', 'refetchInterval', 'retryCheckout', 'order.data.paymentExpiresAt', "enabledProviders.has('simulated')"],
+  },
+  {
+    file: 'clients/apps/web/app/page.tsx',
+    patterns: ['PRODUCT_POSITIONING.category', 'ADAPTATION_JOURNEY', 'NOVEL_JOURNEY', '目标路径', 'href="/cases"'],
+    forbidden: ['一致性 94%', '下载 v2 RC'],
+  },
+  {
+    file: 'clients/apps/web/app/cases/page.tsx',
+    patterns: ['href="/cases/story"', 'href="/cases/demo"', 'Mock Provider', '作者编写'],
+  },
+  {
+    file: 'clients/apps/web/app/download/page.tsx',
+    patterns: ['desktopReleaseInfo', '未配置', '配置完整也不等于三平台 GA'],
+  },
+  {
+    file: 'clients/apps/web/app/cases/demo/page.tsx',
+    patterns: ['历史受控展示', '不证明当前安装已包含', '不是实际模型质量或账单', '未提供完整可核验授权凭证'],
+    forbidden: ['随桌面端安装', '全部许可记录', '完全虚构，不含第三方 IP', '均附自有或可再分发许可'],
+  },
+  {
+    file: 'clients/apps/web/app/cases/story/page.tsx',
+    patterns: ['展示稿不代替公开许可或真实验收', '小说可以在这里独立完成', '作者编写'],
+    forbidden: ['允许复制与改编'],
+  },
+  {
+    file: 'clients/apps/web/app/cases/story/files/[artifact]/route.ts',
+    patterns: ["dynamic = 'force-static'", 'dynamicParams = false', 'STORY_CASE_ARTIFACTS', 'storyCaseArtifact(name)', 'Content-Disposition', 'author-written-fictional', 'nosniff'],
+    forbidden: ['apiClient', '/api/v1/', 'process.env', 'readFile', 'fetch('],
   },
 ]
 

@@ -1,5 +1,7 @@
 # 通用桌面软件架构：Level 1 小型项目版
 
+本 Level 描述通用技术复杂度，不是 DramaIP 的产品阶段或市场定位。业务取舍遵循 [产品定位](../../product/POSITIONING.md)，DramaIP 的实际架构选择见 [本目录索引](./README.md)；不能由本参考推断小说、改编或媒体功能已经完成。
+
 > 文档类型：Normative Level Profile
 >
 > 架构版本：2.1

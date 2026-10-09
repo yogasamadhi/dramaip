@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import type { NarrativeContextRequest as TypedNarrativeContextRequest } from "./narrative-context.js";
+import type { AgentRunUsageScope } from "./agent-usage.js";
 
 // This transitional surface is owned and built by @dramaip/contracts.
 export * from "./provider-catalog.js";
@@ -37,7 +39,7 @@ export type ProjectModeConfig =
     }
   | {
       mode: "single_season";
-      entryPath: "novel" | "source-import" | "script";
+      entryPath: "novel" | "source-import" | "script" | "inspiration";
       targetEpisodeCount?: number;
     }
   | {
@@ -720,6 +722,18 @@ export const AgentRun = Schema.Struct({
   status: AgentRunStatus,
   model: Schema.optionalKey(AgentModelSelection),
   contextSnapshotId: Schema.optionalKey(Id),
+  usageScope: Schema.optionalKey(
+    Schema.Struct({
+      runId: Id,
+      sessionId: Id,
+      projectId: Schema.optionalKey(Id),
+      origin: Schema.Literals([
+        "frozen-context",
+        "first-observation",
+        "unreported-session",
+      ]),
+    }),
+  ),
   turnId: Schema.optionalKey(Id),
   chapterId: Schema.optionalKey(Id),
   error: Schema.optionalKey(Schema.String),
@@ -748,6 +762,7 @@ export interface AgentRun {
   status: AgentRunStatus;
   model?: AgentModelSelection;
   contextSnapshotId?: Id;
+  usageScope?: AgentRunUsageScope;
   turnId?: Id;
   chapterId?: Id;
   error?: string;
@@ -1081,8 +1096,13 @@ export const InspirationMemoryJob = Schema.Struct({
   reason: Schema.Literals(["six_turns", "archive", "manual"]),
   error: Schema.optionalKey(Schema.String),
   model: Schema.optionalKey(Schema.String),
-  inputTokens: Schema.Int,
-  outputTokens: Schema.Int,
+  inputTokens: Schema.optionalKey(Schema.Int),
+  outputTokens: Schema.optionalKey(Schema.Int),
+  usageRuns: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({ runId: Id, projectId: Schema.optionalKey(Id) }),
+    ),
+  ),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -1094,8 +1114,9 @@ export interface InspirationMemoryJob {
   reason: "six_turns" | "archive" | "manual";
   error?: string;
   model?: string;
-  inputTokens: number;
-  outputTokens: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  usageRuns?: readonly { runId: Id; projectId?: Id }[];
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
 }
@@ -1419,6 +1440,32 @@ export const ContinueChapterAgentRunInput = Schema.Struct({
   prompt: Schema.optionalKey(Schema.String),
   wordGoal: Schema.optionalKey(Schema.Int),
   baseVersion: Schema.Int,
+  narrativeContextRequest: Schema.optionalKey(
+    Schema.Struct({
+      format: Schema.Literal("narrative-context-v1"),
+      chapters: Schema.Array(
+        Schema.Union([
+          Schema.Struct({
+            id: Id,
+            version: Schema.Int,
+            representation: Schema.Literal("original"),
+          }),
+          Schema.Struct({
+            id: Id,
+            version: Schema.Int,
+            representation: Schema.Literal("summary"),
+            record: Schema.Struct({ id: Id, version: Schema.Int }),
+          }),
+          Schema.Struct({
+            id: Id,
+            version: Schema.Int,
+            representation: Schema.Literal("paragraphs"),
+            paragraphIds: Schema.Array(Schema.String),
+          }),
+        ]),
+      ),
+    }),
+  ),
 });
 export interface ContinueChapterAgentRunInput {
   sourceChapterId: Id;
@@ -1427,6 +1474,7 @@ export interface ContinueChapterAgentRunInput {
   prompt?: string;
   wordGoal?: number;
   baseVersion: number;
+  narrativeContextRequest?: TypedNarrativeContextRequest;
 }
 
 export const ContinueChapterAgentRunStart = Schema.Struct({
@@ -1493,9 +1541,21 @@ export const AssetCenterAsset = Schema.Struct({
   lockStatus: Schema.Literals(["locked", "unlocked"]),
   stale: Schema.Boolean,
   preview: AssetCenterPreview,
-  rightsStatus: Schema.Literals(["verified", "restricted", "unknown"]),
-  costStatus: Schema.Literals(["known", "unknown"]),
-  providerStatus: Schema.Literals(["available", "unavailable", "not-required"]),
+  rightsStatus: Schema.Literals(["restricted", "unknown"]),
+  costStatus: Schema.Literal("unknown"),
+  providerStatus: Schema.Literals(["unavailable", "unknown"]),
+  rightsDeclaration: Schema.Literals([
+    "user-reported-cleared",
+    "user-reported-restricted",
+    "not-provided",
+  ]),
+  costDeclaration: Schema.Literals(["user-reported-known", "not-provided"]),
+  providerDeclaration: Schema.Literals([
+    "user-reported-available",
+    "user-reported-unavailable",
+    "user-reported-not-required",
+    "not-provided",
+  ]),
   usages: Schema.Array(AssetCenterUsage),
   version: Schema.Int,
 });
@@ -1509,9 +1569,17 @@ export interface AssetCenterAsset {
   lockStatus: "locked" | "unlocked";
   stale: boolean;
   preview: AssetCenterPreview;
-  rightsStatus: "verified" | "restricted" | "unknown";
-  costStatus: "known" | "unknown";
-  providerStatus: "available" | "unavailable" | "not-required";
+  rightsStatus: "restricted" | "unknown";
+  costStatus: "unknown";
+  providerStatus: "unavailable" | "unknown";
+  rightsDeclaration:
+    "user-reported-cleared" | "user-reported-restricted" | "not-provided";
+  costDeclaration: "user-reported-known" | "not-provided";
+  providerDeclaration:
+    | "user-reported-available"
+    | "user-reported-unavailable"
+    | "user-reported-not-required"
+    | "not-provided";
   usages: AssetCenterUsage[];
   version: number;
 }
@@ -2130,6 +2198,8 @@ export const TimelineClip = Schema.Struct({
   shotId: Schema.optionalKey(Id),
   assetId: Schema.optionalKey(Id),
   audioTrackId: Schema.optionalKey(Id),
+  audioTrackVersion: Schema.optionalKey(Schema.Int),
+  audioSourceFingerprint: Schema.optionalKey(Schema.String),
   mediaRef: Schema.optionalKey(Schema.String),
   trackId: Id,
   name: Schema.String,
@@ -2154,6 +2224,8 @@ export interface TimelineClip {
   shotId?: Id;
   assetId?: Id;
   audioTrackId?: Id;
+  audioTrackVersion?: number;
+  audioSourceFingerprint?: string;
   mediaRef?: string;
   trackId: Id;
   name: string;
@@ -2310,47 +2382,100 @@ export interface TimelineMediaPreview {
 }
 
 /**
- * 可交付时间线只序列化 canonical timeline 的受控引用；相对媒体路径和 checksum
- * 用于 NLE 重链接，绝不携带本地绝对路径、凭据或源数据库。
+ * NLE 重链接清单区分冻结来源、owner 存档元数据与全字节核验。
+ * 相对路径是目标占位，不代表媒体已复制；不携带绝对路径、凭据或授权正文。
  */
+export const TimelineDeliveryArchive = Schema.Struct({
+  artifactRef: Id,
+  kind: Schema.Literals(["image", "audio", "video"]),
+  mimeType: Schema.String,
+  extension: Schema.String,
+  sizeBytes: Schema.Int,
+  sha256: Schema.String,
+  verification: Schema.Literal("owner-metadata-only"),
+});
+export interface TimelineDeliveryArchive {
+  artifactRef: Id;
+  kind: "image" | "audio" | "video";
+  mimeType: string;
+  extension: string;
+  sizeBytes: number;
+  sha256: string;
+  verification: "owner-metadata-only";
+}
 export const TimelineDeliveryMedia = Schema.Struct({
   assetId: Id,
   title: Schema.String,
-  sourceVersion: Schema.Int,
+  clipIds: Schema.Array(Id),
+  expectedVersions: Schema.Array(Schema.Int),
+  sourceVersion: Schema.optionalKey(Schema.Int),
+  sourceStatus: Schema.Literals([
+    "current",
+    "unverified",
+    "stale",
+    "missing",
+    "foreign",
+  ]),
   relativePath: Schema.String,
   checksum: Schema.optionalKey(Schema.String),
-  mediaStatus: TimelineMediaStatus,
-  rightsStatus: Schema.Union([
-    Schema.Literal("cleared"),
-    Schema.Literal("unknown"),
-    Schema.Literal("restricted"),
+  archive: Schema.optionalKey(TimelineDeliveryArchive),
+  mediaStatus: Schema.Literal("unattached"),
+  rightsStatus: Schema.Literals(["unknown", "restricted"]),
+  rightsDeclaration: Schema.Literals([
+    "not-provided",
+    "user-reported-cleared",
+    "user-reported-restricted",
   ]),
   lineage: Schema.Array(Schema.String),
 });
 export interface TimelineDeliveryMedia {
   assetId: Id;
   title: string;
-  sourceVersion: number;
+  clipIds: Id[];
+  expectedVersions: number[];
+  sourceVersion?: number;
+  sourceStatus: "current" | "unverified" | "stale" | "missing" | "foreign";
   relativePath: string;
   checksum?: string;
-  mediaStatus: TimelineMediaStatus;
-  rightsStatus: "cleared" | "unknown" | "restricted";
+  archive?: TimelineDeliveryArchive;
+  mediaStatus: "unattached";
+  rightsStatus: "unknown" | "restricted";
+  rightsDeclaration:
+    "not-provided" | "user-reported-cleared" | "user-reported-restricted";
   lineage: string[];
 }
 
 export const TimelineDeliveryManifest = Schema.Struct({
   format: Schema.Literal("dramaip-timeline-delivery"),
-  schemaVersion: Schema.Literal(2),
+  schemaVersion: Schema.Literal(3),
   timeline: TimelineManifest,
+  sourceFingerprint: Schema.String,
   media: Schema.Array(TimelineDeliveryMedia),
+  sourceBlockers: Schema.Array(
+    Schema.Struct({
+      clipId: Id,
+      code: Schema.Literals([
+        "MISSING_MEDIA",
+        "UNVERIFIED_SOURCE",
+        "STALE_SOURCE",
+      ]),
+      message: Schema.String,
+    }),
+  ),
   unsupportedFeatures: Schema.Array(Schema.String),
   warnings: Schema.Array(Schema.String),
 });
 export interface TimelineDeliveryManifest {
   format: "dramaip-timeline-delivery";
-  schemaVersion: 2;
+  schemaVersion: 3;
   timeline: TimelineManifest;
+  sourceFingerprint: string;
   media: TimelineDeliveryMedia[];
+  sourceBlockers: {
+    clipId: Id;
+    code: "MISSING_MEDIA" | "UNVERIFIED_SOURCE" | "STALE_SOURCE";
+    message: string;
+  }[];
   unsupportedFeatures: string[];
   warnings: string[];
 }
@@ -2374,6 +2499,8 @@ export type TimelineDeliveryExportFormat =
 export const AudioAssemblyClip = Schema.Struct({
   id: Id,
   audioTrackId: Id,
+  audioTrackVersion: Schema.Int,
+  audioSourceFingerprint: Schema.String,
   sourceClipId: Id,
   kind: Schema.Literals(["dialogue", "narration", "bgm", "sfx"]),
   name: Schema.String,
@@ -2399,6 +2526,8 @@ export const AudioAssemblyClip = Schema.Struct({
 export interface AudioAssemblyClip {
   id: Id;
   audioTrackId: Id;
+  audioTrackVersion: number;
+  audioSourceFingerprint: string;
   sourceClipId: Id;
   kind: AudioTrackKind;
   name: string;
@@ -2421,6 +2550,8 @@ export interface AudioAssemblyClip {
 export const SubtitleCue = Schema.Struct({
   id: Id,
   audioTrackId: Id,
+  audioTrackVersion: Schema.Int,
+  audioSourceFingerprint: Schema.String,
   sourceClipId: Id,
   shotId: Schema.optionalKey(Id),
   startSeconds: Schema.Number,
@@ -2430,6 +2561,8 @@ export const SubtitleCue = Schema.Struct({
 export interface SubtitleCue {
   id: Id;
   audioTrackId: Id;
+  audioTrackVersion: number;
+  audioSourceFingerprint: string;
   sourceClipId: Id;
   shotId?: Id;
   startSeconds: number;
@@ -2463,12 +2596,16 @@ export interface AudioAssemblyPreview {
 }
 
 export const AudioAssemblyApplyInput = Schema.Struct({
+  timelineId: Id,
   timelineVersion: Schema.Int,
+  sourceFingerprint: Schema.String,
   audioTrackIds: Schema.Array(Id),
   includeSubtitles: Schema.Boolean,
 });
 export interface AudioAssemblyApplyInput {
+  timelineId: Id;
   timelineVersion: number;
+  sourceFingerprint: string;
   audioTrackIds: Id[];
   includeSubtitles: boolean;
 }
@@ -2914,6 +3051,13 @@ export const StoryBibleChangeSet = Schema.Struct({
   chapterId: Id,
   sourceVersion: Schema.Int,
   status: StoryBibleChangeSetStatus,
+  sourceState: Schema.optionalKey(
+    Schema.Union([
+      Schema.Literal("current"),
+      Schema.Literal("stale"),
+      Schema.Literal("missing"),
+    ]),
+  ),
   summary: Schema.String,
   taskId: Schema.optionalKey(Id),
   conflictNotes: Schema.Array(Schema.String),
@@ -2929,6 +3073,7 @@ export interface StoryBibleChangeSet {
   chapterId: Id;
   sourceVersion: number;
   status: StoryBibleChangeSetStatus;
+  sourceState?: "current" | "stale" | "missing";
   summary: string;
   taskId?: Id;
   conflictNotes: string[];
@@ -3539,6 +3684,21 @@ export const AudioTrackClip = Schema.Struct({
   text: Schema.optionalKey(Schema.String),
   /** 片段级谱系，避免无关台词修改使整条分集音频全部失效。 */
   sourceFingerprint: Schema.optionalKey(Schema.String),
+  sourceVersions: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        kind: Schema.Literals([
+          "shot",
+          "asset",
+          "voice-profile",
+          "voice-sample",
+          "voice-character",
+        ]),
+        id: Id,
+        version: Schema.Int,
+      }),
+    ),
+  ),
 });
 export interface AudioTrackClip {
   id: Id;
@@ -3549,6 +3709,12 @@ export interface AudioTrackClip {
   durationSeconds: number;
   text?: string;
   sourceFingerprint?: string;
+  sourceVersions?: {
+    kind:
+      "shot" | "asset" | "voice-profile" | "voice-sample" | "voice-character";
+    id: Id;
+    version: number;
+  }[];
 }
 
 export const AudioTrackClipInput = Schema.Struct({
@@ -3579,6 +3745,19 @@ export const AudioTrack = Schema.Struct({
   status: Schema.Union([Schema.Literal("draft"), Schema.Literal("adopted")]),
   stale: Schema.Boolean,
   staleReason: Schema.optionalKey(Schema.String),
+  sourceState: Schema.Literals(["current", "stale", "unverified"]),
+  sourceReasons: Schema.Array(Schema.String),
+  revision: Schema.optionalKey(
+    Schema.Struct({
+      reviewId: Id,
+      sourceTrackId: Id,
+      sourceVersion: Schema.Int,
+      clipLinks: Schema.Array(
+        Schema.Struct({ previousClipId: Id, nextClipId: Id }),
+      ),
+    }),
+  ),
+  supersededBy: Schema.optionalKey(Id),
   version: Schema.Int,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
@@ -3594,6 +3773,15 @@ export interface AudioTrack {
   status: "draft" | "adopted";
   stale: boolean;
   staleReason?: string;
+  sourceState: "current" | "stale" | "unverified";
+  sourceReasons: string[];
+  revision?: {
+    reviewId: Id;
+    sourceTrackId: Id;
+    sourceVersion: number;
+    clipLinks: { previousClipId: Id; nextClipId: Id }[];
+  };
+  supersededBy?: Id;
   version: number;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
@@ -4694,6 +4882,7 @@ export const AgentExperiment = Schema.Struct({
         status: AgentRunStatus,
         output: Schema.optionalKey(Schema.Unknown),
         engineKind: Schema.optionalKey(AgentExperimentEngineKind),
+        usageRunId: Schema.optionalKey(Id),
         engineVersion: Schema.optionalKey(Schema.String),
         metrics: Schema.optionalKey(
           Schema.Struct({
@@ -4703,9 +4892,9 @@ export const AgentExperiment = Schema.Struct({
             latencyMs: Schema.Number,
             ttftMs: Schema.optionalKey(Schema.Number),
             durationMs: Schema.optionalKey(Schema.Number),
-            inputTokens: Schema.Number,
-            outputTokens: Schema.Number,
-            cachedTokens: Schema.Number,
+            inputTokens: Schema.optionalKey(Schema.Number),
+            outputTokens: Schema.optionalKey(Schema.Number),
+            cachedTokens: Schema.optionalKey(Schema.Number),
             estimatedCost: Schema.optionalKey(Schema.Number),
             currency: Schema.optionalKey(Schema.String),
             adopted: Schema.Boolean,
@@ -4740,6 +4929,7 @@ export interface AgentExperiment {
     status: AgentRunStatus;
     output?: unknown;
     engineKind?: AgentExperimentEngineKind;
+    usageRunId?: Id;
     engineVersion?: string;
     metrics?: {
       completed: boolean;
@@ -4748,9 +4938,9 @@ export interface AgentExperiment {
       latencyMs: number;
       ttftMs?: number;
       durationMs?: number;
-      inputTokens: number;
-      outputTokens: number;
-      cachedTokens: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      cachedTokens?: number;
       estimatedCost?: number;
       currency?: string;
       adopted: boolean;
@@ -4865,6 +5055,7 @@ export const ApiErrorCode = Schema.Union([
   Schema.Literal("UNAUTHORIZED"),
   Schema.Literal("ENGINE_UNAVAILABLE"),
   Schema.Literal("TASK_REJECTED"),
+  Schema.Literal("SCREENPLAY_INTAKE"),
   Schema.Literal("INTERNAL_ERROR"),
 ]);
 export type ApiErrorCode =
@@ -4874,6 +5065,7 @@ export type ApiErrorCode =
   | "UNAUTHORIZED"
   | "ENGINE_UNAVAILABLE"
   | "TASK_REJECTED"
+  | "SCREENPLAY_INTAKE"
   | "INTERNAL_ERROR";
 export const ApiError = Schema.Struct({
   code: ApiErrorCode,

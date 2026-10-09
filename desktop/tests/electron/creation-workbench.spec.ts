@@ -3,6 +3,7 @@ import { _electron as electron } from "playwright";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 
 test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行状态隔离", async () => {
   const userData = await mkdtemp(join(tmpdir(), "dramaip-creation-ui-"));
@@ -41,10 +42,13 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
       taskId = crypto.randomUUID();
     let pending = false;
     let discarded = false;
+    let rejectionStatus = 503;
+    let revisionReadFails = false;
     const requests: Array<{ key: string; input: Record<string, unknown> }> = [];
     const preview = () => ({
       id: previewId,
       projectId,
+      taskId,
       status: discarded ? "discarded" : "pending",
       targets: [
         {
@@ -52,6 +56,7 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
           id: chapter.id,
           baseVersion: chapter.version,
           patch: { content: "这是一份用于界面验证的 AI 候选。" },
+          displayDiff: { creationWorkflowId: id },
         },
       ],
       rationale: "界面隔离样例，非真实模型质量证据",
@@ -70,6 +75,10 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
         instruction: "界面测试",
         engineKind: "codex",
         sourceIds: [],
+        narrativeContextRequest: {
+          format: "narrative-context-v1",
+          chapters: [],
+        },
       },
       stage: discarded ? "discarded" : "awaiting-review",
       version: 0,
@@ -98,13 +107,13 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
           input: request.postDataJSON(),
         });
         await route.fulfill({
-          status: 409,
+          status: rejectionStatus,
           contentType: "application/problem+json",
           json: {
             type: "https://dramaip.local/problems/connection",
             title: "连接测试",
-            status: 409,
-            code: "CONFLICT",
+            status: rejectionStatus,
+            code: rejectionStatus === 409 ? "CONFLICT" : "UNAVAILABLE",
             detail: "测试连接尚未就绪。",
           },
         });
@@ -118,6 +127,49 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     await page.route(
       `**/api/v2/change-previews/${previewId}**`,
       async (route) => {
+        if (
+          new URL(route.request().url()).pathname.endsWith("/revision-effort")
+        ) {
+          if (revisionReadFails)
+            return route.fulfill({
+              status: 503,
+              contentType: "application/problem+json",
+              json: {
+                type: "https://dramaip.local/problems/revision-history-unavailable",
+                title: "原台账暂不可读",
+                status: 503,
+                code: "REVISION_HISTORY_UNAVAILABLE",
+                detail: "受控读取失败，不可沿用旧记录",
+              },
+            });
+          const url = new URL(route.request().url());
+          expect(route.request().method()).toBe("GET");
+          expect(url.searchParams.get("projectId")).toBe(projectId);
+          expect(url.searchParams.get("contentHash")).toBe("ui-fixture");
+          return route.fulfill({
+            json: {
+              format: "chapter-preview-revision-effort-v1",
+              projectId,
+              previewId,
+              chapterId: chapter.id,
+              taskId,
+              rootPreviewId: previewId,
+              contentHash: "ui-fixture",
+              candidateSha256: createHash("sha256")
+                .update(preview().targets[0]!.patch.content)
+                .digest("hex"),
+              journalSha256: "a".repeat(64),
+              status: "pending",
+              coverage: "partial",
+              observedContentUpdates: 1,
+              observedRebases: 0,
+              observedContentChangingRebases: 0,
+              localRevisionCount: null,
+              scope: "exact-chapter-preview-chain",
+              qualityStatus: "unverified",
+            },
+          });
+        }
         if (new URL(route.request().url()).pathname.endsWith("/discard"))
           discarded = true;
         await route.fulfill({ json: preview() });
@@ -132,6 +184,30 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     });
     pending = true;
     await expect(editor).toContainText("界面验证的 AI 候选");
+    const revisions = panel
+      .getByLabel("候选正文实际修订台账", { exact: true })
+      .first();
+    await revisions
+      .getByRole("button", { name: "查看候选正文实际修订次数", exact: true })
+      .click();
+    await expect(revisions).toContainText("已记录正文修改 1 次");
+    await expect(revisions).toContainText("未知（历史不完整）");
+    await expect(revisions).toContainText("尚未正式采用");
+    await expect(revisions).toContainText("不包含模型修订阶段");
+    await revisions.screenshot({
+      path: test.info().outputPath("actual-preview-revisions-partial.png"),
+    });
+    revisionReadFails = true;
+    await revisions
+      .getByRole("button", { name: "查看候选正文实际修订次数", exact: true })
+      .click();
+    await expect(revisions.getByRole("alert")).toContainText(
+      "不显示旧缓存或推定零修订",
+    );
+    await expect(
+      revisions.getByLabel("实际候选修订记录", { exact: true }),
+    ).toHaveCount(0);
+    revisionReadFails = false;
     await expect(
       panel.getByRole("button", { name: "续写本章", exact: true }),
     ).toBeDisabled();
@@ -142,7 +218,37 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     await page.getByText("更多操作", { exact: true }).click();
     await page.getByRole("button", { name: "微调正文", exact: true }).click();
     const newest = `${original}\n用户在候选返回后新添的内容必须保留。`;
+    // A read-only candidate must not replace the dirty author's recovery
+    // snapshot. Delay the real chapter PATCH so the dirty state stays visible.
+    let releaseSave!: () => void;
+    const saveBarrier = new Promise<void>((resolveSave) => {
+      releaseSave = resolveSave;
+    });
+    await page.route(`**/api/v2/chapters/${chapter.id}`, async (route) => {
+      if (route.request().method() === "PATCH") await saveBarrier;
+      await route.continue();
+    });
     await editor.fill(newest);
+    await page.getByRole("button", { name: "候选稿", exact: true }).click();
+    await expect(editor).toContainText("界面验证的 AI 候选");
+    await expect
+      .poll(() =>
+        page.evaluate((chapterId) => {
+          const value = localStorage.getItem(
+            `dramaip-novel-draft:${chapterId}`,
+          );
+          return value ? JSON.parse(value).content : undefined;
+        }, chapter.id),
+      )
+      .toContain("用户在候选返回后新添的内容必须保留。");
+    expect(
+      await page.evaluate((chapterId) => {
+        const value = localStorage.getItem(`dramaip-novel-draft:${chapterId}`);
+        return value ? JSON.parse(value).content : undefined;
+      }, chapter.id),
+    ).not.toContain("界面验证的 AI 候选");
+    releaseSave();
+    await page.unroute(`**/api/v2/chapters/${chapter.id}`);
     await panel.getByRole("button", { name: "放弃候选", exact: true }).click();
     await expect(page.getByText("候选稿预览", { exact: true })).toBeHidden();
     await expect(editor).toContainText("用户在候选返回后新添的内容必须保留。");
@@ -165,10 +271,11 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     });
     await input.fill("保留人物动机，调整节奏。");
     await generate.click();
-    await expect(panel).toContainText("测试连接尚未就绪。");
+    await expect(panel.getByRole("alert")).toBeVisible();
     await generate.click();
     await expect.poll(() => requests.length).toBe(2);
     expect(requests[1]!.key).toBe(requests[0]!.key);
+    expect(requests[1]!.input).toEqual(requests[0]!.input);
     await input.fill("增加环境细节，保留人物动机。");
     await generate.click();
     await expect.poll(() => requests.length).toBe(3);
@@ -223,6 +330,17 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
       expect(input.wordGoal).toBe(2400);
       expect(requests[5 + index]!.key).not.toBe(requests[4 + index]!.key);
     }
+    // An unavailable response is not proof the original start was rejected.
+    // In contrast, an explicit owner 409/CONFLICT is a definite rejection and
+    // must release that action key rather than replay a poisoned request.
+    rejectionStatus = 409;
+    await generate.click();
+    await expect.poll(() => requests.length).toBe(12);
+    await expect(panel).toContainText("测试连接尚未就绪。");
+    await generate.click();
+    await expect.poll(() => requests.length).toBe(13);
+    expect(requests[12]!.key).not.toBe(requests[11]!.key);
+    expect(requests[12]!.input).toEqual(requests[11]!.input);
     await panel.getByRole("button", { name: "对话", exact: true }).click();
     await expect(panel.getByLabel("给 AI 写作助手发消息")).toHaveValue(
       "聊天草稿：讨论书名，暂不生成正文。",
@@ -234,12 +352,19 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     const createdAt = new Date().toISOString();
     let eventFrames = "";
     let recoveredContent = "";
-    await page.route("**/api/v2/events*", (route) =>
-      route.fulfill({
+    let eventReads = 0;
+    await page.route("**/api/v2/events*", (route) => {
+      eventReads += 1;
+      return route.fulfill({
         contentType: "text/event-stream",
-        body: eventFrames || ": connected\n\n",
-      }),
-    );
+        // A complete ignored frame keeps this controlled short-lived stream's
+        // reconnect delay bounded. A comment-only response is not an event and
+        // correctly triggers exponential reconnect backoff in the real SDK.
+        body:
+          eventFrames ||
+          `data: ${JSON.stringify({ kind: "realtime", event: { id: crypto.randomUUID(), type: "agents.assistant-item-delta.v1", payload: { runId: crypto.randomUUID(), content: "" }, occurredAt: new Date().toISOString() } })}\n\n`,
+      });
+    });
     await page.route("**/api/v2/agent-runs/*/items", (route) =>
       route.fulfill({
         json: recoveredContent
@@ -294,6 +419,12 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
         });
       }
     });
+    // The SDK intentionally shares one long-lived stream across subscribers.
+    // Reload after installing the controlled route; otherwise the pre-existing
+    // real Runtime connection never reaches this late interception at all.
+    await page.reload();
+    await expect(editor).toBeVisible();
+    await expect.poll(() => eventReads).toBeGreaterThan(0);
     await panel.getByRole("button", { name: "续写本章", exact: true }).click();
     await expect(
       panel.getByRole("button", { name: "停止生成", exact: true }),

@@ -1,5 +1,7 @@
 # OpenAI TTS Provider Runbook
 
+TTS is an optional, replaceable production output under [product positioning](../../docs/product/POSITIONING.md), not a prerequisite for novel manuscripts or screenplay delivery. Adapter contracts and local tests do not prove authorized real-provider billing, finished-film quality, or release readiness; this positioning update does not change the sandbox evidence below.
+
 This adapter uses the documented synchronous `POST /v1/audio/speech` endpoint with a built-in voice only.
 It never uploads a local voice sample, creates a custom voice, or exposes voice cloning.
 

@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
-import { streamText, type LanguageModel } from "ai";
+import { streamText, type LanguageModel, type LanguageModelUsage } from "ai";
 
 export interface LangGraphProviderConfiguration {
   providerKind: "openai" | "anthropic" | "google";
@@ -19,15 +19,18 @@ export interface LangGraphRunInput {
   signal?: AbortSignal;
   onTextDelta?(delta: string): void;
   onUsage?(usage: {
-    inputTokens: number;
-    outputTokens: number;
-    cachedTokens: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedTokens?: number;
+    inputAccounting: "includes-cache" | "excludes-cache" | "unspecified";
   }): void;
 }
 
 export interface LangGraphRunOutput {
   summary: string;
   content: string;
+  /** Complete validated JSON envelope for engine-neutral structured consumers. */
+  text?: string;
   data?: unknown;
 }
 
@@ -38,6 +41,57 @@ const WorkflowState = Annotation.Root({
   error: Annotation<string | undefined>(),
   retryCount: Annotation<number>(),
 });
+
+/** SDK adapters may synthesize missing counts as zero; prefer their raw report. */
+export function langGraphReportedUsage(
+  usage: LanguageModelUsage,
+  providerKind: LangGraphProviderConfiguration["providerKind"],
+) {
+  const raw = usage.raw;
+  if (!raw)
+    return {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedTokens: usage.inputTokenDetails.cacheReadTokens,
+      inputAccounting: "includes-cache" as const,
+    };
+  const number = (value: unknown) =>
+    typeof value === "number" ? value : undefined;
+  const object = (value: unknown): Record<string, unknown> =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  if (providerKind === "anthropic")
+    return {
+      inputTokens: number(raw.input_tokens),
+      outputTokens: number(raw.output_tokens),
+      cachedTokens: number(raw.cache_read_input_tokens),
+      inputAccounting: "excludes-cache" as const,
+    };
+  if (providerKind === "google")
+    return {
+      inputTokens: number(raw.promptTokenCount),
+      // Do not infer an absent reasoning component as zero in a total.
+      outputTokens:
+        typeof raw.candidatesTokenCount === "number" &&
+        typeof raw.thoughtsTokenCount === "number"
+          ? raw.candidatesTokenCount + raw.thoughtsTokenCount
+          : undefined,
+      cachedTokens: number(raw.cachedContentTokenCount),
+      inputAccounting: "includes-cache" as const,
+    };
+  const responses =
+    Object.hasOwn(raw, "input_tokens") || Object.hasOwn(raw, "output_tokens");
+  return {
+    inputTokens: number(responses ? raw.input_tokens : raw.prompt_tokens),
+    outputTokens: number(responses ? raw.output_tokens : raw.completion_tokens),
+    cachedTokens: number(
+      object(responses ? raw.input_tokens_details : raw.prompt_tokens_details)
+        .cached_tokens,
+    ),
+    inputAccounting: "includes-cache" as const,
+  };
+}
 
 export function createLangGraphModel(
   configuration: LangGraphProviderConfiguration,
@@ -108,20 +162,18 @@ export function buildLangGraphWorkflow(
         if (signal?.aborted) throw new Error("任务已取消");
         throw langGraphProviderError(error);
       }
-      if (streamFailure) throw langGraphProviderError(streamFailure);
-      if (!rawOutput.trim())
-        throw new Error("LangGraph 模型没有返回内容，请检查模型和服务地址");
       let usage;
       try {
         usage = await response.usage;
       } catch (error) {
         throw langGraphProviderError(error);
       }
-      callbacks.onUsage?.({
-        inputTokens: Number(usage.inputTokens ?? 0),
-        outputTokens: Number(usage.outputTokens ?? 0),
-        cachedTokens: Number(usage.cachedInputTokens ?? 0),
-      });
+      callbacks.onUsage?.(
+        langGraphReportedUsage(usage, configuration.providerKind),
+      );
+      if (streamFailure) throw langGraphProviderError(streamFailure);
+      if (!rawOutput.trim())
+        throw new Error("LangGraph 模型没有返回内容，请检查模型和服务地址");
       return { rawOutput, error: undefined };
     })
     .addNode("解析结果", (state) => {
@@ -216,14 +268,21 @@ export function parseLangGraphOutput(
         stringField(responseRecord, "text"))
       : undefined) ??
     summary;
-  if (!summary && !content) {
-    if (responseMode === "text")
-      return { summary: trimmed.slice(0, 500), content: trimmed };
+  const structuredText =
+    responseMode === "structured" ? JSON.stringify(record) : undefined;
+  if (!summary && !content && responseMode === "text")
+    return { summary: trimmed.slice(0, 500), content: trimmed };
+  if (!summary && !content && !Object.keys(record).length)
     throw new Error("模型输出缺少可展示内容");
-  }
+  // Creation/check protocols may contain items/issues instead of a display
+  // summary. Keep their complete envelope (including repaired output) under
+  // the neutral `text` field; Runtime must validate it before any adoption.
+  // Returning only `content` here silently strips title/items/issues, while
+  // preferring streamed deltas would reuse a malformed pre-repair response.
   return {
-    summary: summary ?? content!.slice(0, 500),
-    content: content ?? summary!,
+    summary: summary ?? content?.slice(0, 500) ?? "已返回结构化结果",
+    content: content ?? summary ?? structuredText!,
+    ...(structuredText ? { text: structuredText } : {}),
     ...(record.data !== undefined
       ? { data: record.data }
       : responseRecord?.data !== undefined

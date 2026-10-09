@@ -1,3 +1,13 @@
+import {
+  ImportedProjectLineageArchivesSchema,
+  type ImportedProjectLineageArchive,
+  ProjectPackageLineageSchema,
+} from "@dramaip/contracts/creation-project-lineage";
+import {
+  collectImportedProjectLineageArchives,
+  prepareImportedProjectLineageArchives,
+  collectProjectPackageLineage,
+} from "./project-lineage.js";
 import { optionalService } from "@dramaip/plugin-api/internal";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
@@ -135,47 +145,70 @@ const packageResourceSchema = z.object({
   parentId: z.string().uuid().optional(),
   title: z.string().optional(),
   payload: z.record(z.string(), z.unknown()),
+  version: z.number().int().nonnegative().optional(),
 });
 
-const projectPackageSchema = z.object({
-  format: z.literal("dramaip-project-package"),
-  schemaVersion: z.union([
-    z.literal(1),
-    z.literal(2),
-    z.literal(3),
-    z.literal(4),
-  ]),
-  exportedAt: z.string().datetime(),
-  project: ProjectInputSchema,
-  chapters: z.array(
-    z.object({
-      id: z.string().uuid(),
-      volumeId: z.string().uuid().optional(),
-      title: z.string(),
-      summary: z.string().optional(),
-      outline: z.string().optional(),
-      content: z.string().optional(),
-      mainConflict: z.string().optional(),
-      hook: z.string().optional(),
-      highlight: z.string().optional(),
-      reversal: z.string().optional(),
-      cliffhanger: z.string().optional(),
-      shortDramaNote: z.string().optional(),
-      aiVideoNote: z.string().optional(),
-    }),
-  ),
-  resources: z.array(packageResourceSchema),
-  structure: z
-    .object({
-      volumes: z.array(z.unknown()).default([]),
-      seasons: z.array(z.unknown()).default([]),
-      creatorContent: z.array(z.unknown()).default([]),
-      researchTopics: z.array(z.unknown()).default([]),
-    })
-    .optional(),
-  creativeIntelligence: CreativePackageAssetsSchema.optional(),
-  warnings: z.array(z.string()),
-});
+const projectPackageSchema = z
+  .object({
+    format: z.literal("dramaip-project-package"),
+    schemaVersion: z.union([
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+    ]),
+    exportedAt: z.string().datetime(),
+    project: ProjectInputSchema,
+    chapters: z.array(
+      z.object({
+        id: z.string().uuid(),
+        version: z.number().int().nonnegative().optional(),
+        volumeId: z.string().uuid().optional(),
+        title: z.string(),
+        summary: z.string().optional(),
+        outline: z.string().optional(),
+        content: z.string().optional(),
+        mainConflict: z.string().optional(),
+        hook: z.string().optional(),
+        highlight: z.string().optional(),
+        reversal: z.string().optional(),
+        cliffhanger: z.string().optional(),
+        shortDramaNote: z.string().optional(),
+        aiVideoNote: z.string().optional(),
+      }),
+    ),
+    resources: z.array(packageResourceSchema),
+    structure: z
+      .object({
+        volumes: z.array(z.unknown()).default([]),
+        seasons: z.array(z.unknown()).default([]),
+        creatorContent: z.array(z.unknown()).default([]),
+        researchTopics: z.array(z.unknown()).default([]),
+      })
+      .optional(),
+    lineage: ProjectPackageLineageSchema.optional(),
+    importedLineageArchives: ImportedProjectLineageArchivesSchema.optional(),
+    creativeIntelligence: CreativePackageAssetsSchema.optional(),
+    warnings: z.array(z.string()),
+  })
+  .superRefine((value, check) => {
+    if (value.schemaVersion === 5) {
+      if (
+        !value.lineage ||
+        value.chapters.some((item) => item.version === undefined) ||
+        value.resources.some((item) => item.version === undefined)
+      )
+        check.addIssue({
+          code: "custom",
+          message: "v5 原谱系和版本不可缺失。",
+        });
+    } else if (value.lineage || value.importedLineageArchives)
+      check.addIssue({
+        code: "custom",
+        message: "旧协议不自动升级为新谱系包。",
+      });
+  });
 type ProjectPackage = z.infer<typeof projectPackageSchema>;
 
 function problem(
@@ -184,7 +217,7 @@ function problem(
   code: string,
   title: string,
 ): Response {
-  return context.json(
+  const response = context.json(
     {
       type: `https://dramaip.local/problems/${code.toLowerCase()}`,
       title,
@@ -195,6 +228,8 @@ function problem(
     },
     status,
   );
+  response.headers.set("Content-Type", "application/problem+json");
+  return response;
 }
 
 function declaration(input: {
@@ -411,6 +446,7 @@ function buildPackage(
   context: PluginContext,
   projects: WorkspaceProjectService,
   projectId: string,
+  includeOwnerLineage = true,
 ): ProjectPackage | undefined {
   const project = projects.get(projectId);
   if (!project) return undefined;
@@ -442,6 +478,7 @@ function buildPackage(
     resources.push(
       ...values.writing.list(kind, projectId).map((record) => ({
         id: record.id,
+        version: record.version,
         owner: "writing" as const,
         kind,
         ...(record.parentId ? { parentId: record.parentId } : {}),
@@ -453,6 +490,7 @@ function buildPackage(
     resources.push(
       ...(values.production?.list(kind, { projectId }).map((record) => ({
         id: record.id,
+        version: record.version,
         owner: "production" as const,
         kind,
         ...(record.parentId ? { parentId: record.parentId } : {}),
@@ -464,6 +502,7 @@ function buildPackage(
     resources.push(
       ...(values.media?.list(kind, { projectId }).map((record) => ({
         id: record.id,
+        version: record.version,
         owner: "media" as const,
         kind,
         ...(record.parentId ? { parentId: record.parentId } : {}),
@@ -475,6 +514,7 @@ function buildPackage(
     resources.push(
       ...(values.creative?.list(kind, { projectId }).map((record) => ({
         id: record.id,
+        version: record.version,
         owner: "creative-quality" as const,
         kind,
         ...(record.parentId ? { parentId: record.parentId } : {}),
@@ -485,6 +525,7 @@ function buildPackage(
     resources.push(
       ...(values.review?.list(kind, { projectId }).map((record) => ({
         id: record.id,
+        version: record.version,
         owner: "review" as const,
         kind,
         ...(record.parentId ? { parentId: record.parentId } : {}),
@@ -495,6 +536,7 @@ function buildPackage(
     resources.push(
       ...(values.delivery?.list(kind, { projectId }).map((record) => ({
         id: record.id,
+        version: record.version,
         owner: "delivery" as const,
         kind,
         ...(record.parentId ? { parentId: record.parentId } : {}),
@@ -503,11 +545,24 @@ function buildPackage(
     );
   return {
     format: "dramaip-project-package",
-    schemaVersion: 4,
+    schemaVersion: 5,
+    lineage: collectProjectPackageLineage(
+      context,
+      project,
+      includeOwnerLineage,
+    ),
+    ...(() => {
+      const archives = collectImportedProjectLineageArchives(
+        context,
+        project.id,
+      );
+      return archives.length ? { importedLineageArchives: archives } : {};
+    })(),
     exportedAt: new Date().toISOString(),
     project: projectInput(project),
     chapters: values.chapters.list(projectId).map((chapter) => ({
       id: chapter.id,
+      version: chapter.version,
       ...(chapter.volumeId ? { volumeId: chapter.volumeId } : {}),
       title: chapter.title,
       summary: chapter.summary,
@@ -556,8 +611,9 @@ function buildPackage(
       provenance: [],
     },
     warnings: [
+      "schema v5 创作谱系仅保留原记录身份／版本／冻结引用；不是所有owner历史、语义证明或全书已读。请保留原 JSON 包独立审阅；导入仅保留不受信外部谱系只读归档，不证明授权或真实性；导入不会激活原谱系、不重放工作流、不恢复授权、不自动采用。",
       "安全凭据、绝对路径和本地媒体明文不进入项目包；导入后需重新授权。",
-      "项目包 schema v4 保留模式、卷季结构、抽象语料、因果节点和脱敏谱系；网页正文、完整对话、长期记忆和创意指纹不会导出。",
+      "项目包 schema v5 保留模式、卷季结构、抽象语料、因果节点及原工作流允许谱系；网页正文、完整对话、长期记忆和创意指纹不会导出。",
     ],
   };
 }
@@ -594,7 +650,9 @@ function exportPackageDocument(
       content: JSON.stringify(
         {
           ...snapshot,
-          chapters: snapshot.chapters.slice(0, 10),
+          // An export with no explicitly selected range means the whole
+          // manuscript. Never silently turn a long work into a ten-chapter sample.
+          chapters: snapshot.chapters,
           resources: selected,
         },
         null,
@@ -613,7 +671,7 @@ function exportPackageDocument(
   return {
     fileName: `${safeTitle}-${format}.md`,
     mimeType: "text/markdown",
-    content: `# ${snapshot.project.title}\n\n${snapshot.project.synopsis ?? ""}\n\n${chapters}\n\n${records}\n`,
+    content: `# ${snapshot.project.title}\n\n${snapshot.project.synopsis ?? ""}\n\n${chapters}${format === "submission-markdown" ? "" : `\n\n${records}`}\n`,
   };
 }
 
@@ -718,6 +776,10 @@ export function workspaceMaintenanceRoutes(
   context: PluginContext,
   host: DesktopHostClient | undefined,
   projects: WorkspaceProjectService,
+  createImportedProject: (
+    input: ProjectInput,
+    archives: ImportedProjectLineageArchive[],
+  ) => ReturnType<WorkspaceProjectService["create"]>,
 ): readonly RouteContribution[] {
   return [
     route(
@@ -904,7 +966,12 @@ export function workspaceMaintenanceRoutes(
             "项目导出参数无效。",
           );
         try {
-          const snapshot = buildPackage(context, projects, params.data.id);
+          const snapshot = buildPackage(
+            context,
+            projects,
+            params.data.id,
+            params.data.format === "json",
+          );
           return snapshot
             ? requestContext.json(
                 exportPackageDocument(snapshot, params.data.format),
@@ -953,6 +1020,7 @@ export function workspaceMaintenanceRoutes(
             32 * 1024 * 1024,
           );
           const snapshot = projectPackageSchema.parse(JSON.parse(file.content));
+          prepareImportedProjectLineageArchives(snapshot);
           const id = crypto.randomUUID();
           const expiresAt = new Date(
             Date.now() + 30 * 60 * 1_000,
@@ -1043,10 +1111,23 @@ export function workspaceMaintenanceRoutes(
         const snapshot = projectPackageSchema.parse(
           JSON.parse(row.snapshot_json),
         );
-        const project = projects.create({
-          ...snapshot.project,
-          ...(input.data.title ? { title: input.data.title } : {}),
-        });
+        let project: ReturnType<WorkspaceProjectService["create"]>;
+        try {
+          project = createImportedProject(
+            {
+              ...snapshot.project,
+              ...(input.data.title ? { title: input.data.title } : {}),
+            },
+            prepareImportedProjectLineageArchives(snapshot),
+          );
+        } catch {
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "项目包谱系归档与新项目创建未提交，请恢复来源后重试。",
+          );
+        }
         const volumeIds = new Map<string, string>();
         const volumeService = optionalService<WritingVolumeService>(
           context,

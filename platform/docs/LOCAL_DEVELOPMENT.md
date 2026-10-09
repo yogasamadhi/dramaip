@@ -1,5 +1,7 @@
 # 本地开发（Java）
 
+本文仅覆盖 [Platform 云端职责](../README.md) 的开发环境，不是 Desktop 小说/改编的运行前提。按 [产品定位](../../docs/product/POSITIONING.md)，小说可独立创作与稿件交付，媒体、协作和云能力保持可选；启动本地云平台不意味着私人正文自动同步或计划中的跨端工作流已实现。
+
 当前本地运行时是 JDK 21 的 Java 平台：Gateway、独立 migration Job、identity、notification、reporting、creation、quota、ai 和 billing。公共入口为 Gateway `http://localhost:8080`，业务接口使用 `/api/v1/**` 并要求 `X-DramaIP-Contract-Version: 2`。
 
 ## 前置条件
@@ -21,7 +23,7 @@ bun run .\run-platform-dev.ts
 
 本地 migration 会续跑开发卷中尚未执行的历史 001–049 SQL，再建立 Flyway 49 基线；该兼容开关仅由本地启动器启用，生产环境仍要求迁移账本预先完整。启动器也会让 PostgreSQL、RabbitMQ、Nacos 等回环 TCP 连接绕过 JVM SOCKS 代理，HTTP/HTTPS 外部代理配置不受影响。
 
-启动器会启动 Java Compose profile、等待 Gateway 的 `/actuator/health`，然后启动 Web 开发服务器。只管理后端时可使用：
+Web、Admin 与 Mobile 由独立的 `bun run run-platform-clients.ts` 启动器管理，不由宿主机 Java 启动器自动启动。若选择 Compose 后端而非宿主机 Java 进程，可使用：
 
 ```bash
 cd platform

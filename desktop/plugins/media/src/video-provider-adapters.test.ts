@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ConfiguredProvider } from "@dramaip/contracts";
-import { videoProviderAdapter } from "./video-provider-adapters.js";
+import {
+  videoProviderAdapter,
+  videoProviderInputIssues,
+} from "./video-provider-adapters.js";
 
 function provider(value: Partial<ConfiguredProvider>): ConfiguredProvider {
   return {
@@ -15,6 +18,80 @@ function provider(value: Partial<ConfiguredProvider>): ConfiguredProvider {
 }
 
 describe("media video provider adapters", () => {
+  it("rejects unsupported declared durations and resolutions before making a request draft, never silently replacing a resolution", () => {
+    const minimax = videoProviderAdapter(
+      provider({ model: "MiniMax-H3", protocol: "minimax-h3-cloud" }),
+    )!;
+    const input = {
+      providerId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      prompt: "受控参数",
+    };
+    for (const seconds of [1, 3, 16, 60]) {
+      expect(
+        videoProviderInputIssues(minimax.capabilities, { ...input, seconds }),
+      ).toEqual([expect.stringContaining("声明能力")]);
+      expect(() =>
+        minimax.create(provider({ model: "MiniMax-H3" }), {
+          ...input,
+          seconds,
+        }),
+      ).toThrow("声明能力");
+    }
+    for (const seconds of [4, 5, 15])
+      expect(
+        videoProviderInputIssues(minimax.capabilities, { ...input, seconds }),
+      ).toEqual([]);
+    for (const size of ["", "4K", "720x1280", " 2K "]) {
+      expect(
+        videoProviderInputIssues(minimax.capabilities, { ...input, size }),
+      ).toEqual([expect.stringContaining("默认分辨率")]);
+      expect(() =>
+        minimax.create(provider({ model: "MiniMax-H3" }), { ...input, size }),
+      ).toThrow("声明能力");
+    }
+    expect(
+      minimax.create(provider({ model: "MiniMax-H3" }), {
+        ...input,
+        size: "2k",
+      }).body,
+    ).toMatchObject({ resolution: "2K", duration: 5 });
+    expect(
+      minimax.create(provider({ model: "MiniMax-H3" }), input).body,
+    ).toMatchObject({ resolution: "768P", duration: 5 });
+  });
+
+  it("enforces array capability selections as well as ranges; exact declared aliases normalize case only, not a different size or duration", () => {
+    const adapter = videoProviderAdapter(
+      provider({ model: "seedance-controlled", protocol: "seedance" }),
+    )!;
+    const input = {
+      providerId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      prompt: "受控参数",
+      seconds: 6,
+    };
+    expect(() =>
+      adapter.create(provider({ model: "seedance-controlled" }), {
+        ...input,
+        size: "4K",
+      }),
+    ).toThrow("声明能力");
+    expect(
+      adapter.create(provider({ model: "seedance-controlled" }), {
+        ...input,
+        size: "1080P",
+      }).body,
+    ).toMatchObject({ resolution: "1080p", duration: 6 });
+    const discrete = { ...adapter.capabilities, durationSeconds: [4, 8] };
+    expect(videoProviderInputIssues(discrete, input)).toEqual([
+      expect.stringContaining("时长"),
+    ]);
+    expect(
+      videoProviderInputIssues(discrete, { ...input, seconds: 8 }),
+    ).toEqual([]);
+  });
+
   it("maps MiniMax H3 to the official v2 asynchronous task contract", () => {
     const adapter = videoProviderAdapter(
       provider({ model: "MiniMax-H3", protocol: "minimax-h3-cloud" }),

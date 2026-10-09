@@ -43,10 +43,12 @@ test.afterAll(async () => {
 });
 
 test("三种创建入口进入同一项目上下文，原著路径先展示权益预览", async () => {
-  await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "你现在手中有什么素材？" }),
+  ).toBeVisible();
 
+  await page.getByRole("button", { name: "从创意开始" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();
-  await page.getByRole("button", { name: /从灵感开始/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 灵感项目");
   await page.getByRole("button", { name: "创建系列长篇" }).click();
   await expect(
@@ -54,8 +56,8 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
   ).toBeVisible();
 
   await openProjectCreation(page);
+  await page.getByRole("button", { name: "导入小说或大纲" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 原著项目");
   await page.getByRole("button", { name: "选择文件" }).click();
   await expect(
@@ -70,20 +72,32 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
   ).toBeVisible();
 
   await openProjectCreation(page);
+  await page.getByRole("button", { name: "导入已有剧本" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /使用已有剧本/ }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 剧本项目");
   await page
     .getByRole("textbox", { name: "已有剧本内容" })
     .fill("【雨夜·门口】\n林晚：你终于来了。");
+  await expect(
+    page.getByRole("button", { name: "创建单季短剧", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByLabel("我确认拥有此剧本的使用权，或已经取得必要授权。")
+    .check();
   await page.getByRole("button", { name: "创建单季短剧" }).click();
   await expect(
     page.getByRole("heading", { name: "LM6 剧本项目" }),
   ).toBeVisible();
-  const directory = page.getByRole("button", { name: "章节目录", exact: true });
-  if ((await directory.getAttribute("aria-expanded")) !== "true")
-    await directory.click();
   await expect(
-    page.getByText("第 1 集剧本草稿", { exact: true }),
+    page.getByRole("heading", { name: "剧本审查", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "章节目录", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("林晚：你终于来了。", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "项目", exact: true }),
+  ).toBeHidden();
 });

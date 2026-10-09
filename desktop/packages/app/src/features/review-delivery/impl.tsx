@@ -1,17 +1,27 @@
 import { CreationRecordWorkbench } from "../creation-workbench";
+import { MediaReviewPanel } from "./media-review-panel";
 import type {
   ChangePreview,
   CloudReviewPublishPreview,
-  DeliveryCreativeVariant,
   EpisodeCompliancePreflight,
   EpisodeWorkflowKind,
-  PlatformDeliveryArchive,
-  PlatformDeliveryPreflight,
 } from "@dramaip/contracts/product";
 import { BareButton } from "@dramaip/ui-shared";
+import { StudioClientError } from "@dramaip/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import type {
+  PlatformMetadataVariant as DeliveryCreativeVariant,
+  PlatformMetadataArchiveEntry as PlatformDeliveryArchive,
+  PlatformMetadataPreflight as PlatformDeliveryPreflight,
+  PlatformMetadataReceipt,
+} from "@dramaip/contracts/delivery";
+import {
+  readPlatformMetadataPending,
+  platformMetadataPendingKey,
+  type PlatformMetadataPending,
+} from "./platform-metadata-pending";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   StageNavigation,
   WorkspaceIntro,
@@ -25,7 +35,36 @@ import {
   AgentChangePreviewCard,
   PluginResourceWorkspace,
 } from "../studio-widgets";
+import {
+  ProductionContextBoundary,
+  WorkspaceObjectControls,
+} from "../ProductionContextBoundary";
+import {
+  productionReferenceKey,
+  withExactProductionRecord,
+  type ProductionObjectContext,
+} from "../../production-object-context";
 export function ReviewDeliveryWorkspace() {
+  const location = useLocation();
+  return (
+    <ProductionContextBoundary>
+      {(projectId, context) => (
+        <ReviewDeliveryWorkspaceInstance
+          key={JSON.stringify([
+            projectId,
+            productionReferenceKey(location.search),
+          ])}
+          projectId={projectId}
+          context={context}
+        />
+      )}
+    </ProductionContextBoundary>
+  );
+}
+function ReviewDeliveryWorkspaceInstance(props: {
+  projectId: string;
+  context: ProductionObjectContext;
+}) {
   const client = useStudio();
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,35 +73,32 @@ export function ReviewDeliveryWorkspace() {
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState(session.activeProjectId ?? "");
-  const [adaptationId, setAdaptationId] = useState("");
-  const [episodeId, setEpisodeId] = useState("");
+  const projectId = props.projectId;
+  const [selectedAdaptationId, setAdaptationId] = useState("");
+  const [selectedEpisodeId, setEpisodeId] = useState("");
+  const adaptationId = props.context.adaptationId?.id ?? selectedAdaptationId;
+  const episodeId = props.context.episodeId?.id ?? selectedEpisodeId;
   const [stage, setStage] = useState<
     "quality" | "compliance" | "localization" | "review" | "delivery"
   >("quality");
-  const { data: adaptations = [] } = useQuery({
+  const { data: listedAdaptations = [] } = useQuery({
     queryKey: ["resource", "adaptations", projectId],
     queryFn: () => client.resources.list("adaptations", projectId),
     enabled: Boolean(projectId),
   });
-  const { data: episodes = [] } = useQuery({
+  const { data: listedEpisodes = [] } = useQuery({
     queryKey: ["resource", "episodes", projectId, adaptationId],
     queryFn: () => client.resources.list("episodes", projectId, adaptationId),
     enabled: Boolean(projectId && adaptationId),
   });
-  useEffect(() => {
-    if (
-      session.activeProjectId &&
-      projects.some((project) => project.id === session.activeProjectId) &&
-      projectId !== session.activeProjectId
-    )
-      setProjectId(session.activeProjectId);
-  }, [projectId, projects, session.activeProjectId]);
-  useEffect(() => {
-    const requested = new URLSearchParams(location.search).get("projectId");
-    if (requested && projects.some((project) => project.id === requested))
-      setProjectId(requested);
-  }, [location.search, projects]);
+  const adaptations = withExactProductionRecord(
+    listedAdaptations,
+    props.context.adaptationId,
+  );
+  const episodes = withExactProductionRecord(
+    listedEpisodes,
+    props.context.episodeId,
+  );
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("stage");
     if (
@@ -152,6 +188,17 @@ export function ReviewDeliveryWorkspace() {
   }) => {
     const search = new URLSearchParams();
     const values = { projectId, stage, adaptationId, episodeId, ...next };
+    if (
+      (!next.projectId || next.projectId === projectId) &&
+      (!next.episodeId || next.episodeId === episodeId) &&
+      next.episodeId !== ""
+    ) {
+      const original = new URLSearchParams(location.search);
+      for (const key of ["scriptId", "sceneId", "shotId"]) {
+        const value = original.get(key);
+        if (value) search.set(key, value);
+      }
+    }
     Object.entries(values).forEach(([key, value]) => {
       if (value) search.set(key, value);
     });
@@ -163,78 +210,86 @@ export function ReviewDeliveryWorkspace() {
         eyebrow="审核交付工作区"
         title="质量、审片与交付"
         description="质量、合规、本地化、审片和平台交付记录统一归属到具体分集。"
-        badge="交付就绪"
+        badge="人工审核与交付"
       />
       <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
-        <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-3">
-          <label className="grid gap-1 text-sm">
-            项目
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              value={projectId}
-              onChange={(event) => {
-                const nextProjectId = event.target.value;
-                setProjectId(nextProjectId);
-                if (nextProjectId) session.selectProject(nextProjectId);
-                setAdaptationId("");
-                setEpisodeId("");
-                syncRoute({
-                  projectId: nextProjectId,
-                  adaptationId: "",
-                  episodeId: "",
-                });
-              }}
-            >
-              <option value="">选择项目</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            改编项目
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!projectId}
-              value={adaptationId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setAdaptationId(nextId);
-                setEpisodeId("");
-                syncRoute({ adaptationId: nextId, episodeId: "" });
-              }}
-            >
-              <option value="">选择改编项目</option>
-              {adaptations.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            分集
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!adaptationId}
-              value={episodeId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setEpisodeId(nextId);
-                syncRoute({ episodeId: nextId });
-              }}
-            >
-              <option value="">选择分集</option>
-              {episodes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        </section>
+        <WorkspaceObjectControls
+          projectTitle={
+            projects.find((project) => project.id === projectId)?.title
+          }
+          objectTitles={[
+            episodes.find((record) => record.id === episodeId)?.title,
+          ].filter((title): title is string => Boolean(title))}
+        >
+          <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-3">
+            <label className="grid gap-1 text-sm">
+              项目
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                value={projectId}
+                onChange={(event) => {
+                  const nextProjectId = event.target.value;
+                  if (nextProjectId) session.selectProject(nextProjectId);
+                  setAdaptationId("");
+                  setEpisodeId("");
+                  syncRoute({
+                    projectId: nextProjectId,
+                    adaptationId: "",
+                    episodeId: "",
+                  });
+                }}
+              >
+                <option value="">选择项目</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              改编项目
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!projectId}
+                value={adaptationId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setAdaptationId(nextId);
+                  setEpisodeId("");
+                  syncRoute({ adaptationId: nextId, episodeId: "" });
+                }}
+              >
+                <option value="">选择改编项目</option>
+                {adaptations.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              分集
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!adaptationId}
+                value={episodeId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setEpisodeId(nextId);
+                  syncRoute({ episodeId: nextId });
+                }}
+              >
+                <option value="">选择分集</option>
+                {episodes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+        </WorkspaceObjectControls>
         <StageNavigation
           label="审核交付阶段"
           items={stageItems}
@@ -259,7 +314,11 @@ export function ReviewDeliveryWorkspace() {
             episodeId={episodeId}
           />
         ) : stage === "review" && adaptationId && episodeId ? (
-          <ReviewEditorPanel episodeId={episodeId} />
+          <ReviewEditorPanel
+            key={`${projectId}:${episodeId}`}
+            projectId={projectId}
+            episodeId={episodeId}
+          />
         ) : stage === "compliance" && adaptationId && episodeId ? (
           <CompliancePreflightPanel
             episodeId={episodeId}
@@ -305,6 +364,18 @@ export function PlatformDeliveryPanel(props: {
   adaptationId: string;
   episodeId: string;
 }) {
+  return (
+    <PlatformDeliveryPanelInstance
+      key={`${props.projectId}:${props.adaptationId}:${props.episodeId}`}
+      {...props}
+    />
+  );
+}
+function PlatformDeliveryPanelInstance(props: {
+  projectId: string;
+  adaptationId: string;
+  episodeId: string;
+}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const [profileId, setProfileId] = useState("");
@@ -317,39 +388,230 @@ export function PlatformDeliveryPanel(props: {
   const [manualFieldsConfirmed, setManualFieldsConfirmed] = useState(false);
   const [preflight, setPreflight] = useState<PlatformDeliveryPreflight>();
   const [notice, setNotice] = useState<string>();
+  const [pending, setPending] = useState<PlatformMetadataPending>();
+  const [pendingRejected, setPendingRejected] = useState(false);
+  const pendingRef = useRef<PlatformMetadataPending | undefined>(undefined);
+  const invalidPending = useRef(false);
+  const lease = useRef(0),
+    abort = useRef<AbortController | undefined>(undefined),
+    busy = useRef(false);
+  const storageKey = platformMetadataPendingKey(
+    props.projectId,
+    props.adaptationId,
+    props.episodeId,
+  );
+  const remember = (p: PlatformMetadataPending | undefined) => {
+    if (p) localStorage.setItem(storageKey, JSON.stringify(p));
+    else localStorage.removeItem(storageKey);
+    pendingRef.current = p;
+    setPending(p);
+    setPendingRejected(false);
+  };
+  const acceptReceipt = (
+    r: PlatformMetadataReceipt,
+    p: PlatformMetadataPending,
+  ) => {
+    if (
+      r.requestKey !== p.key ||
+      r.aggregateId !== p.aggregateId ||
+      r.operation !== p.operation ||
+      r.projectId !== p.projectId ||
+      JSON.stringify(r.input) !== JSON.stringify(p.input)
+    )
+      throw new Error("原请求回执不匹配，保留待核请求。");
+    remember(undefined);
+    setPreflight(undefined);
+    setManualFieldsConfirmed(false);
+    setNotice(
+      r.operation === "adopt"
+        ? "原候选已明确采用；请重新选择并核对预检。"
+        : "原预检提交资料已归档；不代表成片／授权／结算／发行通过。",
+    );
+    void queryClient.invalidateQueries({ queryKey: ["platform-delivery"] });
+  };
+  const start = () => {
+    if (busy.current || invalidPending.current) return;
+    busy.current = true;
+    abort.current?.abort();
+    abort.current = new AbortController();
+    return { epoch: ++lease.current, signal: abort.current.signal };
+  };
+  const alive = (t: { epoch: number; signal: AbortSignal }) =>
+    t.epoch === lease.current && !t.signal.aborted;
+  const checkRejected = async (
+    cause: unknown,
+    p: PlatformMetadataPending,
+    t: { epoch: number; signal: AbortSignal },
+  ) => {
+    if (
+      !(cause instanceof StudioClientError) ||
+      ![400, 404, 409, 412, 428].includes(cause.status)
+    )
+      return;
+    try {
+      const r = await client.platformDelivery.recoverRequest(
+        p.key,
+        p.projectId,
+        t.signal,
+      );
+      if (alive(t)) acceptReceipt(r, p);
+    } catch (readError) {
+      if (
+        alive(t) &&
+        readError instanceof StudioClientError &&
+        readError.status === 404
+      )
+        setPendingRejected(true);
+    }
+  };
+  const retainRejected = () => {
+    const p = pendingRef.current;
+    if (!p || !pendingRejected) return;
+    // Never discard an unknown response. Only a definitive write rejection plus original-key 404 may be left by an explicit user action.
+    localStorage.setItem(`${storageKey}:rejected:${p.key}`, JSON.stringify(p));
+    remember(undefined);
+    resetPreflight();
+    setNotice(
+      "原拒绝请求已保留在本机；请重新读取候选并明确核对，不沿用旧预检或同意。",
+    );
+    void queryClient.invalidateQueries({ queryKey: ["platform-delivery"] });
+  };
+  const recoverPending = async (p: PlatformMetadataPending) => {
+    const t = start();
+    if (!t) return;
+    setWorking("运行预检");
+    try {
+      const r = await client.platformDelivery.recoverRequest(
+        p.key,
+        p.projectId,
+        t.signal,
+      );
+      if (alive(t)) acceptReceipt(r, p);
+    } catch (cause) {
+      if (alive(t))
+        setNotice(`原请求结果尚未确认，未自动重新提交：${message(cause)}`);
+    } finally {
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
+    }
+  };
+  const resendPending = async () => {
+    const p = pendingRef.current;
+    if (!p) return;
+    const t = start();
+    if (!t) return;
+    setWorking(p.operation === "adopt" ? "采用候选" : "创建归档");
+    try {
+      const r =
+        p.operation === "adopt"
+          ? await client.platformDelivery.adoptVariant(
+              p.aggregateId,
+              p.input,
+              p.key,
+              t.signal,
+            )
+          : await client.platformDelivery.createArchive(
+              p.aggregateId,
+              p.input,
+              p.key,
+              t.signal,
+            );
+      if (alive(t)) acceptReceipt(r, p);
+    } catch (cause) {
+      if (alive(t)) setNotice(`原请求仍待核，保留原键：${message(cause)}`);
+      await checkRejected(cause, p, t);
+    } finally {
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
+    }
+  };
+  useEffect(() => {
+    try {
+      const p = readPlatformMetadataPending(
+        localStorage,
+        props.projectId,
+        props.adaptationId,
+        props.episodeId,
+      );
+      if (p) {
+        pendingRef.current = p;
+        setPending(p);
+        void recoverPending(p);
+      }
+    } catch {
+      invalidPending.current = true;
+      busy.current = true;
+      setNotice("本地原请求记录无效；未发起写入，请先核对记录。");
+    }
+    return () => {
+      ++lease.current;
+      abort.current?.abort();
+    };
+    // This keyed instance owns one original scope. Recovery is GET-only; never restores selection/consent or posts on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [working, setWorking] = useState<
     "保存候选" | "采用候选" | "运行预检" | "创建归档" | "导出" | undefined
   >();
-  const { data: profiles = [] } = useQuery({
+  const { data: profiles = [], error: profilesError } = useQuery({
     queryKey: ["platform-delivery", "profiles"],
-    queryFn: client.platformDelivery.listProfiles,
+    queryFn: ({ signal }) => client.platformDelivery.listProfiles(signal),
   });
-  const { data: variants = [] } = useQuery({
-    queryKey: ["platform-delivery", "variants", props.adaptationId],
-    queryFn: () => client.platformDelivery.listVariants(props.adaptationId),
+  const { data: variants = [], error: variantsError } = useQuery({
+    queryKey: [
+      "platform-delivery",
+      "variants",
+      props.projectId,
+      props.adaptationId,
+    ],
+    queryFn: ({ signal }) =>
+      client.platformDelivery.listVariants(
+        props.adaptationId,
+        props.projectId,
+        signal,
+      ),
   });
-  const { data: archives = [] } = useQuery({
-    queryKey: ["platform-delivery", "archives", props.episodeId],
-    queryFn: () => client.platformDelivery.listArchives(props.episodeId),
+  const { data: archives = [], error: archivesError } = useQuery({
+    queryKey: [
+      "platform-delivery",
+      "archives",
+      props.projectId,
+      props.episodeId,
+    ],
+    queryFn: ({ signal }) =>
+      client.platformDelivery.listArchives(
+        props.episodeId,
+        props.projectId,
+        signal,
+      ),
   });
   const { data: assets = [] } = useQuery({
     queryKey: ["resource", "assets", props.projectId],
     queryFn: () => client.resources.list("assets", props.projectId),
   });
-  useEffect(() => {
-    if (!profileId && profiles[0]) setProfileId(profiles[0].id);
-  }, [profileId, profiles]);
-  useEffect(() => {
-    if (!variants.some((variant) => variant.id === variantId))
-      setVariantId(
-        variants.find((variant) => variant.status === "adopted")?.id ??
-          variants[0]?.id ??
-          "",
-      );
-  }, [variantId, variants]);
   const selectedProfile = profiles.find((profile) => profile.id === profileId);
-  const resetPreflight = () => setPreflight(undefined);
+  const catalogError = profilesError ?? variantsError ?? archivesError;
+  const resetPreflight = (clearConsent = true) => {
+    ++lease.current;
+    abort.current?.abort();
+    busy.current = false;
+    setWorking(undefined);
+    setPreflight(undefined);
+    if (clearConsent) setManualFieldsConfirmed(false);
+  };
   const saveVariant = async () => {
+    if (catalogError) {
+      setNotice("资料目录核对失败，不能把读取失败当空历史；请先刷新核对。");
+      return;
+    }
+    if (pendingRef.current) {
+      setNotice("请先核对原待确认请求。");
+      return;
+    }
     const tagList = tags
       .split(/[，,]/)
       .map((item) => item.trim())
@@ -363,6 +625,8 @@ export function PlatformDeliveryPanel(props: {
       setNotice("候选必须填写标签、标题、简介和至少一个标签词。");
       return;
     }
+    const t = start();
+    if (!t) return;
     setWorking("保存候选");
     setNotice(undefined);
     try {
@@ -376,7 +640,9 @@ export function PlatformDeliveryPanel(props: {
           ...(coverAssetId ? { coverAssetId } : {}),
           source: "manual",
         },
+        t.signal,
       );
+      if (!alive(t)) return;
       setVariantId(created.id);
       setTitle("");
       setDescription("");
@@ -384,51 +650,117 @@ export function PlatformDeliveryPanel(props: {
       setLabel(
         `方案 ${String.fromCharCode(65 + Math.min(variants.length + 1, 25))}`,
       );
-      resetPreflight();
+      setPreflight(undefined);
+      setManualFieldsConfirmed(false);
       setNotice(`已保存候选「${created.label}」，仍需显式采用后才能归档。`);
       await queryClient.invalidateQueries({
-        queryKey: ["platform-delivery", "variants", props.adaptationId],
+        queryKey: [
+          "platform-delivery",
+          "variants",
+          props.projectId,
+          props.adaptationId,
+        ],
       });
     } catch (cause) {
-      setNotice(message(cause));
+      if (alive(t)) setNotice(message(cause));
     } finally {
-      setWorking(undefined);
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
     }
   };
   const adoptVariant = async (id: string) => {
+    if (catalogError) {
+      setNotice("资料目录核对失败，请先刷新原版本。");
+      return;
+    }
+    if (pendingRef.current) {
+      setNotice("请先核对原待确认请求。");
+      return;
+    }
+    const v = variants.find((v) => v.id === id);
+    if (!v) return;
+    const t = start();
+    if (!t) return;
+    let attempted: PlatformMetadataPending | undefined;
     setWorking("采用候选");
     setNotice(undefined);
     try {
-      const adopted = await client.platformDelivery.adoptVariant(id);
-      setVariantId(adopted.id);
-      resetPreflight();
-      setNotice(`已采用「${adopted.label}」，此前采用的候选已归档保留。`);
+      const p: PlatformMetadataPending = {
+        operation: "adopt",
+        aggregateId: id,
+        key: crypto.randomUUID(),
+        ...props,
+        input: {
+          projectId: props.projectId,
+          adaptationId: props.adaptationId,
+          projectVersion: v.projectVersion,
+          adaptationVersion: v.adaptationVersion,
+          variantVersion: v.version,
+          contentFingerprint: v.contentFingerprint,
+          expectedHeadRevision: v.headRevision,
+        },
+      };
+      remember(p);
+      attempted = p;
+      const adopted = await client.platformDelivery.adoptVariant(
+        id,
+        p.input,
+        p.key,
+        t.signal,
+      );
+      if (!alive(t)) return;
+      acceptReceipt(adopted, p);
       await queryClient.invalidateQueries({
-        queryKey: ["platform-delivery", "variants", props.adaptationId],
+        queryKey: [
+          "platform-delivery",
+          "variants",
+          props.projectId,
+          props.adaptationId,
+        ],
       });
     } catch (cause) {
-      setNotice(message(cause));
+      if (alive(t)) setNotice(message(cause));
+      if (attempted) await checkRejected(cause, attempted, t);
     } finally {
-      setWorking(undefined);
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
     }
   };
   const currentInput = () => ({
+    projectId: props.projectId,
     profileId,
     creativeVariantId: variantId,
     manualFieldsConfirmed,
   });
   const runPreflight = async () => {
+    if (catalogError) {
+      setNotice("资料目录核对失败，请先刷新原版本。");
+      return;
+    }
+    if (pendingRef.current) {
+      setNotice("请先核对原待确认请求。");
+      return;
+    }
     if (!profileId || !variantId) {
       setNotice("请先选择平台档案和创意候选。");
       return;
     }
+    const t = start();
+    if (!t) return;
+    setPreflight(undefined);
     setWorking("运行预检");
     setNotice(undefined);
     try {
       const result = await client.platformDelivery.preflight(
         props.episodeId,
         currentInput(),
+        t.signal,
       );
+      if (!alive(t)) return;
       setPreflight(result);
       setNotice(
         result.ok
@@ -436,55 +768,106 @@ export function PlatformDeliveryPanel(props: {
           : `预检发现 ${result.blockers.length} 项阻断，请补齐后重试。`,
       );
     } catch (cause) {
-      setNotice(message(cause));
+      if (alive(t)) setNotice(message(cause));
     } finally {
-      setWorking(undefined);
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
     }
   };
   const createArchive = async () => {
+    if (catalogError) {
+      setNotice("资料目录核对失败，请先刷新原版本。");
+      return;
+    }
+    if (pendingRef.current) {
+      setNotice("请先核对原待确认请求。");
+      return;
+    }
     if (!preflight?.ok) {
       setNotice("请先运行并通过平台交付预检。");
       return;
     }
+    const original = preflight,
+      t = start();
+    if (!t) return;
+    let attempted: PlatformMetadataPending | undefined;
     setWorking("创建归档");
     setNotice(undefined);
     try {
-      const archive = await client.platformDelivery.createArchive(
+      const p: PlatformMetadataPending = {
+        operation: "archive",
+        aggregateId: props.episodeId,
+        key: crypto.randomUUID(),
+        ...props,
+        input: {
+          ...original.input,
+          sourceFingerprint: original.sourceFingerprint,
+        },
+      };
+      remember(p);
+      attempted = p;
+      const receipt = await client.platformDelivery.createArchive(
         props.episodeId,
-        currentInput(),
+        p.input,
+        p.key,
+        t.signal,
       );
-      setNotice(
-        `已创建提交资料归档 v${String(archive.deliveryVersion).padStart(3, "0")}，不会覆盖历史记录。`,
-      );
+      if (!alive(t)) return;
+      acceptReceipt(receipt, p);
       await queryClient.invalidateQueries({
-        queryKey: ["platform-delivery", "archives", props.episodeId],
+        queryKey: [
+          "platform-delivery",
+          "archives",
+          props.projectId,
+          props.episodeId,
+        ],
       });
     } catch (cause) {
-      setNotice(message(cause));
+      if (alive(t)) setNotice(message(cause));
+      if (attempted) await checkRejected(cause, attempted, t);
     } finally {
-      setWorking(undefined);
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
     }
   };
   const exportArchive = async (archive: PlatformDeliveryArchive) => {
+    const t = start();
+    if (!t) return;
     setWorking("导出");
     setNotice(undefined);
     try {
-      const document = await client.platformDelivery.exportArchive(archive.id);
+      const document = await client.platformDelivery.exportArchive(
+        archive.id,
+        props.projectId,
+        t.signal,
+      );
+      if (!alive(t)) return;
       const result = await client.host.saveTextFile({
         suggestedName: document.fileName,
         content: document.content,
       });
-      setNotice(result.saved ? "提交资料清单已导出。" : "已取消导出。");
+      if (alive(t))
+        setNotice(result.saved ? "提交资料清单已导出。" : "已取消导出。");
     } catch (cause) {
-      setNotice(message(cause));
+      if (alive(t)) setNotice(message(cause));
     } finally {
-      setWorking(undefined);
+      if (alive(t)) {
+        busy.current = false;
+        setWorking(undefined);
+      }
     }
   };
   const assetTitle = (id?: string) =>
     assets.find((asset) => asset.id === id)?.title ?? "未引用";
   return (
-    <section className="space-y-4 rounded-xl border border-line bg-surface p-4">
+    <section
+      data-testid={`platform-metadata-${props.episodeId}`}
+      className="space-y-4 rounded-xl border border-line bg-surface p-4"
+    >
       <div className="grid gap-4 xl:grid-cols-2">
         <CreationRecordWorkbench
           projectId={props.projectId}
@@ -508,10 +891,25 @@ export function PlatformDeliveryPanel(props: {
           这里不会保存平台账号、登录或代投。它只创建可追溯的提交资料清单；真实成片、字幕和封面仍须由人工核验并附加。
         </p>
       </div>
+      {catalogError && (
+        <p role="alert">
+          资料目录核对失败，不表示没有候选或历史归档：{message(catalogError)}。
+          <BareButton
+            onClick={() =>
+              void queryClient.invalidateQueries({
+                queryKey: ["platform-delivery"],
+              })
+            }
+          >
+            重新读取资料目录
+          </BareButton>
+        </p>
+      )}
       <div className="grid gap-3 rounded-xl border border-line bg-page p-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
           平台交付档案
           <select
+            aria-label="平台交付档案"
             className="rounded-lg border border-line bg-surface px-3 py-2"
             value={profileId}
             onChange={(event) => {
@@ -530,6 +928,7 @@ export function PlatformDeliveryPanel(props: {
         <label className="grid gap-1 text-sm">
           当前创意候选
           <select
+            aria-label="当前创意候选"
             className="rounded-lg border border-line bg-surface px-3 py-2"
             value={variantId}
             onChange={(event) => {
@@ -565,7 +964,7 @@ export function PlatformDeliveryPanel(props: {
               checked={manualFieldsConfirmed}
               onChange={(event) => {
                 setManualFieldsConfirmed(event.target.checked);
-                resetPreflight();
+                resetPreflight(false);
               }}
             />
             <span>
@@ -650,16 +1049,17 @@ export function PlatformDeliveryPanel(props: {
           >
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand">
-                {variant.status === "adopted"
+                {variant.adoptionVerified
                   ? "已采用"
-                  : variant.status === "archived"
-                    ? "历史采用"
+                  : variant.status === "adopted" ||
+                      variant.status === "archived"
+                    ? "历史状态（当前采用未核验）"
                     : "候选"}
               </span>
               <span className="text-sm font-medium">
                 {variant.label} · v{variant.versionNumber} · {variant.title}
               </span>
-              {variant.status !== "adopted" && (
+              {!variant.adoptionVerified && (
                 <BareButton
                   className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
                   disabled={Boolean(working)}
@@ -694,6 +1094,34 @@ export function PlatformDeliveryPanel(props: {
         </BareButton>
       </div>
       {preflight && <PlatformDeliveryPreflightView preflight={preflight} />}
+      {pending && (
+        <section
+          data-testid="platform-metadata-pending"
+          className="rounded-xl border border-amber-400 p-3 text-sm"
+        >
+          <p>
+            原{pending.operation === "adopt" ? "采用" : "归档"}请求待核：
+            {pending.key}；不会自动写入、换键、换版本或恢复人工勾选。
+          </p>
+          <BareButton
+            disabled={Boolean(working)}
+            onClick={() => void recoverPending(pending)}
+          >
+            只读核对原请求
+          </BareButton>
+          <BareButton
+            disabled={Boolean(working)}
+            onClick={() => void resendPending()}
+          >
+            明确用原键重发原请求
+          </BareButton>
+          {pendingRejected && (
+            <BareButton disabled={Boolean(working)} onClick={retainRejected}>
+              保留原拒绝记录，重新核对来源
+            </BareButton>
+          )}
+        </section>
+      )}
       {notice && (
         <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">
           {notice}
@@ -713,6 +1141,15 @@ export function PlatformDeliveryPanel(props: {
             <span className="text-muted">
               {archive.profileId} · {archive.createdAt}
             </span>
+            {archive.scope === "legacy-submission-metadata-unverified" && (
+              <span>旧资料：没有冻结预检，不升级为有效交付证据。</span>
+            )}
+            {archive.scope === "submission-metadata-only" && (
+              <span>
+                原标题：{archive.preflight.snapshot?.variant.title} · 元数据SHA{" "}
+                {archive.sourceFingerprint} · 不代表当前成片／发行通过
+              </span>
+            )}
             <BareButton
               className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
               disabled={Boolean(working)}
@@ -737,6 +1174,17 @@ export function PlatformDeliveryPreflightView(props: {
       <p className="font-medium">
         {props.preflight.ok ? "预检通过：可创建提交资料归档" : "预检未通过"}
       </p>
+      <p>
+        范围：仅提交资料元数据；成片质量、合法授权、实际结算、当前文件和目标平台规格均未核验。
+      </p>
+      {props.preflight.snapshot && (
+        <p data-testid="platform-metadata-original">
+          原候选：{props.preflight.snapshot.variant.title} · v
+          {props.preflight.snapshot.variant.version} · 采用修订
+          {props.preflight.snapshot.variant.headRevision} · SHA{" "}
+          {props.preflight.sourceFingerprint}
+        </p>
+      )}
       {props.preflight.finalBaseName && (
         <p className="mt-1 text-xs text-muted">
           建议文件前缀：{props.preflight.finalBaseName}
@@ -757,7 +1205,8 @@ export function PlatformDeliveryPreflightView(props: {
         </ul>
       )}
       <p className="mt-2 text-xs text-muted">
-        归档将列明：{props.preflight.expectedFiles.join("、")}。
+        预期附件（尚未生成／附加／读取）：
+        {props.preflight.expectedFiles.join("、")}。
       </p>
     </section>
   );
@@ -1000,7 +1449,10 @@ export function CompliancePreflightPanel(props: {
   );
 }
 
-export function ReviewEditorPanel(props: { episodeId: string }) {
+export function ReviewEditorPanel(props: {
+  episodeId: string;
+  projectId?: string;
+}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const [packageId, setPackageId] = useState("");
@@ -1083,8 +1535,8 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
     setCloudWorkspaceId((current) => current || cloudConnection.workspaceId);
   }, [cloudConnection]);
   useEffect(() => {
-    if (!packages.some((item) => item.id === packageId))
-      setPackageId(packages[0]?.id ?? "");
+    if (packageId && !packages.some((item) => item.id === packageId))
+      setPackageId("");
   }, [packageId, packages]);
   useEffect(() => {
     if (
@@ -1158,9 +1610,9 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
     setNotice(undefined);
     try {
       const created = await client.reviewEditor.createPackage(props.episodeId);
-      setPackageId(created.id);
       setNotice("已创建离线审片包记录；可以导出单文件审阅页分发给审片人。");
       await refresh();
+      setPackageId(created.id);
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -1482,6 +1934,16 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
           时间线不暴露绝对路径、不复制媒体，也不伪装为成片。导入剪辑软件后请人工重链接已核验媒体。
         </p>
       </div>
+      {props.projectId && (
+        <MediaReviewPanel
+          projectId={props.projectId}
+          episodeId={props.episodeId}
+          packageId={packageId}
+          onCreated={(id) => {
+            void refresh().then(() => setPackageId(id));
+          }}
+        />
+      )}
       {timelineError && (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {message(timelineError)}
@@ -1597,6 +2059,7 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
         <label className="mt-3 grid gap-1 text-sm">
           当前审片包
           <select
+            aria-label="当前审片包"
             className="rounded-lg border border-line bg-surface px-3 py-2"
             value={packageId}
             onChange={(event) => setPackageId(event.target.value)}
@@ -1976,6 +2439,7 @@ export function ReviewEditorPanel(props: { episodeId: string }) {
               <label className="grid gap-1 text-sm">
                 决定
                 <select
+                  aria-label="审片决定"
                   className="rounded-lg border border-line px-3 py-2"
                   value={decision}
                   onChange={(event) =>
@@ -2059,11 +2523,6 @@ export function EpisodeWorkflowPanel(props: {
     description: string;
   }> = [
     {
-      kind: "quality-check",
-      label: "执行质量检查",
-      description: "检查剧本、场景、分镜和素材是否具备继续制作的基础。",
-    },
-    {
       kind: "compliance-check",
       label: "执行合规预检",
       description: "结合基础风险词与素材归档状态，标出需人工核验的内容。",
@@ -2102,6 +2561,15 @@ export function EpisodeWorkflowPanel(props: {
           每次执行都会创建可追踪任务和持久化报告；不会修改剧本、分镜或正式交付内容。
         </p>
       </div>
+      <p className="mt-3 text-sm text-muted">
+        旧数量评分已停止；已有质量记录未认证，不代表当前质量通过。
+        <Link
+          className="ml-2 text-brand"
+          to={`/projects/${props.projectId}/tools/quality-review`}
+        >
+          打开独立质量评议
+        </Link>
+      </p>
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {actions.map((action) => (
           <BareButton

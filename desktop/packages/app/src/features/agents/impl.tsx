@@ -1,5 +1,10 @@
 import { creationOperationForTask } from "@dramaip/contracts/creation";
 import { CreationRunCard } from "../creation-workbench";
+import { AgentUsagePanel } from "../AgentUsagePanel";
+import {
+  AgentExperimentUsageNotice,
+  experimentExecutionTime,
+} from "../AgentAuxiliaryUsage";
 import type {
   AgentEngineKind,
   AgentExperiment,
@@ -49,7 +54,7 @@ import {
 } from "../settings/impl";
 import {
   AgentChangePreviewCard,
-  AgentProviderActionPreviewCard,
+  AgentAssistantProviderActionPreviewCard,
   recordPayload,
 } from "../studio-widgets";
 export function AgentSidePanel() {
@@ -824,9 +829,11 @@ export function AgentSidePanel() {
             Boolean(preview),
           )
           .map((preview) => (
-            <AgentProviderActionPreviewCard
+            <AgentAssistantProviderActionPreviewCard
               key={preview.id}
-              preview={preview}
+              id={preview.id}
+              projectId={detail.conversation.projectId}
+              conversationId={detail.conversation.id}
             />
           ))}
         {!detail?.turns.length && (
@@ -971,6 +978,13 @@ export function AgentSidePanel() {
             </Button>
           </div>
         </div>
+        {latestRun && detail && latestRun.usageScope && (
+          <AgentUsagePanel
+            key={`${latestRun.usageScope.projectId ?? "global"}:${latestRun.id}`}
+            runId={latestRun.id}
+            projectId={latestRun.usageScope.projectId}
+          />
+        )}
       </footer>
     </section>
   );
@@ -1709,14 +1723,11 @@ export function AgentTaskConfigPanel() {
               <p className="text-xs text-muted">正在等待引擎返回正式输出…</p>
             )}
           </div>
-          <p className="mt-2 text-xs text-muted">
-            输入 {activeRun.inputTokens?.toLocaleString("zh-CN") ?? "待统计"} ·
-            输出 {activeRun.outputTokens?.toLocaleString("zh-CN") ?? "待统计"} ·
-            缓存 {activeRun.cachedTokens?.toLocaleString("zh-CN") ?? "待统计"} ·
-            {activeRun.estimatedCost === undefined
-              ? "费用待厂商结算"
-              : `预估费用 ${activeRun.estimatedCost.toFixed(4)} ${activeRun.currency ?? "USD"}`}
-          </p>
+          <AgentUsagePanel
+            key={`${projectId}:${activeRun.id}`}
+            runId={activeRun.id}
+            projectId={projectId}
+          />
           <div className="mt-2 flex gap-2">
             {activeRun.status === "running" && (
               <BareButton
@@ -1805,17 +1816,18 @@ export function AgentExperimentCard(props: {
             </p>
             {candidate.metrics && (
               <p className="mt-1 text-muted">
-                耗时 {(candidate.metrics.latencyMs / 1000).toFixed(1)} 秒 · 输入{" "}
-                {candidate.metrics.inputTokens.toLocaleString("zh-CN")} · 输出{" "}
-                {candidate.metrics.outputTokens.toLocaleString("zh-CN")}
-                {candidate.metrics.estimatedCost !== undefined
-                  ? ` · 预估费用 ${candidate.metrics.estimatedCost.toFixed(4)} ${candidate.metrics.currency ?? "USD"}`
-                  : " · 费用待厂商结算"}
+                执行耗时 {experimentExecutionTime(candidate.metrics.latencyMs)}{" "}
+                · 用量总量与费用未知
                 {candidate.metrics.formatError ? " · 格式不合格" : ""}
                 {candidate.metrics.toolViolation ? " · 工具违规" : ""}
                 {candidate.metrics.adopted ? " · 已采用" : ""}
               </p>
             )}
+            <AgentExperimentUsageNotice
+              revealed={props.experiment.revealed}
+              usageRunId={candidate.usageRunId}
+              projectId={props.experiment.projectId}
+            />
             {candidate.output !== undefined && (
               <p className="mt-1 line-clamp-6 whitespace-pre-wrap text-muted">
                 {taskResultText(candidate.output)}

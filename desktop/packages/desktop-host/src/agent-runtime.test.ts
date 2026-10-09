@@ -34,6 +34,44 @@ function fakeHost(): DesktopHostClient {
 }
 
 describe("Host AgentRuntime adapter", () => {
+  it("preserves usage scope and unknown fields across cursor replay without coercion or private payload", async () => {
+    const host = fakeHost();
+    host.engineStream = async function* () {
+      yield {
+        type: "usage",
+        measurementScope: "session-total",
+        inputTokens: 0,
+        outputTokens: "secret",
+        prompt: "private",
+      } as never;
+      yield { type: "result", result: { text: "done" } };
+    };
+    const runtime = createHostAgentRuntime(host, "codex");
+    const session = await runtime.createSession({
+      sessionId: "session-usage",
+      title: "usage",
+    });
+    const run = await runtime.prompt(session, {
+      runId: "run-usage",
+      prompt: "not in usage",
+    });
+    const events = [];
+    for await (const event of runtime.subscribe(run)) events.push(event);
+    expect(events[0]).toEqual({
+      cursor: 1,
+      type: "usage",
+      usage: {
+        measurementScope: "session-total",
+        inputTokens: 0,
+        invalidFields: ["outputTokens"],
+      },
+    });
+    const replay = [];
+    for await (const event of runtime.subscribe(run)) replay.push(event);
+    expect(replay).toEqual(events);
+    expect(JSON.stringify(replay[0])).not.toContain("private");
+    expect(JSON.stringify(replay[0])).not.toContain("secret");
+  });
   it("maps a Pi run to cursor-addressable neutral events", async () => {
     const runtime = createHostAgentRuntime(fakeHost(), "pi");
     await expect(runtime.health()).resolves.toMatchObject({

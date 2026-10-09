@@ -27,6 +27,20 @@ test("四种创建模式从草稿生成可持久化配置", () => {
     targetEpisodeCount: 24,
   });
   expect(
+    projectModeConfigFromDraft("single_season", "inspiration", draft, ""),
+  ).toEqual({
+    mode: "single_season",
+    entryPath: "inspiration",
+    targetEpisodeCount: 24,
+  });
+  expect(
+    projectModeConfigFromDraft("single_season", "source-import", draft, ""),
+  ).toEqual({
+    mode: "single_season",
+    entryPath: "source-import",
+    targetEpisodeCount: 24,
+  });
+  expect(
     projectModeConfigFromDraft(
       "personal_theater",
       "inspiration",

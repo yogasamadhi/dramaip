@@ -23,6 +23,7 @@ const child = Bun.spawn(
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
+      DRAMAIP_DEBUG_BACKGROUND: "1",
     },
   },
 );

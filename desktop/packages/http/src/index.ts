@@ -247,9 +247,10 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
         );
       let bodyHash = "";
       const idempotencyKey = request.headers.get("Idempotency-Key");
-      const idempotencyCacheKey = idempotencyKey
-        ? `${contribution.operationId}:${idempotencyKey}`
-        : undefined;
+      const idempotencyCacheKey =
+        idempotencyKey && contribution.policy.idempotencyReplay !== "handler"
+          ? `${contribution.operationId}:${idempotencyKey}`
+          : undefined;
       if (request.method !== "GET" && request.method !== "HEAD") {
         const bytes = new Uint8Array(await request.clone().arrayBuffer());
         if (bytes.byteLength > contribution.policy.bodyLimitBytes)
@@ -281,7 +282,9 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
       let response: Response;
       const handler = Promise.resolve(
         snapshot.router.fetch(
-          new Request(request, { signal: controller.signal }),
+          new Request(request, {
+            signal: AbortSignal.any([controller.signal, request.signal]),
+          }),
         ),
       );
       this.handlerTasks.add(handler);
@@ -349,7 +352,31 @@ export class RuntimeRouteRegistry implements HttpRouteRegistry {
   }
 
   private buildRouter(): typeof this.active {
-    const router = new OpenAPIHono();
+    const router = new OpenAPIHono({
+      defaultHook: (result, context) => {
+        if (result.success) return;
+        const supplied = context.req.header("X-Trace-Id");
+        const traceId =
+          supplied && UUID_PATTERN.test(supplied) ? supplied : randomUUID();
+        // Validator issues can contain caller input. Expose only the protocol
+        // failure, never a manuscript value, credential or raw Zod payload.
+        return Response.json(
+          problemDetails(
+            new HttpProblem(
+              400,
+              "VALIDATION_ERROR",
+              "Request validation failed",
+            ),
+            traceId,
+            context.req.path,
+          ),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        );
+      },
+    });
     for (const contribution of this.contributions.values()) {
       const register = router.openapi as unknown as (
         declaration: unknown,

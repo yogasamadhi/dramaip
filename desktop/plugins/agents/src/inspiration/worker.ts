@@ -3,6 +3,10 @@ import type { DesktopHostClient } from "@dramaip/desktop-host";
 import { createHostAgentRuntime } from "@dramaip/desktop-host";
 import type { PluginContext } from "@dramaip/plugin-api/internal";
 import { configuredProvider, findProvider } from "../providers/routes.js";
+import {
+  recordAuxiliaryUsage,
+  registerAuxiliaryUsageRun,
+} from "../runs/auxiliary-usage.js";
 
 type JobRow = {
   id: string;
@@ -98,12 +102,13 @@ function transcript(context: PluginContext, conversationId: string): string {
   );
 }
 
-async function processJob(
+export async function processInspirationMemoryJob(
   context: PluginContext,
   host: DesktopHostClient,
   agentContext: AgentContextService,
   job: JobRow,
 ): Promise<void> {
+  const uow = context.uow;
   const source = transcript(context, job.conversation_id);
   if (!source.trim()) throw new Error("conversation transcript is empty");
   const model = job.model_json
@@ -123,7 +128,7 @@ async function processJob(
     ? agentContext.getSnapshot(job.context_snapshot_id)
     : undefined;
   if (!contextSnapshot) {
-    const settings = context.uow.execute((transaction) =>
+    const settings = uow.execute((transaction) =>
       transaction.get<{ enabled: number }>(
         "SELECT enabled FROM agent_creative_memory_settings WHERE singleton = 1",
       ),
@@ -152,7 +157,7 @@ async function processJob(
     contextSnapshot = agentContext.freeze(preview.id, preview.version);
     if (!contextSnapshot)
       throw new Error("inspiration memory context snapshot expired");
-    context.uow.execute((transaction) =>
+    uow.execute((transaction) =>
       transaction.run(
         `UPDATE agent_inspiration_memory_jobs
          SET context_snapshot_id = ?, updated_at = ? WHERE id = ?`,
@@ -183,20 +188,37 @@ async function processJob(
   });
   let output = "";
   let result: unknown;
-  let inputTokens = contextSnapshot.estimatedTokens;
-  let outputTokens = 0;
   try {
     const run = await runtime.prompt(session, {
       runId: crypto.randomUUID(),
       responseMode: "structured",
       prompt: contextSnapshot.finalPrompt,
     });
+    uow.execute((transaction) =>
+      registerAuxiliaryUsageRun(transaction, {
+        runId: run.runId,
+        sessionId: session.sessionId,
+        engineRunId: run.engineRunId ?? run.runId,
+        engineKind: job.engine_kind as AgentEngineKind,
+        contextSnapshotId: contextSnapshot.id,
+        createdAt: new Date().toISOString(),
+        owner: { memoryJobId: job.id },
+      }),
+    );
     for await (const event of runtime.subscribe(run)) {
       if (event.type === "content.delta") output += event.delta;
       if (event.type === "result") result = event.result;
       if (event.type === "usage") {
-        inputTokens = event.usage.inputTokens ?? inputTokens;
-        outputTokens = event.usage.outputTokens ?? outputTokens;
+        uow.execute((transaction) =>
+          recordAuxiliaryUsage(transaction, {
+            runId: run.runId,
+            engineRunId: run.engineRunId ?? run.runId,
+            engineKind: job.engine_kind as AgentEngineKind,
+            cursor: event.cursor,
+            usage: event.usage,
+            recordedAt: new Date().toISOString(),
+          }),
+        );
       }
       if (event.type === "error") throw new Error(event.message);
     }
@@ -205,20 +227,17 @@ async function processJob(
   }
   const text = responseText(result) ?? output;
   const payload = parsedPayload(text);
-  outputTokens ||= Math.ceil(text.length / 4);
-  context.uow.execute((transaction) => {
+  uow.execute((transaction) => {
     const now = new Date().toISOString();
     transaction.run(
       `INSERT INTO agent_inspiration_summaries(
         id, conversation_id, through_turn_count, summary,
-        input_tokens, output_tokens, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?)`,
       crypto.randomUUID(),
       job.conversation_id,
       job.through_turn_count,
       payload.summary,
-      inputTokens,
-      outputTokens,
       now,
     );
     if (memoryEnabled)
@@ -251,10 +270,8 @@ async function processJob(
       }
     transaction.run(
       `UPDATE agent_inspiration_memory_jobs SET status = 'completed', error = NULL,
-       model = ?, input_tokens = ?, output_tokens = ?, updated_at = ? WHERE id = ?`,
+       model = ?, updated_at = ? WHERE id = ?`,
       modelLabel,
-      inputTokens,
-      outputTokens,
       now,
       job.id,
     );
@@ -268,8 +285,6 @@ async function processJob(
         conversationId: job.conversation_id,
         contextSnapshotId: contextSnapshot.id,
         contextManifestSha256: contextSnapshot.manifestSha256,
-        inputTokens,
-        outputTokens,
       },
     });
   });
@@ -279,12 +294,13 @@ export function startInspirationMemoryWorker(
   context: PluginContext,
   host: DesktopHostClient | undefined,
   agentContext: AgentContextService,
-): () => void {
-  if (!host) return () => undefined;
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    const job = context.uow.execute((transaction) =>
+): () => Promise<void> {
+  if (!host) return async () => undefined;
+  const uow = context.uow;
+  let stopping = false;
+  let active: Promise<void> | undefined;
+  const runNext = async () => {
+    const job = uow.execute((transaction) =>
       transaction.get<JobRow>(
         `SELECT job.id, job.conversation_id, job.through_turn_count,
                 session.engine_kind, session.model_json,
@@ -296,8 +312,7 @@ export function startInspirationMemoryWorker(
       ),
     );
     if (!job) return;
-    running = true;
-    context.uow.execute((transaction) =>
+    uow.execute((transaction) =>
       transaction.run(
         "UPDATE agent_inspiration_memory_jobs SET status = 'running', updated_at = ? WHERE id = ?",
         new Date().toISOString(),
@@ -305,9 +320,9 @@ export function startInspirationMemoryWorker(
       ),
     );
     try {
-      await processJob(context, host, agentContext, job);
+      await processInspirationMemoryJob(context, host, agentContext, job);
     } catch {
-      context.uow.execute((transaction) =>
+      uow.execute((transaction) =>
         transaction.run(
           `UPDATE agent_inspiration_memory_jobs SET status = 'pending',
            error = '记忆整理暂不可用，将自动重试。', updated_at = ? WHERE id = ?`,
@@ -315,11 +330,24 @@ export function startInspirationMemoryWorker(
           job.id,
         ),
       );
-    } finally {
-      running = false;
     }
   };
-  const timer = setInterval(() => void tick(), 10_000);
-  void tick();
-  return () => clearInterval(timer);
+  const tick = () => {
+    if (stopping || active) return;
+    const work = runNext().finally(() => {
+      if (active === work) active = undefined;
+    });
+    active = work;
+    void work.catch(() => undefined);
+  };
+  const timer = setInterval(tick, 10_000);
+  tick();
+  return async () => {
+    stopping = true;
+    clearInterval(timer);
+    // The registered effect must not finish while this owner can still write
+    // reports or summaries. Already dispatched work drains its original run;
+    // stopping neither starts another job nor pretends to cancel the provider.
+    await active;
+  };
 }

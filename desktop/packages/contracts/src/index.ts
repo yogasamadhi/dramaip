@@ -5,6 +5,8 @@ import { defineServiceContract } from "./service-contract.js";
 export * from "./capability.js";
 export * from "./local-model-runtime.js";
 export * from "./agent-context.js";
+export * from "./agent-usage.js";
+export * from "./agent-run-execution.js";
 
 export {
   defineServiceContract,
@@ -199,23 +201,39 @@ export const AGENT_TASK_RUNNER_SERVICE =
     id: "agents.task-runner.v1",
     owner: "agents",
     major: 1,
-    capabilities: ["start"],
+    capabilities: ["start", "execution", "usage"],
     degradable: true,
   });
+export interface AgentCreationContextInput {
+  projectId: string;
+  conversationId?: string;
+  chapterId?: string;
+  engineKind: AgentEngineKind;
+  model?: Record<string, unknown>;
+  prompt: string;
+  references: import("./agent-context.js").AgentContextReference[];
+}
 export interface AgentTaskRunnerService {
+  /** Immutable observations for this original project/run; read outside the consumer's UoW. */
+  usage?(
+    runId: string,
+    projectId: string,
+    cursor?: number,
+    limit?: number,
+  ): import("./agent-usage.js").AgentUsageObservationPage | undefined;
+  execution?(
+    runId: string,
+    projectId: string,
+  ): import("./agent-run-execution.js").AgentRunExecution | undefined;
   configuration?(projectId: string): {
     engineKind: AgentEngineKind;
     model?: Record<string, unknown>;
   };
-  prepareCreation?(input: {
-    projectId: string;
-    conversationId?: string;
-    chapterId?: string;
-    engineKind: AgentEngineKind;
-    model?: Record<string, unknown>;
-    prompt: string;
-    references: import("./agent-context.js").AgentContextReference[];
-  }): {
+  previewCreation?(input: AgentCreationContextInput): {
+    model: Record<string, unknown>;
+    preview: import("./agent-context.js").AgentContextPreview;
+  };
+  prepareCreation?(input: AgentCreationContextInput): {
     model: Record<string, unknown>;
     snapshot: import("./agent-context.js").AgentContextSnapshot;
   };

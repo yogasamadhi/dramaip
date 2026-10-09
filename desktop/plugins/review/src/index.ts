@@ -1,6 +1,12 @@
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { AUTOMATION_PREVIEW_SERVICE } from "@dramaip/contracts/automation";
 import { registerReviewCreation } from "./creation.js";
+import {
+  createMediaReview,
+  mediaReviewMigration,
+  reviewFeedbackRejection,
+} from "./media-review.js";
+import { MEDIA_RECORD_SERVICE } from "@dramaip/contracts/media";
 import { createRoute } from "@hono/zod-openapi";
 import { createHash } from "node:crypto";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
@@ -19,6 +25,7 @@ import {
   OfflineReviewImportInputSchema,
   PromptVersionInputSchema,
   REVIEW_RECORD_SERVICE,
+  REVIEW_MEDIA_SERVICE,
   ReviewCommentInputSchema,
   ReviewCommentSchema,
   ReviewDecisionInputSchema,
@@ -137,6 +144,7 @@ function openapi(input: {
   body?: ZodType;
   response: ZodType;
   status?: 200 | 201 | 204;
+  feedbackErrors?: boolean;
 }): unknown {
   const status = input.status ?? 200;
   return createRoute({
@@ -174,6 +182,22 @@ function openapi(input: {
           "application/problem+json": { schema: ProblemDetailsSchema },
         },
       },
+      ...(input.feedbackErrors
+        ? {
+            409: {
+              description: "Feedback is outside the original package",
+              content: {
+                "application/problem+json": { schema: ProblemDetailsSchema },
+              },
+            },
+            503: {
+              description: "Original review package cannot be verified",
+              content: {
+                "application/problem+json": { schema: ProblemDetailsSchema },
+              },
+            },
+          }
+        : {}),
     },
   } as never);
 }
@@ -484,6 +508,7 @@ function supplementalRoutes(
       params?: ZodType;
       body?: ZodType;
       status?: 200 | 201 | 204;
+      feedbackErrors?: boolean;
     } = {},
   ) =>
     result.push(
@@ -528,6 +553,17 @@ function supplementalRoutes(
         );
       const now = new Date().toISOString();
       const value = context.uow.execute((transaction) => {
+        const existing = transaction.get<CommentRow>(
+          "SELECT * FROM review_comments WHERE id = ?",
+          requestContext.req.param("id"),
+        );
+        if (!existing) return undefined;
+        const rejected = reviewFeedbackRejection(
+          transaction,
+          existing.package_id,
+          [existing.shot_id ? { shotId: existing.shot_id } : {}],
+        );
+        if (rejected) return rejected;
         transaction.run(
           "UPDATE review_comments SET resolved = ?, updated_at = ? WHERE id = ?",
           parsed.data.resolved ? 1 : 0,
@@ -543,11 +579,22 @@ function supplementalRoutes(
         appendReviewEvent(transaction, "comment-resolved", row.id, 1, comment);
         return comment;
       });
+      if (value && "feedbackError" in value)
+        return problem(
+          requestContext,
+          value.feedbackError.status,
+          value.feedbackError.code,
+          value.feedbackError.title,
+        );
       return value
         ? requestContext.json(value)
         : problem(requestContext, 404, "NOT_FOUND", "未找到评论。");
     },
-    { params: id, body: z.object({ resolved: z.boolean() }) },
+    {
+      params: id,
+      body: z.object({ resolved: z.boolean() }),
+      feedbackErrors: true,
+    },
   );
   add(
     "get",
@@ -613,14 +660,12 @@ function supplementalRoutes(
             "离线反馈不属于当前审片包。",
           );
         const now = new Date().toISOString();
-        context.uow.execute((transaction) => {
-          if (
-            !transaction.get(
-              "SELECT id FROM review_packages WHERE id = ?",
-              packageId,
-            )
-          )
-            throw new Error("REVIEW_PACKAGE_NOT_FOUND");
+        const rejected = context.uow.execute((transaction) => {
+          const invalid = reviewFeedbackRejection(transaction, packageId, [
+            ...document.comments,
+            ...document.decisions,
+          ]);
+          if (invalid) return invalid;
           for (const input of document.comments) {
             const commentId = crypto.randomUUID();
             transaction.run(
@@ -668,6 +713,13 @@ function supplementalRoutes(
             );
           }
         });
+        if (rejected)
+          return problem(
+            requestContext,
+            rejected.feedbackError.status,
+            rejected.feedbackError.code,
+            rejected.feedbackError.title,
+          );
         return requestContext.json({
           packageId,
           commentCount: document.comments.length,
@@ -684,7 +736,7 @@ function supplementalRoutes(
         );
       }
     },
-    { params: id, body: OfflineReviewImportInputSchema },
+    { params: id, body: OfflineReviewImportInputSchema, feedbackErrors: true },
   );
 
   add(
@@ -1349,6 +1401,7 @@ function reviewRoutes(
         body: ReviewCommentInputSchema,
         response: ReviewCommentSchema,
         status: 201,
+        feedbackErrors: true,
       }),
       async (requestContext) => {
         const input = ReviewCommentInputSchema.safeParse(
@@ -1365,13 +1418,10 @@ function reviewRoutes(
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const value = context.uow.execute((transaction) => {
-          if (
-            !transaction.get(
-              "SELECT id FROM review_packages WHERE id = ?",
-              packageId,
-            )
-          )
-            return undefined;
+          const rejected = reviewFeedbackRejection(transaction, packageId, [
+            input.data,
+          ]);
+          if (rejected) return rejected;
           transaction.run(
             `INSERT INTO review_comments(
               id, package_id, shot_id, timecode_seconds, author_alias, body,
@@ -1395,6 +1445,13 @@ function reviewRoutes(
           appendReviewEvent(transaction, "comment-created", id, 0, created);
           return created;
         });
+        if (value && "feedbackError" in value)
+          return problem(
+            requestContext,
+            value.feedbackError.status,
+            value.feedbackError.code,
+            value.feedbackError.title,
+          );
         return value
           ? requestContext.json(value, 201)
           : problem(requestContext, 404, "NOT_FOUND", "未找到审片包。");
@@ -1443,6 +1500,7 @@ function reviewRoutes(
         body: ReviewDecisionInputSchema,
         response: ReviewDecisionSchema,
         status: 201,
+        feedbackErrors: true,
       }),
       async (requestContext) => {
         const input = ReviewDecisionInputSchema.safeParse(
@@ -1459,13 +1517,10 @@ function reviewRoutes(
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const value = context.uow.execute((transaction) => {
-          if (
-            !transaction.get(
-              "SELECT id FROM review_packages WHERE id = ?",
-              packageId,
-            )
-          )
-            return undefined;
+          const rejected = reviewFeedbackRejection(transaction, packageId, [
+            input.data,
+          ]);
+          if (rejected) return rejected;
           transaction.run(
             `INSERT INTO review_decisions(
               id, package_id, shot_id, decision, author_alias, note, created_at
@@ -1487,6 +1542,13 @@ function reviewRoutes(
           appendReviewEvent(transaction, "decision-created", id, 0, created);
           return created;
         });
+        if (value && "feedbackError" in value)
+          return problem(
+            requestContext,
+            value.feedbackError.status,
+            value.feedbackError.code,
+            value.feedbackError.title,
+          );
         return value
           ? requestContext.json(value, 201)
           : problem(requestContext, 404, "NOT_FOUND", "未找到审片包。");
@@ -1610,6 +1672,7 @@ function reviewRoutes(
 }
 
 const reviewMigrations = [
+  mediaReviewMigration,
   {
     id: "review.0001.offline-packages",
     pluginId: "review",
@@ -1680,7 +1743,11 @@ const reviewMigrations = [
 
 export function createReviewPlugin(host?: ReviewHostCapability) {
   return definePlugin({
-    inject: [PRODUCTION_RECORD_SERVICE.id, TIMELINE_SERVICE.id],
+    inject: [
+      PRODUCTION_RECORD_SERVICE.id,
+      TIMELINE_SERVICE.id,
+      MEDIA_RECORD_SERVICE.id,
+    ],
     descriptor: {
       id: "review",
       version: "3.0.0-alpha.3",
@@ -1736,13 +1803,17 @@ export function createReviewPlugin(host?: ReviewHostCapability) {
         () => provideService(context, REVIEW_RECORD_SERVICE, records),
         `service:${REVIEW_RECORD_SERVICE}`,
       );
-      for (const contribution of reviewRoutes(
-        context,
-        timeline,
-        production,
-        records,
-        host,
-      ))
+      const media = optionalService(context, MEDIA_RECORD_SERVICE);
+      if (!media) throw new Error("review requires media service");
+      const bound = createMediaReview(context, timeline, production, media);
+      context.effect(
+        () => provideService(context, REVIEW_MEDIA_SERVICE, bound.service),
+        `service:${REVIEW_MEDIA_SERVICE}`,
+      );
+      for (const contribution of [
+        ...bound.routes,
+        ...reviewRoutes(context, timeline, production, records, host),
+      ])
         context.effect(
           () => context.http.register(contribution),
           `route:${contribution.id}`,

@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
 import { useStudioSession } from "../../studio-session";
 import { importWarning } from "../workspace/impl";
+import { CreativeOutcomesPanel } from "./CreativeOutcomesPanel";
 export function FeedbackPage() {
   const client = useStudio();
   const queryClient = useQueryClient();
@@ -199,6 +200,9 @@ export function FeedbackPage() {
           </BareButton>
         </div>
       </section>
+      {projectId && (
+        <CreativeOutcomesPanel key={projectId} projectId={projectId} />
+      )}
       {preview && (
         <section className="rounded-xl border border-brand bg-brand-soft/30 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">

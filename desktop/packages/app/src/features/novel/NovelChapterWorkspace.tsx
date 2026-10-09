@@ -1,4 +1,11 @@
 import { CreationWorkbench } from "../creation-workbench";
+import { ChapterPreviewRevisionPanel } from "../ChapterPreviewRevisionPanel";
+import { NovelContextPicker } from "./NovelContextPicker";
+import { rememberContinuedChapterContext } from "../../continued-chapter-context";
+import {
+  NarrativeContextRequestSchema,
+  type NarrativeContextRequest,
+} from "@dramaip/contracts/creation";
 import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -908,6 +915,61 @@ function NovelEditor(
   const [title, setTitle] = useState(props.chapter.title);
   const [content, setContent] = useState(props.chapter.content);
   const [preferences, setPreferences] = useState(readPreferences);
+  const contextKey = `dramaip-novel-context:${props.projectId}:${props.chapter.id}`;
+  const readContext = (): NarrativeContextRequest => {
+    try {
+      const parsed = NarrativeContextRequestSchema.safeParse(
+        JSON.parse(window.localStorage.getItem(contextKey) ?? "null"),
+      );
+      if (parsed.success) return parsed.data;
+    } catch {
+      /* An invalid draft does not become a source selection. */
+    }
+    return { format: "narrative-context-v1", chapters: [] };
+  };
+  const [contextDraft, setContextDraft] = useState(() => ({
+    key: contextKey,
+    value: readContext(),
+  }));
+  const narrativeContextRequest =
+    contextDraft.key === contextKey ? contextDraft.value : readContext();
+  const updateContext = (value: NarrativeContextRequest) => {
+    setContextDraft({ key: contextKey, value });
+    window.localStorage.setItem(contextKey, JSON.stringify(value));
+  };
+  const nextContextKey = `${contextKey}:next`;
+  const readNextContext = (): NarrativeContextRequest | undefined => {
+    try {
+      const parsed = NarrativeContextRequestSchema.safeParse(
+        JSON.parse(window.localStorage.getItem(nextContextKey) ?? "null"),
+      );
+      return parsed.success ? parsed.data : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const [nextContextDraft, setNextContextDraft] = useState<{
+    key: string;
+    value?: NarrativeContextRequest;
+  }>(() => ({ key: nextContextKey, value: readNextContext() }));
+  const explicitNextContext =
+    nextContextDraft.key === nextContextKey
+      ? nextContextDraft.value
+      : readNextContext();
+  const nextContextRequest = explicitNextContext ?? {
+    format: "narrative-context-v1",
+    chapters: [
+      {
+        id: props.chapter.id,
+        version: props.chapter.version,
+        representation: "original",
+      },
+    ],
+  };
+  const updateNextContext = (value: NarrativeContextRequest) => {
+    setNextContextDraft({ key: nextContextKey, value });
+    window.localStorage.setItem(nextContextKey, JSON.stringify(value));
+  };
   const [saveState, setSaveState] = useState<SaveState>("clean");
   const [saveError, setSaveError] = useState<string>();
   const [recovery, setRecovery] = useState(() => readRecovery(props.chapter));
@@ -1058,7 +1120,7 @@ function NovelEditor(
         }),
       ],
       content: props.chapter.content,
-      editable: false,
+      editable: manualEditing && (!preview || previewView !== "candidate"),
       editorProps: {
         attributes: {
           class:
@@ -1474,12 +1536,13 @@ function NovelEditor(
   ]);
 
   const finishRun = useCallback(() => {
-    if (previewView !== "candidate") editor?.setEditable(manualEditing);
+    if (!preview || previewView !== "candidate")
+      editor?.setEditable(manualEditing, false);
     setBusy(false);
     setActiveRun(undefined);
     streamTextRef.current = "";
     setStreamText("");
-  }, [editor, previewView, setActiveRun]);
+  }, [editor, manualEditing, preview, previewView, setActiveRun]);
 
   const commitPreview = useCallback(
     async (candidate: ChangePreview, editedContent?: string) => {
@@ -1490,7 +1553,7 @@ function NovelEditor(
           contentRef.current = draft;
           setContent(draft);
           editor?.commands.setContent(draft, false);
-          editor?.setEditable(manualEditing);
+          editor?.setEditable(manualEditing, false);
           setPreviewView("original");
         }
         const saved = await persist();
@@ -1689,6 +1752,7 @@ function NovelEditor(
             .join("\n"),
           wordGoal: preferences.wordGoal,
           sourceIds: [],
+          narrativeContextRequest,
         },
         crypto.randomUUID(),
       );
@@ -1768,10 +1832,23 @@ function NovelEditor(
     handledPreviewIds.current.clear();
     try {
       const persisted = await persist();
+      const request = NarrativeContextRequestSchema.parse(
+        explicitNextContext ?? {
+          format: "narrative-context-v1",
+          chapters: [
+            {
+              id: persisted.id,
+              version: persisted.version,
+              representation: "original",
+            },
+          ],
+        },
+      );
       const result = await props.client.novelWorkspace.continueChapter(
         props.projectId,
         {
           sourceChapterId: persisted.id,
+          narrativeContextRequest: request,
           engineKind,
           ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
           ...(prompt?.trim() ? { prompt: prompt.trim() } : {}),
@@ -1780,6 +1857,12 @@ function NovelEditor(
         },
         crypto.randomUUID(),
       );
+      rememberContinuedChapterContext(window.localStorage, {
+        projectId: props.projectId,
+        sourceChapterId: persisted.id,
+        result,
+        request,
+      });
       await props.onReload();
       props.onSelectChapter(result.chapter.id);
       setBusy(false);
@@ -1830,12 +1913,14 @@ function NovelEditor(
         ? contentRef.current
         : (proposedContent(preview) ?? "");
     setPreviewView(view);
-    setContent(nextContent);
     editor?.commands.setContent(nextContent, false);
     if (view === "original") {
+      // `content` belongs to the author's draft/recovery snapshot. A candidate
+      // is only an editor projection, even when the original is still dirty.
+      setContent(nextContent);
       contentRef.current = nextContent;
-      editor?.setEditable(manualEditing);
-    } else editor?.setEditable(false);
+      editor?.setEditable(manualEditing, false);
+    } else editor?.setEditable(false, false);
   };
 
   const discardCandidate = async (regenerate = false): Promise<void> => {
@@ -1849,7 +1934,7 @@ function NovelEditor(
       );
       const original = contentRef.current;
       editor?.commands.setContent(original, false);
-      editor?.setEditable(manualEditing);
+      editor?.setEditable(manualEditing, false);
       setContent(original);
       setPreview(undefined);
       setDiffOpen(false);
@@ -2063,7 +2148,10 @@ function NovelEditor(
                 onClick={() => {
                   const next = !manualEditing;
                   setManualEditing(next);
-                  editor?.setEditable(next && previewView !== "candidate");
+                  editor?.setEditable(
+                    next && (!preview || previewView !== "candidate"),
+                    false,
+                  );
                 }}
               >
                 {manualEditing ? "结束微调" : "微调正文"}
@@ -2175,7 +2263,9 @@ function NovelEditor(
             preferences={preferences}
             onPreferencesChange={setPreferences}
             selectedText={selectedRange?.text}
-            disabled={!manualEditing || previewView === "candidate"}
+            disabled={
+              !manualEditing || Boolean(preview && previewView === "candidate")
+            }
             onPolishSelection={() => {
               setWorkspacePreferences((current) => ({
                 ...current,
@@ -2540,6 +2630,7 @@ function NovelEditor(
                   targetId={props.chapter.id}
                   operation="chapter"
                   baseVersion={props.chapter.version}
+                  narrativeContextRequest={narrativeContextRequest}
                   wordGoal={preferences.wordGoal}
                   selectedText={selectedRange?.text}
                   docked
@@ -2578,6 +2669,23 @@ function NovelEditor(
                           }))
                         }
                       />
+                      <NovelContextPicker
+                        target={props.chapter}
+                        chapters={props.chapters}
+                        request={narrativeContextRequest}
+                        disabled={disabled}
+                        onChange={updateContext}
+                      />
+                      {props.chapter.content.trim() && (
+                        <NovelContextPicker
+                          target={props.chapter}
+                          includeTarget
+                          chapters={props.chapters}
+                          request={nextContextRequest}
+                          disabled={disabled}
+                          onChange={updateNextContext}
+                        />
+                      )}
                     </>
                   )}
                   onPrepare={async () => (await persist()).version}
@@ -2594,14 +2702,17 @@ function NovelEditor(
                         proposedContent(candidate) ?? "",
                         false,
                       );
-                      editor?.setEditable(false);
+                      // Tiptap's editable toggle emits `update` by default.
+                      // Previewing is not a draft edit: never feed a candidate
+                      // into autosave or persist() before explicit adoption.
+                      editor?.setEditable(false, false);
                     }
                   }}
                   onDiscarded={(candidate) => {
                     if (preview?.id !== candidate.id) return;
                     const draft = contentRef.current;
                     editor?.commands.setContent(draft, false);
-                    editor?.setEditable(manualEditing);
+                    editor?.setEditable(manualEditing, false);
                     setContent(draft);
                     setPreview(undefined);
                     setPreviewView("original");
@@ -3160,6 +3271,10 @@ function WritingPanel(props: {
           <p className="mt-1 text-xs leading-5 text-muted">
             正文区正在只读预览，只有确认采用后才会覆盖原稿。
           </p>
+          <ChapterPreviewRevisionPanel
+            projectId={props.preview.projectId}
+            previewId={props.preview.id}
+          />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button
               variant="primary"

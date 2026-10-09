@@ -1,5 +1,7 @@
 # 通用桌面软件架构：Level 3 大型开放项目版
 
+本 Level 描述第三方扩展隔离复杂度，不把扩展市场定义为 DramaIP 的产品核心。业务取舍遵循 [产品定位](../../product/POSITIONING.md)：独立小说与改编剧本成果优先，扩展、媒体和云能力服务创作而不接管本地权威内容。以下状态保留原核对日期，不因定位校准更新为新验收。
+
 > DramaIP 实现状态（2026-09-10 核对）：Level 3 v1 的每 revision 独立
 > Extension Host process、QuickJS/WASM、Capability Broker、Ed25519 静态 Registry、
 > Marketplace 与严格声明式 UI 已进入代码。第一方已迁移 DSH Cordis，第三方隔离和公开 SDK 边界保持独立。

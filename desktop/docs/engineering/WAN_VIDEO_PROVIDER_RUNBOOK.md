@@ -1,5 +1,7 @@
 # 阿里云百炼 Wan 视频 Provider 运行手册
 
+定位范围：Wan 是 [产品定位](../../../docs/product/POSITIONING.md) 中可替换的媒体生产渠道；小说与剧本可以独立采用和交付，不依赖视频生成。适配器存在不等于账户、模型、计费、素材权利或发布环境已经完成真实验收；本次文档定位校准不更新 Provider 证据。
+
 本手册覆盖 Desktop 的第二个国内真实视频渠道：阿里云百炼 Wan。它只描述已实现的
 `wan` adapter；该渠道与 MiniMax Hailuo 使用独立账号、密钥、Feature Flag、任务端点和
 回滚边界。

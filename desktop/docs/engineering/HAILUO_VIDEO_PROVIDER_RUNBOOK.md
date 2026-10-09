@@ -1,5 +1,7 @@
 # MiniMax Hailuo 视频 Provider 运行手册
 
+定位范围：Hailuo 是 [产品定位](../../../docs/product/POSITIONING.md) 中可替换的媒体生产渠道，不定义产品本体，也不是独立小说或剧本交付的必经步骤。下文描述适配与授权边界，不把模型接入数量、单镜头生成或本地合同测试写成内容质量、完整成片或外部发布证明。
+
 本手册覆盖 Desktop 的首个国内真实视频渠道：MiniMax Hailuo。它只描述已实现的
 `hailuo` adapter；即梦、可灵、Runway 和 Pika 仍处于独立的未启用适配槽位。
 

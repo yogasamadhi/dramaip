@@ -1,8 +1,10 @@
 # DramaIP v2.0.0 Release Candidate
 
+> 历史范围：本文保留 v2 候选阶段的门禁与结论，不是当前 Desktop 3.0 alpha 的版本真值或 GA 声明。当前版本以 `desktop/package.json` 为准，发布操作见 [发布检查清单](./RELEASE.md)；以下完成项和外部证据缺口不得外推到未复验的新版本。
+
 产品发布口径必须与 [产品定位](../../../docs/product/POSITIONING.md) 一致：当前产品是面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台；不得在发布材料中改写为“一键爆款”“全自动成片”或单纯的视频生成器。
 
-此文件记录当前发布真值，不是“已发布”声明。源码版本保持 `2.0.0-rc.1`，直到全部外部证据通过后才允许改为 `2.0.0`。
+v2 候选阶段的发布规则是：源码版本保持 `2.0.0-rc.1`，直到全部外部证据通过后才允许改为 `2.0.0`；这不是“已发布”声明，也不要求当前 v3 源码回退到该版本。
 
 ## 已完成的代码门禁
 
@@ -19,7 +21,7 @@
 
 这些结果不构成外部发布声明：`no-real-nle-import-claim`、`no-mp4-without-timeline-render-provider`、`cloud-review-is-optional-and-local-first` 与 `docker-compose-e2e-is-enhanced-evidence` 均适用。没有受管环境的真实导入、真实渲染、生产对象存储与签名安装包证据时，版本仍只能是 RC。
 
-## 当前 GA 阻断项
+## v2 候选阶段的 GA 阻断项
 
 GA 判定必须运行 Bun 1.4.0 完整质量门、Electron E2E、`package` 和 `release:metadata`，并在受管发布环境中补齐正式 HTTPS 更新源、生产支付和对象存储配置、macOS/Windows 签名凭据及以下与当前 commit 绑定、已脱敏的证据：
 
@@ -33,4 +35,4 @@ GA 判定必须运行 Bun 1.4.0 完整质量门、Electron E2E、`package` 和 `
 
 ## RC 结论
 
-当前仓库没有上述外部凭据和实机证据，因此 v2.0.0 必须保持 RC。不得降低门禁、把 Mock 结果冒充真实 Provider、把 XML 语法测试冒充 Final Cut Pro 导入，或发布未签名安装包。
+当时记录未具备上述外部凭据和实机证据，因此 v2.0.0 判定必须保持 RC。不得降低门禁、把 Mock 结果冒充真实 Provider、把 XML 语法测试冒充 Final Cut Pro 导入，或发布未签名安装包；新版本仍须独立完成对应发布验收。

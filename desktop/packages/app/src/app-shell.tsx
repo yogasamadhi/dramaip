@@ -68,6 +68,7 @@ const NAV_ICON: Record<string, LucideIcon> = {
   "/insights": BarChart3,
   "/search": Search,
   "/tasks": ListTodo,
+  "/pending": BadgeCheck,
   "/settings": Settings,
 };
 const PROJECT_ROUTES = new Set([
@@ -83,6 +84,7 @@ const GLOBAL_ROUTES = new Set([
   "/inspiration",
   "/search",
   "/tasks",
+  "/pending",
   "/settings",
 ]);
 
@@ -136,6 +138,7 @@ function workAreaLabel(pathname: string): string {
   if (pathname.startsWith("/create")) return "创作工具";
   if (pathname.startsWith("/insights")) return "创作分析";
   if (pathname.startsWith("/tasks")) return "任务";
+  if (pathname.startsWith("/pending")) return "待确认";
   if (pathname.startsWith("/inspiration")) return "灵感";
   if (pathname.startsWith("/search")) return "搜索";
   if (pathname.startsWith("/settings")) return "设置";
@@ -292,6 +295,7 @@ export function AppShell(props: {
     activeProjectNotice,
     selectProject,
     lastProjectRoute,
+    projectContext,
   } = useStudioSession();
   const sortedNavigation = [...props.navigation].sort(
     (left, right) => left.order - right.order,
@@ -413,7 +417,11 @@ export function AppShell(props: {
               <NavigationLink
                 key={`project-${item.id}`}
                 item={item}
-                to={contextualNavigationTarget(item.to, activeProjectId)}
+                to={contextualNavigationTarget(
+                  item.to,
+                  activeProjectId,
+                  activeProjectId ? projectContext(activeProjectId) : undefined,
+                )}
                 active={routeActive(location.pathname, item.to)}
                 collapsed={navigationCollapsed}
               />
@@ -533,7 +541,13 @@ export function AppShell(props: {
               {projectNavigation.map((item) => (
                 <DropdownMenu.Item key={`context-${item.id}`} asChild>
                   <Link
-                    to={contextualNavigationTarget(item.to, activeProjectId)}
+                    to={contextualNavigationTarget(
+                      item.to,
+                      activeProjectId,
+                      activeProjectId
+                        ? projectContext(activeProjectId)
+                        : undefined,
+                    )}
                   >
                     {item.label}
                   </Link>

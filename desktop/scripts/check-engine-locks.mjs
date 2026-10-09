@@ -7,7 +7,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 const codex = await readJson(join(root, "vendor/codex.lock.json"));
 const protocol = await readJson(join(root, "vendor/codex.protocol.lock.json"));
-const opencode = await readJson(join(root, "vendor/opencode.lock.json"));
 const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
 const pi = await readJson(join(root, "vendor/pi.lock.json"));
 const langgraph = await readJson(join(root, "vendor/langgraph.lock.json"));
@@ -94,15 +93,6 @@ for (const triple of requiredTriples) {
   if (!/^[a-f0-9]{64}$/.test(target.binarySha256 ?? ""))
     throw new Error(`Codex ${triple} 缺少二进制 SHA-256`);
 }
-
-if (opencode.version !== "1.18.15" || opencode.license !== "MIT")
-  throw new Error("OpenCode 固定版本必须为 1.18.15（MIT）");
-const opencodeManifest = await readFile(
-  join(root, "vendor/opencode/packages/opencode/package.json"),
-);
-const manifestSha = createHash("sha256").update(opencodeManifest).digest("hex");
-if (manifestSha !== opencode.packageManifestSha256)
-  throw new Error("OpenCode 源码清单校验失败，vendor 内容可能已变化");
 
 if (
   dsh.version !== "0.1.0-rc.5" ||
@@ -259,5 +249,5 @@ if (
   throw new Error("Pi 完整源码树校验失败，vendor 冻结快照可能已变化");
 
 process.stdout.write(
-  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；LangGraph.js ${langgraph.version}。框架源码快照完整：DSH ${dsh.version}；归档参考快照完整：OpenCode ${opencode.version}\n`,
+  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；LangGraph.js ${langgraph.version}。框架源码快照完整：DSH ${dsh.version}\n`,
 );

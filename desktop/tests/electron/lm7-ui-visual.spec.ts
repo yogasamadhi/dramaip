@@ -19,6 +19,12 @@ async function openRoute(path: string): Promise<void> {
   }, path);
   await page.waitForTimeout(80);
   await expect(page.locator("main")).toBeVisible();
+  if (["/adapt", "/produce", "/review"].includes(path)) {
+    const context = page.getByLabel("当前制作对象", { exact: true });
+    await expect(context).toBeVisible();
+    if (path !== "/adapt")
+      await expect(context.locator("select").nth(2)).not.toHaveValue("");
+  }
 }
 
 async function useTheme(mode: "light" | "dark"): Promise<void> {
@@ -63,14 +69,12 @@ test.afterAll(async () => {
   if (userData) await rm(userData, { recursive: true, force: true });
 });
 
-test("12 个标准界面具备稳定的明暗视觉基线", async () => {
+test("10 个标准界面具备稳定的明暗视觉基线", async () => {
   const routes = [
     ["projects", "/"],
     ["novel-home", "/write"],
-    ["novel-editor", projectPath],
     ["project-tools", `${projectPath}/tools`],
     ["creative-analysis", "/create"],
-    ["adaptation", "/adapt"],
     ["production", "/produce"],
     ["review", "/review"],
     ["insights", "/insights"],
@@ -83,6 +87,12 @@ test("12 个标准界面具备稳定的明暗视觉基线", async () => {
     await useTheme(theme);
     for (const [name, path] of routes) {
       await openRoute(path);
+      if (path === "/")
+        await expect(
+          page
+            .getByLabel("继续当前项目", { exact: true })
+            .getByRole("link", { name: "确认来源与作者意图", exact: true }),
+        ).toBeVisible();
       const horizontalLayout = await page.evaluate(() => ({
         overflow:
           document.documentElement.scrollWidth -
@@ -93,21 +103,100 @@ test("12 个标准界面具备稳定的明暗视觉基线", async () => {
         overflow: 0,
         scrollX: 0,
       });
-      await expect(page).toHaveScreenshot(`${theme}-${name}.png`, {
+      // Collect every changed view before the test fails; a first mismatch
+      // must not conceal later regressions or authorize a bulk baseline reset.
+      await expect.soft(page).toHaveScreenshot(`${theme}-${name}.png`, {
         animations: "disabled",
         caret: "hide",
         maxDiffPixelRatio: 0.015,
       });
     }
     await openRoute("/");
+    await expect(
+      page
+        .getByLabel("继续当前项目", { exact: true })
+        .getByRole("link", { name: "确认来源与作者意图", exact: true }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "打开智能助手面板" }).click();
     await expect(page.getByText("AI 办事助手", { exact: true })).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-global-assistant.png`, {
+    await expect.soft(page).toHaveScreenshot(`${theme}-global-assistant.png`, {
       animations: "disabled",
       caret: "hide",
       maxDiffPixelRatio: 0.015,
     });
     await page.getByRole("button", { name: "关闭智能助手面板" }).click();
+  }
+});
+
+test("改编工作区保留显式诊断入口且明暗布局稳定", async () => {
+  for (const theme of ["light", "dark"] as const) {
+    await useTheme(theme);
+    await openRoute("/adapt");
+    const diagnosis = page.getByRole("link", {
+      name: "先确认来源并进行改编诊断 →",
+      exact: true,
+    });
+    await expect(diagnosis).toBeVisible();
+    await expect(diagnosis).toHaveAttribute(
+      "href",
+      `#${projectPath}/tools/adaptation-diagnosis`,
+    );
+    await expect(
+      page.getByRole("button", {
+        name: "生成并检查本集剧本与分镜（旧 episode 兼容）",
+        exact: true,
+      }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByLabel("独立创作主流程", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("旧 episode 兼容路径", { exact: true }),
+    ).not.toHaveAttribute("open");
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(0);
+    await expect.soft(page).toHaveScreenshot(`${theme}-adaptation.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.015,
+    });
+  }
+});
+
+test("小说正文界面等待实际创作操作就绪后比较明暗视觉基线", async () => {
+  for (const theme of ["light", "dark"] as const) {
+    await useTheme(theme);
+    await openRoute(projectPath);
+    // Loading an empty operation list is not the settled authoring workspace.
+    // Wait for the real project-bound controls instead of a fixed screenshot delay.
+    await expect(
+      page.getByRole("button", { name: "续写本章", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "生成并检查本章正文", exact: true }),
+    ).toBeVisible();
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBe(0);
+    await expect.soft(page).toHaveScreenshot(`${theme}-novel-editor.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.015,
+    });
+    await expect(
+      page.getByRole("button", { name: "续写本章", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`${theme}-settled-novel-editor.png`),
+    });
   }
 });
 

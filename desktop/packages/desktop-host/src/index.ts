@@ -1,6 +1,46 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import {
+  validTimelineRenderAudioPlan,
+  type HostTimelineRenderAudioPlan,
+} from "./timeline-audio.js";
+export { validTimelineRenderAudioPlan } from "./timeline-audio.js";
+export type {
+  HostTimelineRenderAudioPlan,
+  HostTimelineRenderAudioClip,
+} from "./timeline-audio.js";
+import {
+  validTimelineRenderSubtitlePlan,
+  type HostTimelineRenderSubtitlePlan,
+  type HostRendererFontDescriptor,
+} from "./timeline-subtitles.js";
+export {
+  validTimelineRenderSubtitlePlan,
+  validRendererFontRef,
+  HOST_MAX_RENDER_SUBTITLE_CUES,
+} from "./timeline-subtitles.js";
+export type {
+  HostTimelineRenderSubtitlePlan,
+  HostTimelineRenderSubtitleCue,
+  HostRendererFontRef,
+  HostRendererFontDescriptor,
+} from "./timeline-subtitles.js";
+import {
+  NleCopyJobError,
+  validNleCopyInput,
+  type NleCopyInput,
+  type NleCopyJob,
+  type HostWriteDirectoryGrant,
+} from "./nle-copy.js";
+export { NleCopyJobError, validNleCopyInput } from "./nle-copy.js";
+export type {
+  NleCopyInput,
+  NleCopyReceipt,
+  NleCopyJob,
+  HostWriteDirectoryGrant,
+} from "./nle-copy.js";
 import type {
   AgentEngineDescriptor,
   AgentEngineKind,
@@ -11,6 +51,8 @@ import type {
 } from "@dramaip/contracts";
 import {
   AgentRuntimeError,
+  normalizeAgentUsage,
+  type AgentUsage,
   type AgentRunRef,
   type AgentRuntime,
   type AgentRuntimeEvent,
@@ -66,6 +108,16 @@ export interface HostArchiveRemoteMediaInput {
   expectedSha256?: string;
 }
 
+/** Additive receipt fields: legacy Host implementations remain readable,
+ * but a formal Delivery export requires every verified receipt field. */
+export interface HostTextFileSaveResult {
+  saved: boolean;
+  artifactRef?: string;
+  sha256?: string;
+  byteSize?: number;
+  savedAt?: string;
+}
+
 export interface HostArchivedMedia {
   mediaRef: string;
   kind: "video";
@@ -84,7 +136,57 @@ export interface HostArchivedMedia {
   status: "archived";
 }
 
+export interface HostManagedMediaReadInput {
+  mediaRef: string;
+  sha256: string;
+  sizeBytes: number;
+  mimeType: string;
+}
+export class HostManagedMediaReadError extends Error {
+  constructor(
+    readonly status: 404 | 409 | 413 | 415 | 503,
+    readonly code: string,
+  ) {
+    super("Managed media could not be read safely");
+  }
+}
+export const HOST_MANAGED_MEDIA_EXTENSIONS: Readonly<Record<string, string>> =
+  Object.freeze({
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/ogg": ".ogg",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".aac",
+    "audio/flac": ".flac",
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+  });
+export function validManagedMediaReadInput(
+  value: HostManagedMediaReadInput,
+): boolean {
+  return (
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(
+      value.mediaRef,
+    ) &&
+    /^[a-f0-9]{64}$/u.test(value.sha256) &&
+    Number.isSafeInteger(value.sizeBytes) &&
+    value.sizeBytes > 0 &&
+    value.sizeBytes <= 2 * 1024 * 1024 * 1024 &&
+    Object.hasOwn(HOST_MANAGED_MEDIA_EXTENSIONS, value.mimeType)
+  );
+}
+
 export interface HostTimelineRenderInput {
+  /** Absence preserves the explicit legacy silent P0 policy; never infer a mix. */
+  audioPlan?: HostTimelineRenderAudioPlan;
+  /** Absence preserves the historical no-burn policy; an explicit policy is never inferred. */
+  subtitlePlan?: HostTimelineRenderSubtitlePlan;
   jobId: string;
   timelineId: string;
   durationFrames: number;
@@ -101,6 +203,9 @@ export interface HostTimelineRenderInput {
   };
   clips: readonly {
     mediaRef: string;
+    sha256: string;
+    sizeBytes: number;
+    mimeType: "video/mp4";
     startFrame: number;
     durationFrames: number;
     sourceOffsetFrame: number;
@@ -118,6 +223,60 @@ export interface HostTimelineRenderJob {
   failureCode?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Host-side shape check; paths, extra keys and unbound file metadata are never accepted. */
+export function validTimelineRenderInput(
+  input: HostTimelineRenderInput,
+): boolean {
+  const uuid =
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu;
+  const positive = (value: number) => Number.isSafeInteger(value) && value > 0;
+  const nonnegative = (value: number) =>
+    Number.isSafeInteger(value) && value >= 0;
+  return Boolean(
+    input &&
+    uuid.test(input.jobId) &&
+    uuid.test(input.timelineId) &&
+    positive(input.durationFrames) &&
+    input.profile &&
+    positive(input.profile.width) &&
+    positive(input.profile.height) &&
+    positive(input.profile.audioSampleRate) &&
+    positive(input.profile.channels) &&
+    input.profile.frameRate &&
+    positive(input.profile.frameRate.numerator) &&
+    positive(input.profile.frameRate.denominator) &&
+    typeof input.profile.frameRate.dropFrame === "boolean" &&
+    Array.isArray(input.clips) &&
+    input.clips.length > 0 &&
+    input.clips.length <= 10_000 &&
+    input.clips.every(
+      (clip) =>
+        clip &&
+        Object.keys(clip).length === 7 &&
+        clip.mimeType === "video/mp4" &&
+        validManagedMediaReadInput(clip) &&
+        nonnegative(clip.startFrame) &&
+        positive(clip.durationFrames) &&
+        nonnegative(clip.sourceOffsetFrame) &&
+        Number.isSafeInteger(clip.startFrame + clip.durationFrames) &&
+        Number.isSafeInteger(clip.sourceOffsetFrame + clip.durationFrames) &&
+        clip.startFrame + clip.durationFrames <= input.durationFrames,
+    ) &&
+    (!Object.hasOwn(input, "audioPlan") ||
+      validTimelineRenderAudioPlan(
+        input.audioPlan,
+        input.durationFrames,
+        input.clips,
+      )) &&
+    (!Object.hasOwn(input, "subtitlePlan") ||
+      (Object.hasOwn(input, "audioPlan") &&
+        validTimelineRenderSubtitlePlan(
+          input.subtitlePlan,
+          input.durationFrames,
+        ))),
+  );
 }
 
 export interface CredentialStorageStatus {
@@ -421,14 +580,7 @@ export type HostEngineStreamEvent =
       itemId?: string;
       detail?: JsonValue;
     }
-  | {
-      type: "usage";
-      inputTokens?: number;
-      outputTokens?: number;
-      cachedTokens?: number;
-      estimatedCost?: number;
-      currency?: string;
-    }
+  | ({ type: "usage" } & AgentUsage)
   | { type: "result"; result: unknown }
   | { type: "error"; message: string };
 
@@ -439,6 +591,21 @@ export interface HostClientOptions {
 
 export class DesktopHostClient {
   constructor(private readonly options: HostClientOptions) {}
+
+  readManagedMedia(
+    input: HostManagedMediaReadInput,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    return fetch(new URL("/host/v1/media-library/read", this.options.baseUrl), {
+      method: "POST",
+      signal,
+      headers: {
+        Authorization: `Bearer ${this.options.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    });
+  }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await fetch(new URL(path, this.options.baseUrl), {
@@ -478,6 +645,82 @@ export class DesktopHostClient {
 
   pickDirectory(): Promise<HostFileGrant | null> {
     return this.request("/host/v1/files/directory", { method: "POST" });
+  }
+
+  pickNleCopyDirectory(
+    signal?: AbortSignal,
+  ): Promise<HostWriteDirectoryGrant | null> {
+    return this.request("/host/v1/files/nle-copy-directory", {
+      method: "POST",
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(300_000)])
+        : AbortSignal.timeout(300_000),
+    });
+  }
+
+  startNleMediaCopy(
+    id: string,
+    input: NleCopyInput,
+    writeGrantRef: string,
+    signal?: AbortSignal,
+  ): Promise<NleCopyJob> {
+    return this.request("/host/v1/nle-media-copies", {
+      method: "POST",
+      body: JSON.stringify({ id, input, writeGrantRef }),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+        : AbortSignal.timeout(30_000),
+    });
+  }
+
+  getNleMediaCopy(
+    id: string,
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<NleCopyJob> {
+    return this.request(
+      `/host/v1/nle-media-copies/${encodeURIComponent(id)}?projectId=${encodeURIComponent(projectId)}`,
+      {
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+          : AbortSignal.timeout(30_000),
+      },
+    );
+  }
+
+  cancelNleMediaCopy(
+    id: string,
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<NleCopyJob> {
+    return this.request(
+      `/host/v1/nle-media-copies/${encodeURIComponent(id)}/cancel`,
+      {
+        method: "POST",
+        body: JSON.stringify({ projectId }),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+          : AbortSignal.timeout(30_000),
+      },
+    );
+  }
+
+  revealNleMediaCopy(
+    id: string,
+    projectId: string,
+    artifactRef: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.request(
+      `/host/v1/nle-media-copies/${encodeURIComponent(id)}/reveal`,
+      {
+        method: "POST",
+        body: JSON.stringify({ projectId, artifactRef }),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+          : AbortSignal.timeout(30_000),
+      },
+    );
   }
 
   readGrantedText(
@@ -583,8 +826,18 @@ export class DesktopHostClient {
   saveTextFile(input: {
     suggestedName: string;
     content: string;
-  }): Promise<{ saved: boolean; artifactRef?: string }> {
+  }): Promise<HostTextFileSaveResult> {
     return this.request("/host/v1/files/save-text", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+  saveBinaryFile(input: {
+    suggestedName: string;
+    contentBase64: string;
+    mimeType: "application/zip";
+  }): Promise<HostTextFileSaveResult> {
+    return this.request("/host/v1/files/save-binary", {
       method: "POST",
       body: JSON.stringify(input),
     });
@@ -865,7 +1118,10 @@ export interface HostCapabilityDescriptor {
     | "files"
     | "media-library"
     | "media-archive"
+    | "media-playback"
     | "renderer.ffmpeg-x264"
+    | "renderer.ffmpeg-audio-mix-v1"
+    | "renderer.ffmpeg-subtitles-v1"
     | "credentials"
     | "window"
     | "shell"
@@ -880,6 +1136,8 @@ export interface HostCapabilityDescriptor {
     | "updater";
   available: boolean;
   version?: string;
+  /** Exact fonts exercised with the verified renderer; no paths or font bytes. */
+  fonts?: readonly HostRendererFontDescriptor[];
 }
 
 export interface HostFileGrant {
@@ -906,6 +1164,26 @@ export interface DesktopHostActions {
     extensions?: readonly string[];
   }): Promise<readonly HostFileGrant[] | null>;
   pickDirectory?(): Promise<HostFileGrant | null>;
+  /** Dedicated explicit write capability. Existing read grants are never upgraded. */
+  pickNleCopyDirectory?(): Promise<HostWriteDirectoryGrant | null>;
+  startNleMediaCopy?(
+    id: string,
+    input: NleCopyInput,
+    writeGrantRef: string,
+  ): Promise<NleCopyJob>;
+  getNleMediaCopy?(
+    id: string,
+    projectId: string,
+  ): Promise<NleCopyJob | undefined>;
+  cancelNleMediaCopy?(
+    id: string,
+    projectId: string,
+  ): Promise<NleCopyJob | undefined>;
+  revealNleMediaCopy?(
+    id: string,
+    projectId: string,
+    artifactRef: string,
+  ): Promise<boolean>;
   readGrantedText?(
     grantId: string,
     maximumBytes: number,
@@ -918,6 +1196,10 @@ export interface DesktopHostActions {
   archiveRemoteMedia?(
     input: HostArchiveRemoteMediaInput,
   ): Promise<HostArchivedMedia>;
+  readManagedMedia?(
+    input: HostManagedMediaReadInput,
+    signal: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>>;
   startTimelineRender?(
     input: HostTimelineRenderInput,
   ): Promise<HostTimelineRenderJob>;
@@ -938,7 +1220,12 @@ export interface DesktopHostActions {
   saveTextFile(input: {
     suggestedName: string;
     content: string;
-  }): Promise<{ saved: boolean; artifactRef?: string }>;
+  }): Promise<HostTextFileSaveResult>;
+  saveBinaryFile?(input: {
+    suggestedName: string;
+    contentBase64: string;
+    mimeType: "application/zip";
+  }): Promise<HostTextFileSaveResult>;
   openExternal(url: string): Promise<void>;
   revealGrant(grantId: string): Promise<void>;
   revealArtifact(artifactRef: string): Promise<void>;
@@ -1303,6 +1590,162 @@ export function createDesktopHost(
       return unavailable(context, "files.directory");
     return context.json(await options.actions.pickDirectory());
   });
+  app.post("/host/v1/files/nle-copy-directory", async (context) => {
+    if (!options.actions.pickNleCopyDirectory)
+      return unavailable(context, "files.nle-copy-directory");
+    try {
+      return context.json(await options.actions.pickNleCopyDirectory());
+    } catch {
+      return unavailable(context, "files.nle-copy-directory");
+    }
+  });
+  const copyIdentity = (value: unknown): value is string =>
+    typeof value === "string" &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(
+      value,
+    );
+  const copyError = (cause: unknown) => {
+    const code =
+      cause instanceof NleCopyJobError
+        ? cause.code
+        : "COPY_JOURNAL_UNAVAILABLE";
+    const status =
+      code === "INVALID_COPY_REQUEST"
+        ? 400
+        : code === "COPY_REQUEST_CONFLICT"
+          ? 409
+          : 503;
+    return new Response(
+      JSON.stringify({
+        type: "about:blank",
+        title: "原媒体复制请求不可安全执行或恢复。",
+        status,
+        code,
+        traceId: randomUUID(),
+      }),
+      {
+        status,
+        headers: {
+          "Content-Type": "application/problem+json",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  };
+  app.post(
+    "/host/v1/nle-media-copies",
+    bodyLimit({
+      maxSize: 24 * 1024 * 1024,
+      onError: () =>
+        new Response(
+          JSON.stringify({
+            type: "about:blank",
+            title: "复制请求超过Host限制。",
+            status: 413,
+            code: "COPY_REQUEST_TOO_LARGE",
+          }),
+          {
+            status: 413,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+    }),
+    async (context) => {
+      if (!options.actions.startNleMediaCopy)
+        return unavailable(context, "nle-media-copy.start");
+      const body = readObject(await context.req.json().catch(() => undefined));
+      if (
+        Object.keys(body).length !== 3 ||
+        !copyIdentity(body.id) ||
+        !copyIdentity(body.writeGrantRef) ||
+        !validNleCopyInput(body.input)
+      )
+        return copyError(new NleCopyJobError("INVALID_COPY_REQUEST"));
+      try {
+        const value = await options.actions.startNleMediaCopy(
+          body.id,
+          body.input,
+          body.writeGrantRef,
+        );
+        context.header("Cache-Control", "no-store");
+        return context.json(
+          value,
+          value.status === "queued" || value.status === "running" ? 202 : 200,
+        );
+      } catch (cause) {
+        return copyError(cause);
+      }
+    },
+  );
+  app.get("/host/v1/nle-media-copies/:id", async (context) => {
+    if (!options.actions.getNleMediaCopy)
+      return unavailable(context, "nle-media-copy.get");
+    const id = context.req.param("id"),
+      projectId = context.req.query("projectId");
+    if (
+      !copyIdentity(id) ||
+      !copyIdentity(projectId) ||
+      Array.from(new URL(context.req.url).searchParams.keys()).length !== 1
+    )
+      return copyError(new NleCopyJobError("INVALID_COPY_REQUEST"));
+    try {
+      const value = await options.actions.getNleMediaCopy(id, projectId);
+      context.header("Cache-Control", "no-store");
+      return value
+        ? context.json(value)
+        : context.json({ code: "COPY_REQUEST_NOT_FOUND" }, 404);
+    } catch (cause) {
+      return copyError(cause);
+    }
+  });
+  app.post("/host/v1/nle-media-copies/:id/cancel", async (context) => {
+    if (!options.actions.cancelNleMediaCopy)
+      return unavailable(context, "nle-media-copy.cancel");
+    const id = context.req.param("id"),
+      body = readObject(await context.req.json().catch(() => undefined));
+    if (
+      !copyIdentity(id) ||
+      !copyIdentity(body.projectId) ||
+      Object.keys(body).length !== 1
+    )
+      return copyError(new NleCopyJobError("INVALID_COPY_REQUEST"));
+    try {
+      const value = await options.actions.cancelNleMediaCopy(
+        id,
+        body.projectId,
+      );
+      context.header("Cache-Control", "no-store");
+      return value
+        ? context.json(value)
+        : context.json({ code: "COPY_REQUEST_NOT_FOUND" }, 404);
+    } catch (cause) {
+      return copyError(cause);
+    }
+  });
+  app.post("/host/v1/nle-media-copies/:id/reveal", async (context) => {
+    if (!options.actions.revealNleMediaCopy)
+      return unavailable(context, "nle-media-copy.reveal");
+    const id = context.req.param("id"),
+      body = readObject(await context.req.json().catch(() => undefined));
+    if (
+      !copyIdentity(id) ||
+      !copyIdentity(body.projectId) ||
+      !copyIdentity(body.artifactRef) ||
+      Object.keys(body).length !== 2
+    )
+      return copyError(new NleCopyJobError("INVALID_COPY_REQUEST"));
+    try {
+      return (await options.actions.revealNleMediaCopy(
+        id,
+        body.projectId,
+        body.artifactRef,
+      ))
+        ? context.body(null, 204)
+        : context.json({ code: "COPY_REQUEST_NOT_FOUND" }, 404);
+    } catch (cause) {
+      return copyError(cause);
+    }
+  });
   app.post("/host/v1/files/grants/:grantId/text", async (context) => {
     if (!options.actions.readGrantedText)
       return unavailable(context, "files.read");
@@ -1348,6 +1791,63 @@ export function createDesktopHost(
     return context.json(
       await options.actions.importPortraitMedia(body.grantId),
     );
+  });
+  app.post("/host/v1/media-library/read", async (context) => {
+    if (!options.actions.readManagedMedia)
+      return unavailable(context, "media-library.read");
+    const value = readObject(await context.req.json());
+    const input: HostManagedMediaReadInput = {
+      mediaRef: String(value.mediaRef ?? ""),
+      sha256: String(value.sha256 ?? ""),
+      sizeBytes: typeof value.sizeBytes === "number" ? value.sizeBytes : NaN,
+      mimeType: String(value.mimeType ?? ""),
+    };
+    if (
+      Object.keys(value).some(
+        (key) => !["mediaRef", "sha256", "sizeBytes", "mimeType"].includes(key),
+      ) ||
+      !validManagedMediaReadInput(input)
+    )
+      return context.json(
+        { code: "INVALID_MANAGED_MEDIA_READ", traceId: randomUUID() },
+        400,
+      );
+    try {
+      const body = await options.actions.readManagedMedia(
+        input,
+        context.req.raw.signal,
+      );
+      return new Response(body, {
+        headers: {
+          "Content-Type": input.mimeType,
+          "Content-Length": String(input.sizeBytes),
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          ETag: `"${input.sha256}"`,
+        },
+      });
+    } catch (cause) {
+      const error =
+        cause instanceof HostManagedMediaReadError
+          ? cause
+          : new HostManagedMediaReadError(
+              503,
+              "MANAGED_MEDIA_READ_UNAVAILABLE",
+            );
+      return new Response(
+        JSON.stringify({
+          type: "about:blank",
+          title: "存档文件不可安全读取。",
+          status: error.status,
+          code: error.code,
+          traceId: randomUUID(),
+        }),
+        {
+          status: error.status,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      );
+    }
   });
   app.post("/host/v1/media-library/archive-remote", async (context) => {
     if (!options.actions.archiveRemoteMedia)
@@ -1409,44 +1909,40 @@ export function createDesktopHost(
     )
       return context.json({ code: "INVALID_TIMELINE_RENDER" }, 400);
     const normalizedClips = clips.map((value) => readObject(value));
+    const input: HostTimelineRenderInput = {
+      jobId: body.jobId,
+      timelineId: body.timelineId,
+      durationFrames: Number(body.durationFrames),
+      profile: {
+        width: Number(profile.width),
+        height: Number(profile.height),
+        frameRate: {
+          numerator: Number(frameRate.numerator),
+          denominator: Number(frameRate.denominator),
+          dropFrame: frameRate.dropFrame,
+        },
+        audioSampleRate: Number(profile.audioSampleRate),
+        channels: Number(profile.channels),
+      },
+      clips: normalizedClips as unknown as HostTimelineRenderInput["clips"],
+      ...(Object.hasOwn(body, "audioPlan")
+        ? { audioPlan: body.audioPlan as HostTimelineRenderAudioPlan }
+        : {}),
+      ...(Object.hasOwn(body, "subtitlePlan")
+        ? { subtitlePlan: body.subtitlePlan as HostTimelineRenderSubtitlePlan }
+        : {}),
+    };
     if (
-      normalizedClips.some(
-        (clip) =>
-          typeof clip.mediaRef !== "string" ||
-          !Number.isInteger(clip.startFrame) ||
-          Number(clip.startFrame) < 0 ||
-          !Number.isInteger(clip.durationFrames) ||
-          Number(clip.durationFrames) < 1 ||
-          !Number.isInteger(clip.sourceOffsetFrame) ||
-          Number(clip.sourceOffsetFrame) < 0,
-      )
+      Object.keys(body).length !==
+        5 +
+          Number(Object.hasOwn(body, "audioPlan")) +
+          Number(Object.hasOwn(body, "subtitlePlan")) ||
+      Object.keys(profile).length !== 5 ||
+      Object.keys(frameRate).length !== 3 ||
+      !validTimelineRenderInput(input)
     )
       return context.json({ code: "INVALID_TIMELINE_RENDER_CLIP" }, 400);
-    return context.json(
-      await options.actions.startTimelineRender({
-        jobId: body.jobId,
-        timelineId: body.timelineId,
-        durationFrames: Number(body.durationFrames),
-        profile: {
-          width: Number(profile.width),
-          height: Number(profile.height),
-          frameRate: {
-            numerator: Number(frameRate.numerator),
-            denominator: Number(frameRate.denominator),
-            dropFrame: frameRate.dropFrame,
-          },
-          audioSampleRate: Number(profile.audioSampleRate),
-          channels: Number(profile.channels),
-        },
-        clips: normalizedClips.map((clip) => ({
-          mediaRef: clip.mediaRef as string,
-          startFrame: Number(clip.startFrame),
-          durationFrames: Number(clip.durationFrames),
-          sourceOffsetFrame: Number(clip.sourceOffsetFrame),
-        })),
-      }),
-      202,
-    );
+    return context.json(await options.actions.startTimelineRender(input), 202);
   });
   app.get("/host/v1/timeline-renders/:jobId", async (context) => {
     if (!options.actions.getTimelineRender)
@@ -1575,6 +2071,35 @@ export function createDesktopHost(
       await options.actions.saveTextFile({
         suggestedName: body.suggestedName,
         content: body.content,
+      }),
+    );
+  });
+  app.post("/host/v1/files/save-binary", async (context) => {
+    const body = readObject(await context.req.json());
+    if (!options.actions.saveBinaryFile)
+      return context.json({ code: "BINARY_SAVE_UNAVAILABLE" }, 503);
+    if (
+      typeof body.suggestedName !== "string" ||
+      !body.suggestedName.endsWith(".zip") ||
+      body.mimeType !== "application/zip" ||
+      typeof body.contentBase64 !== "string" ||
+      body.contentBase64.length > 44_739_244 ||
+      body.contentBase64.length % 4 !== 0 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/u.test(body.contentBase64)
+    )
+      return context.json({ code: "INVALID_BINARY_SAVE_INPUT" }, 400);
+    const bytes = Buffer.from(body.contentBase64, "base64");
+    if (
+      bytes.length > 33_554_432 ||
+      bytes.subarray(0, 4).toString("hex") !== "504b0304" ||
+      bytes.toString("base64") !== body.contentBase64
+    )
+      return context.json({ code: "INVALID_BINARY_SAVE_INPUT" }, 400);
+    return context.json(
+      await options.actions.saveBinaryFile({
+        suggestedName: body.suggestedName,
+        contentBase64: body.contentBase64,
+        mimeType: "application/zip",
       }),
     );
   });
@@ -2147,13 +2672,7 @@ export function createHostAgentRuntime(
                     ? {
                         cursor,
                         type: "usage",
-                        usage: {
-                          inputTokens: event.inputTokens,
-                          outputTokens: event.outputTokens,
-                          cachedTokens: event.cachedTokens,
-                          estimatedCost: event.estimatedCost,
-                          currency: event.currency,
-                        },
+                        usage: normalizeAgentUsage(event),
                       }
                     : event.type === "result"
                       ? {

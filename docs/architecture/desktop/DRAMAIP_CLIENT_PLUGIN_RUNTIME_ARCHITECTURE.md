@@ -26,7 +26,7 @@
 
 本文定义 DramaIP Desktop / Runtime 的长期技术目标和不可违反的架构约束，是 `desktop/` 技术设计的最高优先级规范；市场定位与用户价值由产品定位文档统一定义。
 
-产品层面，Desktop 承载“面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台”：小说/故事母本是重要上游，改编与剧本是当前转化核心，分镜与媒体能力是生产验证和交付层。该业务定位不改变本文定义的 Runtime、插件、数据所有权与安全边界。
+产品层面，Desktop 承载“面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台”：小说/故事母本是重要上游核心之一、可独立完成章节和稿件交付的一等能力；改编与剧本是当前转化核心；作者意图、叙事质量、连续性、版本和来源贯穿两路；分镜与媒体是可选生产出口，不是所有项目的终点。该业务口径于 2026-09-30 校准，不改变本文的架构版本、Runtime、插件、数据所有权与安全边界，不将目标流程视为已实现。
 
 文档职责：
 
@@ -72,13 +72,12 @@ desktop/
 
 ```text
 desktop/legacy/desktop2 = 只读架构模式参考
-desktop/vendor/opencode = 只读 C/S 与多 Client 参考
 desktop/vendor/deepseek-harness/vendor = 九个第一方框架包的锁定源码
 desktop/vendor/codex-rust = Codex Engine 锁定源码
 desktop/vendor/pi = Pi Engine 锁定源码
 ```
 
-所有 vendor 保持只读。DSH 的九个框架包经准备脚本生成本地 workspace 后参与构建；Pi/Codex 经各自构建流程成为受管 Engine 资源。发布包使用完整构建产物，不直接引用 vendor 或仓库外 workspace。归档实现、OpenCode 参考和 DSH Agent 业务实现不进入正式运行依赖；Desktop 与 Platform 保持独立。
+所有 vendor 保持只读。DSH 的九个框架包经准备脚本生成本地 workspace 后参与构建；Pi/Codex 经各自构建流程成为受管 Engine 资源。发布包使用完整构建产物，不直接引用 vendor 或仓库外 workspace。归档实现和 DSH Agent 业务实现不进入正式运行依赖；Desktop 与 Platform 保持独立。
 
 ---
 
@@ -813,7 +812,7 @@ Codex 0.147.0
 LangGraph.js 1.4.9
 ```
 
-Pi 是默认签名第一方 utility-process harness；Codex 使用 native stdio App Server；LangGraph.js 在 Electron utility process 中运行固定的“模型调用 → 文本/JSON 校验 → 最多一次修复”基线图。LangGraph.js 是活动 external-benchmark Engine，但不是 Core Runtime 的 Workflow Runtime，也不运行自主模型工具循环。OpenCode 保持只读参考。DeepSeek Harness 提供只读的 Cordis 框架源码快照；其 Agent 业务实现不作为运行依赖。
+Pi 是默认签名第一方 utility-process harness；Codex 使用 native stdio App Server；LangGraph.js 在 Electron utility process 中运行固定的“模型调用 → 文本/JSON 校验 → 最多一次修复”基线图。LangGraph.js 是活动 external-benchmark Engine，但不是 Core Runtime 的 Workflow Runtime，也不运行自主模型工具循环。DeepSeek Harness 提供只读的 Cordis 框架源码快照；其 Agent 业务实现不作为运行依赖。
 
 `@dramaip/agent-runtime` 是 Vendor-neutral Contract，不得暴露 Electron、SQLite、Hono、Cordis 或 Vendor 类型。
 

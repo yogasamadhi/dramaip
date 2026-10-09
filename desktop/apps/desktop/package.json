@@ -2,7 +2,7 @@
   "name": "@dramaip/desktop",
   "version": "3.0.0-alpha.3",
   "private": true,
-  "description": "尽意 DramaIP——本地优先的 AI IP 创作工作台",
+  "description": "尽意 DramaIP——面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台",
   "author": "sdns",
   "license": "Apache-2.0",
   "main": "./out/main/index.js",

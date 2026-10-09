@@ -4,6 +4,7 @@ import { BareButton, Button, StatusBadge } from "@dramaip/ui-shared";
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { AlertTriangle, CheckCheck, Clock3, History, Plus } from "lucide-react";
@@ -20,6 +21,14 @@ import {
   useStudio,
 } from "../../studio-shared";
 import { useStudioSession } from "../../studio-session";
+import { providerReviewStatusLabel } from "../../provider-action-review";
+import { isLegacyQualityTask } from "../../legacy-quality-history";
+import {
+  taskConfirmationKey,
+  taskResultReferenceKey,
+  readTaskConfirmationContext,
+  readActualTaskResult,
+} from "../../task-confirmation-context";
 import { AgentTaskConfigPanel } from "../agents/impl";
 import {
   AgentChangePreviewCard,
@@ -56,6 +65,8 @@ function resultObject(value: unknown): Record<string, unknown> {
 }
 
 function sourceRoute(task: Task): string {
+  if (isLegacyQualityTask(task.kind))
+    return `/create${task.projectId ? `?projectId=${encodeURIComponent(task.projectId)}` : ""}`;
   const result = resultObject(task.result);
   const project = task.projectId
     ? `projectId=${encodeURIComponent(task.projectId)}`
@@ -91,6 +102,29 @@ function TaskCard(props: {
   acknowledging: boolean;
 }) {
   const item = props.task;
+  const legacyQuality = isLegacyQualityTask(item.kind);
+  const client = useStudio();
+  const actual = useQuery({
+    queryKey: [
+      "task-actual-result",
+      item.id,
+      item.projectId,
+      item.updatedAt,
+      taskResultReferenceKey(item.result),
+    ],
+    queryFn: () => readActualTaskResult(client, item),
+    refetchInterval: 1500,
+    retry: false,
+  });
+  const result =
+    !actual.error && (!legacyQuality || actual.isFetchedAfterMount)
+      ? actual.data?.result
+      : undefined;
+  const provider = agentProviderActionPreview(result);
+  const oldResult = resultObject(item.result);
+  const hasProviderReference =
+    oldResult.providerActionPreviewId !== undefined ||
+    oldResult.providerActionPreview !== undefined;
   return (
     <article
       className="rounded-lg border border-line bg-surface px-4 py-3"
@@ -103,14 +137,27 @@ function TaskCard(props: {
             {new Date(item.updatedAt).toLocaleString("zh-CN")} · {item.kind}
           </p>
         </div>
-        <StatusBadge tone={statusTone(item)}>
-          {item.resultStatus === "pending"
-            ? "等待采用"
-            : item.resultStatus === "applied"
-              ? "已应用"
-              : (TASK_STATUS_LABELS[item.status] ?? "未知状态")}
+        <StatusBadge tone={legacyQuality ? "warning" : statusTone(item)}>
+          {legacyQuality
+            ? "历史记录 · 质量未认证"
+            : actual.error
+              ? "结果未核全"
+              : provider
+                ? providerReviewStatusLabel(provider.status)
+                : hasProviderReference
+                  ? "正在核对实际调用"
+                  : item.resultStatus === "pending"
+                    ? "等待审阅采用"
+                    : item.resultStatus === "applied"
+                      ? "已应用"
+                      : (TASK_STATUS_LABELS[item.status] ?? "未知状态")}
         </StatusBadge>
       </div>
+      {legacyQuality && (
+        <p className="mt-3 text-sm text-muted">
+          原运行状态与结果仅保留历史事实；固定／数量评分不代表当前质量通过、实际模型评议或问题已修复。
+        </p>
+      )}
       {item.stage ? (
         <div className="mt-3" aria-label={`当前阶段：${item.stage}`}>
           <div className="mb-1 flex items-center justify-between text-xs text-muted">
@@ -136,23 +183,34 @@ function TaskCard(props: {
         </p>
       ) : null}
 
-      {typeof resultObject(item.result).creationWorkflowId === "string" && (
+      {actual.error && (
+        <p role="alert" className="mt-3 text-sm text-danger-strong">
+          {message(actual.error)}
+        </p>
+      )}
+      {!actual.error && !actual.data && item.result !== undefined && (
+        <p role="status">正在核对实际任务结果…</p>
+      )}
+      {typeof resultObject(result).creationWorkflowId === "string" && (
         <CreationRunCard
-          id={String(resultObject(item.result).creationWorkflowId)}
+          id={String(resultObject(result).creationWorkflowId)}
+          projectId={item.projectId}
+          taskId={item.id}
         />
       )}
-      {agentRevisionPreview(item.result) ? (
+      {agentRevisionPreview(result) ? (
         <AgentRevisionPreviewCard
-          preview={agentRevisionPreview(item.result)!}
+          preview={agentRevisionPreview(result)!}
           projectId={item.projectId}
         />
       ) : null}
-      {agentChangePreview(item.result) ? (
-        <AgentChangePreviewCard preview={agentChangePreview(item.result)!} />
+      {agentChangePreview(result) ? (
+        <AgentChangePreviewCard preview={agentChangePreview(result)!} />
       ) : null}
-      {agentProviderActionPreview(item.result) ? (
+      {agentProviderActionPreview(result) ? (
         <AgentProviderActionPreviewCard
-          preview={agentProviderActionPreview(item.result)!}
+          preview={agentProviderActionPreview(result)!}
+          task={actual.data!}
         />
       ) : null}
 
@@ -187,13 +245,13 @@ function TaskCard(props: {
           </Button>
         ) : null}
       </div>
-      {item.result !== undefined && item.resultStatus !== "pending" ? (
+      {result !== undefined && item.resultStatus !== "pending" ? (
         <details className="mt-3 rounded-md bg-surface-muted px-3 py-2">
           <summary className="cursor-pointer text-xs font-medium text-muted">
-            查看任务结果
+            {legacyQuality ? "查看原任务结果（质量未认证）" : "查看任务结果"}
           </summary>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-            {taskResultText(item.result)}
+            {taskResultText(result)}
           </p>
         </details>
       ) : null}
@@ -206,14 +264,36 @@ export function TaskPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
   const session = useStudioSession();
+  const params = new URLSearchParams(location.search);
   const projectId =
-    new URLSearchParams(location.search).get("projectId") ??
-    session.activeProjectId;
+    params.get("projectId") ??
+    (params.get("scope") === "all" ? undefined : session.activeProjectId);
+  const requestedTaskId = params.get("taskId");
+  const hasRequestedObject = ["taskId", "workflowId", "revisionId"].some(
+    (key) => params.has(key),
+  );
+  const hasRequestedContext = hasRequestedObject || params.has("projectId");
+  const selectedContext = useQuery({
+    queryKey: [
+      "confirmation-context",
+      projectId,
+      taskConfirmationKey(location.search),
+    ],
+    enabled: hasRequestedContext,
+    queryFn: () =>
+      readTaskConfirmationContext(client, projectId, location.search),
+    retry: false,
+    refetchInterval: 1500,
+  });
+  const renderWorklist =
+    !hasRequestedContext ||
+    Boolean(selectedContext.data && !selectedContext.error);
   const [category, setCategory] =
     useState<TaskWorklistCategory>("pending-result");
   const [configOpen, setConfigOpen] = useState(false);
   const worklist = useInfiniteQuery({
     queryKey: ["task-worklist", projectId, category],
+    enabled: renderWorklist,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       client.tasks.worklist({
@@ -224,8 +304,12 @@ export function TaskPage() {
       }),
     getNextPageParam: (last) => last.nextCursor,
   });
-  const items = worklist.data?.pages.flatMap((page) => page.items) ?? [];
-  const counts = worklist.data?.pages[0]?.counts ?? {
+  const items = renderWorklist
+    ? (worklist.data?.pages.flatMap((page) => page.items) ?? [])
+    : [];
+  const counts = (renderWorklist
+    ? worklist.data?.pages[0]?.counts
+    : undefined) ?? {
     pendingResult: 0,
     running: 0,
     attention: 0,
@@ -249,8 +333,13 @@ export function TaskPage() {
   const acknowledge = useMutation({
     mutationFn: (task: Task) =>
       client.tasks.setAttention(task.id, "acknowledged"),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["task-worklist"] }),
+    onSuccess: async () => {
+      await Promise.all(
+        ["task-worklist", "tasks", "confirmation-context"].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      );
+    },
   });
 
   return (
@@ -274,7 +363,56 @@ export function TaskPage() {
           {configOpen ? "收起任务配置" : "新建任务"}
         </Button>
       </div>
-      {configOpen ? <AgentTaskConfigPanel /> : null}
+      {configOpen && renderWorklist ? <AgentTaskConfigPanel /> : null}
+      {(hasRequestedObject || Boolean(selectedContext.error)) && (
+        <section
+          aria-label="对应待确认对象"
+          className="space-y-3 rounded-lg border border-brand p-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">对应待确认对象</h2>
+            <Button size="sm" variant="ghost" asChild>
+              <Link
+                to={
+                  projectId
+                    ? `/pending?projectId=${encodeURIComponent(projectId)}`
+                    : "/pending"
+                }
+              >
+                返回待确认中心
+              </Link>
+            </Button>
+          </div>
+          {selectedContext.error || !selectedContext.data ? (
+            <p role={selectedContext.error ? "alert" : "status"}>
+              {selectedContext.error
+                ? message(selectedContext.error)
+                : "正在核对实际项目、任务及候选绑定…"}
+            </p>
+          ) : selectedContext.data.revision ? (
+            <AgentRevisionPreviewCard
+              preview={selectedContext.data.revision}
+              projectId={projectId}
+            />
+          ) : selectedContext.data.workflow ? (
+            <CreationRunCard
+              id={selectedContext.data.workflow.id}
+              projectId={selectedContext.data.workflow.input.projectId}
+              taskId={selectedContext.data.task?.id}
+            />
+          ) : selectedContext.data.task ? (
+            <TaskCard
+              task={selectedContext.data.task}
+              acknowledging={acknowledge.isPending}
+              onAcknowledge={(task) => acknowledge.mutate(task)}
+            />
+          ) : (
+            <p className="text-sm text-muted">
+              实际项目已核对；请选择具体任务。
+            </p>
+          )}
+        </section>
+      )}
 
       <div
         className="grid grid-cols-2 gap-2 rounded-lg bg-surface-muted p-1 sm:grid-cols-4"
@@ -303,7 +441,7 @@ export function TaskPage() {
         })}
       </div>
 
-      {worklist.error ? (
+      {renderWorklist && worklist.error ? (
         <p
           className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger-strong"
           role="alert"
@@ -312,20 +450,25 @@ export function TaskPage() {
         </p>
       ) : null}
       <div className="space-y-3" role="tabpanel">
-        {items.map((item) => (
-          <TaskCard
-            key={item.id}
-            task={item}
-            acknowledging={acknowledge.isPending}
-            onAcknowledge={(task) => acknowledge.mutate(task)}
-          />
-        ))}
-        {!worklist.isLoading && !items.length ? (
+        {items
+          .filter((item) => item.id !== requestedTaskId)
+          .map((item) => (
+            <TaskCard
+              key={item.id}
+              task={item}
+              acknowledging={acknowledge.isPending}
+              onAcknowledge={(task) => acknowledge.mutate(task)}
+            />
+          ))}
+        {renderWorklist &&
+        !worklist.error &&
+        !worklist.isLoading &&
+        !items.length ? (
           <p className="rounded-lg border border-dashed border-line p-8 text-center text-sm text-muted">
             此分类暂无任务。
           </p>
         ) : null}
-        {worklist.hasNextPage ? (
+        {renderWorklist && worklist.hasNextPage ? (
           <Button
             className="mx-auto flex"
             variant="secondary"

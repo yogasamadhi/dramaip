@@ -157,7 +157,12 @@ export interface KernelOptions {
   hmr?: {
     base: string;
     root: string[];
-    run(task: () => Promise<boolean>): Promise<void>;
+    run(
+      task: () => Promise<boolean>,
+      profile?: PluginProfile,
+      unchanged?: () => boolean,
+    ): Promise<void>;
+    abortInitialization?(reason: unknown): void;
     recompose?(): PluginProfile;
     rejectConfig?(reason: Error): Promise<void>;
     restart(reason: Error): void;
@@ -170,6 +175,8 @@ export interface RunningKernel {
   readonly context: Context;
   service<T>(contract: ServiceContract<T>): T | undefined;
   diagnostics(): KernelDiagnostics;
+  /** Internal identity of configuration actually applied by the native Loader. */
+  configurationFingerprint(): string;
   settle(): Promise<void>;
   setGraphRevision(revision: string): void;
   dispose(): Promise<void>;
@@ -188,6 +195,9 @@ export async function bootKernel(
 ): Promise<RunningKernel> {
   const order = validatePluginGraph(options.plugins, options.profile);
   let graphRevision = options.graphRevision;
+  let appliedConfiguration = JSON.stringify(
+    options.profile.assembly?.patches ?? options.profile.plugins,
+  );
   const ctx = new Context();
   const ui = new ContributionRegistry();
   const effectTimes = new WeakMap<EffectMeta, string>();
@@ -403,7 +413,7 @@ export async function bootKernel(
         "hmr-batch-coordination",
       );
       const include = ctx.loader.resolve(includeId);
-      let lastConfig = JSON.stringify(options.profile.assembly?.patches);
+      let lastConfig = appliedConfiguration;
       for (const filename of options.profile.assembly?.files ?? []) {
         await ctx.effect(
           async () =>
@@ -415,7 +425,15 @@ export async function bootKernel(
                 const error =
                   reason instanceof Error ? reason : new Error(String(reason));
                 await development.rejectConfig?.(error);
-                throw error;
+                // Native config callbacks are serialized. A complete later edit
+                // may already exist after this older rejection waits on the
+                // business queue. Revalidate current bytes once; never restore
+                // files or retry a business write/model operation here.
+                try {
+                  profile = development.recompose?.();
+                } catch {
+                  throw error;
+                }
               }
               if (!profile?.assembly) return;
               validatePluginGraph(options.plugins, profile);
@@ -431,23 +449,30 @@ export async function bootKernel(
                 return;
               }
               const next = JSON.stringify(profile.assembly.patches);
-              if (next === lastConfig) return;
-              await development.run(async () => {
-                await include.update({
-                  config: {
-                    path: profile.assembly!.root,
-                    patches: resolveNames(profile.assembly!.patches),
-                  },
-                });
-                lastConfig = next;
-                return true;
-              });
+
+              await development.run(
+                async () => {
+                  if (next === lastConfig) return false;
+                  await include.update({
+                    config: {
+                      path: profile.assembly!.root,
+                      patches: resolveNames(profile.assembly!.patches),
+                    },
+                  });
+                  lastConfig = next;
+                  appliedConfiguration = next;
+                  return true;
+                },
+                profile,
+                () => next === lastConfig,
+              );
             }),
           `hmr-config:${filename}`,
         );
       }
     }
   } catch (error) {
+    options.hmr?.abortInitialization?.(error);
     await ctx.fiber.dispose();
     await rm(directory, { recursive: true, force: true });
     throw error;
@@ -458,6 +483,10 @@ export async function bootKernel(
     ui,
     context: ctx,
     diagnostics,
+    configurationFingerprint: () =>
+      createHash("sha256")
+        .update(canonicalJson(JSON.parse(appliedConfiguration)))
+        .digest("hex"),
     settle,
     setGraphRevision: (revision) => {
       graphRevision = revision;

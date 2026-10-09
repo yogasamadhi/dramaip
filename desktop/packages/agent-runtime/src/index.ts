@@ -3,6 +3,7 @@ import type {
   AgentEngineDescriptor,
   AgentEngineKind,
   JsonValue,
+  AgentUsage,
 } from "@dramaip/contracts";
 
 export type AgentRuntimeErrorCode =
@@ -27,13 +28,7 @@ export class AgentRuntimeError extends Error {
   }
 }
 
-export interface AgentUsage {
-  inputTokens?: number;
-  outputTokens?: number;
-  cachedTokens?: number;
-  estimatedCost?: number;
-  currency?: string;
-}
+export { normalizeAgentUsage, type AgentUsage } from "@dramaip/contracts";
 
 export type AgentRuntimeEvent =
   | { cursor: number; type: "activity"; activity: "thinking" }

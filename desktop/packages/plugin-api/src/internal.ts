@@ -50,6 +50,8 @@ export interface RoutePolicy {
   readonly bodyLimitBytes: number;
   readonly timeoutMs: number;
   readonly idempotency: "forbidden" | "optional" | "required";
+  /** Owner persists request receipts and recomputes live response projections. */
+  readonly idempotencyReplay?: "handler";
   readonly concurrency: "if-match-required" | "none" | "optional";
 }
 

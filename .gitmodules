@@ -6,10 +6,6 @@
 	path = desktop/vendor/deepseek-harness
 	url = https://github.com/deepseek-ai/deepseek-harness.git
 
-[submodule "desktop/vendor/opencode"]
-	path = desktop/vendor/opencode
-	url = https://github.com/anomalyco/opencode.git
-
 [submodule "desktop/vendor/pi"]
 	path = desktop/vendor/pi
 	url = https://github.com/earendil-works/pi.git

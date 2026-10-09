@@ -1,8 +1,17 @@
 import { CreationRecordWorkbench } from "../creation-workbench";
+import { configuredEstimateLabel } from "../../generation-cost";
+import { MediaSourceReviewPanel } from "./MediaSourceReviewPanel";
+import { AudioRevisionPanel } from "./AudioRevisionPanel";
+import { AudioResolutionPanel } from "./AudioResolutionPanel";
+import { AssetMediaPreview } from "./AssetMediaPreview";
+import { AssetDeclarationStatus } from "./AssetDeclarationStatus";
+import { TimelinePlaybackPanel } from "./TimelinePlaybackPanel";
+import { TimelineRenderPanel } from "./TimelineRenderPanel";
+import { NleMediaVerificationPanel } from "./NleMediaVerificationPanel";
+import type { TimelinePreviewControls } from "../../timeline-preview";
 import type {
   AnimaticInitialization,
   AssetCenterAsset,
-  AssetCenterPreviewMedia,
   AudioTrack,
   DomainEntity,
   TimelineDeliveryExportFormat,
@@ -12,12 +21,7 @@ import type {
   VideoGenerationPreflight,
 } from "@dramaip/contracts/product";
 import { BareButton } from "@dramaip/ui-shared";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -37,7 +41,36 @@ import {
 } from "../../studio-shared";
 import { useStudioSession } from "../../studio-session";
 import { PluginResourceWorkspace, recordPayload } from "../studio-widgets";
+import {
+  ProductionContextBoundary,
+  WorkspaceObjectControls,
+} from "../ProductionContextBoundary";
+import {
+  productionReferenceKey,
+  withExactProductionRecord,
+  type ProductionObjectContext,
+} from "../../production-object-context";
 export function ProductionWorkspace() {
+  const location = useLocation();
+  return (
+    <ProductionContextBoundary>
+      {(projectId, context) => (
+        <ProductionWorkspaceInstance
+          key={JSON.stringify([
+            projectId,
+            productionReferenceKey(location.search),
+          ])}
+          projectId={projectId}
+          context={context}
+        />
+      )}
+    </ProductionContextBoundary>
+  );
+}
+function ProductionWorkspaceInstance(props: {
+  projectId: string;
+  context: ProductionObjectContext;
+}) {
   const client = useStudio();
   const location = useLocation();
   const navigate = useNavigate();
@@ -46,12 +79,17 @@ export function ProductionWorkspace() {
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState(session.activeProjectId ?? "");
-  const [adaptationId, setAdaptationId] = useState("");
-  const [episodeId, setEpisodeId] = useState("");
-  const [scriptId, setScriptId] = useState("");
-  const [sceneId, setSceneId] = useState("");
-  const [shotId, setShotId] = useState("");
+  const projectId = props.projectId;
+  const [selectedAdaptationId, setAdaptationId] = useState("");
+  const [selectedEpisodeId, setEpisodeId] = useState("");
+  const [selectedScriptId, setScriptId] = useState("");
+  const [selectedSceneId, setSceneId] = useState("");
+  const [selectedShotId, setShotId] = useState("");
+  const adaptationId = props.context.adaptationId?.id ?? selectedAdaptationId;
+  const episodeId = props.context.episodeId?.id ?? selectedEpisodeId;
+  const scriptId = props.context.scriptId?.id ?? selectedScriptId;
+  const sceneId = props.context.sceneId?.id ?? selectedSceneId;
+  const shotId = props.context.shotId?.id ?? selectedShotId;
   const [stage, setStage] = useState<
     | "assets"
     | "asset-center"
@@ -66,44 +104,45 @@ export function ProductionWorkspace() {
     | "timeline"
     | "renders"
   >("assets");
-  const { data: adaptations = [] } = useQuery({
+  const { data: listedAdaptations = [] } = useQuery({
     queryKey: ["resource", "adaptations", projectId],
     queryFn: () => client.resources.list("adaptations", projectId),
     enabled: Boolean(projectId),
   });
-  const { data: episodes = [] } = useQuery({
+  const { data: listedEpisodes = [] } = useQuery({
     queryKey: ["resource", "episodes", projectId, adaptationId],
     queryFn: () => client.resources.list("episodes", projectId, adaptationId),
     enabled: Boolean(projectId && adaptationId),
   });
-  const { data: scripts = [] } = useQuery({
+  const { data: listedScripts = [] } = useQuery({
     queryKey: ["resource", "scripts", projectId, episodeId],
     queryFn: () => client.resources.list("scripts", projectId, episodeId),
     enabled: Boolean(projectId && episodeId),
   });
-  const { data: scenes = [] } = useQuery({
+  const { data: listedScenes = [] } = useQuery({
     queryKey: ["resource", "scenes", projectId, scriptId],
     queryFn: () => client.resources.list("scenes", projectId, scriptId),
     enabled: Boolean(projectId && scriptId),
   });
-  const { data: shots = [] } = useQuery({
+  const { data: listedShots = [] } = useQuery({
     queryKey: ["resource", "shots", projectId, sceneId],
     queryFn: () => client.resources.list("shots", projectId, sceneId),
     enabled: Boolean(projectId && sceneId),
   });
-  useEffect(() => {
-    if (
-      session.activeProjectId &&
-      projects.some((project) => project.id === session.activeProjectId) &&
-      projectId !== session.activeProjectId
-    )
-      setProjectId(session.activeProjectId);
-  }, [projectId, projects, session.activeProjectId]);
-  useEffect(() => {
-    const requested = new URLSearchParams(location.search).get("projectId");
-    if (requested && projects.some((project) => project.id === requested))
-      setProjectId(requested);
-  }, [location.search, projects]);
+  const adaptations = withExactProductionRecord(
+    listedAdaptations,
+    props.context.adaptationId,
+  );
+  const episodes = withExactProductionRecord(
+    listedEpisodes,
+    props.context.episodeId,
+  );
+  const scripts = withExactProductionRecord(
+    listedScripts,
+    props.context.scriptId,
+  );
+  const scenes = withExactProductionRecord(listedScenes, props.context.sceneId);
+  const shots = withExactProductionRecord(listedShots, props.context.shotId);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("stage");
     if (
@@ -348,157 +387,167 @@ export function ProductionWorkspace() {
         badge="远程媒体生成"
       />
       <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
-        <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-3">
-          <label className="grid gap-1 text-sm">
-            项目
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              value={projectId}
-              onChange={(event) => {
-                const nextProjectId = event.target.value;
-                setProjectId(nextProjectId);
-                if (nextProjectId) session.selectProject(nextProjectId);
-                resetChain();
-                syncRoute({
-                  projectId: nextProjectId,
-                  adaptationId: "",
-                  episodeId: "",
-                  scriptId: "",
-                  sceneId: "",
-                  shotId: "",
-                });
-              }}
-            >
-              <option value="">选择项目</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            改编项目
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!projectId}
-              value={adaptationId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setAdaptationId(nextId);
-                setEpisodeId("");
-                setScriptId("");
-                setSceneId("");
-                setShotId("");
-                syncRoute({
-                  adaptationId: nextId,
-                  episodeId: "",
-                  scriptId: "",
-                  sceneId: "",
-                  shotId: "",
-                });
-              }}
-            >
-              <option value="">选择改编项目</option>
-              {adaptations.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            分集
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!adaptationId}
-              value={episodeId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setEpisodeId(nextId);
-                setScriptId("");
-                setSceneId("");
-                setShotId("");
-                syncRoute({
-                  episodeId: nextId,
-                  scriptId: "",
-                  sceneId: "",
-                  shotId: "",
-                });
-              }}
-            >
-              <option value="">选择分集</option>
-              {episodes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            剧本
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!episodeId}
-              value={scriptId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setScriptId(nextId);
-                setSceneId("");
-                setShotId("");
-                syncRoute({ scriptId: nextId, sceneId: "", shotId: "" });
-              }}
-            >
-              <option value="">选择剧本</option>
-              {scripts.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            场景
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!scriptId}
-              value={sceneId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setSceneId(nextId);
-                setShotId("");
-                syncRoute({ sceneId: nextId, shotId: "" });
-              }}
-            >
-              <option value="">选择场景</option>
-              {scenes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            分镜
-            <select
-              className="rounded-lg border border-line px-3 py-2"
-              disabled={!sceneId}
-              value={shotId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setShotId(nextId);
-                syncRoute({ shotId: nextId });
-              }}
-            >
-              <option value="">选择分镜</option>
-              {shots.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        </section>
+        <WorkspaceObjectControls
+          projectTitle={
+            projects.find((project) => project.id === projectId)?.title
+          }
+          objectTitles={[
+            episodes.find((record) => record.id === episodeId)?.title,
+            scripts.find((record) => record.id === scriptId)?.title,
+            shots.find((record) => record.id === shotId)?.title,
+          ].filter((title): title is string => Boolean(title))}
+        >
+          <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-3">
+            <label className="grid gap-1 text-sm">
+              项目
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                value={projectId}
+                onChange={(event) => {
+                  const nextProjectId = event.target.value;
+                  if (nextProjectId) session.selectProject(nextProjectId);
+                  resetChain();
+                  syncRoute({
+                    projectId: nextProjectId,
+                    adaptationId: "",
+                    episodeId: "",
+                    scriptId: "",
+                    sceneId: "",
+                    shotId: "",
+                  });
+                }}
+              >
+                <option value="">选择项目</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              改编项目
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!projectId}
+                value={adaptationId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setAdaptationId(nextId);
+                  setEpisodeId("");
+                  setScriptId("");
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({
+                    adaptationId: nextId,
+                    episodeId: "",
+                    scriptId: "",
+                    sceneId: "",
+                    shotId: "",
+                  });
+                }}
+              >
+                <option value="">选择改编项目</option>
+                {adaptations.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              分集
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!adaptationId}
+                value={episodeId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setEpisodeId(nextId);
+                  setScriptId("");
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({
+                    episodeId: nextId,
+                    scriptId: "",
+                    sceneId: "",
+                    shotId: "",
+                  });
+                }}
+              >
+                <option value="">选择分集</option>
+                {episodes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              剧本
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!episodeId}
+                value={scriptId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setScriptId(nextId);
+                  setSceneId("");
+                  setShotId("");
+                  syncRoute({ scriptId: nextId, sceneId: "", shotId: "" });
+                }}
+              >
+                <option value="">选择剧本</option>
+                {scripts.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              场景
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!scriptId}
+                value={sceneId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setSceneId(nextId);
+                  setShotId("");
+                  syncRoute({ sceneId: nextId, shotId: "" });
+                }}
+              >
+                <option value="">选择场景</option>
+                {scenes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              分镜
+              <select
+                className="rounded-lg border border-line px-3 py-2"
+                disabled={!sceneId}
+                value={shotId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setShotId(nextId);
+                  syncRoute({ shotId: nextId });
+                }}
+              >
+                <option value="">选择分镜</option>
+                {shots.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+        </WorkspaceObjectControls>
         <nav
           aria-label="制作工作分组"
           className="grid grid-cols-2 gap-1 rounded-lg bg-canvas p-1 lg:grid-cols-4"
@@ -587,7 +636,10 @@ export function ProductionWorkspace() {
             episodeId={episodeId}
           />
         ) : stage === "renders" && episodeId ? (
-          <EpisodeRenderPreflightPanel episodeId={episodeId} />
+          <div className="space-y-4">
+            <TimelineRenderPanel projectId={projectId} episodeId={episodeId} />
+            <EpisodeRenderPreflightPanel episodeId={episodeId} />
+          </div>
         ) : [
             "assets",
             "rights",
@@ -1141,9 +1193,6 @@ export function AssetCenterPanel(props: {
   const [shotId, setShotId] = useState("");
   const [notice, setNotice] = useState<string>();
   const [workingId, setWorkingId] = useState<string>();
-  const [previews, setPreviews] = useState<
-    Record<string, AssetCenterPreviewMedia>
-  >({});
   useEffect(() => {
     if (props.selectedShotId) setShotId(props.selectedShotId);
   }, [props.selectedShotId]);
@@ -1213,18 +1262,6 @@ export function AssetCenterPanel(props: {
       }
       return [...current, id];
     });
-  };
-  const openPreview = async (asset: AssetCenterAsset) => {
-    setWorkingId(asset.id);
-    setNotice(undefined);
-    try {
-      const preview = await client.assetCenter.preview(asset.id);
-      setPreviews((current) => ({ ...current, [asset.id]: preview }));
-    } catch (cause) {
-      setNotice(message(cause));
-    } finally {
-      setWorkingId(undefined);
-    }
   };
   return (
     <section className="space-y-5" aria-label="资产中心">
@@ -1356,43 +1393,11 @@ export function AssetCenterPanel(props: {
                 {compareIds.includes(asset.id) ? "已加入比较" : "加入比较"}
               </BareButton>
             </div>
-            <div className="mt-3 rounded-xl bg-canvas p-3 text-sm">
-              <p className="font-medium">
-                {asset.preview.kind === "audio" ? "音频预览" : "视觉预览"}
-              </p>
-              {previews[asset.id]?.kind === "image" ? (
-                <img
-                  className="mt-2 max-h-48 w-full rounded-lg object-cover"
-                  src={previews[asset.id].dataUrl}
-                  alt={`${asset.title} 本地预览`}
-                />
-              ) : previews[asset.id]?.kind === "audio" ? (
-                <audio
-                  className="mt-2 w-full"
-                  controls
-                  src={previews[asset.id].dataUrl}
-                  aria-label={`${asset.title} 音频预览`}
-                />
-              ) : (
-                <p className="mt-1 text-muted">
-                  {asset.preview.status === "available"
-                    ? `本地归档可用：${asset.preview.label ?? "已附加媒体"}`
-                    : asset.preview.status === "missing"
-                      ? "本地归档文件缺失；不会伪造预览。"
-                      : (asset.preview.label ??
-                        "尚未附加本地媒体；可先保留为文字候选。")}
-                </p>
-              )}
-              {asset.preview.status === "available" && !previews[asset.id] && (
-                <BareButton
-                  className="mt-2 rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
-                  disabled={workingId === asset.id}
-                  onClick={() => void openPreview(asset)}
-                >
-                  打开本地预览
-                </BareButton>
-              )}
-            </div>
+            <AssetMediaPreview
+              key={`${props.projectId}:${asset.id}`}
+              asset={asset}
+              projectId={props.projectId}
+            />
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <dt className="text-muted">采用</dt>
@@ -1402,25 +1407,7 @@ export function AssetCenterPanel(props: {
                 <dt className="text-muted">锁定</dt>
                 <dd>{asset.lockStatus === "locked" ? "已锁定" : "未锁定"}</dd>
               </div>
-              <div>
-                <dt className="text-muted">权利</dt>
-                <dd>
-                  {asset.rightsStatus === "verified"
-                    ? "已核验"
-                    : asset.rightsStatus === "restricted"
-                      ? "受限"
-                      : "待核验"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted">费用 / 服务</dt>
-                <dd>
-                  {asset.costStatus === "unknown" ? "费用未知" : "费用已知"} ·{" "}
-                  {asset.providerStatus === "unavailable"
-                    ? "不可用"
-                    : "可用或无需服务"}
-                </dd>
-              </div>
+              <AssetDeclarationStatus asset={asset} />
             </dl>
             {asset.usages.length > 0 && (
               <p className="mt-3 rounded-lg bg-brand-soft/50 p-2 text-xs text-brand">
@@ -1673,17 +1660,15 @@ export function ImageGenerationPanel(props: {
                 key={candidate.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line p-3 text-sm"
               >
-                <span>
-                  {candidate.title} · {adopted ? "已采用" : "待采用"}
-                </span>
-                {!adopted && (
-                  <BareButton
-                    className="rounded-md border border-brand px-2 py-1 text-xs text-brand"
-                    onClick={() => void adopt(candidate.id)}
-                  >
-                    采用此静帧
-                  </BareButton>
-                )}
+                <span>{candidate.title}</span>
+                <MediaSourceReviewPanel
+                  recordId={candidate.id}
+                  kind="shot-stills"
+                  shotId={props.shotId}
+                  adopted={adopted}
+                  adoptLabel="采用此静帧"
+                  onAdopt={() => adopt(candidate.id)}
+                />
               </div>
             );
           })}
@@ -1740,7 +1725,7 @@ export function VideoGenerationPanel(props: {
     });
   useEffect(() => {
     setPreflight(undefined);
-  }, [providerId, prompt, seconds, props.shotId]);
+  }, [providerId, prompt, seconds, confirmUnknownCost, props.shotId]);
   const input = (): VideoGenerationInput | undefined => {
     if (!providerId || !prompt.trim()) {
       setNotice("请选择视频服务商并填写生成提示。");
@@ -1842,7 +1827,10 @@ export function VideoGenerationPanel(props: {
     }
   };
   return (
-    <section className="space-y-4 rounded-xl border border-line bg-surface p-4">
+    <section
+      aria-label="镜头视频提交前检查"
+      className="space-y-4 rounded-xl border border-line bg-surface p-4"
+    >
       <details className="mb-3">
         <summary className="cursor-pointer text-sm text-brand">
           AI 完善本镜头提示词
@@ -1857,12 +1845,13 @@ export function VideoGenerationPanel(props: {
       <div>
         <h2 className="font-semibold">视频生成与候选采用</h2>
         <p className="mt-1 text-sm text-muted">
-          先确认低成本静帧和锁定资产，再以服务端签发的快照提交兼容 OpenAI
-          视频接口； 任何预检阻断都会在厂商调用前停止。
+          先核对静帧来源、资产和费用，再以服务端签发的快照提交已配置的 Seedance
+          或 MiniMax H3 Cloud 接口；预检阻断会在厂商调用前停止。
         </p>
       </div>
       <section className="grid gap-3 rounded-xl border border-line p-3 md:grid-cols-2 xl:grid-cols-3">
         <select
+          aria-label="视频生成服务商"
           className="rounded-lg border border-line px-3 py-2 text-sm"
           value={providerId}
           onChange={(event) => setProviderId(event.target.value)}
@@ -1875,6 +1864,7 @@ export function VideoGenerationPanel(props: {
           ))}
         </select>
         <input
+          aria-label="视频生成时长（秒）"
           className="rounded-lg border border-line px-3 py-2 text-sm"
           type="number"
           min="1"
@@ -1904,6 +1894,7 @@ export function VideoGenerationPanel(props: {
           {creating ? "正在提交…" : "提交视频生成"}
         </BareButton>
         <textarea
+          aria-label="视频生成提示"
           className="min-h-24 rounded-lg border border-line px-3 py-2 text-sm md:col-span-2 xl:col-span-3"
           placeholder="描述动作、镜头运动、角色、场景和竖屏构图"
           value={prompt}
@@ -1913,7 +1904,7 @@ export function VideoGenerationPanel(props: {
       <section className="rounded-xl border border-line p-3 text-sm">
         <h3 className="font-medium">静帧优先预检</h3>
         <p className="mt-1 text-xs text-muted">
-          必须已采用未过期静帧，且当前镜头引用的资产均已采用、锁定并完成权利核验；提示、时长或资产版本变化后需重新检查。
+          必须已采用未过期静帧，且当前镜头分配的视觉资产均已采用、锁定且来源有效；明确受限、撤回或过期的权利声明会阻断，未知权利仍未核验。参数须在服务商声明能力内；提示、时长或资产版本变化后需重新检查。
         </p>
         {preflight?.costStatus === "unknown" && (
           <label className="mt-3 flex items-start gap-2 text-xs text-amber-700">
@@ -1922,7 +1913,7 @@ export function VideoGenerationPanel(props: {
               checked={confirmUnknownCost}
               onChange={(event) => setConfirmUnknownCost(event.target.checked)}
             />
-            我理解当前视频费用未知，并会在生成账本中复核实际费用。
+            我理解当前视频费用或单位未知，生成后仍需另核真实结算凭证。
           </label>
         )}
         {preflight && (
@@ -1931,9 +1922,7 @@ export function VideoGenerationPanel(props: {
               快照 {preflight.snapshotHash.slice(0, 18)}… · 静帧{" "}
               {preflight.adoptedStillId ? "已采用" : "未采用"} · 已锁定资产{" "}
               {preflight.lockedAssetIds.length} 个
-              {preflight.costStatus === "known"
-                ? ` · 预估费用 ${preflight.estimatedCost ?? 0} ${preflight.currency ?? "USD"}`
-                : " · 费用未知"}
+              {` · ${configuredEstimateLabel(preflight.estimatedCost, preflight.currency)}`}
             </p>
             {preflight.blockers.map((blocker) => (
               <p
@@ -2019,17 +2008,15 @@ export function VideoGenerationPanel(props: {
                         key={candidate.id}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted px-3 py-2 text-xs"
                       >
-                        <span>
-                          {candidate.title} · {adopted ? "已采用" : "待采用"}
-                        </span>
-                        {!adopted && (
-                          <BareButton
-                            className="rounded-md border border-brand px-2 py-1 text-xs text-brand"
-                            onClick={() => void adopt(candidate.id)}
-                          >
-                            采用此视频
-                          </BareButton>
-                        )}
+                        <span>{candidate.title}</span>
+                        <MediaSourceReviewPanel
+                          recordId={candidate.id}
+                          kind="video"
+                          shotId={props.shotId}
+                          adopted={adopted}
+                          adoptLabel="采用此视频"
+                          onAdopt={() => adopt(candidate.id)}
+                        />
                       </div>
                     );
                   })}
@@ -2093,6 +2080,7 @@ export function AudioProductionPanel(props: {
   const [ttsVoice, setTtsVoice] = useState("");
   const [ttsText, setTtsText] = useState("");
   const [runningTts, setRunningTts] = useState(false);
+  const audioAdoptionKeys = useRef(new Map<string, string>());
   const [notice, setNotice] = useState<string>();
   const { data: voiceProfiles = [] } = useQuery({
     queryKey: ["voice-profiles", props.projectId],
@@ -2101,6 +2089,7 @@ export function AudioProductionPanel(props: {
   const { data: audioTracks = [] } = useQuery({
     queryKey: ["audio-tracks", props.episodeId],
     queryFn: () => client.episodeMedia.listAudioTracks(props.episodeId),
+    refetchInterval: 5000,
   });
   const { data: assets = [] } = useQuery({
     queryKey: ["resource", "assets", props.projectId],
@@ -2246,8 +2235,16 @@ export function AudioProductionPanel(props: {
   };
   const adoptTrack = async (track: AudioTrack) => {
     try {
-      await client.episodeMedia.adoptAudioTrack(track.id);
-      setNotice("已采用音轨。若镜头或剧本更新，系统会将它标记为过期。");
+      const identity = `${track.id}:${track.version}`;
+      let key = audioAdoptionKeys.current.get(identity);
+      if (!key) {
+        key = crypto.randomUUID();
+        audioAdoptionKeys.current.set(identity, key);
+      }
+      await client.episodeMedia.adoptAudioTrack(track.id, track.version, key);
+      setNotice(
+        "已采用音轨并核对实际来源版本；镜头、素材、音色或正式来源变化后须另行复核。",
+      );
       await refresh();
     } catch (cause) {
       setNotice(message(cause));
@@ -2406,7 +2403,7 @@ export function AudioProductionPanel(props: {
       <section className="rounded-xl border border-line p-3">
         <h3 className="font-medium">另存音轨版本</h3>
         <p className="mt-1 text-xs text-muted">
-          先在“素材”中归档音频文件；未绑定文件的草案可保存，但无法通过最终成片预检。
+          可先在“素材”中归档音频文件；手工文本轨可保存与采用，但不等于可播放音频、声音授权或成片验收。
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           <input
@@ -2488,6 +2485,13 @@ export function AudioProductionPanel(props: {
       </section>
       <section className="rounded-xl border border-line p-3">
         <h3 className="font-medium">本分集音轨版本</h3>
+        {assetId && props.shotId && (
+          <MediaSourceReviewPanel
+            recordId={assetId}
+            kind="assets"
+            shotId={props.shotId}
+          />
+        )}
         <div className="mt-3 space-y-2">
           {!audioTracks.length && (
             <p className="text-sm text-muted">尚未保存音轨。</p>
@@ -2515,8 +2519,20 @@ export function AudioProductionPanel(props: {
                 {track.clips.length} 个片段
                 {track.stale
                   ? ` · 已过期：${track.staleReason}`
-                  : " · 与当前镜头版本一致"}
+                  : " · 实际来源版本一致（不代表音频质量／授权通过）"}
               </p>
+              {track.clips.map((clip) => (
+                <p key={clip.id} className="mt-1 text-xs text-muted">
+                  片段来源：
+                  {clip.sourceVersions
+                    ?.map(
+                      (source) =>
+                        `${source.kind} ${source.id.slice(0, 8)} · v${source.version}`,
+                    )
+                    .join("；") || "手工文本／未指定外部素材"}
+                </p>
+              ))}
+              <AudioRevisionPanel track={track} />
             </article>
           ))}
         </div>
@@ -2727,8 +2743,13 @@ export function TimelineEditorPanel(props: {
   const client = useStudio();
   const queryClient = useQueryClient();
   const [playhead, setPlayhead] = useState(0);
-  const playheadRef = useRef(0);
   const [playing, setPlaying] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const playback = useRef<TimelinePreviewControls | undefined>(undefined);
+  const seekPreview = (value: number) => {
+    if (playback.current) playback.current.seek(value);
+    else setPlayhead(value);
+  };
   const [zoom, setZoom] = useState(56);
   const [selectedClipId, setSelectedClipId] = useState("");
   const [moveStart, setMoveStart] = useState("");
@@ -2746,8 +2767,7 @@ export function TimelineEditorPanel(props: {
   const [deliveryWorking, setDeliveryWorking] = useState<
     TimelineDeliveryExportFormat | undefined
   >();
-  const mediaRef = useRef<HTMLMediaElement | null>(null);
-  const audioMediaRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const assemblyRequestKeys = useRef(new Map<string, string>());
   const { data: timeline, error } = useQuery({
     queryKey: ["timeline", props.episodeId],
     queryFn: () => client.timeline.get(props.episodeId),
@@ -2768,8 +2788,15 @@ export function TimelineEditorPanel(props: {
     enabled: Boolean(timeline?.id),
   });
   const { data: deliveryManifest, error: deliveryError } = useQuery({
-    queryKey: ["timeline", "delivery", props.episodeId],
+    queryKey: [
+      "timeline",
+      "delivery",
+      props.projectId,
+      props.episodeId,
+      timeline?.version,
+    ],
     queryFn: () => client.timeline.deliveryManifest(props.episodeId),
+    enabled: Boolean(timeline?.id),
   });
   const {
     data: audioAssembly,
@@ -2794,109 +2821,6 @@ export function TimelineEditorPanel(props: {
   const selected = timeline?.tracks
     .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
     .find((item) => item.clip.id === selectedClipId);
-  const activeMedia = timeline?.tracks
-    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
-    .filter(
-      (item) =>
-        item.clip.assetId &&
-        item.clip.mediaStatus === "linked" &&
-        playhead >= frameToSeconds(item.clip.startFrame) &&
-        playhead <
-          frameToSeconds(item.clip.startFrame + item.clip.durationFrames),
-    );
-  const activeVideo = activeMedia?.find((item) => item.track.kind === "video");
-  const hasSolo = Boolean(timeline?.tracks.some((track) => track.solo));
-  const activeAudio = (activeMedia ?? []).filter(
-    (item) =>
-      ["dialogue", "narration", "bgm", "sfx"].includes(item.track.kind) &&
-      !item.track.muted &&
-      (!hasSolo || item.track.solo),
-  );
-  const active = activeVideo ?? activeAudio[0];
-  const { data: preview, error: previewError } = useQuery({
-    queryKey: ["timeline", "media-preview", active?.clip.assetId],
-    queryFn: () => client.timeline.preview(active!.clip.assetId!),
-    enabled: Boolean(active?.clip.assetId),
-  });
-  const audioPreviews = useQueries({
-    queries: activeAudio.map((item) => ({
-      queryKey: ["timeline", "audio-preview", item.clip.assetId],
-      queryFn: () => client.timeline.preview(item.clip.assetId!),
-      enabled: Boolean(item.clip.assetId),
-    })),
-  });
-  const activeVideoAudible =
-    Boolean(activeVideo) &&
-    !activeVideo!.track.muted &&
-    (!hasSolo || activeVideo!.track.solo);
-
-  useEffect(() => {
-    playheadRef.current = playhead;
-  }, [playhead]);
-  useEffect(() => {
-    if (!timeline || !playing) return;
-    const startedAt = Date.now() - playheadRef.current * 1_000;
-    const timer = window.setInterval(() => {
-      const next = Math.min(
-        timelineDurationSeconds,
-        (Date.now() - startedAt) / 1_000,
-      );
-      setPlayhead(next);
-      if (next >= timelineDurationSeconds) setPlaying(false);
-    }, 40);
-    return () => window.clearInterval(timer);
-  }, [playing, timelineDurationSeconds]);
-  useEffect(() => {
-    const media = mediaRef.current;
-    if (!media || !activeVideo) return;
-    const offset = Math.max(
-      0,
-      playhead -
-        frameToSeconds(activeVideo.clip.startFrame) +
-        frameToSeconds(activeVideo.clip.sourceOffsetFrame),
-    );
-    if (Math.abs(media.currentTime - offset) > 0.15) media.currentTime = offset;
-    if (playing && activeVideoAudible) void media.play().catch(() => undefined);
-    else media.pause();
-  }, [
-    activeVideo?.clip.id,
-    activeVideo?.clip.sourceOffsetFrame,
-    activeVideoAudible,
-    playhead,
-    playing,
-    preview?.dataUrl,
-  ]);
-  useEffect(() => {
-    const hasVoice = activeAudio.some((item) =>
-      ["dialogue", "narration"].includes(item.track.kind),
-    );
-    activeAudio.forEach((item, index) => {
-      const media = audioMediaRefs.current[item.clip.id];
-      const preview = audioPreviews[index]?.data;
-      if (!media || !preview) return;
-      const offset = Math.max(
-        0,
-        playhead -
-          frameToSeconds(item.clip.startFrame) +
-          frameToSeconds(item.clip.sourceOffsetFrame),
-      );
-      if (Math.abs(media.currentTime - offset) > 0.15)
-        media.currentTime = offset;
-      const volume = Math.max(
-        0,
-        Math.min(
-          1,
-          (item.clip.volume ?? 1) *
-            (item.track.kind === "bgm" && hasVoice
-              ? (item.clip.duckingGain ?? 0.55)
-              : 1),
-        ),
-      );
-      if (Math.abs(media.volume - volume) > 0.01) media.volume = volume;
-      if (playing) void media.play().catch(() => undefined);
-      else media.pause();
-    });
-  }, [activeAudio, audioPreviews, playhead, playing]);
   useEffect(() => {
     if (!timeline) return;
     const found = timeline.tracks
@@ -2970,7 +2894,7 @@ export function TimelineEditorPanel(props: {
     const found = timeline?.tracks
       .flatMap((track) => track.clips)
       .find((clip) => clip.id === id);
-    if (found) setPlayhead(frameToSeconds(found.startFrame));
+    if (found) seekPreview(frameToSeconds(found.startFrame));
   };
   const reviewAudioAssembly = async () => {
     try {
@@ -2989,11 +2913,24 @@ export function TimelineEditorPanel(props: {
     if (!timeline || !audioAssembly) return;
     setWorking(true);
     try {
-      const saved = await client.timeline.applyAudioAssembly(props.episodeId, {
-        timelineVersion: timeline.version,
+      const input = {
+        timelineId: audioAssembly.timelineId,
+        timelineVersion: audioAssembly.timelineVersion,
+        sourceFingerprint: audioAssembly.sourceFingerprint,
         audioTrackIds: selectedAssemblyTrackIds,
         includeSubtitles: includeAssemblySubtitles,
-      });
+      };
+      const identity = JSON.stringify(input);
+      let key = assemblyRequestKeys.current.get(identity);
+      if (!key) {
+        key = crypto.randomUUID();
+        assemblyRequestKeys.current.set(identity, key);
+      }
+      const saved = await client.timeline.applyAudioAssembly(
+        props.episodeId,
+        input,
+        key,
+      );
       queryClient.setQueryData(["timeline", props.episodeId], saved);
       setNotice(
         "已采用选中的自动编排；人工移动、裁切、音量和锁定片段保持不变。",
@@ -3022,15 +2959,15 @@ export function TimelineEditorPanel(props: {
     }
     if (event.key === " ") {
       event.preventDefault();
-      setPlaying((current) => !current);
+      playback.current?.toggle();
     }
     if (event.key === "ArrowLeft") {
       event.preventDefault();
-      setPlayhead((current) => Math.max(0, current - 1));
+      seekPreview(Math.max(0, playhead - 1));
     }
     if (event.key === "ArrowRight" && timeline) {
       event.preventDefault();
-      setPlayhead((current) => Math.min(timelineDurationSeconds, current + 1));
+      seekPreview(Math.min(timelineDurationSeconds, playhead + 1));
     }
   };
   const exportDelivery = async (format: TimelineDeliveryExportFormat) => {
@@ -3206,14 +3143,16 @@ export function TimelineEditorPanel(props: {
       </section>
       <section
         className="rounded-xl border border-line bg-page p-3"
-        aria-label="已验证 NLE 交付"
+        aria-label="NLE 交付与媒体核验"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="font-medium">已验证 NLE 交付</h3>
+            <h3 className="font-medium">NLE 交付与媒体核验</h3>
             <p className="mt-1 text-xs text-muted">
               从当前 canonical timeline 生成 FCPXML、OTIO、CMX 3600
-              EDL、字幕和媒体重链接清单；只含相对路径、checksum 与最小谱系。
+              EDL、字幕和重链接清单；核对冻结来源及 owner
+              存档元数据。相对路径不是已复制文件，存档 SHA-256
+              不等于字节／权利核验。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -3243,16 +3182,16 @@ export function TimelineEditorPanel(props: {
           <div className="mt-3 grid gap-3 text-xs text-muted lg:grid-cols-2">
             <p>
               时间线版本 {deliveryManifest.timeline.version} · 媒体{" "}
-              {deliveryManifest.media.length} 个 · 已校验{" "}
+              {deliveryManifest.media.length} 个 · 精确来源存档元数据{" "}
               {
-                deliveryManifest.media.filter((item) => Boolean(item.checksum))
+                deliveryManifest.media.filter((item) => Boolean(item.archive))
                   .length
               }{" "}
               个
             </p>
             <p>
-              MP4 仅在 Provider 显式声明 timeline_render
-              时提供；当前目录未声明该能力，因此未生成或伪造成片。
+              NLE 交付不包含 MP4 成片。独立本地实验渲染须校验签名
+              sidecar；本地混音按冻结来源与控制值编码，仍不等于正式发行或字幕烧录。
             </p>
             {deliveryManifest.unsupportedFeatures.length > 0 && (
               <p className="rounded-md bg-amber-50 p-2 text-amber-900">
@@ -3269,24 +3208,35 @@ export function TimelineEditorPanel(props: {
             ))}
           </div>
         )}
+        {deliveryManifest && (
+          <NleMediaVerificationPanel
+            manifest={deliveryManifest}
+            projectId={props.projectId}
+            episodeId={props.episodeId}
+            timelineId={timeline.id}
+            timelineVersion={timeline.version}
+          />
+        )}
         {deliveryError && (
           <p className="mt-3 rounded-md bg-red-50 p-2 text-xs text-red-700">
             {message(deliveryError)}
           </p>
         )}
       </section>
+      <AudioResolutionPanel timeline={timeline} />
       <section className="grid gap-3 rounded-xl border border-line bg-page p-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <BareButton
               className="rounded-lg bg-brand px-3 py-2 text-sm text-white"
-              onClick={() => setPlaying((current) => !current)}
+              disabled={!previewReady}
+              onClick={() => playback.current?.toggle()}
             >
               {playing ? "暂停" : "播放"}
             </BareButton>
             <BareButton
               className="rounded-md border border-line px-3 py-2 text-sm"
-              onClick={() => setPlayhead(0)}
+              onClick={() => seekPreview(0)}
             >
               回到开头
             </BareButton>
@@ -3314,7 +3264,7 @@ export function TimelineEditorPanel(props: {
             max={timelineDurationSeconds}
             step="0.04"
             value={Math.min(playhead, timelineDurationSeconds)}
-            onChange={(event) => setPlayhead(Number(event.target.value))}
+            onChange={(event) => seekPreview(Number(event.target.value))}
           />
           <label className="mt-2 flex items-center gap-2 text-xs text-muted">
             缩放
@@ -3329,55 +3279,15 @@ export function TimelineEditorPanel(props: {
             {zoom} px/秒
           </label>
         </div>
-        <div className="rounded-lg border border-line bg-surface p-2 text-xs text-muted">
-          <p className="font-medium text-ink">预览主时钟</p>
-          {preview && active ? (
-            preview.kind === "video" ? (
-              <video
-                ref={mediaRef as React.RefObject<HTMLVideoElement>}
-                className="mt-2 max-h-40 w-full rounded-md"
-                controls
-                src={preview.dataUrl}
-              />
-            ) : preview.kind === "audio" ? (
-              <audio
-                ref={(node) => {
-                  audioMediaRefs.current[active.clip.id] = node;
-                }}
-                className="mt-2 w-full"
-                controls
-                src={preview.dataUrl}
-              />
-            ) : (
-              <img
-                className="mt-2 max-h-40 w-full rounded-md object-contain"
-                src={preview.dataUrl}
-                alt={`${active.clip.name} 预览`}
-              />
-            )
-          ) : (
-            <p className="mt-2">
-              播放头未落在可播放的本地媒体上；可继续定位、编辑或为缺失片段重链接。
-            </p>
-          )}
-          {activeAudio.map((item, index) => {
-            const audioPreview = audioPreviews[index]?.data;
-            if (!audioPreview || item.clip.id === active?.clip.id) return null;
-            return (
-              <audio
-                key={item.clip.id}
-                ref={(node) => {
-                  audioMediaRefs.current[item.clip.id] = node;
-                }}
-                className="hidden"
-                src={audioPreview.dataUrl}
-              />
-            );
-          })}
-          {previewError && (
-            <p className="mt-2 text-red-700">{message(previewError)}</p>
-          )}
-        </div>
+        <TimelinePlaybackPanel
+          key={`${timeline.projectId}:${timeline.id}:${timeline.version}`}
+          timeline={timeline}
+          position={playhead}
+          controls={playback}
+          onPosition={setPlayhead}
+          onPlaying={setPlaying}
+          onReady={setPreviewReady}
+        />
       </section>
       <section
         className="overflow-x-auto rounded-xl border border-line bg-page p-3"

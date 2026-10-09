@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "status": "candidate-not-approved",
+  "sourcePackId": "m5-public-corpus-20261007-1",
+  "preparedOn": "2026-10-07",
+  "localArtifactDirectory": "desktop/build/m5-public-corpus.un1zwY",
+  "candidateCatalog": "desktop/build/m5-public-corpus.un1zwY/catalog-v2-candidate.json",
+  "purpose": "Two genuine published Chinese literary works for proposed M5 full-source baselines; not synthetic padding or observed model/user results.",
+  "approval": {
+    "sourceSelection": "pending",
+    "extentAndScaleReview": "pending",
+    "protocol": "draft-not-frozen",
+    "modelUpload": "not-authorized",
+    "paidExecution": "not-authorized",
+    "publicCase": "not-authorized"
+  },
+  "licenseBasis": {
+    "originalDownloadsFrom": "Project Gutenberg's listed pglaf.org mirror, not a scrape or large automated download of the main site",
+    "mirrorList": "https://www.gutenberg.org/MIRRORS.ALL",
+    "terms": "https://www.gutenberg.org/policy/terms_of_use.html",
+    "license": "https://www.gutenberg.org/policy/license.html",
+    "originalLicenseRetained": "The unchanged downloaded files retain their full Project Gutenberg notices and license. Derived body files have no Project Gutenberg branding and are only local candidate inputs; do not publish the pack as a cleared commercial case.",
+    "chinaStatute": "https://www.ncac.gov.cn/xxfb/flfg/flfg_532/202103/t20210309_50530.html",
+    "assessment": "The landing pages assert US public domain. Applying article 23 to the listed authors' death years suggests the original literary economic rights term has expired in mainland China; this is an inference, not a legal certificate. Article 22 moral rights remain; modern annotations, translations, illustrations and other editions are not cleared by this inference."
+  },
+  "works": [
+    {
+      "sourceId": 27166,
+      "title": "阿Q正传",
+      "rawFile": "pg27166-original.txt",
+      "rawBytes": 281093,
+      "rawSha256": "ddf28d52eff750e9b62b53e065a16d666d27f7d468fd038a44bc887c4a429732",
+      "bodyFile": "aq-complete-body.txt",
+      "rawUtf16Start": 40831,
+      "rawUtf16End": 68379,
+      "bodyCharacters": 27548,
+      "bodyBytes": 69760,
+      "bodySha256": "09ae6d8a137cf7cf1c15bc036cbafd733305acb12291e1511591357a0d661597",
+      "chapterCount": 9,
+      "units": [
+        {
+          "id": "chapter-1",
+          "startOffset": 0,
+          "endOffset": 2202
+        },
+        {
+          "id": "chapter-2",
+          "startOffset": 2202,
+          "endOffset": 4965
+        },
+        {
+          "id": "chapter-3",
+          "startOffset": 4965,
+          "endOffset": 7770
+        },
+        {
+          "id": "chapter-4",
+          "startOffset": 7770,
+          "endOffset": 11156
+        },
+        {
+          "id": "chapter-5",
+          "startOffset": 11156,
+          "endOffset": 13998
+        },
+        {
+          "id": "chapter-6",
+          "startOffset": 13998,
+          "endOffset": 17421
+        },
+        {
+          "id": "chapter-7",
+          "startOffset": 17421,
+          "endOffset": 20607
+        },
+        {
+          "id": "chapter-8",
+          "startOffset": 20607,
+          "endOffset": 23848
+        },
+        {
+          "id": "chapter-9",
+          "startOffset": 23848,
+          "endOffset": 27548
+        }
+      ],
+      "placeholderSquares": 0,
+      "replacementCharacters": 0,
+      "author": "鲁迅（1881–1936）",
+      "landingPage": "https://www.gutenberg.org/ebooks/27166",
+      "downloadUrl": "https://gutenberg.pglaf.org/cache/epub/27166/pg27166.txt",
+      "scope": "Exactly the 阿Q正传 title and nine-chapter body within 吶喊, before its modern annotation appendix; no invented repair, simplified-character conversion or line-ending normalization.",
+      "scaleCandidate": "medium",
+      "classificationReference": "https://www.chinawriter.com.cn/wxpl/2016/2016-05-16/272323.html",
+      "classificationStatus": "published reference located; project human classification/edition review pending; catalog sourceScale remains not-established",
+      "qualityBoundary": "The chapter labels and complete captured span were checked mechanically. Zero square placeholders/replacement characters is not a guarantee of correct transcription, original literary completeness, representativeness or rights clearance.",
+      "copyrightBoundary": "The downloaded collection includes modern annotations. They are preserved in the local raw evidence file but excluded from the proposed model-input body; embedded annotation reference markers remain and require edition review."
+    },
+    {
+      "sourceId": 25124,
+      "title": "老残游记正编",
+      "rawFile": "pg25124-original.txt",
+      "rawBytes": 355283,
+      "rawSha256": "4da800dc82aefd1acd5bd2de0066929c09bde7bdf00283c6a11ba67e03d4d170",
+      "bodyFile": "laocan-zhengbian-body.txt",
+      "rawUtf16Start": 828,
+      "rawUtf16End": 118058,
+      "bodyCharacters": 117230,
+      "bodyBytes": 335510,
+      "bodySha256": "617c6a8cf615a7bcf3e24a7112c7fc306e2616eb72098302dd07148e3066bfc6",
+      "chapterCount": 20,
+      "units": [
+        {
+          "id": "chapter-1",
+          "startOffset": 0,
+          "endOffset": 5130
+        },
+        {
+          "id": "chapter-2",
+          "startOffset": 5130,
+          "endOffset": 10159
+        },
+        {
+          "id": "chapter-3",
+          "startOffset": 10159,
+          "endOffset": 15405
+        },
+        {
+          "id": "chapter-4",
+          "startOffset": 15405,
+          "endOffset": 20904
+        },
+        {
+          "id": "chapter-5",
+          "startOffset": 20904,
+          "endOffset": 26553
+        },
+        {
+          "id": "chapter-6",
+          "startOffset": 26553,
+          "endOffset": 32147
+        },
+        {
+          "id": "chapter-7",
+          "startOffset": 32147,
+          "endOffset": 38706
+        },
+        {
+          "id": "chapter-8",
+          "startOffset": 38706,
+          "endOffset": 44384
+        },
+        {
+          "id": "chapter-9",
+          "startOffset": 44384,
+          "endOffset": 50194
+        },
+        {
+          "id": "chapter-10",
+          "startOffset": 50194,
+          "endOffset": 55807
+        },
+        {
+          "id": "chapter-11",
+          "startOffset": 55807,
+          "endOffset": 61363
+        },
+        {
+          "id": "chapter-12",
+          "startOffset": 61363,
+          "endOffset": 68773
+        },
+        {
+          "id": "chapter-13",
+          "startOffset": 68773,
+          "endOffset": 74193
+        },
+        {
+          "id": "chapter-14",
+          "startOffset": 74193,
+          "endOffset": 79705
+        },
+        {
+          "id": "chapter-15",
+          "startOffset": 79705,
+          "endOffset": 85291
+        },
+        {
+          "id": "chapter-16",
+          "startOffset": 85291,
+          "endOffset": 91684
+        },
+        {
+          "id": "chapter-17",
+          "startOffset": 91684,
+          "endOffset": 98247
+        },
+        {
+          "id": "chapter-18",
+          "startOffset": 98247,
+          "endOffset": 104097
+        },
+        {
+          "id": "chapter-19",
+          "startOffset": 104097,
+          "endOffset": 110628
+        },
+        {
+          "id": "chapter-20",
+          "startOffset": 110628,
+          "endOffset": 117230
+        }
+      ],
+      "placeholderSquares": 0,
+      "replacementCharacters": 0,
+      "author": "刘鹗（1857–1909）",
+      "landingPage": "https://www.gutenberg.org/ebooks/25124",
+      "downloadUrl": "https://gutenberg.pglaf.org/cache/epub/25124/pg25124.txt",
+      "scope": "Exactly the twenty-chapter 正编 text, not the separate sequel, 外编 or the author's unrealized larger plan; no invented repair or line-ending normalization.",
+      "scaleCandidate": "long",
+      "classificationReference": "https://tag.chinawriter.com.cn/chapter/fuhongxie/23025_243944.html",
+      "classificationStatus": "published reference located; project human classification/edition review pending; catalog sourceScale remains not-established",
+      "qualityBoundary": "The chapter labels and complete captured span were checked mechanically. Zero square placeholders/replacement characters is not a guarantee of correct transcription, original literary completeness, representativeness or rights clearance.",
+      "copyrightBoundary": "正编-only extent must remain explicit; do not promote it to the complete intended multi-part corpus."
+    }
+  ],
+  "rejectedDownloads": [
+    {
+      "sourceId": 25332,
+      "rawFile": "pg25332-original.txt",
+      "sha256": "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38",
+      "reason": "Multiple missing-word square sequences in the 阿Q body; not used in the candidate catalog."
+    },
+    {
+      "sourceId": 24032,
+      "rawFile": "pg24032-original.txt",
+      "sha256": "98a08c88b154cfef2e6a4436f124b1e29254839c04cf0bc4538ce1fc87610393",
+      "reason": "Downloaded text jumps from chapter 1 to chapter 12 and lacks chapters 2–11; not used as a complete work or in the candidate catalog."
+    }
+  ],
+  "caseBriefs": [
+    {
+      "sourceId": 27166,
+      "id": "public-aq-novel-continuity",
+      "genre": "emotion",
+      "targetScale": "medium",
+      "entryPath": "source-import",
+      "workflowPath": "novel",
+      "task": "在不改写原九章和既定结局的前提下，提出并写作第五章与第六章之间的一章候选；指出原文依据、人物当时实际知道的事实及新增虚构边界。",
+      "authorIntent": "这是评测方拟定的创作约束，不是鲁迅的新授权或原作者意图认证。保留批判性的讽刺悲剧、人物有限认知和既定因果，不改为逆袭爽文，不强制集尾钩子、改编或视频。",
+      "sourceScope": "Candidate full nine-chapter 阿Q正传 body from Project Gutenberg 吶喊 #27166; modern annotation appendix excluded; exact captured edition, not a claim that every transcription is correct.",
+      "checks": [
+        "character-knowledge",
+        "timeline",
+        "causality",
+        "author-intent",
+        "source-coverage",
+        "no-forced-video",
+        "no-forced-hook"
+      ]
+    },
+    {
+      "sourceId": 25124,
+      "id": "public-laocan-adaptation-coverage",
+      "genre": "mystery",
+      "targetScale": "long",
+      "entryPath": "source-import",
+      "workflowPath": "adaptation",
+      "task": "以正编二十回为明确范围，比较两种改编策略并给出季纲和首集剧本候选；逐回列来源映射、合并删减与未采用内容，保持侦破证据获得顺序和人物认知边界。",
+      "authorIntent": "这是评测方拟定的改编约束，不是原作者授权或意图认证。保留社会批判、人物选择和冤案侦破因果，不把正编等同另出的续编、外编或作者全部计划；无媒体也可完成结构化交付。",
+      "sourceScope": "Candidate exact twenty-chapter 老残游记正编 text from Project Gutenberg #25124; sequel/外编 and the author's larger unfinished plan excluded.",
+      "checks": [
+        "causality",
+        "character-knowledge",
+        "source-coverage",
+        "lineage",
+        "author-intent",
+        "screenplay-continuity",
+        "optional-media",
+        "unknown-cost"
+      ]
+    }
+  ],
+  "genreBoundary": "caseBriefs.genre describes the proposed evaluation focus, not an assertion that these historical works are contemporary commercial mystery/romance genres. Their suitability for DramaIP's target users remains pending.",
+  "remaining": "Confirm corpus edition/scope/classification and protocol before model execution; supply an exact model and budget authorization, then collect real runs, human evaluations, 6–8 consenting user sessions and separate commercial/release decisions."
+}

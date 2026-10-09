@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
 import {
+  selectWorkspaceObject,
   openProductionStage,
   openProjectTool,
   openStoryBible,
@@ -71,21 +72,13 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   await expect(sidecar).toBeVisible();
 
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page
-    .getByRole("combobox", { name: "剧本" })
-    .selectOption({ label: "第 1 集剧本" });
-  await page
-    .getByRole("combobox", { name: "场景" })
-    .selectOption({ label: "场景 1：雨夜门口" });
-  await page
-    .getByRole("combobox", { name: "分镜" })
-    .selectOption({ label: "镜头 1：门缝中的雨夜" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "剧本", { label: "第 1 集剧本" });
+  await selectWorkspaceObject(page, "场景", { label: "场景 1：雨夜门口" });
+  await selectWorkspaceObject(page, "分镜", { label: "镜头 1：门缝中的雨夜" });
   await openProductionStage(page, "导演看板");
   await expect(page.getByLabel("导演分镜看板")).toBeVisible();
   await expect(page.getByLabel("静帧预览：静帧已采用")).toBeVisible();

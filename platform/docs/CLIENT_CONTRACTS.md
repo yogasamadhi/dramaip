@@ -1,5 +1,7 @@
 # Public client contracts
 
+These contracts cover optional Platform cloud APIs under [product positioning](../../docs/product/POSITIONING.md), not the independent Desktop Core Runtime `/api/v2` boundary. Novel writing can produce manuscripts without adaptation or media, and cloud calls do not authorize automatic synchronization of private drafts. Product goals do not change existing protocol/version ownership or prove new workflow implementation.
+
 ## Contract 2
 
 The public HTTP boundary for Web, Mobile, Admin and Desktop is `/api/v1/**`

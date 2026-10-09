@@ -15,6 +15,7 @@ export async function requestGeneratedApi(
   client: GeneratedClient,
   path: string,
   init: RequestInit = {},
+  parseAs?: "stream",
 ): Promise<{ response: Response; data?: unknown; error?: unknown }> {
   const method = String(init.method ?? "GET").toLowerCase();
   const body =
@@ -31,6 +32,7 @@ export async function requestGeneratedApi(
     ...(body === undefined ? {} : { body }),
     ...(init.headers ? { headers: init.headers } : {}),
     ...(init.signal ? { signal: init.signal } : {}),
+    ...(parseAs ? { parseAs } : {}),
   });
   return result;
 }

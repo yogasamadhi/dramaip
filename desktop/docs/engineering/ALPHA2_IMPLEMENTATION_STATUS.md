@@ -2,6 +2,8 @@
 
 状态日期：2026-08-23。架构事实以 [ARCHITECTURE.md](./ARCHITECTURE.md) 为准，目标规范以根目录 `docs/architecture/desktop/` 为准。
 
+本文保留该日期的阶段状态，不是本次定位校准后的全量复验。业务口径以 [产品定位](../../../docs/product/POSITIONING.md) 为准：小说可独立形成稿件/投稿成果，改编与剧本形成试制交付，媒体和云能力保持可选；以下技术完成项不等于真实内容质量或新优化计划全部完成。
+
 ## 已落地
 
 - Level 2 的独立 Core Runtime、`/api/v2`、`/host/v1`、ServerConnectionManager、Graph Revision、声明式 Route、typed service、tracked effect、事务事件和安全 Host capability 已进入唯一生产代码路径。

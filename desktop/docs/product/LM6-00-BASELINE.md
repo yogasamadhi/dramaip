@@ -1,5 +1,7 @@
 # LM6-00 可信基线与结果契约
 
+> 历史基线：本文保留 2026-08-12 的接口、版本、能力与验证快照，不作为现行 `/api/v2` Runtime 或发布状态说明，也不启用新的 Loop 工作。当前 [产品定位](../../../docs/product/POSITIONING.md) 同时保护独立小说与改编成果；当前架构和命令以 [工程架构](../engineering/ARCHITECTURE.md) 及 Desktop README 为准，以下测试不证明真实内容质量或正式 GA。
+
 - Baseline source: `origin/main` at `2e713443` before this Loop's changes.
 - Fixture schema: `v3`; all fixture data is synthetic and stays under `tests/fixtures/lm6/lm6-00/`.
 - Automated entry: `bun test tests/lm6/lm6-00.test.ts` plus the local HTTP production-structure contract in `bun run test:node`.

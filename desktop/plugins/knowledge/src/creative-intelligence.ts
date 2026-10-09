@@ -28,12 +28,52 @@ import {
 } from "@dramaip/contracts";
 import {
   defineRouteContribution,
+  optionalService,
   type PluginContext,
   type PluginMigration,
   type RouteContribution,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
+import { WORKSPACE_PROJECT_SERVICE } from "@dramaip/contracts/workspace";
+import {
+  KNOWLEDGE_STORY_DECLARATION_SERVICE,
+  KNOWLEDGE_STORY_ASSERTION_SERVICE,
+} from "@dramaip/contracts/knowledge";
+import {
+  SOURCE_ANCHORED_NODE_TYPE,
+  SourceError,
+} from "./story-declarations.js";
 import { z, type ZodType } from "zod";
+import { analyzeStoryStructure } from "./story-rules.js";
+import { projectPackageLineage } from "./project-package-lineage.js";
+
+function currentConfirmedNode(context: PluginContext, value: StoryCausalNode) {
+  if (!value.confirmed) return false;
+  if (value.sourceType !== SOURCE_ANCHORED_NODE_TYPE) return true;
+  const declarations = optionalService(
+    context,
+    KNOWLEDGE_STORY_DECLARATION_SERVICE,
+  );
+  if (!declarations)
+    throw new SourceError(503, "正式声明来源服务暂不可用，不能创建缺项快照。");
+  return declarations.isCurrentNode(value.projectId, value.id, value.version);
+}
+
+function currentAssertionRecord(
+  context: PluginContext,
+  projectId: string,
+  kind: "edge" | "cognition",
+  id: string,
+  version: number,
+) {
+  const assertions = optionalService(
+    context,
+    KNOWLEDGE_STORY_ASSERTION_SERVICE,
+  );
+  if (!assertions)
+    throw new SourceError(503, "关系／认知来源服务不可用，不能创建缺项快照。");
+  return assertions.isCurrentRecord(projectId, kind, id, version);
+}
 
 interface RouteContext {
   req: {
@@ -240,12 +280,12 @@ function provenance(row: ProvenanceRow): ProvenanceEdge {
 }
 
 function problem(
-  context: RouteContext,
+  _context: RouteContext,
   status: number,
   code: string,
   title: string,
 ): Response {
-  return context.json(
+  return Response.json(
     {
       type: `https://dramaip.local/problems/${code.toLowerCase()}`,
       title,
@@ -254,7 +294,7 @@ function problem(
       code,
       traceId: crypto.randomUUID(),
     },
-    status,
+    { status, headers: { "Content-Type": "application/problem+json" } },
   );
 }
 
@@ -309,6 +349,12 @@ function declaration(input: {
           "application/problem+json": { schema: ProblemDetailsSchema },
         },
       },
+      503: {
+        description: "Formal source service unavailable",
+        content: {
+          "application/problem+json": { schema: ProblemDetailsSchema },
+        },
+      },
     },
   } as never);
 }
@@ -322,7 +368,19 @@ function route(
   return defineRouteContribution({
     ...metadata,
     declaration: openapi,
-    handler,
+    handler: async (context: RouteContext) => {
+      try {
+        return await handler(context);
+      } catch (cause) {
+        if (!(cause instanceof SourceError)) throw cause;
+        return problem(
+          context,
+          cause.status,
+          "STORY_DECLARATION_SOURCE",
+          cause.message,
+        );
+      }
+    },
     ...(policy ? { policy } : {}),
   });
 }
@@ -353,84 +411,6 @@ function sourceFingerprint(
   return createHash("sha256")
     .update(JSON.stringify({ nodes, edges, states }))
     .digest("hex");
-}
-
-function storyConflicts(
-  nodes: readonly StoryCausalNode[],
-  edges: readonly StoryCausalEdge[],
-  states: readonly AudienceKnowledgeState[],
-): string[] {
-  const findings: string[] = [];
-  const nodeIds = new Set(nodes.map((value) => value.id));
-  const causalRelations = new Set(["causes", "enables", "depends_on"]);
-  const adjacency = new Map<string, string[]>();
-  for (const value of edges) {
-    if (!nodeIds.has(value.fromNodeId) || !nodeIds.has(value.toNodeId)) {
-      findings.push(`因果关系 ${value.id} 引用了不存在的节点。`);
-      continue;
-    }
-    if (value.fromNodeId === value.toNodeId)
-      findings.push(
-        `节点“${nodes.find((node) => node.id === value.fromNodeId)?.title ?? value.fromNodeId}”存在自我因果。`,
-      );
-    if (value.confirmed && value.relation === "conflicts_with")
-      findings.push(`已确认设定之间存在冲突：${value.rationale || value.id}。`);
-    if (causalRelations.has(value.relation))
-      adjacency.set(value.fromNodeId, [
-        ...(adjacency.get(value.fromNodeId) ?? []),
-        value.toNodeId,
-      ]);
-  }
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const visit = (id: string): boolean => {
-    if (visiting.has(id)) return true;
-    if (visited.has(id)) return false;
-    visiting.add(id);
-    const cyclic = (adjacency.get(id) ?? []).some(visit);
-    visiting.delete(id);
-    visited.add(id);
-    return cyclic;
-  };
-  if (nodes.some((value) => visit(value.id)))
-    findings.push("故事因果图存在循环依赖，需要人工确认是否为有意闭环。");
-  const rank = { unknown: 0, suspects: 1, misbelieves: 1, knows: 2 } as const;
-  const tracks = new Map<string, AudienceKnowledgeState[]>();
-  for (const value of states) {
-    const key = `${value.subjectType}:${value.subjectId}:${value.knowledgeNodeId}`;
-    tracks.set(key, [...(tracks.get(key) ?? []), value]);
-    if (value.state !== "unknown" && !value.evidence.trim())
-      findings.push(`认知状态 ${value.id} 缺少实际证据，可能形成无依据推理。`);
-  }
-  for (const values of tracks.values()) {
-    const ordered = [...values].sort(
-      (left, right) => left.storyOrder - right.storyOrder,
-    );
-    for (let index = 1; index < ordered.length; index += 1) {
-      if (rank[ordered[index]!.state] < rank[ordered[index - 1]!.state])
-        findings.push(
-          `认知轨道 ${ordered[index]!.subjectId} 在故事顺序 ${ordered[index]!.storyOrder} 出现无解释回退。`,
-        );
-    }
-  }
-  const revealedSecrets = new Set(
-    edges
-      .filter((value) => value.relation === "reveals")
-      .flatMap((value) => [value.fromNodeId, value.toNodeId]),
-  );
-  for (const secret of nodes.filter((value) => value.kind === "secret")) {
-    if (
-      states.some(
-        (value) =>
-          value.knowledgeNodeId === secret.id && value.state === "knows",
-      ) &&
-      !revealedSecrets.has(secret.id)
-    )
-      findings.push(
-        `秘密“${secret.title}”已被知晓，但因果图中没有揭示证据，可能提前泄露。`,
-      );
-  }
-  return [...new Set(findings)];
 }
 
 function markTwinsStale(
@@ -479,7 +459,7 @@ function service(context: PluginContext): CreativeKnowledgeService {
       return context.uow.execute((transaction) =>
         transaction
           .all<NodeRow>(
-            "SELECT * FROM knowledge_causal_nodes WHERE project_id = ? ORDER BY created_at, id",
+            "SELECT * FROM knowledge_causal_nodes WHERE project_id = ? AND retired_at IS NULL ORDER BY created_at, id",
             projectId,
           )
           .map(node),
@@ -489,7 +469,7 @@ function service(context: PluginContext): CreativeKnowledgeService {
       return context.uow.execute((transaction) =>
         transaction
           .all<EdgeRow>(
-            "SELECT * FROM knowledge_causal_edges WHERE project_id = ? ORDER BY created_at, id",
+            "SELECT * FROM knowledge_causal_edges WHERE project_id = ? AND retired_at IS NULL AND from_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) AND to_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) ORDER BY created_at, id",
             projectId,
           )
           .map(edge),
@@ -529,7 +509,7 @@ function service(context: PluginContext): CreativeKnowledgeService {
           );
           return row ? [corpus(row)] : [];
         });
-        return {
+        return projectPackageLineage({
           corpusItems: corpusItems.map(
             ({
               sourceId: _sourceId,
@@ -543,21 +523,21 @@ function service(context: PluginContext): CreativeKnowledgeService {
           ),
           causalNodes: transaction
             .all<NodeRow>(
-              "SELECT * FROM knowledge_causal_nodes WHERE project_id = ? ORDER BY created_at, id",
+              "SELECT * FROM knowledge_causal_nodes WHERE project_id = ? AND retired_at IS NULL ORDER BY created_at, id",
               projectId,
             )
             .map(node)
             .map(({ projectId: _projectId, ...value }) => value),
           causalEdges: transaction
             .all<EdgeRow>(
-              "SELECT * FROM knowledge_causal_edges WHERE project_id = ? ORDER BY created_at, id",
+              "SELECT * FROM knowledge_causal_edges WHERE project_id = ? AND retired_at IS NULL AND from_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) AND to_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) ORDER BY created_at, id",
               projectId,
             )
             .map(edge)
             .map(({ projectId: _projectId, ...value }) => value),
           audienceStates: transaction
             .all<AudienceRow>(
-              "SELECT * FROM knowledge_audience_states WHERE project_id = ? ORDER BY story_order, id",
+              "SELECT * FROM knowledge_audience_states WHERE project_id = ? AND retired_at IS NULL AND knowledge_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) AND (subject_type = 'audience' OR subject_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL AND kind = 'character')) ORDER BY story_order, id",
               projectId,
             )
             .map(audience)
@@ -565,7 +545,7 @@ function service(context: PluginContext): CreativeKnowledgeService {
           provenance: provenanceValues.map(
             ({ projectId: _projectId, ...value }) => value,
           ),
-        };
+        });
       });
     },
     importPackageAssets(projectId, assets) {
@@ -690,38 +670,75 @@ function service(context: PluginContext): CreativeKnowledgeService {
       });
     },
     buildTwin(projectId) {
-      return context.uow.execute((transaction) => {
-        const nodes = transaction
+      if (!optionalService(context, WORKSPACE_PROJECT_SERVICE)?.get(projectId))
+        throw new Error("当前项目不存在，不能构建故事声明快照。");
+      const graph = context.uow.execute((transaction) => ({
+        nodes: transaction
           .all<NodeRow>(
-            "SELECT * FROM knowledge_causal_nodes WHERE project_id = ? ORDER BY created_at, id",
+            "SELECT * FROM knowledge_causal_nodes WHERE project_id = ? AND retired_at IS NULL ORDER BY created_at, id",
             projectId,
           )
-          .map(node);
-        const edges = transaction
+          .map(node),
+        edges: transaction
           .all<EdgeRow>(
-            "SELECT * FROM knowledge_causal_edges WHERE project_id = ? ORDER BY created_at, id",
+            "SELECT * FROM knowledge_causal_edges WHERE project_id = ? AND retired_at IS NULL AND from_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) AND to_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) ORDER BY created_at, id",
             projectId,
           )
-          .map(edge);
-        const states = transaction
+          .map(edge),
+        states: transaction
           .all<AudienceRow>(
-            "SELECT * FROM knowledge_audience_states WHERE project_id = ? ORDER BY story_order, id",
+            "SELECT * FROM knowledge_audience_states WHERE project_id = ? AND retired_at IS NULL AND knowledge_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) AND (subject_type = 'audience' OR subject_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL AND kind = 'character')) ORDER BY story_order, id",
             projectId,
           )
-          .map(audience);
-        const conflicts = storyConflicts(nodes, edges, states);
-        return {
-          id: crypto.randomUUID(),
-          projectId,
-          sourceFingerprint: sourceFingerprint(nodes, edges, states),
-          stale: false,
-          nodes,
-          edges,
-          audienceStates: states,
-          conflicts,
-          createdAt: new Date().toISOString(),
-        };
-      });
+          .map(audience),
+      }));
+      const nodes = graph.nodes.filter((value) =>
+        currentConfirmedNode(context, value),
+      );
+      const nodeIds = new Set(nodes.map((value) => value.id));
+      const edges = graph.edges.filter(
+        (value) =>
+          value.confirmed &&
+          nodeIds.has(value.fromNodeId) &&
+          nodeIds.has(value.toNodeId) &&
+          currentAssertionRecord(
+            context,
+            projectId,
+            "edge",
+            value.id,
+            value.version,
+          ),
+      );
+      const states = graph.states.filter(
+        (value) =>
+          nodeIds.has(value.knowledgeNodeId) &&
+          (value.subjectType === "audience" ||
+            nodes.some(
+              (item) =>
+                item.id === value.subjectId && item.kind === "character",
+            )) &&
+          (value.state === "unknown" || Boolean(value.evidence.trim())) &&
+          currentAssertionRecord(
+            context,
+            projectId,
+            "cognition",
+            value.id,
+            value.version,
+          ),
+      );
+      const ruleAnalysis = analyzeStoryStructure(nodes, edges, states);
+      return {
+        id: crypto.randomUUID(),
+        projectId,
+        sourceFingerprint: sourceFingerprint(nodes, edges, states),
+        stale: false,
+        nodes,
+        edges,
+        audienceStates: states,
+        conflicts: ruleAnalysis.findings.map((value) => value.summary),
+        ruleAnalysis,
+        createdAt: new Date().toISOString(),
+      };
     },
   };
 }
@@ -776,6 +793,14 @@ export function creativeIntelligenceRoutes(
   creative: CreativeKnowledgeService,
 ): readonly RouteContribution[] {
   const routes: RouteContribution[] = [];
+  const projectExists = (id: string) =>
+    Boolean(optionalService(context, WORKSPACE_PROJECT_SERVICE)?.get(id));
+  type GraphRejection = { status: 404 | 409; code: string; title: string };
+  const missingNode = (): GraphRejection => ({
+    status: 404,
+    code: "NOT_FOUND",
+    title: "未找到当前项目的故事节点。",
+  });
   routes.push(
     route(
       {
@@ -1301,13 +1326,15 @@ export function creativeIntelligenceRoutes(
       }),
       (requestContext) => {
         const projectId = requestContext.req.param("id");
+        if (!projectExists(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "当前项目不存在。");
         return requestContext.json({
           nodes: creative.listNodes(projectId),
           edges: creative.listEdges(projectId),
           audienceStates: context.uow.execute((transaction) =>
             transaction
               .all<AudienceRow>(
-                "SELECT * FROM knowledge_audience_states WHERE project_id = ? ORDER BY story_order, id",
+                "SELECT * FROM knowledge_audience_states WHERE project_id = ? AND retired_at IS NULL AND knowledge_node_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL) AND (subject_type = 'audience' OR subject_id IN (SELECT id FROM knowledge_causal_nodes WHERE retired_at IS NULL AND kind = 'character')) ORDER BY story_order, id",
                 projectId,
               )
               .map(audience),
@@ -1323,6 +1350,14 @@ export function creativeIntelligenceRoutes(
     operationId: string;
     schema: ZodType<T>;
     response: ZodType;
+    eventType: `knowledge.${string}.v1`;
+    validate?(
+      transaction: UnitOfWorkTransaction,
+      projectId: string,
+      value: T,
+      currentNodes: ReadonlyMap<string, number>,
+    ): GraphRejection | undefined;
+    sourceNodes?(value: T): string[];
     insert(
       transaction: UnitOfWorkTransaction,
       projectId: string,
@@ -1358,20 +1393,49 @@ export function creativeIntelligenceRoutes(
             "VALIDATION_ERROR",
             "故事知识记录无效。",
           );
+        const projectId = requestContext.req.param("id");
+        if (!projectExists(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "当前项目不存在。");
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
-        const value = context.uow.execute((transaction) => {
-          input.insert(
+        const sourceIds = input.sourceNodes?.(parsed.data) ?? [];
+        const currentNodes = new Map(
+          sourceIds.length
+            ? creative
+                .listNodes(projectId)
+                .filter(
+                  (value) =>
+                    sourceIds.includes(value.id) &&
+                    currentConfirmedNode(context, value),
+                )
+                .map((value) => [value.id, value.version])
+            : [],
+        );
+        const result = context.uow.execute((transaction) => {
+          const error = input.validate?.(
             transaction,
-            requestContext.req.param("id"),
-            id,
+            projectId,
             parsed.data,
-            now,
+            currentNodes,
           );
-          markTwinsStale(transaction, requestContext.req.param("id"));
-          return input.select(transaction, id);
+          if (error) return { error };
+          input.insert(transaction, projectId, id, parsed.data, now);
+          markTwinsStale(transaction, projectId);
+          append(transaction, input.eventType, "story-declaration", id, 0, {
+            id,
+            projectId,
+            version: 0,
+          });
+          return { value: input.select(transaction, id) };
         });
-        return requestContext.json(value, 201);
+        if (result.error)
+          return problem(
+            requestContext,
+            result.error.status,
+            result.error.code,
+            result.error.title,
+          );
+        return requestContext.json(result.value, 201);
       },
       { idempotency: "required" },
     );
@@ -1383,6 +1447,16 @@ export function creativeIntelligenceRoutes(
       operationId: "story-graph.createNode",
       schema: nodeInput,
       response: StoryCausalNodeSchema,
+      eventType: "knowledge.story-node-created.v1",
+      validate: (_transaction, _projectId, value) =>
+        value.sourceType === SOURCE_ANCHORED_NODE_TYPE
+          ? {
+              status: 409,
+              code: "CONFLICT",
+              title:
+                "正式来源声明须通过精确来源候选和显式审阅采用，不能手填来源标记。",
+            }
+          : undefined,
       insert: (transaction, projectId, id, value, now) =>
         transaction.run(
           `INSERT INTO knowledge_causal_nodes(
@@ -1415,6 +1489,48 @@ export function creativeIntelligenceRoutes(
       operationId: "story-graph.createEdge",
       schema: edgeInput,
       response: StoryCausalEdgeSchema,
+      eventType: "knowledge.story-edge-created.v1",
+      sourceNodes: (value) =>
+        value.confirmed ? [value.fromNodeId, value.toNodeId] : [],
+      validate: (transaction, projectId, value, currentNodes) => {
+        const from = transaction.get<NodeRow>(
+          "SELECT * FROM knowledge_causal_nodes WHERE id = ? AND project_id = ? AND retired_at IS NULL",
+          value.fromNodeId,
+          projectId,
+        );
+        const to = transaction.get<NodeRow>(
+          "SELECT * FROM knowledge_causal_nodes WHERE id = ? AND project_id = ? AND retired_at IS NULL",
+          value.toNodeId,
+          projectId,
+        );
+        if (!from || !to) return missingNode();
+        if (
+          transaction.get<{ id: string }>(
+            "SELECT id FROM knowledge_causal_edges WHERE project_id = ? AND from_node_id = ? AND relation = ? AND to_node_id = ? AND retired_at IS NULL",
+            projectId,
+            value.fromNodeId,
+            value.relation,
+            value.toNodeId,
+          )
+        )
+          return {
+            status: 409,
+            code: "CONFLICT",
+            title:
+              "相同节点和类型的关系已有实际记录；不能覆盖原关系或复制采用。",
+          };
+        if (
+          value.confirmed &&
+          (currentNodes.get(from.id) !== from.version ||
+            currentNodes.get(to.id) !== to.version)
+        )
+          return {
+            status: 409,
+            code: "CONFLICT",
+            title: "候选节点尚未确认或正式来源已失效，不能建立已确认关系。",
+          };
+        return undefined;
+      },
       insert: (transaction, projectId, id, value, now) =>
         transaction.run(
           `INSERT INTO knowledge_causal_edges(
@@ -1446,6 +1562,55 @@ export function creativeIntelligenceRoutes(
       operationId: "audience-knowledge.create",
       schema: audienceInput,
       response: AudienceKnowledgeStateSchema,
+      eventType: "knowledge.audience-knowledge-created.v1",
+      sourceNodes: (value) => [
+        value.knowledgeNodeId,
+        ...(value.subjectType === "character" ? [value.subjectId] : []),
+      ],
+      validate: (transaction, projectId, value, currentNodes) => {
+        const target = transaction.get<NodeRow>(
+          "SELECT * FROM knowledge_causal_nodes WHERE id = ? AND project_id = ? AND retired_at IS NULL",
+          value.knowledgeNodeId,
+          projectId,
+        );
+        const subject =
+          value.subjectType === "character"
+            ? transaction.get<NodeRow>(
+                "SELECT * FROM knowledge_causal_nodes WHERE id = ? AND project_id = ? AND kind = 'character' AND retired_at IS NULL",
+                value.subjectId,
+                projectId,
+              )
+            : undefined;
+        if (!target || (value.subjectType === "character" && !subject))
+          return missingNode();
+        if (
+          transaction.get<{ id: string }>(
+            "SELECT id FROM knowledge_audience_states WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND knowledge_node_id = ? AND story_order = ? AND retired_at IS NULL",
+            projectId,
+            value.subjectType,
+            value.subjectId,
+            value.knowledgeNodeId,
+            value.storyOrder,
+          )
+        )
+          return {
+            status: 409,
+            code: "CONFLICT",
+            title:
+              "同一主体／对象／故事顺序已有认知记录；不能擅自选择新状态或覆盖原声明。",
+          };
+        if (
+          currentNodes.get(target.id) !== target.version ||
+          (subject && currentNodes.get(subject.id) !== subject.version) ||
+          (value.state !== "unknown" && !value.evidence.trim())
+        )
+          return {
+            status: 409,
+            code: "CONFLICT",
+            title: "认知声明须绑定已确认节点，并保留非未知状态的人工证据说明。",
+          };
+        return undefined;
+      },
       insert: (transaction, projectId, id, value, now) =>
         transaction.run(
           `INSERT INTO knowledge_audience_states(
@@ -1476,6 +1641,118 @@ export function creativeIntelligenceRoutes(
   routes.push(
     route(
       {
+        id: "knowledge:ip-twin-get",
+        pluginId: "knowledge",
+        method: "get",
+        path: "/api/v2/projects/{id}/ip-twins/{snapshotId}",
+        operationId: "ip-twin.get",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/projects/{id}/ip-twins/{snapshotId}",
+        operationId: "ip-twin.get",
+        params: projectParams.extend({ snapshotId: z.string().uuid() }),
+        response: IPTwinSnapshotSchema,
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("id");
+        if (!projectExists(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "当前项目不存在。");
+        const snapshot = context.uow.execute((transaction) => {
+          const row = transaction.get<{ snapshot_json: string }>(
+            "SELECT snapshot_json FROM knowledge_ip_twin_snapshots WHERE id = ? AND project_id = ?",
+            requestContext.req.param("snapshotId"),
+            projectId,
+          );
+          return row
+            ? IPTwinSnapshotSchema.parse(JSON.parse(row.snapshot_json))
+            : undefined;
+        });
+        if (!snapshot)
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到原故事声明快照。",
+          );
+        // This is a read-only currentness projection. Never replace the frozen
+        // graph, write stale flags, allocate a new snapshot, or switch to latest.
+        return requestContext.json({
+          ...snapshot,
+          stale:
+            snapshot.stale ||
+            snapshot.sourceFingerprint !==
+              creative.buildTwin(projectId).sourceFingerprint,
+        });
+      },
+    ),
+    route(
+      {
+        id: "knowledge:story-simulation-get",
+        pluginId: "knowledge",
+        method: "get",
+        path: "/api/v2/projects/{id}/story-simulations/{simulationId}",
+        operationId: "story-simulations.get",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/projects/{id}/story-simulations/{simulationId}",
+        operationId: "story-simulations.get",
+        params: projectParams.extend({ simulationId: z.string().uuid() }),
+        response: ScenarioRunSchema,
+      }),
+      (requestContext) => {
+        const projectId = requestContext.req.param("id");
+        if (!projectExists(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "当前项目不存在。");
+        const value = context.uow.execute((transaction) => {
+          const row = transaction.get<{
+            id: string;
+            project_id: string;
+            snapshot_id: string;
+            hypothesis: string;
+            status: ScenarioRun["status"];
+            deterministic_findings_json: string;
+            model_inferences_json: string;
+            affected_node_ids_json: string;
+            version: number;
+            created_at: string;
+            updated_at: string;
+          }>(
+            "SELECT * FROM knowledge_scenario_runs WHERE id = ? AND project_id = ?",
+            requestContext.req.param("simulationId"),
+            projectId,
+          );
+          return row
+            ? ScenarioRunSchema.parse({
+                id: row.id,
+                projectId: row.project_id,
+                snapshotId: row.snapshot_id,
+                hypothesis: row.hypothesis,
+                status: row.status,
+                deterministicFindings: JSON.parse(
+                  row.deterministic_findings_json,
+                ),
+                modelInferences: JSON.parse(row.model_inferences_json),
+                affectedNodeIds: JSON.parse(row.affected_node_ids_json),
+                version: row.version,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+              })
+            : undefined;
+        });
+        if (!value)
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到原声明推演。",
+          );
+        return requestContext.json(value);
+      },
+    ),
+    route(
+      {
         id: "knowledge:ip-twin-build",
         pluginId: "knowledge",
         method: "post",
@@ -1490,7 +1767,10 @@ export function creativeIntelligenceRoutes(
         response: IPTwinSnapshotSchema,
       }),
       (requestContext) => {
-        const snapshot = creative.buildTwin(requestContext.req.param("id"));
+        const projectId = requestContext.req.param("id");
+        if (!projectExists(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "当前项目不存在。");
+        const snapshot = creative.buildTwin(projectId);
         context.uow.execute((transaction) => {
           markTwinsStale(transaction, snapshot.projectId);
           transaction.run(
@@ -1502,6 +1782,18 @@ export function creativeIntelligenceRoutes(
             snapshot.sourceFingerprint,
             JSON.stringify(snapshot),
             snapshot.createdAt,
+          );
+          append(
+            transaction,
+            "knowledge.ip-twin-created.v1",
+            "story-declaration-snapshot",
+            snapshot.id,
+            0,
+            {
+              id: snapshot.id,
+              projectId,
+              sourceFingerprint: snapshot.sourceFingerprint,
+            },
           );
         });
         return requestContext.json(snapshot);
@@ -1543,6 +1835,8 @@ export function creativeIntelligenceRoutes(
             "模拟假设无效。",
           );
         const projectId = requestContext.req.param("id");
+        if (!projectExists(projectId))
+          return problem(requestContext, 404, "NOT_FOUND", "当前项目不存在。");
         const twin = context.uow.execute((transaction) => {
           const row = transaction.get<{ snapshot_json: string }>(
             "SELECT snapshot_json FROM knowledge_ip_twin_snapshots WHERE id = ? AND project_id = ?",
@@ -1555,14 +1849,27 @@ export function creativeIntelligenceRoutes(
         });
         if (!twin)
           return problem(requestContext, 404, "NOT_FOUND", "未找到 IP 快照。");
+        if (
+          twin.stale ||
+          twin.sourceFingerprint !==
+            creative.buildTwin(projectId).sourceFingerprint
+        )
+          return problem(
+            requestContext,
+            409,
+            "CONFLICT",
+            "原故事声明快照已失效，请核对并明确创建新快照，不自动换源推演。",
+          );
         const affected = twin.nodes
           .filter((value) => parsed.data.hypothesis.includes(value.title))
           .map((value) => value.id);
         const deterministicFindings = [
           ...twin.conflicts,
           ...(affected.length
-            ? [`假设直接提及 ${affected.length} 个权威节点。`]
-            : ["假设未直接命中权威节点，需人工确认影响范围。"]),
+            ? [
+                `假设直接提及 ${affected.length} 个已确认声明节点；不是原文或语义已验证事实。`,
+              ]
+            : ["假设未直接命中声明节点，需人工确认影响范围。"]),
         ];
         const now = new Date().toISOString();
         const value: ScenarioRun = {
@@ -1600,7 +1907,13 @@ export function creativeIntelligenceRoutes(
             "story-simulation",
             value.id,
             0,
-            value,
+            {
+              id: value.id,
+              projectId,
+              snapshotId: twin.id,
+              version: 0,
+              status: value.status,
+            },
           );
         });
         return requestContext.json(value, 201);

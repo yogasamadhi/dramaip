@@ -1,5 +1,7 @@
 # Desktop 3.0 数据库回滚
 
+恢复目标是保全 [产品定位](../../../docs/product/POSITIONING.md) 中作者拥有的故事/IP 权威资产，包括独立小说稿件、剧本、版本与来源，不以媒体或云能力是否可用判断成果有效性。本次定位校准不改变下述数据库格式和恢复操作，也不构成新的升级/回退验收。
+
 alpha.3 不会重置项目数据。首次启动会对 alpha.2 的 `dramaip.db` 执行 WAL checkpoint 与 integrity check，并把验证副本写入 `userData/backups/architecture-upgrade/`。 `alpha2-agent-to-alpha3.json` 保存 SHA-256、大小、alpha.2 版本、SQLite `user_version`、表清单和 cutover 阶段；随后只清空 Agent 会话、Run、Item、检查点和旧盲测记录，Provider、`credentialRef` 与 Codex 登录状态保留。
 
 ## 用户回退到 2.x

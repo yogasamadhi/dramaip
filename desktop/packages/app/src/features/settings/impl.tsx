@@ -24,6 +24,8 @@ import { ThemeSettings } from "../../app-shell";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
 import { safeLocalRoute, useStudioSession } from "../../studio-session";
 import { recordPayload } from "../studio-widgets";
+import { GenerationLedgerEntry } from "./GenerationLedgerEntry";
+import { GenerationCostHistory } from "./GenerationCostHistory";
 import {
   recommendedCodexConnectionProtocol,
   type CodexConnectionProtocol,
@@ -234,55 +236,21 @@ export function GenerationLedgerPanel() {
   const [projectId, setProjectId] = useState(
     () => session.activeProjectId ?? "",
   );
-  const [notice, setNotice] = useState<string>();
   const { data: records = [], error } = useQuery({
     queryKey: ["generation-ledger", projectId],
     queryFn: () => client.generation.list(projectId),
     enabled: Boolean(projectId),
   });
   useEffect(() => {
-    if (session.activeProjectId && projectId !== session.activeProjectId)
-      setProjectId(session.activeProjectId);
-  }, [projectId, session.activeProjectId]);
-  const updateCost = async (
-    id: string,
-    current?: number,
-    currency = "CNY",
-    note = "",
-  ) => {
-    const entered = window.prompt(
-      "请输入本次实际成本；留空表示暂不记录：",
-      current?.toString() ?? "",
-    );
-    if (entered === null) return;
-    const amount = entered.trim() ? Number(entered) : undefined;
-    if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) {
-      setNotice("成本必须是大于或等于零的数字。");
-      return;
-    }
-    const costNote = window.prompt("成本备注（可选）：", note);
-    if (costNote === null) return;
-    try {
-      await client.generation.update(id, {
-        ...(amount === undefined ? {} : { actualCost: amount }),
-        currency,
-        costNote,
-      });
-      setNotice("已更新成本记录。");
-      await queryClient.invalidateQueries({
-        queryKey: ["generation-ledger", projectId],
-      });
-    } catch (cause) {
-      setNotice(message(cause));
-    }
-  };
+    if (session.activeProjectId) setProjectId(session.activeProjectId);
+  }, [session.activeProjectId]);
   return (
     <section className="rounded-xl border border-line bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold">生成账本</h2>
           <p className="mt-1 text-sm text-muted">
-            记录智能任务与制作检查的运行摘要，并可补录实际成本。
+            记录任务摘要、配置单次估价和未认证费用声明；真实结算须另核凭证，不合并金额或费用单位。
           </p>
         </div>
         <label className="grid gap-1 text-sm">
@@ -302,41 +270,29 @@ export function GenerationLedgerPanel() {
         </label>
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{message(error)}</p>}
-      {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
       <div className="mt-4 space-y-2">
-        {records.map((record) => (
-          <article
-            key={record.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-line p-3 text-sm"
-          >
-            <div className="min-w-0">
-              <p className="font-medium">{record.title}</p>
-              <p className="mt-1 line-clamp-2 text-xs text-muted">
-                {record.summary}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                成本：
-                {record.actualCost === undefined
-                  ? "尚未记录"
-                  : `${record.currency} ${record.actualCost.toFixed(2)}`}
-              </p>
-            </div>
-            <BareButton
-              className="rounded-md border border-line px-2 py-1 text-xs text-brand"
-              onClick={() =>
-                void updateCost(
-                  record.id,
-                  record.actualCost,
-                  record.currency,
-                  record.costNote,
-                )
-              }
-            >
-              补录成本
-            </BareButton>
-          </article>
-        ))}
-        {projectId && !records.length && (
+        {!error &&
+          records
+            .filter((record) => record.projectId === projectId)
+            .map((record) => (
+              <div key={`${projectId}:${record.id}`}>
+                <GenerationLedgerEntry
+                  key={`${projectId}:${record.id}`}
+                  record={record}
+                  save={async (patch) => {
+                    await client.generation.update(record.id, patch);
+                    await queryClient.invalidateQueries({
+                      queryKey: ["generation-ledger", projectId],
+                    });
+                  }}
+                />
+                <GenerationCostHistory
+                  key={`${record.id}:${record.updatedAt}`}
+                  record={record}
+                />
+              </div>
+            ))}
+        {!error && projectId && !records.length && (
           <p className="text-sm text-muted">
             当前项目还没有可归档的生成或检查记录。
           </p>

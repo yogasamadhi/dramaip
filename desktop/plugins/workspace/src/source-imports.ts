@@ -1,4 +1,9 @@
+import { createHash } from "node:crypto";
 import { optionalService } from "@dramaip/plugin-api/internal";
+import {
+  CreativeSourceConfirmationFactSchema,
+  type CreativeSourceConfirmationFact,
+} from "@dramaip/contracts/insights";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -7,6 +12,7 @@ import {
 } from "@dramaip/contracts/media";
 import {
   PRODUCTION_RECORD_SERVICE,
+  ProductionImportBatchInputSchema,
   type ProductionRecordService,
 } from "@dramaip/contracts/production";
 import {
@@ -15,17 +21,22 @@ import {
   ImportExtractionChangeSetSchema,
   SourceImportCommitInputSchema,
   SourceImportCommitResultSchema,
+  SourceImportCommitRecoverySchema,
   SourceImportPreviewInputSchema,
   SourceImportPreviewSchema,
   SourceImportPreviewResponseSchema,
+  canonicalImportRequestJSON,
   StructuredScriptDocumentSchema,
   type ImportExtractionCandidate,
   type ImportExtractionChangeSet,
   type SourceImportPreview,
   type WorkspaceProjectService,
+  type Project,
+  type SourceImportCommitResult,
 } from "@dramaip/contracts/workspace";
 import {
   WRITING_CHAPTER_SERVICE,
+  WritingImportBatchInputSchema,
   WRITING_RESOURCE_SERVICE,
   type WritingChapterService,
   type WritingResourceService,
@@ -39,8 +50,16 @@ import {
   type PluginContext,
   type RouteContribution,
   type UnitOfWorkTransaction,
+  type RoutePolicy,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
+import {
+  SourceImportRecoveryError,
+  completeOrdinaryImport,
+  prepareOrdinaryImport,
+  readOrdinaryImport,
+  type OrdinaryImportTarget,
+} from "./source-import-recovery.js";
 
 interface PreviewRow {
   id: string;
@@ -70,6 +89,8 @@ interface ExtractionRow {
 interface RouteContext {
   req: {
     param(name: string): string;
+    query(name: string): string | undefined;
+    header(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
   };
   json(value: unknown, status?: number): Response;
@@ -105,6 +126,8 @@ function declaration(input: {
   body?: ZodType;
   response?: ZodType;
   status?: 200 | 201 | 204;
+  query?: ZodType;
+  headers?: ZodType;
 }): unknown {
   const status = input.status ?? 200;
   return createRoute({
@@ -113,6 +136,8 @@ function declaration(input: {
     operationId: input.operationId,
     tags: ["source-imports"],
     request: {
+      ...(input.query ? { query: input.query } : {}),
+      ...(input.headers ? { headers: input.headers } : {}),
       ...(input.params ? { params: input.params } : {}),
       ...(input.body
         ? {
@@ -156,11 +181,13 @@ function route(
   metadata: Omit<RouteContribution, "declaration" | "handler" | "policy">,
   openapi: unknown,
   handler: Handler,
+  policy?: Partial<RoutePolicy>,
 ): RouteContribution {
   return defineRouteContribution({
     ...metadata,
     declaration: openapi,
     handler,
+    ...(policy ? { policy } : {}),
   });
 }
 
@@ -471,12 +498,369 @@ export function sourceImportRoutes(
   context: PluginContext,
   host: DesktopHostClient | undefined,
   workspace: WorkspaceProjectService,
+  workspaceTx: {
+    project(tx: UnitOfWorkTransaction, id: string): Project | undefined;
+    selectAdaptation(
+      tx: UnitOfWorkTransaction,
+      id: string,
+      target: OrdinaryImportTarget,
+      adaptationId: string,
+    ): void;
+  },
 ): readonly RouteContribution[] {
   const idParams = z.object({ id: z.string().uuid() });
   const candidateParams = z.object({
     id: z.string().uuid(),
     candidateId: z.string().uuid(),
   });
+  const keyFor = (id: string, header: string | undefined) => {
+    if (
+      header !== undefined &&
+      (!header.trim() || header.trim().length < 8 || header.trim().length > 200)
+    )
+      throw new SourceImportRecoveryError(
+        400,
+        "VALIDATION_ERROR",
+        "导入动作键无效；不会更换原请求。",
+      );
+    return header?.trim() ?? `legacy-source-import:${id}`;
+  };
+  const durableCommit = async (
+    requestContext: RouteContext,
+  ): Promise<Response> => {
+    try {
+      const id = requestContext.req.param("id");
+      const header = requestContext.req.header("Idempotency-Key");
+      const key = keyFor(id, header);
+      const parsed = SourceImportCommitInputSchema.safeParse(
+        await requestContext.req.json(),
+      );
+      if (!parsed.success)
+        throw new SourceImportRecoveryError(
+          400,
+          "VALIDATION_ERROR",
+          "导入确认内容无效。",
+        );
+      const input = parsed.data;
+      const original = context.uow.execute((tx) => {
+        const previous = readOrdinaryImport(
+          tx,
+          id,
+          key,
+          input.projectId,
+          input,
+        );
+        if (previous) {
+          if (previous.recovery.state === "committed" && header === undefined)
+            throw new SourceImportRecoveryError(
+              404,
+              "NOT_FOUND",
+              "未找到导入预览。",
+            );
+          if (!workspaceTx.project(tx, input.projectId))
+            throw new SourceImportRecoveryError(
+              404,
+              "NOT_FOUND",
+              "原导入项目不可用。",
+            );
+          return previous;
+        }
+        const stored = tx.get<PreviewRow>(
+          "SELECT * FROM workspace_source_imports WHERE id = ?",
+          id,
+        );
+        if (!stored)
+          throw new SourceImportRecoveryError(
+            404,
+            "NOT_FOUND",
+            "未找到导入预览。",
+          );
+        let preview: SourceImportPreview;
+        try {
+          preview = SourceImportPreviewSchema.parse(
+            JSON.parse(stored.preview_json),
+          );
+        } catch {
+          throw new SourceImportRecoveryError(
+            409,
+            "CONFLICT",
+            "原导入预览无法安全读取。",
+          );
+        }
+        const project = workspaceTx.project(tx, input.projectId);
+        if (
+          !project ||
+          (stored.project_id !== null &&
+            stored.project_id !== input.projectId) ||
+          input.preview.contentKind !== preview.contentKind ||
+          input.preview.sourceType !== preview.sourceType ||
+          !input.rightsConfirmed ||
+          stored.expires_at < new Date().toISOString()
+        )
+          throw new SourceImportRecoveryError(
+            400,
+            "VALIDATION_ERROR",
+            "导入确认内容无效。",
+          );
+        if (input.strategy !== "append")
+          throw new SourceImportRecoveryError(
+            409,
+            "UNSUPPORTED_OPERATION",
+            "当前版本仅允许追加导入。",
+          );
+        const ownerInput =
+          input.preview.contentKind === "script"
+            ? ProductionImportBatchInputSchema.safeParse({
+                importId: id,
+                projectId: input.projectId,
+                title: input.preview.title,
+                sourceName: input.preview.fileName,
+                episodes: input.preview.episodes.map(
+                  ({ key: sourceKey, ...episode }) => ({
+                    sourceKey,
+                    ...episode,
+                  }),
+                ),
+              })
+            : WritingImportBatchInputSchema.safeParse({
+                importId: id,
+                projectId: input.projectId,
+                chapters: input.preview.chapters.map((chapter) => ({
+                  sourceKey: chapter.key,
+                  title: chapter.title,
+                  content: chapter.content,
+                })),
+              });
+        if (!ownerInput.success)
+          throw new SourceImportRecoveryError(
+            400,
+            "VALIDATION_ERROR",
+            "导入章节／分集的范围或名称无效；未创建内容。",
+          );
+        const target = {
+          projectVersion: project.version,
+          currentAdaptationId: project.currentAdaptationId ?? null,
+        };
+        prepareOrdinaryImport(tx, id, key, input, target);
+        return readOrdinaryImport(tx, id, key, input.projectId, input)!;
+      });
+      if (original.recovery.state === "committed")
+        return requestContext.json(original.recovery.result, 201);
+      // Peer services run their own atomic batches, never inside Workspace's UOW.
+      const frozen = original.recovery.input;
+      let write: (tx: UnitOfWorkTransaction) => SourceImportCommitResult;
+      let sourceEntries: CreativeSourceConfirmationFact["entries"];
+      let receiptFingerprint: string;
+      let sceneCount = 0;
+      const digest = (value: unknown) =>
+        createHash("sha256")
+          .update(canonicalImportRequestJSON(value))
+          .digest("hex");
+      if (frozen.preview.contentKind === "script") {
+        const owner = optionalService(context, PRODUCTION_RECORD_SERVICE);
+        if (!owner)
+          throw new SourceImportRecoveryError(
+            409,
+            "CONFLICT",
+            "制作套件不可用，原请求保留。",
+          );
+        const batch = owner.importBatch({
+          importId: id,
+          projectId: frozen.projectId,
+          title: frozen.preview.title,
+          sourceName: frozen.preview.fileName,
+          episodes: frozen.preview.episodes.map(
+            ({ key: sourceKey, ...episode }) => ({ sourceKey, ...episode }),
+          ),
+        });
+        if (batch.state !== "committed")
+          throw new SourceImportRecoveryError(
+            409,
+            "CONFLICT",
+            "原制作批次无法核对；不重复导入。",
+          );
+        sourceEntries = batch.receipt.episodes.map((episode, sourceIndex) => ({
+          kind: "script-record",
+          sourceIndex,
+          id: episode.scriptId,
+          version: episode.version,
+        }));
+        receiptFingerprint = digest(batch.receipt);
+        sceneCount = batch.receipt.episodes.reduce(
+          (sum, episode) => sum + episode.sceneIds.length,
+          0,
+        );
+        write = (tx) => {
+          workspaceTx.selectAdaptation(
+            tx,
+            frozen.projectId,
+            original.target,
+            batch.receipt.adaptationId,
+          );
+          appendWorkspaceEvent(tx, "source-import-committed", id, {
+            projectId: frozen.projectId,
+            contentKind: "script",
+          });
+          return {
+            createdChapters: 0,
+            updatedChapters: 0,
+            createdEpisodes: batch.receipt.episodes.length,
+            createdScripts: batch.receipt.episodes.length,
+            updatedScripts: 0,
+            createdScenes: batch.receipt.episodes.reduce(
+              (sum, episode) => sum + episode.sceneIds.length,
+              0,
+            ),
+            adaptationProjectId: batch.receipt.adaptationId,
+            checkpointCount: 0,
+          };
+        };
+      } else {
+        const owner = optionalService(context, WRITING_CHAPTER_SERVICE);
+        if (!owner)
+          throw new SourceImportRecoveryError(
+            409,
+            "CONFLICT",
+            "写作套件不可用，原请求保留。",
+          );
+        const batch = owner.importBatch({
+          importId: id,
+          projectId: frozen.projectId,
+          chapters: frozen.preview.chapters.map((chapter) => ({
+            sourceKey: chapter.key,
+            title: chapter.title,
+            content: chapter.content,
+          })),
+        });
+        if (batch.state !== "committed")
+          throw new SourceImportRecoveryError(
+            409,
+            "CONFLICT",
+            "原章节批次无法核对；不重复导入。",
+          );
+        sourceEntries = batch.receipt.chapters.map((chapter, sourceIndex) => ({
+          kind: "chapter",
+          sourceIndex,
+          id: chapter.chapterId,
+          version: chapter.version,
+        }));
+        receiptFingerprint = digest(batch.receipt);
+        const bindings = new Map(
+          batch.receipt.chapters.map((chapter) => [chapter.sourceKey, chapter]),
+        );
+        const candidates = extractionCandidates(frozen.preview).map((item) => ({
+          ...item,
+          sourceRefs: item.sourceRefs.map((ref) => {
+            const actual = bindings.get(ref.sourceKey);
+            if (!actual) throw new Error("原章节绑定无法核对。");
+            return {
+              ...ref,
+              chapterId: actual.chapterId,
+              sourceVersion: actual.version,
+            };
+          }),
+        }));
+        write = (tx) => {
+          const changeSetId = crypto.randomUUID();
+          const now = new Date().toISOString();
+          const summary = `已从《${frozen.preview.title}》整理 ${candidates.length} 条待审查候选：人物、场景、道具、章节摘要与改编建议均可逐项采用。`;
+          tx.run(
+            `INSERT INTO workspace_import_extractions(id, project_id, source_fingerprint, source_title, status, summary, candidates_json, adoptions_json, applied_at, undone_at, error_message, created_at, updated_at) VALUES (?, ?, ?, ?, 'draft', ?, ?, '[]', NULL, NULL, NULL, ?, ?)`,
+            changeSetId,
+            frozen.projectId,
+            fingerprint(JSON.stringify(frozen.preview)),
+            frozen.preview.title,
+            summary,
+            JSON.stringify(candidates),
+            now,
+            now,
+          );
+          const changeSet = toChangeSet(
+            tx.get<ExtractionRow>(
+              "SELECT * FROM workspace_import_extractions WHERE id = ?",
+              changeSetId,
+            )!,
+          );
+          appendWorkspaceEvent(tx, "source-import-committed", id, changeSet);
+          return {
+            createdChapters: batch.receipt.chapters.length,
+            updatedChapters: 0,
+            createdEpisodes: 0,
+            createdScripts: 0,
+            updatedScripts: 0,
+            createdScenes: 0,
+            checkpointCount: 0,
+            extractionChangeSet: changeSet,
+          };
+        };
+      }
+      const result = context.uow.execute((tx) => {
+        if (!workspaceTx.project(tx, frozen.projectId))
+          throw new SourceImportRecoveryError(
+            404,
+            "NOT_FOUND",
+            "原导入项目不可用。",
+          );
+        const current = readOrdinaryImport(
+          tx,
+          id,
+          key,
+          frozen.projectId,
+          frozen,
+        )!;
+        if (current.recovery.state === "committed")
+          return current.recovery.result!;
+        const result = completeOrdinaryImport(tx, id, key, frozen, write(tx));
+        const project = workspaceTx.project(tx, frozen.projectId)!;
+        tx.append({
+          type: "workspace.creation-source-confirmed.v1",
+          pluginId: "workspace",
+          aggregateType: "project",
+          aggregateId: project.id,
+          aggregateVersion: project.version,
+          payload: CreativeSourceConfirmationFactSchema.parse({
+            eventVersion: 1,
+            owner: "workspace",
+            sourceId: id,
+            projectId: project.id,
+            projectVersion: project.version,
+            projectMode: project.mode,
+            workflowPath:
+              project.mode === "series_longform"
+                ? "novel"
+                : project.mode === "single_season"
+                  ? "adaptation"
+                  : null,
+            entry: "ordinary-import",
+            sourceFormat: frozen.preview.sourceType,
+            contentKind: frozen.preview.contentKind,
+            scopePolicy: "confirmed-parsed-entries-not-entire-file",
+            entryCount: sourceEntries.length,
+            sceneCount,
+            entries: sourceEntries,
+            bindingFingerprint: digest({ importId: id, input: frozen }),
+            receiptFingerprint,
+            rightsState: "declared-not-verified",
+            evidenceKind: "explicit-source-declaration-and-owner-commit",
+            modelEvidence: "unknown",
+            qualityState: "unverified",
+            currentValidity: "not-assessed",
+          }),
+        });
+        return result;
+      });
+      return requestContext.json(result, 201);
+    } catch (error) {
+      return error instanceof SourceImportRecoveryError
+        ? problem(requestContext, error.status, error.code, error.message)
+        : problem(
+            requestContext,
+            500,
+            "IMPORT_COMMIT_INCOMPLETE",
+            "导入提交未完成；原请求保留，请核对后恢复同一次导入，不更换动作键。",
+          );
+    }
+  };
   return [
     route(
       {
@@ -583,238 +967,61 @@ export function sourceImportRoutes(
         operationId: "source-imports.commit",
         params: idParams,
         body: SourceImportCommitInputSchema,
+        headers: z.object({
+          "idempotency-key": z.string().min(8).max(200).optional(),
+        }),
         response: SourceImportCommitResultSchema,
         status: 201,
       }),
-      async (requestContext) => {
-        const input = SourceImportCommitInputSchema.safeParse(
-          await requestContext.req.json(),
-        );
-        const id = requestContext.req.param("id");
-        const stored = context.uow.execute((transaction) =>
-          transaction.get<PreviewRow>(
-            "SELECT * FROM workspace_source_imports WHERE id = ?",
-            id,
-          ),
-        );
-        if (!stored)
-          return problem(requestContext, 404, "NOT_FOUND", "未找到导入预览。");
-        const originalPreview = SourceImportPreviewSchema.safeParse(
-          JSON.parse(stored.preview_json),
-        );
-        if (
-          !input.success ||
-          !originalPreview.success ||
-          (stored.project_id !== null &&
-            input.data.projectId !== stored.project_id) ||
-          input.data.preview.contentKind !== originalPreview.data.contentKind ||
-          input.data.preview.sourceType !== originalPreview.data.sourceType ||
-          !input.data.rightsConfirmed ||
-          (input.data.strategy !== "append" &&
-            !input.data.destructiveConfirmed) ||
-          stored.expires_at < new Date().toISOString() ||
-          !workspace.get(input.data.projectId)
-        )
-          return problem(
-            requestContext,
-            400,
-            "VALIDATION_ERROR",
-            "导入确认内容无效。",
-          );
-        if (input.data.strategy !== "append")
-          return problem(
-            requestContext,
-            409,
-            "UNSUPPORTED_OPERATION",
-            "当前版本仅允许追加导入。",
-          );
-        if (input.data.preview.contentKind === "script") {
-          const production = optionalService<ProductionRecordService>(
-            context,
-            PRODUCTION_RECORD_SERVICE,
-          );
-          if (!production)
-            return problem(requestContext, 409, "CONFLICT", "制作套件不可用。");
-          const createdRecords: Array<{ id: string; version: number }> = [];
-          try {
-            const adaptation = production.create("adaptations", {
-              projectId: input.data.projectId,
-              title: `${input.data.preview.title}·导入改编方案`,
-              payload: {
-                改编方向: "结构化剧本导入",
-                目标集数: input.data.preview.episodes.length,
-                来源文件: input.data.preview.fileName,
-              },
-            });
-            createdRecords.push(adaptation);
-            let createdScenes = 0;
-            for (const episodeSource of input.data.preview.episodes) {
-              const episode = production.create("episodes", {
-                projectId: input.data.projectId,
-                parentId: adaptation.id,
-                title: episodeSource.title,
-                payload: {
-                  集数: episodeSource.episodeNumber,
-                  分集简介: episodeSource.content.slice(0, 240),
-                  导入来源: input.data.preview.fileName,
-                },
-              });
-              createdRecords.push(episode);
-              const script = production.create("scripts", {
-                projectId: input.data.projectId,
-                parentId: episode.id,
-                title: `${episodeSource.title}剧本`,
-                payload: {
-                  关联分集: episodeSource.title,
-                  剧本内容: episodeSource.content,
-                  导入来源: input.data.preview.fileName,
-                },
-              });
-              createdRecords.push(script);
-              for (const [
-                index,
-                sceneSource,
-              ] of episodeSource.scenes.entries()) {
-                const scene = production.create("scenes", {
-                  projectId: input.data.projectId,
-                  parentId: script.id,
-                  title:
-                    typeof sceneSource.title === "string" &&
-                    sceneSource.title.trim()
-                      ? sceneSource.title.trim()
-                      : `场景 ${index + 1}`,
-                  payload: { ...sceneSource, 场景顺序: index + 1 },
-                });
-                createdRecords.push(scene);
-                createdScenes += 1;
-              }
-            }
-            workspace.setCurrentAdaptation(input.data.projectId, adaptation.id);
-            context.uow.execute((transaction) => {
-              transaction.run(
-                "DELETE FROM workspace_source_imports WHERE id = ?",
-                id,
-              );
-              appendWorkspaceEvent(transaction, "source-import-committed", id, {
-                projectId: input.data.projectId,
-                contentKind: "script",
-              });
-            });
-            return requestContext.json(
-              {
-                createdChapters: 0,
-                updatedChapters: 0,
-                createdEpisodes: input.data.preview.episodes.length,
-                createdScripts: input.data.preview.episodes.length,
-                updatedScripts: 0,
-                createdScenes,
-                adaptationProjectId: adaptation.id,
-                checkpointCount: 0,
-              },
-              201,
-            );
-          } catch {
-            for (const record of createdRecords.reverse())
-              production.remove(record.id, record.version);
-            return problem(
-              requestContext,
-              409,
-              "CONFLICT",
-              "剧本导入失败，未保留部分制作资料。",
-            );
-          }
-        }
-        const writing = optionalService<WritingChapterService>(
-          context,
-          WRITING_CHAPTER_SERVICE,
-        );
-        if (!writing)
-          return problem(requestContext, 409, "CONFLICT", "写作套件不可用。");
-        const created: ReturnType<WritingChapterService["create"]>[] = [];
+      durableCommit,
+      { idempotency: "optional", idempotencyReplay: "handler" },
+    ),
+    route(
+      {
+        id: "workspace:source-import-commit-recovery",
+        pluginId: "workspace",
+        method: "get",
+        path: "/api/v2/source-imports/{id}/commit",
+        operationId: "source-imports.getCommit",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/source-imports/{id}/commit",
+        operationId: "source-imports.getCommit",
+        params: idParams,
+        query: z.object({
+          projectId: z.string().uuid(),
+          requestKey: z.string().min(8).max(200),
+        }),
+        response: SourceImportCommitRecoverySchema,
+      }),
+      (requestContext) => {
         try {
-          for (const chapter of input.data.preview.chapters)
-            created.push(
-              writing.create({
-                projectId: input.data.projectId,
-                title: chapter.title,
-                content: chapter.content,
-              }),
-            );
-        } catch {
-          for (const chapter of created.reverse()) writing.remove(chapter.id);
-          return problem(
-            requestContext,
-            409,
-            "CONFLICT",
-            "原著导入失败，未保留部分章节。",
-          );
+          const id = requestContext.req.param("id");
+          const projectId = requestContext.req.query("projectId")!;
+          const key = requestContext.req.query("requestKey")!;
+          const saved = context.uow.execute((tx) => {
+            if (!workspaceTx.project(tx, projectId)) return;
+            return readOrdinaryImport(tx, id, key, projectId);
+          });
+          return saved
+            ? requestContext.json(saved.recovery)
+            : problem(
+                requestContext,
+                404,
+                "NOT_FOUND",
+                "未找到本次导入回执；不会补造原输入。",
+              );
+        } catch (error) {
+          return error instanceof SourceImportRecoveryError
+            ? problem(requestContext, error.status, error.code, error.message)
+            : problem(
+                requestContext,
+                500,
+                "IMPORT_RECOVERY_UNAVAILABLE",
+                "导入回执暂不可读取；不替换原请求。",
+              );
         }
-        const candidates = extractionCandidates(input.data.preview).map(
-          (item) => {
-            const source = created.find(
-              (chapter) => chapter.title === item.sourceRefs[0]?.chapterTitle,
-            );
-            return {
-              ...item,
-              sourceRefs: item.sourceRefs.map((ref) => ({
-                ...ref,
-                sourceVersion: source?.version ?? 0,
-              })),
-            };
-          },
-        );
-        const changeSetId = crypto.randomUUID();
-        const now = new Date().toISOString();
-        const sourceFingerprint = fingerprint(
-          JSON.stringify(input.data.preview),
-        );
-        const summary = `已从《${input.data.preview.title}》整理 ${candidates.length} 条待审查候选：人物、场景、道具、章节摘要与改编建议均可逐项采用。`;
-        const changeSet = context.uow.execute((transaction) => {
-          transaction.run(
-            `INSERT INTO workspace_import_extractions(
-              id, project_id, source_fingerprint, source_title, status, summary,
-              candidates_json, adoptions_json, applied_at, undone_at,
-              error_message, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, 'draft', ?, ?, '[]', NULL, NULL, NULL, ?, ?)`,
-            changeSetId,
-            input.data.projectId,
-            sourceFingerprint,
-            input.data.preview.title,
-            summary,
-            JSON.stringify(candidates),
-            now,
-            now,
-          );
-          transaction.run(
-            "DELETE FROM workspace_source_imports WHERE id = ?",
-            id,
-          );
-          const row = transaction.get<ExtractionRow>(
-            "SELECT * FROM workspace_import_extractions WHERE id = ?",
-            changeSetId,
-          )!;
-          const value = toChangeSet(row);
-          appendWorkspaceEvent(
-            transaction,
-            "source-import-committed",
-            id,
-            value,
-          );
-          return value;
-        });
-        return requestContext.json(
-          {
-            createdChapters: created.length,
-            updatedChapters: 0,
-            createdEpisodes: 0,
-            createdScripts: 0,
-            updatedScripts: 0,
-            createdScenes: 0,
-            checkpointCount: 0,
-            extractionChangeSet: changeSet,
-          },
-          201,
-        );
       },
     ),
     route(
@@ -835,6 +1042,13 @@ export function sourceImportRoutes(
       (requestContext) => {
         const id = requestContext.req.param("id");
         const found = context.uow.execute((transaction) => {
+          if (
+            transaction.get(
+              "SELECT import_id FROM workspace_source_import_commits WHERE import_id = ?",
+              id,
+            )
+          )
+            return "bound";
           const row = transaction.get<PreviewRow>(
             "SELECT * FROM workspace_source_imports WHERE id = ?",
             id,
@@ -849,6 +1063,13 @@ export function sourceImportRoutes(
           });
           return true;
         });
+        if (found === "bound")
+          return problem(
+            requestContext,
+            409,
+            "IMPORT_ALREADY_BOUND",
+            "本次导入已绑定原请求；请先核对或恢复，不删除预览或更换动作键。",
+          );
         return found
           ? requestContext.body(null, 204)
           : problem(requestContext, 404, "NOT_FOUND", "未找到导入预览。");
@@ -1010,6 +1231,38 @@ export function sourceImportRoutes(
             "请至少选择一个候选。",
           );
         const adoptions: Array<Record<string, unknown>> = [];
+        const summarySources = new Map<
+          string,
+          ReturnType<WritingChapterService["get"]>
+        >();
+        for (const item of selected.filter(
+          (candidate) => candidate.type === "chapter-summary",
+        )) {
+          const ref = item.sourceRefs[0];
+          const oldMatches = ref?.chapterId
+            ? []
+            : writing
+                .list(row.project_id)
+                .filter((chapter) => chapter.title === ref?.chapterTitle);
+          const chapter = ref?.chapterId
+            ? writing.get(ref.chapterId)
+            : oldMatches.length === 1
+              ? oldMatches[0]
+              : undefined;
+          if (
+            !ref ||
+            !chapter ||
+            chapter.projectId !== row.project_id ||
+            chapter.version !== ref.sourceVersion
+          )
+            return problem(
+              requestContext,
+              409,
+              "SOURCE_CHANGED",
+              "原章节身份／版本无法核对；不按同名章节或最新版本采用摘要。",
+            );
+          summarySources.set(item.id, chapter);
+        }
         for (const item of selected) {
           if (item.type === "character") {
             const created = writingResources.create({
@@ -1040,11 +1293,7 @@ export function sourceImportRoutes(
               version: created.version,
             });
           } else if (item.type === "chapter-summary") {
-            const chapter = writing
-              .list(row.project_id)
-              .find(
-                (value) => value.title === item.sourceRefs[0]?.chapterTitle,
-              );
+            const chapter = summarySources.get(item.id);
             if (chapter) {
               const updated = writing.updateSummary(
                 chapter.id,

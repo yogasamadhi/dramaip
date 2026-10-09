@@ -46,6 +46,7 @@ export const AgentContextPolicyInputSchema = z.object({
 export const AgentContextEntrySchema = z.object({
   sourceKind: z.enum([
     "intent",
+    "author_intent",
     "project",
     "chapter",
     "selection",
@@ -63,6 +64,18 @@ export const AgentContextEntrySchema = z.object({
   reason: z.string(),
   estimatedTokens: z.number().int().nonnegative(),
   sensitivity: z.enum(["project", "personal", "public"]),
+  // Policy-only provenance: no source text is duplicated into this manifest.
+  // A derived summary/fragment cannot bypass a denial on its original source.
+  policyDependencies: z
+    .array(
+      z.object({
+        sourceId: z.string().min(1),
+        sourceVersion: z.number().int().nonnegative(),
+        fieldPath: z.string().startsWith("/").max(500),
+      }),
+    )
+    .max(2000)
+    .optional(),
 });
 
 export const AgentContextPreviewInputSchema = z.object({
@@ -118,6 +131,36 @@ export const AgentContextSnapshotSchema = z.object({
   createdAt: z.string().datetime(),
 });
 
+// Frozen independently by the consuming owner when it accepts the snapshot.
+// A snapshot's own self-consistent hashes alone cannot prove that its original
+// prompt/manifest has not subsequently been replaced. Legacy absence is unknown.
+export const AgentContextIntegritySchema = z
+  .object({
+    snapshotId: z.string().uuid(),
+    manifestSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    finalPromptSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  })
+  .strict();
+
+/** Canonical manifest material shared by the snapshot owner and consumers.
+ * Preserve the ordering algorithm. Omitted object members must match JSON
+ * persistence; a present undefined is not a distinct JSON evidence value.
+ * This is local integrity material, never telemetry or semantic evidence. */
+export function agentContextManifestJSON(value: unknown): string {
+  if (Array.isArray(value))
+    return `[${value.map(agentContextManifestJSON).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(
+        ([key, item]) =>
+          `${JSON.stringify(key)}:${agentContextManifestJSON(item)}`,
+      )
+      .join(",")}}`;
+  return JSON.stringify(value);
+}
+
 export type AgentContextPolicy = z.infer<typeof AgentContextPolicySchema>;
 export type AgentContextEntry = z.infer<typeof AgentContextEntrySchema>;
 export type AgentContextPreviewInput = z.infer<
@@ -126,12 +169,29 @@ export type AgentContextPreviewInput = z.infer<
 export type AgentContextPreview = z.infer<typeof AgentContextPreviewSchema>;
 export type AgentContextSnapshot = z.infer<typeof AgentContextSnapshotSchema>;
 
+// Trusted owners name their preparation scope and hash their original action
+// key/body. No plaintext request keys, prompts or peer-owned receipts cross it.
+export const AgentContextPreparationRequestSchema = z
+  .object({
+    scope: z.string().regex(/^[a-z][a-z0-9.-]{0,119}$/u),
+    keySha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    requestSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  })
+  .strict();
+export type AgentContextPreparationRequest = z.infer<
+  typeof AgentContextPreparationRequestSchema
+>;
+export type AgentContextPreparationResult =
+  | { status: "prepared"; snapshot: AgentContextSnapshot }
+  | { status: "conflict" }
+  | { status: "unavailable" };
+
 export const AGENT_CONTEXT_SERVICE = defineServiceContract<AgentContextService>(
   {
     id: "agents.context.v1",
     owner: "agents",
     major: 1,
-    capabilities: ["preview", "freeze", "read"],
+    capabilities: ["preview", "freeze", "read", "prepare-once"],
     degradable: true,
   },
 );
@@ -142,10 +202,19 @@ export type AgentContextReference = Omit<
 >;
 
 export interface AgentContextService {
+  previewCreation?(
+    input: AgentContextPreviewInput,
+    references: AgentContextReference[],
+  ): AgentContextPreview;
   prepareCreation?(
     input: AgentContextPreviewInput,
     references: AgentContextReference[],
   ): AgentContextSnapshot;
+  prepareCreationOnce?(
+    input: AgentContextPreviewInput,
+    references: AgentContextReference[],
+    request: AgentContextPreparationRequest,
+  ): AgentContextPreparationResult;
   deriveCreation?(snapshotId: string, prompt: string): AgentContextSnapshot;
   createPreview(input: AgentContextPreviewInput): AgentContextPreview;
   updatePreview(

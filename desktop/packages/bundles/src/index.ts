@@ -53,8 +53,11 @@ export const builtInBundles: readonly BundleDefinition[] = Object.freeze([
 function warn(message: string, ...args: unknown[]) {
   console.warn(message, ...args);
 }
-export function readPatches(path: URL): PatchOptions[] {
-  const result: unknown = load(readFileSync(path, "utf8"), {
+export function readPatches(
+  path: URL,
+  read: (path: URL) => string = (path) => readFileSync(path, "utf8"),
+): PatchOptions[] {
+  const result: unknown = load(read(path), {
     schema: entryListSchema,
   });
   if (
@@ -112,7 +115,13 @@ export class BundleProfileError extends Error {
 export function resolveEffectiveGraph(
   profile: ProfileDefinition,
   registry: readonly BundleDefinition[] = builtInBundles,
+  readText: (path: URL) => string = (path) => readFileSync(path, "utf8"),
 ): EffectiveRuntimeGraph {
+  const contents = new Map<string, string>();
+  const read = (path: URL) => {
+    if (!contents.has(path.href)) contents.set(path.href, readText(path));
+    return contents.get(path.href)!;
+  };
   const byId = new Map(registry.map((bundle) => [bundle.id, bundle]));
   const visited = new Set<string>();
   const visiting = new Set<string>();
@@ -137,7 +146,7 @@ export function resolveEffectiveGraph(
   };
   for (const id of profile.bundles) visit(id, []);
   const root = new URL("../../../cordis.yml", import.meta.url);
-  const rootEntries: unknown = load(readFileSync(root, "utf8"), {
+  const rootEntries: unknown = load(read(root), {
     schema: entryListSchema,
   });
   if (!Array.isArray(rootEntries) || rootEntries.length)
@@ -151,12 +160,12 @@ export function resolveEffectiveGraph(
     ...bundles.map((id) => byId.get(id)!.patch),
     profilePatch,
   ];
-  const patches = files.slice(1).flatMap(readPatches);
+  const patches = files.slice(1).flatMap((path) => readPatches(path, read));
   // Native Include mutates inserted entries. Parse a separate preflight tree so
   // Loader receives the original patch layers, including YAML expression values.
   const entries = applyEntryPatches(
     [],
-    files.slice(1).flatMap(readPatches),
+    files.slice(1).flatMap((path) => readPatches(path, read)),
     warn,
   );
   const plugins = flattenEntries(entries).map((entry) => {

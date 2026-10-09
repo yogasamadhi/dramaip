@@ -101,7 +101,9 @@ async function openProjectCreation(): Promise<void> {
     exact: true,
   });
   if (await create.isVisible().catch(() => false)) await create.click();
-  await expect(page.getByText("核心创作", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "你现在手中有什么素材？" }),
+  ).toBeVisible();
 }
 
 test.afterAll(async () => {
@@ -488,13 +490,25 @@ test("助手长对话独立滚动且输入框固定在右侧底部", async () =>
   await page.setViewportSize({ width: 1440, height: 920 });
 });
 
-test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡片呈现", async () => {
+test("先选三种素材，再确认小说或剧本目标；其他模板默认折叠", async () => {
   await openProjectCreation();
-  await expect(page.getByText("更多创作方式", { exact: true })).toBeVisible();
+  for (const name of ["导入小说或大纲", "从创意开始", "导入已有剧本"]) {
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: /系列长篇/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /博主内容工作室/ }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "从创意开始", exact: true }).click();
   await expect(page.getByRole("button", { name: /系列长篇/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /单季短剧/ })).toContainText(
     "支持漫剧 / 真人短剧",
   );
+  await expect(page.getByRole("button", { name: /我的AI小剧场/ })).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: /博主内容工作室/ }),
+  ).toBeHidden();
+  await page.getByText("其他创作模板", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: /我的AI小剧场/ }),
   ).toBeVisible();
@@ -518,16 +532,16 @@ test("创建项目以核心创作 2 张主卡片和更多方式 2 张补充卡�
     assistant.getByText("AI 办事助手", { exact: true }),
   ).toBeVisible();
   await assistant.getByRole("button", { name: "关闭智能助手" }).click();
-  await expect(page.getByRole("heading", { name: "选择怎么开始" })).toHaveCount(
-    0,
-  );
-  await page.getByRole("button", { name: "修改" }).click();
+  await expect(
+    page.getByRole("heading", { name: "你希望先完成什么？" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "更换素材" }).click();
 });
 
 test("系列长篇把用户修改后的章节、季和每季集数持久化", async () => {
   await openProjectCreation();
+  await page.getByRole("button", { name: "从创意开始" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();
-  await page.getByRole("button", { name: /从灵感开始/ }).click();
   const titleInput = page.getByLabel("项目名称");
   const genreSelect = page.getByRole("combobox", {
     name: "题材方向（可选）",
@@ -566,23 +580,32 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
   expect(project.productionBrief).not.toContain("计划集数：80 集");
 });
 
-test("单季短剧从创意开始生成母稿、四个人物、季纲和首集", async () => {
+test("单季短剧从创意直接进入空剧本创作，不制造母稿、人物或已采用季纲", async () => {
   await openProjectCreation();
+  await page.getByRole("button", { name: "从创意开始" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /从创意开始/ }).click();
   await page.getByLabel("项目名称").fill("单季初始化验收");
   await page
     .getByLabel("故事构思（可选）")
     .fill("雨夜的一封匿名信牵出旧案。\n");
   await page.getByRole("button", { name: "创建单季短剧" }).click();
 
-  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
-  const projectId = page.url().split("/").at(-1)!;
-  const [project, chapters, characters, adaptations, episodes] =
+  await expect(page).toHaveURL(/\/adapt\?/);
+  await expect(
+    page.getByRole("heading", { name: "从创意到分集剧本", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "生成并检查本集剧本", exact: true }),
+  ).toBeVisible();
+  const params = new URLSearchParams(page.url().split("?")[1]);
+  const projectId = params.get("projectId")!;
+  const [project, chapters, characters, adaptations, episodes, scripts] =
     await Promise.all([
-      runtimeJson<{ currentAdaptationId?: string }>(
-        `/api/v2/projects/${projectId}`,
-      ),
+      runtimeJson<{
+        currentAdaptationId?: string;
+        modeConfig: { entryPath: string };
+        synopsis: string;
+      }>(`/api/v2/projects/${projectId}`),
       runtimeJson<Array<{ title: string }>>(
         `/api/v2/projects/${projectId}/chapters`,
       ),
@@ -595,11 +618,14 @@ test("单季短剧从创意开始生成母稿、四个人物、季纲和首集",
       runtimeJson<Array<{ parentId?: string; title: string }>>(
         `/api/v2/episodes?projectId=${projectId}`,
       ),
+      runtimeJson<
+        Array<{ id: string; parentId: string; payload: { 剧本内容: string } }>
+      >(`/api/v2/scripts?projectId=${projectId}`),
     ]);
-  expect(chapters.map((chapter) => chapter.title)).toContain("单季故事母稿");
-  expect(characters).toHaveLength(4);
+  expect(chapters).toEqual([]);
+  expect(characters).toEqual([]);
   expect(adaptations).toEqual([
-    expect.objectContaining({ title: "第一季季纲" }),
+    expect.objectContaining({ title: "原创剧本·分集目录" }),
   ]);
   expect(episodes).toEqual([
     expect.objectContaining({
@@ -608,13 +634,19 @@ test("单季短剧从创意开始生成母稿、四个人物、季纲和首集",
     }),
   ]);
   expect(project.currentAdaptationId).toBe(adaptations[0]!.id);
+  expect(project.modeConfig.entryPath).toBe("inspiration");
+  expect(project.synopsis).toBe("雨夜的一封匿名信牵出旧案。");
+  expect(scripts).toHaveLength(1);
+  expect(scripts[0]!.payload.剧本内容).toBe("");
+  expect(scripts[0]!.parentId).toBe(params.get("episodeId"));
+  expect(scripts[0]!.id).toBe(params.get("scriptId"));
 });
 
 test("项目外导入预览不创建项目，确认后才创建并导入", async () => {
   await openProjectCreation();
   const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+  await page.getByRole("button", { name: "导入小说或大纲" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
-  await page.getByRole("button", { name: /导入小说 \/ IP/ }).click();
   await page.getByRole("button", { name: "选择文件" }).click();
   await expect(
     page.getByText("source-import.md", { exact: true }),
@@ -655,20 +687,21 @@ test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览
     if (await clearDraft.isVisible().catch(() => false))
       await clearDraft.click();
     const before = await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
-    await page.getByRole("button", { name: /单季短剧/ }).click();
     await page
       .getByRole("button", {
-        name: fixture.script ? /使用已有剧本/ : /导入小说 \/ IP/,
+        name: fixture.script ? "导入已有剧本" : "导入小说或大纲",
       })
       .click();
+    await page.getByRole("button", { name: /单季短剧/ }).click();
     await page.getByRole("button", { name: "选择文件" }).click();
     await expect(page.getByText(fixture.name, { exact: true })).toBeVisible();
     const afterPreview =
       await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
     expect(afterPreview, fixture.name).toHaveLength(before.length);
 
-    await page.getByRole("button", { name: "修改" }).nth(1).click();
+    await page.getByRole("button", { name: "更换素材" }).click();
     await page.getByRole("button", { name: /从创意开始/ }).click();
+    await page.getByRole("button", { name: /单季短剧/ }).click();
     await expect(page.getByText(fixture.name, { exact: true })).toHaveCount(0);
     const afterCancel =
       await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
@@ -755,8 +788,8 @@ test("快捷入口选择末世囤货后初始化首章、人物、大纲和故�
 
 test("完整向导创建嘉豪预设并提供四个分区的可确认 AI 润色入口", async () => {
   await openProjectCreation();
+  await page.getByRole("button", { name: "从创意开始" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();
-  await page.getByRole("button", { name: /从灵感开始/ }).click();
   await page.getByLabel("项目名称").fill("普通人的主角镜头");
   await page
     .getByLabel("完整故事预设")
@@ -954,6 +987,19 @@ test("模型服务商置顶、模型级联并通过独立安全窗口采集密�
   const deepseekProvider = page.getByLabel("模型服务商 DeepSeek", {
     exact: true,
   });
+  const savedProvider = (
+    await runtimeJson<
+      Array<{
+        id: string;
+        title: string;
+        version: number;
+        payload: Record<string, unknown>;
+      }>
+    >("/api/v2/providers")
+  ).find((provider) => provider.title === "DeepSeek");
+  expect(savedProvider).toBeDefined();
+  expect(savedProvider!.payload["凭据引用"]).toEqual(expect.any(String));
+  expect(savedProvider!.payload["凭据引用"]).not.toBe("");
   await deepseekProvider
     .getByRole("button", { name: "编辑配置", exact: true })
     .click();
@@ -961,6 +1007,7 @@ test("模型服务商置顶、模型级联并通过独立安全窗口采集密�
     page.getByRole("status").filter({ hasText: "正在编辑 DeepSeek" }),
   ).toBeVisible();
   await expect(providerSelect).toBeFocused();
+  await expect(providerSelect).toHaveValue("deepseek");
   await expect(modelSelect).toHaveValue("deepseek-v4-flash");
   await expect(
     page.getByRole("button", {
@@ -969,12 +1016,23 @@ test("模型服务商置顶、模型级联并通过独立安全窗口采集密�
     }),
   ).toBeVisible();
   await modelSelect.selectOption("deepseek-v4-pro");
+  await expect(providerSelect).toHaveValue("deepseek");
+  await expect(modelSelect).toHaveValue("deepseek-v4-pro");
   await page
     .getByRole("button", { name: "保存服务商修改", exact: true })
     .click();
   await expect(
     deepseekProvider.getByText("deepseek-v4-pro", { exact: true }),
   ).toBeVisible();
+  const updatedProvider = await runtimeJson<{
+    version: number;
+    payload: Record<string, unknown>;
+  }>(`/api/v2/providers/${savedProvider!.id}`);
+  expect(updatedProvider.version).toBe(savedProvider!.version + 1);
+  expect(updatedProvider.payload["模型名称"]).toBe("deepseek-v4-pro");
+  expect(updatedProvider.payload["凭据引用"]).toBe(
+    savedProvider!.payload["凭据引用"],
+  );
 
   const codexProviderSelect = page.getByRole("combobox", {
     name: "Codex 模型服务商",

@@ -13,9 +13,9 @@ import type {
   ProjectPackagePreview,
   Series,
   SeriesLibrary,
-  SourceImportPreview,
   StoryBibleChangeSet,
 } from "@dramaip/contracts/product";
+import type { SourceImportPreview } from "@dramaip/contracts/workspace";
 import {
   BareButton,
   Button,
@@ -31,10 +31,41 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { deriveProjectCockpit } from "../../project-cockpit";
+import {
+  deriveProjectCockpit,
+  usesNovelWorkflow,
+  usesAdaptationWorkflow,
+} from "../../project-cockpit";
+import { loadNovelCockpitEvidence } from "../../novel-cockpit-evidence";
+import { loadAdaptationCockpitEvidence } from "../../adaptation-cockpit-evidence";
+import { loadDirectScriptCockpitEvidence } from "../../direct-script-cockpit-evidence";
+import { projectProgressReadiness } from "../../project-progress-readiness";
+import { ManuscriptExportDialog } from "../novel/ManuscriptExportDialog";
 import { CreativeIntentSummary } from "../../creative-intent";
+import { AuthorIntentPanel } from "./AuthorIntentPanel";
+import { NativeScriptIntakePanel } from "./NativeScriptIntakePanel";
+import {
+  explicitCreationGoal,
+  prepareProjectCreationAttempt,
+  projectInputForNativeCreation,
+} from "../../project-create-binding";
+import type { NativeScriptIntakeBinding } from "../../native-script-intake";
+import { DiagnosisPanel } from "../production/DiagnosisPanel";
+import { SeasonPlanPanel } from "../production/SeasonPlanPanel";
+import { AdaptationStrategyPanel } from "../production/AdaptationStrategyPanel";
+import { LegacyEpisodeCompatibility } from "../production/LegacyEpisodeCompatibility";
+import { EpisodeDevelopmentPanel } from "../production/EpisodeDevelopmentPanel";
+import { NarrativeQualityPanel } from "../creative/NarrativeQualityPanel";
+import { exactObjectReferenceKey } from "../../exact-object-navigation";
+import { episodeDevelopmentReferenceKey } from "../../episode-development-navigation";
+import {
+  novelWorkspaceReferenceKey,
+  readNovelWorkspaceContext,
+} from "../../novel-workspace-context";
 import {
   initializeProjectMaterials,
+  existingScriptContext,
+  scriptWorkspacePath,
   ProjectInitializationError,
 } from "../../project-creation-coordinator";
 import {
@@ -43,9 +74,12 @@ import {
 } from "../../project-genres";
 import {
   positiveInteger,
+  isDirectScriptProject,
+  PROJECT_SOURCE_OPTIONS,
   projectModeBrief,
   projectModeConfigFromDraft,
   projectInputFromBrief,
+  recommendedProjectMode,
   type ProductionBriefDraft,
   type ProjectCreationSource,
 } from "../../project-intake";
@@ -72,6 +106,16 @@ import {
   type CreationDraftV1,
 } from "../../studio-session";
 import { ChapterAnalysisPanel } from "../creative/impl";
+import {
+  SourceImportAttemptSchema,
+  freezeSourceImportAttempt,
+  checkSourceImportRecovery,
+  restoredSourceImportDraft,
+  readSourceImportAttempt,
+  persistSourceImportAttempt,
+  clearSourceImportAttempt,
+  type SourceImportAttempt,
+} from "../../source-import-binding";
 import { NovelChapterWorkspace } from "../novel/NovelChapterWorkspace";
 import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
 import {
@@ -355,10 +399,7 @@ function ProjectlessSourceImportEditor(props: {
       });
       const file = files?.[0];
       if (!file) return;
-      if (props.value)
-        await client.sourceImports
-          .discard(props.value.importId)
-          .catch(() => undefined);
+      if (props.value) await client.sourceImports.discard(props.value.importId);
       const result = await client.sourceImports.preview({
         capabilityToken: file.grantId,
       });
@@ -547,6 +588,7 @@ function ProjectlessSourceImportEditor(props: {
                   className="mt-2 w-full"
                   size="sm"
                   variant="secondary"
+                  disabled={props.disabled || working}
                   onClick={addChapter}
                 >
                   新增章节
@@ -557,6 +599,7 @@ function ProjectlessSourceImportEditor(props: {
                   <div className="flex gap-2">
                     <Input
                       aria-label="导入章节标题"
+                      disabled={props.disabled || working}
                       value={preview.chapters[selectedChapter].title}
                       onChange={(event) =>
                         updateChapter({ title: event.target.value })
@@ -566,13 +609,18 @@ function ProjectlessSourceImportEditor(props: {
                       size="sm"
                       variant="secondary"
                       onClick={splitChapter}
+                      disabled={props.disabled || working}
                     >
                       拆分
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={preview.chapters.length <= 1}
+                      disabled={
+                        preview.chapters.length <= 1 ||
+                        props.disabled ||
+                        working
+                      }
                       onClick={removeChapter}
                     >
                       删除
@@ -581,6 +629,7 @@ function ProjectlessSourceImportEditor(props: {
                   <Textarea
                     className="min-h-40 font-editor"
                     aria-label="导入章节正文"
+                    disabled={props.disabled || working}
                     value={preview.chapters[selectedChapter].content}
                     onChange={(event) =>
                       updateChapter({ content: event.target.value })
@@ -595,6 +644,7 @@ function ProjectlessSourceImportEditor(props: {
               className="mt-1"
               type="checkbox"
               checked={props.value.rightsConfirmed}
+              disabled={props.disabled || working}
               onChange={(event) =>
                 props.onChange({
                   ...props.value!,
@@ -607,7 +657,7 @@ function ProjectlessSourceImportEditor(props: {
           <p className="text-xs text-muted">
             预览有效至{" "}
             {new Date(props.value.expiresAt).toLocaleTimeString("zh-CN")}
-            ；原文件不会上传或写入项目数据库。
+            ；原文件只读且不上传，解析预览和确认后的正文保存在本机。
           </p>
         </div>
       )}
@@ -622,6 +672,11 @@ function projectModeNextStep(project: Project): string {
     case "series_longform":
       return "建立母本与第 1 卷 →";
     case "single_season":
+      if (isDirectScriptProject(project))
+        return project.modeConfig.mode === "single_season" &&
+          project.modeConfig.entryPath === "inspiration"
+          ? "创作与审阅本集剧本 →"
+          : "检查已有剧本 →";
       return "完成季纲与首集 →";
     case "personal_theater":
       return "建立人物肖像授权 →";
@@ -716,21 +771,91 @@ function projectCreateLabel(mode: ProjectMode): string {
 function ProjectHomeContinueCard(props: { project: Project }) {
   const client = useStudio();
   const session = useStudioSession();
-  const { data: chapters = [] } = useQuery({
+  const chapterRead = useQuery({
     queryKey: ["chapters", props.project.id],
     queryFn: () => client.chapters.list(props.project.id),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
-  const { data: graph } = useQuery({
+  const graphRead = useQuery({
     queryKey: ["production-graph", props.project.id],
     queryFn: () => client.production.graph(props.project.id),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
-  const { data: tasks = [] } = useQuery({
+  const taskRead = useQuery({
     queryKey: ["tasks"],
     queryFn: client.tasks.list,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
-  if (!graph)
+  const { data: chapters = [] } = chapterRead;
+  const { data: graph } = graphRead;
+  const { data: tasks = [] } = taskRead;
+  const novelOnly = Boolean(graph && usesNovelWorkflow(props.project, graph));
+  const adaptationOnly = Boolean(
+    graph && usesAdaptationWorkflow(props.project, graph),
+  );
+  const directOnly = isDirectScriptProject(props.project);
+  const novelEvidence = useQuery({
+    queryKey: ["novel-cockpit-evidence", props.project.id],
+    queryFn: () => loadNovelCockpitEvidence(client, props.project.id),
+    enabled: novelOnly,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
+  const adaptationEvidence = useQuery({
+    queryKey: ["adaptation-cockpit-evidence", props.project.id],
+    queryFn: () => loadAdaptationCockpitEvidence(client, props.project.id),
+    enabled: adaptationOnly,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
+  const directEvidence = useQuery({
+    queryKey: ["direct-script-cockpit-evidence", props.project.id],
+    queryFn: () => loadDirectScriptCockpitEvidence(client, props.project.id),
+    enabled: directOnly,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
+  const readiness = projectProgressReadiness([
+    graphRead,
+    taskRead,
+    ...(!directOnly && !adaptationOnly ? [chapterRead] : []),
+    ...(novelOnly ? [novelEvidence] : []),
+    ...(adaptationOnly ? [adaptationEvidence] : []),
+    ...(directOnly ? [directEvidence] : []),
+  ]);
+  if (readiness.state === "failed")
     return (
-      <section className="rounded-xl border border-brand/25 bg-brand-soft/45 p-5">
+      <section
+        aria-label="继续当前项目"
+        className="rounded-xl border border-brand/25 bg-brand-soft/45 p-5"
+      >
+        <p className="text-sm font-medium text-brand">继续当前项目</p>
+        <h2 className="mt-1 text-xl font-semibold">{props.project.title}</h2>
+        <p role="alert" className="mt-2 text-sm text-danger-strong">
+          项目进度尚未核验，暂不推荐生成或采用：{message(readiness.error)}
+        </p>
+        <p className="mt-2 text-sm text-muted">
+          读取失败不等于没有成果。已有项目与作者稿仍可打开，不改原稿或正式版本。
+        </p>
+        <Button asChild className="mt-4" variant="secondary">
+          <Link to={`/projects/${encodeURIComponent(props.project.id)}`}>
+            打开已有项目
+          </Link>
+        </Button>
+      </section>
+    );
+  if (!graph || readiness.state === "loading")
+    return (
+      <section
+        aria-label="继续当前项目"
+        className="rounded-xl border border-brand/25 bg-brand-soft/45 p-5"
+      >
         <p className="text-sm font-medium text-brand">继续当前项目</p>
         <h2 className="mt-1 text-xl font-semibold">{props.project.title}</h2>
         <p className="mt-2 text-sm text-muted">正在整理真实进度和下一步…</p>
@@ -741,6 +866,9 @@ function ProjectHomeContinueCard(props: { project: Project }) {
     chapters,
     graph,
     tasks,
+    novel: novelEvidence.error ? undefined : novelEvidence.data,
+    adaptation: adaptationEvidence.error ? undefined : adaptationEvidence.data,
+    direct: directEvidence.error ? undefined : directEvidence.data,
   });
   const lastRoute = session.lastProjectRoute(props.project.id);
   return (
@@ -763,6 +891,18 @@ function ProjectHomeContinueCard(props: { project: Project }) {
       {cockpit.blockers.length > 0 && (
         <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
           {cockpit.blockers.join("；")}
+        </p>
+      )}
+      {novelEvidence.error && (
+        <p role="status" className="mt-3 text-sm text-muted">
+          正式采用与记忆状态暂时无法核验：{message(novelEvidence.error)}
+          。已有稿件仍可打开。
+        </p>
+      )}
+      {adaptationEvidence.error && (
+        <p role="status" className="mt-3 text-sm text-muted">
+          改编正式版本与回执暂时无法核验：{message(adaptationEvidence.error)}。
+          不以目录或计数代替完成证据；已有内容仍可打开。
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -825,6 +965,8 @@ export function ProjectHome() {
   const navigate = useNavigate();
   const session = useStudioSession();
   const restoredDraft = session.creationDraft;
+  const creationDraftRef = useRef(session.creationDraft);
+  creationDraftRef.current = session.creationDraft;
   const [projects, setProjects] = useState<Project[]>(session.projects);
   const [creationOpen, setCreationOpen] = useState(Boolean(restoredDraft));
   const [packageImportOpen, setPackageImportOpen] = useState(false);
@@ -841,7 +983,17 @@ export function ProjectHome() {
       ? (restoredDraft?.storyPresetId as NovelStoryPresetId)
       : undefined,
   );
-  const [pendingImport, setPendingImport] = useState<PendingSourceImport>();
+  const [pendingImport, setPendingImport] = useState<
+    PendingSourceImport | undefined
+  >(() =>
+    restoredSourceImportDraft(
+      restoredDraft?.sourceImportAttempt,
+      restoredDraft?.pendingSourceImport,
+    ),
+  );
+  const [nativeScriptIntake, setNativeScriptIntake] = useState<
+    NativeScriptIntakeBinding | undefined
+  >(restoredDraft?.nativeScriptIntake);
   const pendingImportRef = useRef<PendingSourceImport | undefined>(undefined);
   const [creatorTopic, setCreatorTopic] = useState(
     restoredDraft?.creatorTopic ?? "",
@@ -854,6 +1006,8 @@ export function ProjectHome() {
   const [scriptContent, setScriptContent] = useState(
     restoredDraft?.scriptDraft ?? "",
   );
+  // A recovered draft is not a renewed grant of rights to its pasted content.
+  const [scriptRightsConfirmed, setScriptRightsConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [error, setError] = useState<string>();
@@ -861,9 +1015,10 @@ export function ProjectHome() {
   const [trashedProjects, setTrashedProjects] = useState<Project[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeCreateStep, setActiveCreateStep] = useState<1 | 2 | 3>(
-    restoredDraft ? 3 : 1,
+    restoredDraft?.intakeStep ?? (restoredDraft ? 3 : 1),
   );
   const startMethodRef = useRef<HTMLDivElement>(null);
+  const creationGoalRef = useRef<HTMLElement>(null);
   const projectFormRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     pendingImportRef.current = pendingImport;
@@ -871,7 +1026,7 @@ export function ProjectHome() {
   useEffect(
     () => () => {
       const current = pendingImportRef.current;
-      if (current)
+      if (current && !creationDraftRef.current?.sourceImportAttempt)
         void client.sourceImports
           .discard(current.importId)
           .catch(() => undefined);
@@ -896,7 +1051,29 @@ export function ProjectHome() {
         .discard(current.importId)
         .catch(() => undefined);
   };
-  const resetCreationForm = (close = false) => {
+  const resetCreationForm = (close = false, nativeCompleted = false) => {
+    if (creationDraftRef.current?.sourceImportAttempt) {
+      setError(
+        "原导入结果尚未核验；保留原预览和动作键，先明确恢复同一次导入，不清空或换稿。",
+      );
+      return;
+    }
+    if (
+      creationDraftRef.current?.attemptId &&
+      !creationDraftRef.current.createdProjectId
+    ) {
+      setError(
+        "原创建结果尚未核验；保留同一创建键，先明确重试核验，不清空或换键创建。",
+      );
+      return;
+    }
+    if (nativeScriptIntake && !nativeCompleted) {
+      setError(
+        "原生文件预览或同次初始化仍需核验；请先在原生面板明确取消未提交预览，或恢复同一次创建，不清除未知结果。",
+      );
+      return;
+    }
+    setNativeScriptIntake(undefined);
     setProjectMode("series_longform");
     setCreationSource("inspiration");
     setBrief(projectModeBrief("series_longform", "inspiration"));
@@ -904,51 +1081,86 @@ export function ProjectHome() {
     discardPendingImport();
     setCreatorTopic("");
     setScriptContent("");
+    setScriptRightsConfirmed(false);
     setShowAdvanced(false);
     setActiveCreateStep(1);
     if (close) setCreationOpen(false);
     session.clearCreationDraft();
+    creationDraftRef.current = undefined;
   };
   const persistCreationDraft = (
     values: Partial<CreationDraftV1>,
     preserveAttempt = false,
   ) => {
     const base =
-      session.creationDraft ??
+      creationDraftRef.current ??
       createCreationDraft("project-home", projectMode, creationSource);
+    const next: CreationDraftV1 = {
+      ...base,
+      projectMode,
+      creationSource,
+      brief,
+      storyPresetId,
+      scriptDraft: scriptContent,
+      nativeScriptIntake,
+      creatorTopic,
+      origin: "project-home",
+      ...values,
+    };
     session.saveCreationDraft(
-      {
-        ...base,
-        projectMode,
-        creationSource,
-        brief,
-        storyPresetId,
-        scriptDraft: scriptContent,
-        creatorTopic,
-        origin: "project-home",
-        ...values,
-      },
-      preserveAttempt,
+      next,
+      preserveAttempt || Boolean(base.attemptId || base.sourceImportAttempt),
     );
+    creationDraftRef.current = next;
+  };
+  const updatePendingImport = (value: PendingSourceImport | undefined) => {
+    if (creationDraftRef.current?.sourceImportAttempt) {
+      setError("原导入已冻结；不编辑原输入或更换预览，请先恢复同一次导入。");
+      return;
+    }
+    // Persist private preview text only, never the file grant or absolute path.
+    persistCreationDraft({ pendingSourceImport: value });
+    setPendingImport(value);
   };
   const selectCreationSource = (source: ProjectCreationSource) => {
+    if (creationDraftRef.current?.attemptId) {
+      setError(
+        "同次创建已绑定原目标与输入；不能通过更换素材重绑，请先核验原创建。",
+      );
+      return;
+    }
+    if (nativeScriptIntake) {
+      setError(
+        "请先核验或明确取消创建前原生预览；不会暗中换稿或遗失创建恢复身份。",
+      );
+      return;
+    }
+    // Keep the active recovery form visible if a lost create reply is followed
+    // by a successful list read revealing the newly created project.
+    setCreationOpen(true);
     discardPendingImport();
     setCreationSource(source);
+    const mode = recommendedProjectMode(source);
+    setProjectMode(mode);
     setStoryPresetId(undefined);
-    const nextBrief = { ...brief, creationSource: source };
+    const nextBrief = projectModeBrief(mode, source, brief);
     setBrief(nextBrief);
     setScriptContent("");
-    setActiveCreateStep(3);
+    setScriptRightsConfirmed(false);
+    setActiveCreateStep(2);
     setError(undefined);
     persistCreationDraft({
       creationSource: source,
+      projectMode: mode,
       brief: nextBrief,
       storyPresetId: undefined,
       scriptDraft: "",
+      intakeStep: 2,
+      goalConfirmation: undefined,
     });
     window.setTimeout(
       () =>
-        projectFormRef.current?.scrollIntoView({
+        creationGoalRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         }),
@@ -956,18 +1168,33 @@ export function ProjectHome() {
     );
   };
   const selectProjectMode = (mode: ProjectMode) => {
+    if (creationDraftRef.current?.attemptId) {
+      setError(
+        "同次创建已绑定原目标与输入；不能通过更换目标补确认，请先核验原创建。",
+      );
+      return;
+    }
+    if (nativeScriptIntake) {
+      setError("请先核验或明确取消创建前原生预览；已确认创建的目标不能更换。");
+      return;
+    }
+    setCreationOpen(true);
     discardPendingImport();
-    const source = projectStartOptions(mode)[0]!.source;
+    const paths = projectStartOptions(mode);
+    const source = paths.some((path) => path.source === creationSource)
+      ? creationSource
+      : paths[0]!.source;
     setProjectMode(mode);
     setCreationSource(source);
     setStoryPresetId(undefined);
     const nextBrief = projectModeBrief(mode, source, brief);
     setBrief(nextBrief);
     setScriptContent("");
+    setScriptRightsConfirmed(false);
     setShowAdvanced(false);
     setError(undefined);
     setCreatorTopic("");
-    setActiveCreateStep(mode === "creator_channel" ? 3 : 2);
+    setActiveCreateStep(3);
     persistCreationDraft({
       projectMode: mode,
       creationSource: source,
@@ -975,13 +1202,12 @@ export function ProjectHome() {
       storyPresetId: undefined,
       scriptDraft: "",
       creatorTopic: "",
+      intakeStep: 3,
+      goalConfirmation: explicitCreationGoal(mode, source),
     });
     window.setTimeout(
       () =>
-        (mode === "creator_channel"
-          ? projectFormRef.current
-          : startMethodRef.current
-        )?.scrollIntoView({
+        projectFormRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         }),
@@ -1016,48 +1242,113 @@ export function ProjectHome() {
   };
   const createFromBrief = async (
     mode: "inspiration" | "source-file" | "script-draft" | "script-file",
+    resumeScriptInitialization = false,
   ) => {
+    if (nativeScriptIntake) {
+      setError("先核验并完成或撤销同一原生文件预览；不会另建项目。");
+      return;
+    }
     if (!creationSource || !brief.title.trim() || !modeConfig) return;
-    if (mode === "script-draft" && !scriptContent.trim()) return;
+    if (
+      mode === "script-draft" &&
+      (!scriptContent.trim() || !scriptRightsConfirmed) &&
+      !resumeScriptInitialization
+    )
+      return;
+    if (resumeScriptInitialization && !session.creationDraft?.createdProjectId)
+      return;
     const sourceFile = mode === "source-file" || mode === "script-file";
     if (sourceFile && (!pendingImport || !pendingImport.rightsConfirmed))
       return;
+    if (
+      mode === "script-file" &&
+      pendingImport?.preview.contentKind !== "script"
+    ) {
+      setError(
+        "这是小说或大纲文件，请通过“导入小说或大纲”入口确认创作目标；不会把小说正文误存为剧本。",
+      );
+      return;
+    }
+    if (
+      mode === "source-file" &&
+      pendingImport?.preview.contentKind === "script"
+    ) {
+      setError(
+        "这是已有剧本，请从“导入已有剧本”入口开始；不会将其误初始化为小说母稿。",
+      );
+      return;
+    }
     setSaving(true);
     setError(undefined);
     let createdProject: Project | undefined;
+    let destination: string | undefined;
     try {
       const storyPreset =
         mode === "inspiration" &&
         (projectMode === "series_longform" || projectMode === "single_season")
           ? novelStoryPreset(storyPresetId)
           : undefined;
-      const attemptId = session.creationDraft?.attemptId ?? crypto.randomUUID();
-      persistCreationDraft({ attemptId }, true);
-      const project = session.creationDraft?.createdProjectId
-        ? await client.projects.get(session.creationDraft.createdProjectId)
-        : (
-            await client.projects.create(
-              storyPreset
-                ? projectInputFromStoryPreset(brief, storyPreset, modeConfig)
-                : projectInputFromBrief(brief, modeConfig),
-              attemptId,
-            )
-          ).project;
+      const attempt = prepareProjectCreationAttempt(
+        creationDraftRef.current,
+        storyPreset
+          ? projectInputFromStoryPreset(brief, storyPreset, modeConfig)
+          : projectInputFromBrief(brief, modeConfig),
+      );
+      const { attemptId, frozenProjectInput } = attempt;
+      persistCreationDraft({ attemptId, frozenProjectInput }, true);
+      const project = creationDraftRef.current?.createdProjectId
+        ? await client.projects.get(creationDraftRef.current.createdProjectId)
+        : (await client.projects.create(attempt.input, attemptId)).project;
       createdProject = project;
-      persistCreationDraft({ attemptId, createdProjectId: project.id }, true);
+      persistCreationDraft(
+        { attemptId, frozenProjectInput, createdProjectId: project.id },
+        true,
+      );
       if (sourceFile && pendingImport) {
         try {
-          await client.sourceImports.commit(pendingImport.importId, {
-            projectId: project.id,
-            strategy: "append",
-            rightsConfirmed: true,
-            destructiveConfirmed: false,
-            preview: pendingImport.preview,
-          });
-          setPendingImport(undefined);
+          const original = creationDraftRef.current?.sourceImportAttempt;
+          const frozen = freezeSourceImportAttempt(
+            pendingImport.importId,
+            {
+              projectId: project.id,
+              strategy: "append",
+              rightsConfirmed: true,
+              destructiveConfirmed: false,
+              preview: pendingImport.preview,
+            },
+            original,
+          );
+          persistCreationDraft(
+            { sourceImportAttempt: frozen, pendingSourceImport: pendingImport },
+            true,
+          );
+          if (original) {
+            try {
+              const saved = await client.sourceImports.getCommit(
+                frozen.importId,
+                project.id,
+                frozen.requestKey,
+              );
+              checkSourceImportRecovery(frozen, saved);
+            } catch (cause) {
+              if (!(
+                cause &&
+                typeof cause === "object" &&
+                "status" in cause &&
+                cause.status === 404
+              ))
+                throw cause;
+              // The first request may not have reached the owner; keep its exact input/key.
+            }
+          }
+          await client.sourceImports.commit(
+            frozen.importId,
+            frozen.input,
+            frozen.requestKey,
+          );
         } catch (cause) {
           throw new Error(
-            `${message(cause)}；项目记录和原文件预览均未被覆盖，可重试导入或移除这个空项目。`,
+            `${message(cause)}；项目和原导入请求保留，内容可能已整批写入。请恢复同一次导入，不重复创建或删除项目。`,
           );
         }
       }
@@ -1066,8 +1357,12 @@ export function ProjectHome() {
           project,
           brief,
           preset: storyPreset,
-          ...(mode === "script-draft" ? { scriptDraft: scriptContent } : {}),
+          ...(mode === "script-draft"
+            ? { scriptDraft: scriptContent, scriptRightsConfirmed }
+            : {}),
         });
+        if (initialized.scriptContext)
+          destination = scriptWorkspacePath(initialized.scriptContext);
         persistCreationDraft({ initializationSteps: initialized.steps }, true);
         if (initialized.chapterId)
           window.localStorage.setItem(
@@ -1081,10 +1376,17 @@ export function ProjectHome() {
           `${message(cause)}；项目和已完成的初始化资料均已保留，可安全继续初始化。`,
         );
       }
+      if (sourceFile && creationDraftRef.current?.sourceImportAttempt) {
+        persistCreationDraft(
+          { sourceImportAttempt: undefined, pendingSourceImport: undefined },
+          true,
+        );
+        setPendingImport(undefined);
+      }
       setProjects((items) => [project, ...items]);
       resetCreationForm(true);
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project.id}`);
+      navigate(destination ?? `/projects/${project.id}`);
     } catch (cause) {
       setError(
         createdProject
@@ -1110,6 +1412,12 @@ export function ProjectHome() {
     }
   };
   const removeUnfinishedProject = async () => {
+    if (creationDraftRef.current?.sourceImportAttempt) {
+      setError(
+        "原导入已绑定且内容可能已写入；先核验／恢复，不能把它当空项目移除。",
+      );
+      return;
+    }
     const projectId = session.creationDraft?.createdProjectId;
     if (!projectId) return;
     const project = projects.find((item) => item.id === projectId);
@@ -1172,15 +1480,16 @@ export function ProjectHome() {
   const modeCards = [
     {
       mode: "series_longform" as const,
-      title: "系列长篇",
-      badge: "IP 孵化",
-      description: "建立长篇故事母本，再按季改编为持续生长的系列短剧。",
-      next: "母本、故事圣经与分季改编",
+      title: "写小说 · 系列长篇",
+      badge: "独立稿件成果",
+      description:
+        "持续创作小说、维护人物与世界，完成章节、稿件或投稿，不必改编。",
+      next: "人物与大纲、章节采用、记忆与下一章",
       primary: true,
     },
     {
       mode: "single_season" as const,
-      title: "单季短剧",
+      title: "开发剧本 · 单季短剧",
       badge: "支持漫剧 / 真人短剧",
       description: "从原创故事、小说或剧本开始，用一季讲完并进入制作。",
       next: "季纲、分集、剧本与分镜",
@@ -1206,7 +1515,7 @@ export function ProjectHome() {
   const importReady = Boolean(pendingImport?.rightsConfirmed);
   const scaleSummary =
     modeConfig?.mode === "series_longform"
-      ? `${modeConfig.targetChapterCount}章 / ${modeConfig.targetSeasonCount}季 / 每季${modeConfig.targetEpisodesPerSeason}集`
+      ? `${modeConfig.targetChapterCount}章 · 小说可独立交付，改编按需选择`
       : modeConfig?.mode === "single_season"
         ? `${modeConfig.targetEpisodeCount}集 · ${brief.episodeDuration}`
         : modeConfig?.mode === "personal_theater"
@@ -1247,25 +1556,13 @@ export function ProjectHome() {
           <div>
             <p className="studio-eyebrow">第一次使用</p>
             <h2 className="mt-2 text-2xl font-semibold">
-              从一个创意开始，让 AI 完成创作
+              从你的故事开始，写小说或开发剧本
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-              描述作品方向，AI
-              会提出方案并生成候选。也可以先打开示例，了解完整创作流程。
+              导入小说、大纲或已有剧本，也可以从创意开始。AI
+              提出候选，你来决定采用；小说可以独立写作和导出。
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Button variant="primary" onClick={() => setCreationOpen(true)}>
-                开始创作
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setCreationOpen(true);
-                  setActiveCreateStep(1);
-                }}
-              >
-                导入内容
-              </Button>
               <Button
                 variant="ghost"
                 disabled={creatingDemo}
@@ -1286,7 +1583,7 @@ export function ProjectHome() {
             </li>
             <li>
               <span className="mr-2 font-semibold text-ink">3</span>
-              确认首集范围，由 AI 推进改编与制作
+              导出小说稿件，或按需进入剧本与制作
             </li>
           </ol>
         </section>
@@ -1303,7 +1600,8 @@ export function ProjectHome() {
             <div>
               <h2 className="text-lg font-semibold">新建创作项目</h2>
               <p className="mt-1 text-sm text-muted">
-                按三个步骤完成创建。数量和时长都是建议值，创建后仍可调整。
+                选择素材 → 确认创作目标 →
+                预览并创建。小说可以独立完成，媒体制作按需进入。
               </p>
             </div>
             {projects.length ? (
@@ -1317,35 +1615,92 @@ export function ProjectHome() {
             ) : null}
           </div>
           {activeCreateStep === 1 ? (
-            <>
-              <div className="mt-5 flex items-center gap-3">
-                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                  1
-                </span>
-                <div>
-                  <h3 className="font-semibold">选择创作模式</h3>
-                  <p className="text-xs text-muted">
-                    决定项目的工作台和生产流程
-                  </p>
-                </div>
-              </div>
-              <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted">
-                核心创作
+            <div ref={startMethodRef} className="mt-5">
+              <h3 className="font-semibold">你现在手中有什么素材？</h3>
+              <p className="mt-1 text-xs text-muted">
+                先选素材，再确认创作目标，不必先理解项目模式。
               </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {PROJECT_SOURCE_OPTIONS.map((path) => (
+                  <BareButton
+                    key={path.source}
+                    aria-label={path.title}
+                    className={`group relative min-h-40 rounded-xl border p-5 text-left transition hover:border-brand hover:bg-brand-soft ${"recommended" in path && path.recommended ? "border-brand bg-brand-soft" : "border-line bg-surface-raised"}`}
+                    onClick={() => selectCreationSource(path.source)}
+                  >
+                    {"recommended" in path && path.recommended ? (
+                      <span className="text-xs font-medium text-brand-strong">
+                        改编入口推荐
+                      </span>
+                    ) : null}
+                    <p className="mt-2 text-lg font-semibold">{path.title}</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {path.description}
+                    </p>
+                    <p className="mt-4 text-xs font-medium text-rust">
+                      {path.outcome} →
+                    </p>
+                  </BareButton>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-5 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
+              <div>
+                <p className="text-xs text-muted">已选择素材</p>
+                <p className="text-sm font-semibold">
+                  {
+                    PROJECT_SOURCE_OPTIONS.find(
+                      (item) => item.source === creationSource,
+                    )?.title
+                  }
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={Boolean(session.creationDraft?.attemptId)}
+                onClick={() => {
+                  setActiveCreateStep(1);
+                  persistCreationDraft({ intakeStep: 1 });
+                }}
+              >
+                更换素材
+              </Button>
+            </div>
+          )}
+          {activeCreateStep === 2 && (
+            <section
+              ref={creationGoalRef}
+              className="mt-6 scroll-mt-20 border-t border-line pt-5"
+              aria-label="选择创作目标"
+            >
+              <h3 className="font-semibold">你希望先完成什么？</h3>
+              <p className="mt-1 text-xs text-muted">
+                系统按素材推荐工作区；最终目标由你决定，小说与剧本均可独立形成成果。
+              </p>
+              <p className="mt-4 text-xs font-medium text-muted">核心创作</p>
               <div className="mt-2 grid gap-3 md:grid-cols-2">
                 {modeCards
-                  .filter((item) => item.primary)
+                  .filter(
+                    (item) =>
+                      item.primary &&
+                      (creationSource !== "script" ||
+                        item.mode === "single_season"),
+                  )
                   .map((item) => (
                     <BareButton
                       key={item.mode}
+                      aria-label={item.title}
                       className="group relative min-h-40 rounded-xl border border-line bg-surface-raised p-5 text-left transition hover:border-brand hover:bg-brand-soft"
                       onClick={() => selectProjectMode(item.mode)}
                     >
-                      <span className="absolute right-4 top-4 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand-strong">
+                      <span className="text-xs font-medium text-brand-strong">
+                        {item.mode === projectMode ? "推荐 · " : ""}
                         {item.badge}
                       </span>
-                      <p className="text-lg font-semibold">{item.title}</p>
-                      <p className="mt-2 max-w-xl pr-20 text-sm leading-6 text-muted">
+                      <p className="mt-2 text-lg font-semibold">{item.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted">
                         {item.description}
                       </p>
                       <p className="mt-4 text-xs font-medium text-rust">
@@ -1354,132 +1709,50 @@ export function ProjectHome() {
                     </BareButton>
                   ))}
               </div>
-              <p className="mt-5 text-xs font-medium uppercase tracking-wider text-muted">
-                更多创作方式
-              </p>
-              <div className="mt-2 grid gap-3 md:grid-cols-2">
-                {modeCards
-                  .filter((item) => !item.primary)
-                  .map((item) => (
-                    <BareButton
-                      key={item.mode}
-                      className="rounded-xl border border-line bg-surface-raised p-4 text-left transition hover:border-line-strong hover:bg-surface-muted"
-                      onClick={() => selectProjectMode(item.mode)}
-                    >
-                      <span className="flex items-center justify-between gap-3">
-                        <span className="font-medium">{item.title}</span>
-                        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] text-muted">
-                          {item.badge}
-                        </span>
-                      </span>
-                      <span className="mt-2 block text-sm text-muted">
-                        {item.description}
-                      </span>
-                    </BareButton>
-                  ))}
-              </div>
-            </>
-          ) : (
-            <div className="mt-5 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
-              <div className="flex items-center gap-3">
-                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                  ✓
-                </span>
-                <div>
-                  <p className="text-xs text-muted">创作模式</p>
-                  <p className="text-sm font-semibold">
-                    {projectModeLabel(projectMode)}
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setActiveCreateStep(1)}
-              >
-                修改
-              </Button>
-            </div>
-          )}
-          {projectMode !== "creator_channel" && activeCreateStep === 2 && (
-            <div
-              ref={startMethodRef}
-              className="mt-6 scroll-mt-20 border-t border-line pt-5"
-            >
-              <div className="flex items-center gap-3">
-                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                  2
-                </span>
-                <div>
-                  <h3 className="font-semibold">选择怎么开始</h3>
-                  <p className="text-xs text-muted">
-                    已选择“{projectModeLabel(projectMode)}”，请选择一种开始方式
-                  </p>
-                </div>
-              </div>
-              <div
-                className={`mt-4 grid gap-3 ${projectStartOptions(projectMode).length === 1 ? "md:grid-cols-1" : projectStartOptions(projectMode).length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}
-              >
-                {projectStartOptions(projectMode).map((path) => {
-                  const selected = creationSource === path.source;
-                  return (
-                    <BareButton
-                      key={path.source}
-                      className={`group relative min-h-28 overflow-hidden rounded-xl border px-5 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-focus ${selected ? "border-brand bg-brand-soft text-brand-strong shadow-control" : "border-line bg-surface-raised text-ink shadow-control hover:border-line-strong hover:bg-surface-muted"}`}
-                      aria-pressed={selected}
-                      onClick={() => selectCreationSource(path.source)}
-                    >
-                      {selected && (
-                        <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong">
-                          <span
-                            aria-hidden="true"
-                            className="grid size-4 place-items-center rounded-full bg-brand text-[10px] text-white"
-                          >
-                            ✓
-                          </span>
-                          {path.recommended ? "推荐 · 已选择" : "已选择"}
-                        </span>
-                      )}
-                      <p
-                        className={`pr-20 font-medium transition-colors ${selected ? "text-rust" : "text-ink"}`}
+              <details className="mt-5 rounded-xl border border-line p-4">
+                <summary className="cursor-pointer text-sm font-medium">
+                  其他创作模板
+                </summary>
+                <p className="mt-2 text-xs text-muted">
+                  这些模式保留为专用模板，不改变当前小说与改编主线。
+                </p>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {modeCards
+                    .filter((item) => !item.primary)
+                    .map((item) => (
+                      <BareButton
+                        key={item.mode}
+                        className="rounded-xl border border-line bg-surface-raised p-4 text-left transition hover:border-line-strong hover:bg-surface-muted"
+                        onClick={() => selectProjectMode(item.mode)}
                       >
-                        {path.title}
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-muted">
-                        {path.description}
-                      </p>
-                      <p className="mt-3 text-xs font-medium text-rust/90">
-                        {path.outcome}
-                      </p>
-                    </BareButton>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {projectMode !== "creator_channel" && activeCreateStep === 3 && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
-              <div className="flex items-center gap-3">
-                <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                  ✓
-                </span>
-                <div>
-                  <p className="text-xs text-muted">开始方式</p>
-                  <p className="text-sm font-semibold">
-                    {
-                      projectStartOptions(projectMode).find(
-                        (item) => item.source === creationSource,
-                      )?.title
-                    }
-                  </p>
+                        <span className="font-medium">{item.title}</span>
+                        <span className="mt-2 block text-sm text-muted">
+                          {item.description}
+                        </span>
+                      </BareButton>
+                    ))}
                 </div>
+              </details>
+            </section>
+          )}
+          {activeCreateStep === 3 && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-surface-raised p-3">
+              <div>
+                <p className="text-xs text-muted">创作目标与工作区</p>
+                <p className="text-sm font-semibold">
+                  {modeCards.find((item) => item.mode === projectMode)?.title}
+                </p>
               </div>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setActiveCreateStep(2)}
+                disabled={Boolean(session.creationDraft?.attemptId)}
+                onClick={() => {
+                  setActiveCreateStep(2);
+                  persistCreationDraft({ intakeStep: 2 });
+                }}
               >
-                修改
+                更换目标
               </Button>
             </div>
           )}
@@ -1488,6 +1761,18 @@ export function ProjectHome() {
               ref={projectFormRef}
               className="mt-6 scroll-mt-20 border-t border-line pt-5"
             >
+              {session.creationDraft?.attemptId && (
+                <p role="status" className="mb-3 text-sm text-warning">
+                  {session.creationDraft.frozenProjectInput
+                    ? `同次创建已冻结原请求：${session.creationDraft.frozenProjectInput.title}；重试使用原输入与创建键，当前表单修改不会重绑原项目。`
+                    : "旧创建键未保存原请求，目标确认仍未知；只按原键核验，不补确认或自动换键。"}
+                </p>
+              )}
+              {session.creationDraft?.sourceImportAttempt && (
+                <p role="status" className="mb-3 text-sm text-warning">
+                  原普通导入已冻结；编辑／换稿已禁用。下面是原输入，原勾选仅为当时的权利声明；明确继续将核验／恢复同一次导入，不换键或重复创建内容。
+                </p>
+              )}
               <div className="flex items-center gap-3">
                 <span className="grid size-7 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
                   {projectMode === "creator_channel" ? "2" : "3"}
@@ -1657,7 +1942,9 @@ export function ProjectHome() {
                       ? "故事描述"
                       : "已有剧本内容"}
                     <span className="text-xs text-muted">
-                      可以直接粘贴，也可以在下方导入结构化剧本 JSON。
+                      可以直接粘贴（按 Fountain
+                      识别剧本块），也可以在下方导入结构化剧本
+                      JSON。不会创建小说母稿；非标准排版请在剧本页核对。
                     </span>
                     <Textarea
                       className="min-h-40 font-editor"
@@ -1670,29 +1957,105 @@ export function ProjectHome() {
                       onChange={(event) => {
                         const value = event.target.value;
                         setScriptContent(value);
+                        setScriptRightsConfirmed(false);
                         persistCreationDraft({ scriptDraft: value });
                       }}
                     />
                   </label>
+                  <label className="mt-3 flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={scriptRightsConfirmed}
+                      onChange={(event) =>
+                        setScriptRightsConfirmed(event.target.checked)
+                      }
+                    />
+                    我确认拥有此剧本的使用权，或已经取得必要授权。
+                  </label>
+                  {projectMode !== "single_season" && (
+                    <ProjectlessSourceImportEditor
+                      value={pendingImport}
+                      disabled={
+                        saving ||
+                        Boolean(
+                          nativeScriptIntake ||
+                          session.creationDraft?.sourceImportAttempt,
+                        )
+                      }
+                      onChange={updatePendingImport}
+                      onSuggestedTitle={(title) => {
+                        if (!brief.title.trim()) updateBrief("title", title);
+                      }}
+                    />
+                  )}
+                  {projectMode === "single_season" && (
+                    <NativeScriptIntakePanel
+                      binding={nativeScriptIntake}
+                      disabled={
+                        saving ||
+                        Boolean(pendingImport) ||
+                        Boolean(session.creationDraft?.attemptId)
+                      }
+                      projectInput={
+                        brief.title.trim() && modeConfig
+                          ? projectInputForNativeCreation(
+                              projectInputFromBrief(brief, modeConfig),
+                              session.creationDraft?.goalConfirmation,
+                            )
+                          : undefined
+                      }
+                      onBusy={setSaving}
+                      onChange={(value) => {
+                        // Identity is durable before a preview or commit write; consent is not.
+                        persistCreationDraft(
+                          { nativeScriptIntake: value },
+                          true,
+                        );
+                        setNativeScriptIntake(value);
+                      }}
+                      onOpen={(receipt) => {
+                        resetCreationForm(true, true);
+                        void queryClient.invalidateQueries({
+                          queryKey: ["projects"],
+                        });
+                        navigate(
+                          scriptWorkspacePath({
+                            projectId: receipt.projectId,
+                            adaptationId: receipt.adaptationId,
+                            episodeId: receipt.episodeId,
+                            scriptId: receipt.scriptId,
+                          }),
+                        );
+                      }}
+                    />
+                  )}
+                  {pendingImport?.preview.contentKind === "novel" && (
+                    <p className="mt-2 text-sm text-danger">
+                      这是小说或大纲文件，请更换剧本
+                      JSON，或从“导入小说或大纲”入口开始。
+                    </p>
+                  )}
+                </>
+              )}
+              {creationSource === "source-import" && (
+                <>
                   <ProjectlessSourceImportEditor
                     value={pendingImport}
-                    disabled={saving}
-                    onChange={setPendingImport}
+                    disabled={
+                      saving ||
+                      Boolean(session.creationDraft?.sourceImportAttempt)
+                    }
+                    onChange={updatePendingImport}
                     onSuggestedTitle={(title) => {
                       if (!brief.title.trim()) updateBrief("title", title);
                     }}
                   />
+                  {pendingImport?.preview.contentKind === "script" && (
+                    <p className="mt-2 text-sm text-danger">
+                      这是已有剧本，请更换小说或大纲文件，或从“导入已有剧本”入口开始。
+                    </p>
+                  )}
                 </>
-              )}
-              {creationSource === "source-import" && (
-                <ProjectlessSourceImportEditor
-                  value={pendingImport}
-                  disabled={saving}
-                  onChange={setPendingImport}
-                  onSuggestedTitle={(title) => {
-                    if (!brief.title.trim()) updateBrief("title", title);
-                  }}
-                />
               )}
               <BareButton
                 className="mt-4 text-sm font-medium text-brand hover:text-brand-strong"
@@ -1879,7 +2242,8 @@ export function ProjectHome() {
                         saving ||
                         !brief.title.trim() ||
                         !modeConfig ||
-                        !importReady
+                        !importReady ||
+                        pendingImport?.preview.contentKind === "script"
                       }
                       onClick={() => void createFromBrief("source-file")}
                     >
@@ -1897,7 +2261,8 @@ export function ProjectHome() {
                             saving ||
                             !brief.title.trim() ||
                             !modeConfig ||
-                            !importReady
+                            !importReady ||
+                            pendingImport.preview.contentKind !== "script"
                           }
                           onClick={() => void createFromBrief("script-file")}
                         >
@@ -1910,9 +2275,11 @@ export function ProjectHome() {
                         variant="primary"
                         disabled={
                           saving ||
+                          Boolean(nativeScriptIntake) ||
                           !brief.title.trim() ||
                           !modeConfig ||
-                          !scriptContent.trim()
+                          !scriptContent.trim() ||
+                          !scriptRightsConfirmed
                         }
                         onClick={() => void createFromBrief("script-draft")}
                       >
@@ -1935,9 +2302,11 @@ export function ProjectHome() {
                     : "创作草稿已保留，尚未确认成功的项目不会被当作完成项目。"
                 }
                 nextStep={
-                  session.creationDraft?.createdProjectId
-                    ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
-                    : "检查当前输入后重试创建。"
+                  session.creationDraft?.sourceImportAttempt
+                    ? "先核验并恢复同一次导入；保留原输入和原键，不把可能已有内容的项目当作空项目移除。"
+                    : session.creationDraft?.createdProjectId
+                      ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
+                      : "检查当前输入后重试创建。"
                 }
                 returnTo="成功后进入刚创建的项目工作区。"
                 actions={
@@ -1955,6 +2324,7 @@ export function ProjectHome() {
                                 : pendingImport
                                   ? "script-file"
                                   : "script-draft",
+                            creationSource === "script" && !pendingImport,
                           )
                         }
                       >
@@ -1962,7 +2332,10 @@ export function ProjectHome() {
                       </Button>
                       <Button
                         variant="ghost"
-                        disabled={saving}
+                        disabled={
+                          saving ||
+                          Boolean(session.creationDraft?.sourceImportAttempt)
+                        }
                         onClick={() => void removeUnfinishedProject()}
                       >
                         移除这个空项目
@@ -2121,6 +2494,36 @@ export const PROJECT_TOOL_META: ReadonlyArray<{
   description: string;
 }> = [
   {
+    key: "author-intent",
+    label: "作者意图",
+    description: "预览、比较并明确采用正式创作约束。",
+  },
+  {
+    key: "adaptation-diagnosis",
+    label: "改编诊断",
+    description: "确认来源范围与叙事证据，采用诊断后再比较独立策略。",
+  },
+  {
+    key: "adaptation-strategy",
+    label: "独立策略",
+    description: "冻结已采用诊断，比较 2–3 个动作方案并明确采用一个。",
+  },
+  {
+    key: "season-plan",
+    label: "整季方案",
+    description: "继承已采用诊断与独立策略，核对覆盖、完整顺序并明确采用。",
+  },
+  {
+    key: "episode-development",
+    label: "单集开发",
+    description: "从正式季纲采用单集大纲与标准剧本；已有剧本或创意可独立进入。",
+  },
+  {
+    key: "quality-review",
+    label: "质量报告",
+    description: "核对正式版本的逐字证据，明确处理风险或复检，不改作者正文。",
+  },
+  {
     key: "import",
     label: "导入内容",
     description: "预览并导入小说原稿、剧本或结构化资料。",
@@ -2138,7 +2541,7 @@ export const PROJECT_TOOL_META: ReadonlyArray<{
   {
     key: "pilot",
     label: "试制计划",
-    description: "用 1–3 集验证从章节到审核的制作链路。",
+    description: "恢复旧 1–3 集试制目录；一体化生成须明确打开兼容路径。",
   },
   {
     key: "series",
@@ -2159,8 +2562,31 @@ export const PROJECT_TOOL_META: ReadonlyArray<{
 
 function projectToolMeta(mode: ProjectMode) {
   const allowed: Record<ProjectMode, readonly ProjectToolKey[]> = {
-    series_longform: ["import", "review", "cockpit", "pilot", "series"],
-    single_season: ["import", "review", "cockpit", "pilot"],
+    series_longform: [
+      "quality-review",
+      "episode-development",
+      "season-plan",
+      "adaptation-diagnosis",
+      "adaptation-strategy",
+      "author-intent",
+      "import",
+      "review",
+      "cockpit",
+      "pilot",
+      "series",
+    ],
+    single_season: [
+      "quality-review",
+      "episode-development",
+      "season-plan",
+      "adaptation-diagnosis",
+      "adaptation-strategy",
+      "author-intent",
+      "import",
+      "review",
+      "cockpit",
+      "pilot",
+    ],
     personal_theater: ["personal-theater", "cockpit", "pilot", "review"],
     creator_channel: ["creator-channel", "cockpit", "review"],
   };
@@ -2170,13 +2596,29 @@ function projectToolMeta(mode: ProjectMode) {
 export function ProjectToolPage() {
   const client = useStudio();
   const navigate = useNavigate();
+  const location = useLocation();
   const { projectId, toolKey } = useParams<{
     projectId: string;
     toolKey?: string;
   }>();
-  const [project, setProject] = useState<Project>();
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [error, setError] = useState<string>();
+  const [loaded, setLoaded] = useState<{
+    project: Project;
+    chapters: Chapter[];
+  }>();
+  const project =
+    loaded && loaded.project.id === projectId ? loaded.project : undefined;
+  const chapters = project ? loaded!.chapters : [];
+  const [readError, setReadError] = useState<{
+    projectId: string;
+    detail: string;
+  }>();
+  const error =
+    readError && readError.projectId === projectId
+      ? readError.detail
+      : undefined;
+  const requestedProject = useRef(projectId);
+  requestedProject.current = projectId;
+  const readRevision = useRef(0);
   const requestedTool = toolKey;
   const { data: overviewChangeSets = [] } = useQuery({
     queryKey: ["project-tools-overview-import-extractions", projectId],
@@ -2192,20 +2634,56 @@ export function ProjectToolPage() {
   );
   const load = async (): Promise<void> => {
     if (!projectId) return;
+    const revision = ++readRevision.current;
+    setReadError(undefined);
     try {
       const [nextProject, nextChapters] = await Promise.all([
         client.projects.get(projectId),
         client.chapters.list(projectId),
       ]);
-      setProject(nextProject);
-      setChapters(nextChapters);
+      if (
+        requestedProject.current !== projectId ||
+        readRevision.current !== revision
+      )
+        return;
+      if (
+        nextProject.id !== projectId ||
+        nextChapters.some((chapter) => chapter.projectId !== projectId)
+      )
+        throw new Error("项目工具读取归属不一致，未替换为其他项目。");
+      setLoaded({ project: nextProject, chapters: nextChapters });
     } catch (cause) {
-      setError(message(cause));
+      if (
+        requestedProject.current === projectId &&
+        readRevision.current === revision
+      )
+        setReadError({ projectId, detail: message(cause) });
     }
   };
   useEffect(() => void load(), [client, projectId]);
-  if (!project) return <LoadingState label="正在打开项目工具…" />;
+  useEffect(
+    () =>
+      client.events.subscribe((event) => {
+        if (
+          event.type.startsWith("workspace.project-") &&
+          event.payload &&
+          typeof event.payload === "object" &&
+          (event.payload as { id?: string }).id === projectId
+        )
+          void load();
+      }),
+    [client, projectId],
+  );
+  if (!project)
+    return error ? (
+      <div role="alert" className="rounded border border-line p-4 text-sm">
+        指定项目工具读取失败，未替换为最近项目或原页面对象。{error}
+      </div>
+    ) : (
+      <LoadingState label="正在打开项目工具…" />
+    );
   const modeTools = projectToolMeta(project.mode);
+  const scriptOnly = isDirectScriptProject(project) && !chapters.length;
   const activeTool = modeTools.find((item) => item.key === requestedTool);
   const nextTool: ProjectToolKey = pendingReviewCount
     ? "review"
@@ -2213,24 +2691,40 @@ export function ProjectToolPage() {
       ? "personal-theater"
       : project.mode === "creator_channel"
         ? "creator-channel"
-        : chapters.length
+        : chapters.length || scriptOnly
           ? "cockpit"
           : "import";
   const nextMeta = modeTools.find((item) => item.key === nextTool)!;
   const toolStatus = (key: ProjectToolKey) => {
+    if (key === "author-intent" || key === "quality-review")
+      return { label: "打开核对实际采用版本", count: 0 };
     if (key === "review")
       return {
         label: pendingReviewCount ? "需要处理" : "暂无待办",
         count: pendingReviewCount,
       };
     if (key === "import")
-      return { label: "随时可用", count: chapters.length ? 0 : 1 };
+      return {
+        label: "随时可用",
+        count: chapters.length || scriptOnly ? 0 : 1,
+      };
     if (key === "pilot")
       return {
-        label: chapters.length ? "可以试制" : "等待正文",
-        count: chapters.length ? 0 : 1,
+        label: scriptOnly
+          ? "小说改编试制（按需）"
+          : chapters.length
+            ? "可以试制"
+            : "等待正文",
+        count: chapters.length || scriptOnly ? 0 : 1,
       };
-    return { label: chapters.length ? "数据已就绪" : "等待正文", count: 0 };
+    return {
+      label: scriptOnly
+        ? "剧本创作与检查"
+        : chapters.length
+          ? "数据已就绪"
+          : "等待正文",
+      count: 0,
+    };
   };
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[620px] flex-col overflow-hidden bg-canvas">
@@ -2240,7 +2734,7 @@ export function ProjectToolPage() {
           size="sm"
           onClick={() => navigate(`/projects/${project.id}`)}
         >
-          ← 返回写作
+          {scriptOnly ? "← 返回剧本" : "← 返回写作"}
         </Button>
         <div className="min-w-0">
           <p className="truncate text-xs text-muted">{project.title}</p>
@@ -2341,13 +2835,54 @@ export function ProjectToolPage() {
           {activeTool?.key === "cockpit" && (
             <ProjectCockpitPanel project={project} chapters={chapters} />
           )}
+          {activeTool?.key === "author-intent" && (
+            <AuthorIntentPanel key={project.id} project={project} />
+          )}
+          {activeTool?.key === "quality-review" && (
+            <NarrativeQualityPanel
+              key={`${project.id}:${exactObjectReferenceKey(location.search)}`}
+              projectId={project.id}
+            />
+          )}
+          {activeTool?.key === "adaptation-diagnosis" && (
+            <DiagnosisPanel
+              key={`${project.id}:${exactObjectReferenceKey(location.search)}`}
+              projectId={project.id}
+            />
+          )}
+          {activeTool?.key === "season-plan" && (
+            <SeasonPlanPanel
+              key={`${project.id}:${exactObjectReferenceKey(location.search)}`}
+              projectId={project.id}
+            />
+          )}
+          {activeTool?.key === "adaptation-strategy" && (
+            <AdaptationStrategyPanel
+              key={`${project.id}:${exactObjectReferenceKey(location.search)}`}
+              projectId={project.id}
+            />
+          )}
+          {activeTool?.key === "episode-development" && (
+            <EpisodeDevelopmentPanel
+              key={`${project.id}:${episodeDevelopmentReferenceKey(location.search)}`}
+              projectId={project.id}
+            />
+          )}
           {activeTool?.key === "pilot" && (
             <ProjectPilotPanel project={project} chapters={chapters} />
           )}
           {activeTool?.key === "series" && (
             <SeriesLibraryPanel
               project={project}
-              onProjectChanged={setProject}
+              onProjectChanged={(nextProject) =>
+                setLoaded((current) =>
+                  current &&
+                  current.project.id === nextProject.id &&
+                  requestedProject.current === nextProject.id
+                    ? { ...current, project: nextProject }
+                    : current,
+                )
+              }
             />
           )}
           {activeTool?.key === "personal-theater" && (
@@ -2434,11 +2969,13 @@ function PersonalTheaterToolPanel(props: { project: Project }) {
     <section className="space-y-4">
       {subjects.length > 0 &&
         subjects.every((subject) => subject.consentStatus === "active") && (
-          <CreationWorkbench
-            projectId={props.project.id}
-            operation="episode"
-            defaultInstruction="根据本项目创意和已授权人物，生成小剧场首集故事、剧本和分镜方案。"
-          />
+          <LegacyEpisodeCompatibility>
+            <CreationWorkbench
+              projectId={props.project.id}
+              operation="episode"
+              defaultInstruction="根据本项目创意和已授权人物，生成小剧场首集故事、剧本和分镜方案。"
+            />
+          </LegacyEpisodeCompatibility>
         )}
       <div className="rounded-xl border border-brand/30 bg-brand-soft/50 p-5 text-sm leading-6 text-muted">
         照片只经短期文件授权进入 Desktop
@@ -2673,12 +3210,65 @@ export function ProjectWorkspace() {
   const { projectId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [project, setProject] = useState<Project>();
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const referenceKey = novelWorkspaceReferenceKey(projectId, location.search);
+  const requestedReference = useRef(referenceKey);
+  requestedReference.current = referenceKey;
+  const readRevision = useRef(0);
+  const [loaded, setLoaded] = useState<{
+    referenceKey: string;
+    project: Project;
+    chapters: Chapter[];
+  }>();
+  const [readError, setReadError] = useState<{
+    referenceKey: string;
+    detail: string;
+  }>();
+  const [writeError, setWriteError] = useState<typeof readError>();
+  const failedRead =
+    readError?.referenceKey === referenceKey ? readError.detail : undefined;
+  const project =
+    loaded?.referenceKey === referenceKey && !failedRead
+      ? loaded.project
+      : undefined;
+  const chapters = project ? loaded!.chapters : [];
+  const setProject = (value: Project): void => {
+    setLoaded((current) =>
+      current?.referenceKey === referenceKey &&
+      requestedReference.current === referenceKey
+        ? { ...current, project: value }
+        : current,
+    );
+  };
+  const setChapters = (
+    value: Chapter[] | ((items: Chapter[]) => Chapter[]),
+  ): void => {
+    setLoaded((current) =>
+      current?.referenceKey === referenceKey &&
+      requestedReference.current === referenceKey
+        ? {
+            ...current,
+            chapters:
+              typeof value === "function" ? value(current.chapters) : value,
+          }
+        : current,
+    );
+  };
   const [activeId, setActiveId] = useState<string>();
-  const [error, setError] = useState<string>();
+  const error =
+    failedRead ??
+    (writeError?.referenceKey === referenceKey ? writeError.detail : undefined);
+  const setError = (detail: string): void => {
+    if (requestedReference.current === referenceKey)
+      setWriteError({ referenceKey, detail });
+  };
   const requestedNovelSection = new URLSearchParams(location.search).get(
     "section",
+  );
+  const requestedChapterId = new URLSearchParams(location.search).get(
+    "chapterId",
+  );
+  const requestedOutlineMode = new URLSearchParams(location.search).get(
+    "outlineMode",
   );
   const [novelSection, setNovelSection] = useState<
     "settings" | "characters" | "outlines" | "chapters" | "story-bible" | "more"
@@ -2700,7 +3290,11 @@ export function ProjectWorkspace() {
           | "more")
       : "chapters",
   );
-  const [outlineMode, setOutlineMode] = useState<NovelOutlineMode>("book");
+  const [outlineMode, setOutlineMode] = useState<NovelOutlineMode>(() =>
+    ["book", "chapter", "arc"].includes(requestedOutlineMode ?? "")
+      ? (requestedOutlineMode as NovelOutlineMode)
+      : "book",
+  );
   const [exporting, setExporting] = useState<
     | "markdown"
     | "submission-markdown"
@@ -2711,32 +3305,88 @@ export function ProjectWorkspace() {
     | "delivery"
   >();
   const [exportNotice, setExportNotice] = useState<string>();
+  const requestedManuscriptId = new URLSearchParams(location.search).get(
+    "manuscriptId",
+  );
+  const [manuscriptFormat, setManuscriptFormat] = useState<
+    "markdown" | "json"
+  >();
+  useEffect(() => {
+    if (requestedManuscriptId) setManuscriptFormat("markdown");
+  }, [requestedManuscriptId]);
   const active = chapters.find((item) => item.id === activeId) ?? chapters[0];
   const load = async (): Promise<void> => {
-    if (!projectId) return;
+    if (!projectId || requestedReference.current !== referenceKey) return;
+    const revision = ++readRevision.current;
+    setReadError(undefined);
     try {
-      const [p, c] = await Promise.all([
-        client.projects.get(projectId),
-        client.chapters.list(projectId),
-      ]);
-      setProject(p);
-      setChapters(c);
+      const snapshot = await readNovelWorkspaceContext({
+        projectId,
+        search: location.search,
+        getProject: client.projects.get,
+        listChapters: client.chapters.list,
+        getChapter: client.chapters.get,
+      });
+      if (
+        requestedReference.current !== referenceKey ||
+        readRevision.current !== revision
+      )
+        return;
+      setLoaded({
+        referenceKey,
+        project: snapshot.project,
+        chapters: snapshot.chapters,
+      });
+      setWriteError(undefined);
+      const c = snapshot.chapters;
+      if (snapshot.chapterId)
+        window.localStorage.setItem(
+          `dramaip-novel-last-chapter:${projectId}`,
+          snapshot.chapterId,
+        );
       setActiveId((current) => {
         const remembered = window.localStorage.getItem(
           `dramaip-novel-last-chapter:${projectId}`,
         );
+        // Deep links only select chapters belonging to this actual project.
+        if (snapshot.chapterId) return snapshot.chapterId;
         if (current && c.some((item) => item.id === current)) return current;
         if (remembered && c.some((item) => item.id === remembered))
           return remembered;
         return c[0]?.id;
       });
     } catch (cause) {
-      setError(message(cause));
+      if (
+        requestedReference.current === referenceKey &&
+        readRevision.current === revision
+      )
+        setReadError({ referenceKey, detail: message(cause) });
     }
   };
   useEffect(() => {
     void load();
-  }, [client, projectId]);
+    return () => {
+      readRevision.current += 1;
+    };
+  }, [client, referenceKey]);
+  const { data: restoredScriptContext } = useQuery({
+    queryKey: [
+      "existing-script-context",
+      projectId,
+      project?.currentAdaptationId,
+    ],
+    queryFn: () => existingScriptContext(client, project!),
+    enabled:
+      Boolean(project) &&
+      project?.id === projectId &&
+      Boolean(project && isDirectScriptProject(project)) &&
+      !chapters.length &&
+      !requestedNovelSection,
+  });
+  useEffect(() => {
+    if (restoredScriptContext && restoredScriptContext.projectId === projectId)
+      navigate(scriptWorkspacePath(restoredScriptContext), { replace: true });
+  }, [navigate, projectId, restoredScriptContext]);
   useEffect(() => {
     if (
       requestedNovelSection &&
@@ -2751,13 +3401,28 @@ export function ProjectWorkspace() {
     )
       setNovelSection(requestedNovelSection as typeof novelSection);
   }, [requestedNovelSection]);
+  useEffect(() => {
+    if (["book", "chapter", "arc"].includes(requestedOutlineMode ?? ""))
+      setOutlineMode(requestedOutlineMode as NovelOutlineMode);
+  }, [requestedOutlineMode]);
   const selectChapter = (chapterId: string): void => {
+    if (requestedReference.current !== referenceKey) return;
     setActiveId(chapterId);
     if (projectId)
       window.localStorage.setItem(
         `dramaip-novel-last-chapter:${projectId}`,
         chapterId,
       );
+    // Preserve legacy query-free routes. When following an explicit chapter
+    // link, keep that link aligned with subsequent directory selections.
+    if (requestedChapterId) {
+      const search = new URLSearchParams(location.search);
+      search.set("chapterId", chapterId);
+      navigate(
+        { pathname: location.pathname, search: `?${search}` },
+        { replace: true },
+      );
+    }
   };
   const addChapter = async (): Promise<Chapter | undefined> => {
     if (!projectId) return undefined;
@@ -2845,6 +3510,12 @@ export function ProjectWorkspace() {
       | "delivery",
   ) => {
     if (!project) return;
+    if (format === "submission-markdown" || format === "submission-json") {
+      setManuscriptFormat(
+        format === "submission-markdown" ? "markdown" : "json",
+      );
+      return;
+    }
     setExporting(format);
     setExportNotice(undefined);
     try {
@@ -2860,7 +3531,20 @@ export function ProjectWorkspace() {
       setExporting(undefined);
     }
   };
-  if (!project) return <LoadingState label="正在加载项目…" />;
+  if (!project)
+    return failedRead ? (
+      <section className="rounded-xl border border-line bg-surface p-5">
+        <p role="alert">
+          指定项目或章节未能读取、身份或归属不符；未改读首章、最近项目或上次正文。
+          {failedRead}
+        </p>
+        <Link className="mt-3 inline-block text-sm text-brand" to="/write">
+          返回小说项目库，另行选择
+        </Link>
+      </section>
+    ) : (
+      <LoadingState label="正在核对指定项目和章节…" />
+    );
   const matchedStoryPreset = novelStoryPresetForLabel(project.shortDramaType);
   const storyPreset =
     matchedStoryPreset &&
@@ -2871,13 +3555,13 @@ export function ProjectWorkspace() {
     series_longform: {
       title: "系列长篇工作台",
       detail:
-        "AI 母本创作 → 故事圣经 → 分季改编 → 制作 → 审核交付。采用章节后更新故事资料，版本变化会提示关联季重新核对。",
-      action: "开始 AI 母本创作",
+        "人物与大纲 → 章节候选与采用 → 连续性记忆 → 下一章或稿件导出。小说可独立完成；改编、分镜和媒体制作按需选择。",
+      action: "管理长篇资料",
     },
     single_season: {
       title: "单季短剧工作台",
       detail:
-        "小说、已授权原著和直接剧本都会汇入同一套季纲、分集、剧本、场景与分镜结构；80 集只是建议值。",
+        "按需从原著诊断、独立策略或已有剧本进入分集与剧本开发；小说写作可独立完成，不必改编或制作媒体。80 集只是建议值。",
       action: "整理本季结构",
     },
     personal_theater: {
@@ -2903,6 +3587,22 @@ export function ProjectWorkspace() {
   ] as const;
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[620px] flex-col overflow-hidden bg-canvas">
+      {manuscriptFormat && (
+        <ManuscriptExportDialog
+          projectId={project.id}
+          format={manuscriptFormat}
+          previewId={requestedManuscriptId ?? undefined}
+          onSaved={() => setExportNotice("稿件已保存并核验。")}
+          onClose={() => {
+            setManuscriptFormat(undefined);
+            if (requestedManuscriptId) {
+              const params = new URLSearchParams(location.search);
+              params.delete("manuscriptId");
+              navigate(`${location.pathname}?${params}`, { replace: true });
+            }
+          }}
+        />
+      )}
       <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-line bg-surface px-3 shadow-control lg:px-4">
         <Button variant="ghost" size="sm" onClick={() => navigate("/write")}>
           ← 小说
@@ -3220,6 +3920,37 @@ export function ProjectCockpitPanel(props: {
     queryFn: () => client.pilotPlans.list(props.project.id),
   });
   const activePilot = pilotPlans.find((plan) => plan.status !== "canceled");
+  const novelOnly = graph
+    ? usesNovelWorkflow(props.project, graph)
+    : props.project.mode === "series_longform";
+  const adaptationOnly = Boolean(
+    graph && usesAdaptationWorkflow(props.project, graph),
+  );
+  const directOnly = isDirectScriptProject(props.project);
+  const novelEvidence = useQuery({
+    queryKey: ["novel-cockpit-evidence", props.project.id],
+    queryFn: () => loadNovelCockpitEvidence(client, props.project.id),
+    enabled: novelOnly,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
+  const adaptationEvidence = useQuery({
+    queryKey: ["adaptation-cockpit-evidence", props.project.id],
+    queryFn: () => loadAdaptationCockpitEvidence(client, props.project.id),
+    enabled: adaptationOnly,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
+  const directEvidence = useQuery({
+    queryKey: ["direct-script-cockpit-evidence", props.project.id],
+    queryFn: () => loadDirectScriptCockpitEvidence(client, props.project.id),
+    enabled: directOnly,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
   const { data: progress } = useQuery({
     queryKey: [
       "project-progress",
@@ -3231,6 +3962,7 @@ export function ProjectCockpitPanel(props: {
         props.project.id,
         activePilot?.episodeIds.length ? activePilot.episodeIds : undefined,
       ),
+    enabled: !novelOnly && !adaptationOnly && !directOnly,
   });
   if (graphError || taskError)
     return (
@@ -3252,6 +3984,9 @@ export function ProjectCockpitPanel(props: {
     chapters: props.chapters,
     graph,
     tasks,
+    novel: novelEvidence.error ? undefined : novelEvidence.data,
+    adaptation: adaptationEvidence.error ? undefined : adaptationEvidence.data,
+    direct: directEvidence.error ? undefined : directEvidence.data,
   });
   const context = new URLSearchParams({
     projectId: props.project.id,
@@ -3290,11 +4025,86 @@ export function ProjectCockpitPanel(props: {
           <p className="mt-1 text-sm text-muted">{cockpit.recentResult}</p>
         </div>
         <span className="rounded-full bg-surface-raised px-3 py-1 text-xs text-brand">
-          {productStatusLabel(cockpit.status)}
+          {(adaptationOnly || directOnly) && cockpit.status === "delivered"
+            ? "内部包已保存"
+            : novelOnly && cockpit.status === "ready-for-review"
+              ? "可以继续创作"
+              : productStatusLabel(cockpit.status)}
         </span>
       </div>
+      {novelOnly && novelEvidence.error && (
+        <p
+          role="status"
+          className="mt-3 rounded-lg bg-surface-raised p-3 text-sm text-muted"
+        >
+          正式采用与记忆状态暂时无法核验：{message(novelEvidence.error)}
+          。不把缺少证据显示为完成；已有稿件仍可打开。
+        </p>
+      )}
+      {adaptationOnly && adaptationEvidence.error && (
+        <p
+          role="status"
+          className="mt-3 rounded-lg bg-surface-raised p-3 text-sm text-muted"
+        >
+          改编正式版本与保存回执暂时无法核验：
+          {message(adaptationEvidence.error)}。
+          不把缺少证据显示为完成；历史成果仍可返回查看。
+        </p>
+      )}
+      {directOnly && directEvidence.error && (
+        <p
+          role="status"
+          className="mt-3 rounded-lg bg-surface-raised p-3 text-sm text-muted"
+        >
+          直写正式来源、版本与保存回执暂时无法核验：
+          {message(directEvidence.error)}。
+          不把缺少证据显示为完成；原稿与历史成果仍可打开。
+        </p>
+      )}
+      {cockpit.gates && (
+        <div
+          aria-label={
+            novelOnly
+              ? "小说结果 Gate"
+              : directOnly
+                ? "直写结果 Gate"
+                : "改编结果 Gate"
+          }
+          className={
+            directOnly
+              ? "mt-4 grid gap-3 md:grid-cols-2"
+              : adaptationOnly
+                ? "mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                : "mt-4 grid gap-3 md:grid-cols-3"
+          }
+        >
+          {cockpit.gates.map((gate) => (
+            <article
+              key={gate.id}
+              aria-label={gate.label}
+              data-gate-status={gate.status}
+              className="rounded-xl border border-line bg-surface-raised p-4"
+            >
+              <h3 className="text-sm font-semibold">{gate.label}</h3>
+              <p className="mt-2 text-sm font-medium text-brand">
+                {gate.statusLabel}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted">{gate.detail}</p>
+              <Link
+                to={gate.to}
+                className="mt-3 inline-block text-xs font-medium text-brand underline"
+              >
+                {novelOnly ? "返回相关稿件与资料" : "返回本阶段正式来源与成果"}
+              </Link>
+            </article>
+          ))}
+        </div>
+      )}
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
-        <article className="rounded-xl border border-brand/20 bg-surface-raised p-4">
+        <article
+          aria-label="唯一推荐下一步"
+          className="rounded-xl border border-brand/20 bg-surface-raised p-4"
+        >
           <p className="text-xs font-medium text-muted">唯一推荐下一步</p>
           <p className="mt-1 font-semibold">{cockpit.primaryAction.label}</p>
           <p className="mt-1 text-sm leading-6 text-muted">
@@ -3310,7 +4120,7 @@ export function ProjectCockpitPanel(props: {
         <div className="rounded-xl border border-line bg-surface-raised p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-medium text-muted">真实覆盖情况</p>
-            {progress ? (
+            {!novelOnly && !adaptationOnly && !directOnly && progress ? (
               <span className="text-xs tabular-nums text-muted">
                 {progress.scope.kind === "episodes"
                   ? `当前试制 ${progress.scope.episodeIds.length} 集`
@@ -3319,7 +4129,7 @@ export function ProjectCockpitPanel(props: {
               </span>
             ) : null}
           </div>
-          {progress ? (
+          {!novelOnly && !adaptationOnly && !directOnly && progress ? (
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
               <div
                 className="h-full rounded-full bg-brand"
@@ -3351,21 +4161,47 @@ export function ProjectCockpitPanel(props: {
           )}
         </div>
       </div>
-      <nav
-        aria-label="项目四区导航"
-        className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
-      >
-        {zones.map((zone) => (
-          <Link
-            key={zone.label}
-            to={zone.to}
-            className="rounded-lg border border-line bg-surface-raised p-3 transition hover:border-brand"
+      {novelOnly ? (
+        <details className="mt-4 rounded-lg border border-line bg-surface-raised p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-brand-strong">
+            按需进入改编、制作或审片
+          </summary>
+          <p className="mt-2 text-xs text-muted">
+            这些工具不是小说完成条件；继续小说或导出稿件无需先做分镜、静帧或视频。
+          </p>
+          <nav
+            aria-label="项目四区导航"
+            className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
           >
-            <p className="font-medium">{zone.label}</p>
-            <p className="mt-1 text-xs text-muted">{zone.detail}</p>
-          </Link>
-        ))}
-      </nav>
+            {zones.map((zone) => (
+              <Link
+                key={zone.label}
+                to={zone.to}
+                className="rounded-lg border border-line bg-surface p-3 transition hover:border-brand"
+              >
+                <p className="font-medium">{zone.label}</p>
+                <p className="mt-1 text-xs text-muted">{zone.detail}</p>
+              </Link>
+            ))}
+          </nav>
+        </details>
+      ) : (
+        <nav
+          aria-label="项目四区导航"
+          className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
+        >
+          {zones.map((zone) => (
+            <Link
+              key={zone.label}
+              to={zone.to}
+              className="rounded-lg border border-line bg-surface-raised p-3 transition hover:border-brand"
+            >
+              <p className="font-medium">{zone.label}</p>
+              <p className="mt-1 text-xs text-muted">{zone.detail}</p>
+            </Link>
+          ))}
+        </nav>
+      )}
       {props.project.mode !== "creator_channel" ? (
         <details className="mt-4 rounded-lg border border-line bg-surface-raised p-4">
           <summary className="cursor-pointer text-sm font-semibold text-brand-strong">
@@ -3864,8 +4700,8 @@ export function ProjectPilotPanel(props: {
             先完成一小段可信制作链路
           </h2>
           <p className="mt-2 max-w-3xl text-sm text-muted">
-            确认来源后，AI
-            生成并检查首集剧本、场景与分镜。候选采用后再继续下一集；范围和运行均可恢复。
+            确认来源后，AI 旧试制计划仍可恢复；其一体化 episode
+            生成仅在下方兼容入口使用。新项目请按诊断、独立策略、季纲和单集开发推进；这里的目录与计数不是正式版本采用证据。
           </p>
         </div>
         <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
@@ -4024,18 +4860,20 @@ export function ProjectPilotPanel(props: {
                   <span className="text-muted">选择下一集后明确发起生成。</span>
                 </label>
               )}
-              <CreationRecordWorkbench
-                projectId={props.project.id}
-                targetId={
-                  active.episodeIds.includes(pilotEpisodeId)
-                    ? pilotEpisodeId
-                    : active.episodeIds[0]
-                }
-                domain="episodes"
-                sourceIds={active.chapterIds}
-                operation="episode"
-                defaultInstruction="根据已确认来源生成并检查本集剧本、场景和分镜。"
-              />
+              <LegacyEpisodeCompatibility>
+                <CreationRecordWorkbench
+                  projectId={props.project.id}
+                  targetId={
+                    active.episodeIds.includes(pilotEpisodeId)
+                      ? pilotEpisodeId
+                      : active.episodeIds[0]
+                  }
+                  domain="episodes"
+                  sourceIds={active.chapterIds}
+                  operation="episode"
+                  defaultInstruction="根据已确认来源生成并检查本集剧本、场景和分镜。"
+                />
+              </LegacyEpisodeCompatibility>
             </div>
           )}
           <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -4385,9 +5223,25 @@ export function SourceImportPanel(props: {
 }) {
   const client = useStudio();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(props.initialOpen ?? false);
-  const [importId, setImportId] = useState<string>();
-  const [preview, setPreview] = useState<SourceImportPreview>();
+  const [attempt, setAttempt] = useState<SourceImportAttempt | undefined>(() =>
+    readSourceImportAttempt(props.projectId),
+  );
+  const attemptRef = useRef(attempt);
+  attemptRef.current = attempt;
+  const safeAttempt = SourceImportAttemptSchema.safeParse(attempt);
+  const validAttempt =
+    safeAttempt.success && safeAttempt.data.input.projectId === props.projectId
+      ? safeAttempt.data
+      : undefined;
+  const [open, setOpen] = useState(
+    Boolean(attempt) || (props.initialOpen ?? false),
+  );
+  const [importId, setImportId] = useState<string | undefined>(
+    validAttempt?.importId,
+  );
+  const [preview, setPreview] = useState<SourceImportPreview | undefined>(
+    validAttempt?.input.preview,
+  );
   const [duplicates, setDuplicates] = useState<{
     chapters: string[];
     episodes: number[];
@@ -4403,10 +5257,61 @@ export function SourceImportPanel(props: {
   useEffect(() => {
     if (props.initialOpen) setOpen(true);
   }, [props.initialOpen]);
+  useEffect(() => {
+    const stored = readSourceImportAttempt(props.projectId);
+    attemptRef.current = stored;
+    setAttempt(stored);
+    const parsed = SourceImportAttemptSchema.safeParse(stored);
+    const valid =
+      parsed.success && parsed.data.input.projectId === props.projectId
+        ? parsed.data
+        : undefined;
+    setImportId(valid?.importId);
+    setPreview(valid?.input.preview);
+    setRightsConfirmed(false);
+    setSelectedChapter(0);
+    setNotice(
+      stored && !valid
+        ? "原导入输入损坏或归属不符；保留原键，不换稿或创建替代导入。"
+        : undefined,
+    );
+    if (!stored || !valid) return;
+    setOpen(true);
+    const abort = new AbortController();
+    void client.sourceImports
+      .getCommit(
+        valid.importId,
+        props.projectId,
+        valid.requestKey,
+        abort.signal,
+      )
+      .then((saved) => {
+        if (abort.signal.aborted) return;
+        checkSourceImportRecovery(valid, saved);
+        setNotice(
+          saved.state === "committed"
+            ? "原导入已有持久成功回执；明确恢复后核验并收起，不重新写入内容。"
+            : "原导入尚待完成；下面仅显示本机冻结原输入，明确恢复同一次导入，不换键。",
+        );
+      })
+      .catch((cause) => {
+        if (!abort.signal.aborted)
+          setNotice(
+            `原回执暂不能核验：${message(cause)}；冻结输入和原键保留，不自动重发或换稿。`,
+          );
+      });
+    return () => abort.abort();
+  }, [client, props.projectId]);
 
   const totalEntries =
     (preview?.chapters.length ?? 0) + (preview?.episodes.length ?? 0);
   const reset = async () => {
+    if (attemptRef.current) {
+      setNotice(
+        "原导入结果尚未核验；保留原预览和动作键，请明确恢复同一次导入。",
+      );
+      return;
+    }
     if (importId) {
       try {
         await client.sourceImports.discard(importId);
@@ -4421,10 +5326,14 @@ export function SourceImportPanel(props: {
     setRightsConfirmed(false);
   };
   const close = () => {
-    void reset();
+    if (!attemptRef.current) void reset();
     setOpen(false);
   };
   const choose = async () => {
+    if (attemptRef.current) {
+      setNotice("原导入已冻结；不换文件或动作键，请先恢复原请求。");
+      return;
+    }
     setWorking(true);
     setNotice(undefined);
     try {
@@ -4455,6 +5364,7 @@ export function SourceImportPanel(props: {
       Pick<SourceImportPreview["chapters"][number], "title" | "content">
     >,
   ) => {
+    if (attemptRef.current) return;
     setPreview((current) => {
       if (!current || !current.chapters[selectedChapter]) return current;
       return {
@@ -4473,6 +5383,7 @@ export function SourceImportPanel(props: {
     });
   };
   const addChapter = () => {
+    if (attemptRef.current) return;
     setPreview((current) => {
       if (!current) return current;
       const chapters = [
@@ -4490,6 +5401,7 @@ export function SourceImportPanel(props: {
     });
   };
   const removeChapter = () => {
+    if (attemptRef.current) return;
     setPreview((current) => {
       if (!current || current.chapters.length <= 1) return current;
       const chapters = current.chapters
@@ -4504,13 +5416,51 @@ export function SourceImportPanel(props: {
     setWorking(true);
     setNotice(undefined);
     try {
-      const result = await client.sourceImports.commit(importId, {
-        projectId: props.projectId,
-        strategy: "append",
-        rightsConfirmed,
-        destructiveConfirmed: false,
-        preview,
-      });
+      const original = attemptRef.current;
+      const frozen = freezeSourceImportAttempt(
+        importId,
+        {
+          projectId: props.projectId,
+          strategy: "append",
+          rightsConfirmed,
+          destructiveConfirmed: false,
+          preview,
+        },
+        original,
+      );
+      persistSourceImportAttempt(frozen);
+      attemptRef.current = frozen;
+      setAttempt(frozen);
+      let saved;
+      if (original) {
+        try {
+          saved = await client.sourceImports.getCommit(
+            frozen.importId,
+            props.projectId,
+            frozen.requestKey,
+          );
+          checkSourceImportRecovery(frozen, saved);
+        } catch (cause) {
+          if (!(
+            cause &&
+            typeof cause === "object" &&
+            "status" in cause &&
+            cause.status === 404
+          ))
+            throw cause;
+        }
+      }
+      const result =
+        saved?.state === "committed"
+          ? saved.result!
+          : await client.sourceImports.commit(
+              frozen.importId,
+              frozen.input,
+              frozen.requestKey,
+            );
+      clearSourceImportAttempt(props.projectId);
+      attemptRef.current = undefined;
+      setAttempt(undefined);
       setNotice(
         `导入完成：新增 ${result.createdChapters} 个章节、${result.createdScripts} 个剧本、${result.createdScenes} 个场景。`,
       );
@@ -4528,7 +5478,11 @@ export function SourceImportPanel(props: {
   };
   const activeChapter = preview?.chapters[selectedChapter];
   const canCommit = Boolean(
-    importId && preview && totalEntries > 0 && rightsConfirmed && !working,
+    importId &&
+    preview &&
+    totalEntries > 0 &&
+    (attempt ? validAttempt : rightsConfirmed) &&
+    !working,
   );
   return (
     <section className="rounded-xl border border-line bg-surface p-5">
@@ -4550,6 +5504,17 @@ export function SourceImportPanel(props: {
       </div>
       {open && (
         <div className="mt-4 space-y-4 border-t border-line pt-4">
+          {validAttempt && (
+            <p
+              role="status"
+              data-source-import-id={validAttempt.importId}
+              className="text-xs text-warning"
+            >
+              原导入 {validAttempt.importId} · 项目{" "}
+              {validAttempt.input.projectId}
+              ；仅恢复冻结原输入，不更换动作键。权利仅为原声明。
+            </p>
+          )}
           {!preview ? (
             <div className="rounded-xl border border-dashed border-line p-5 text-center">
               <p className="font-medium">选择拥有授权的内容文件</p>
@@ -4558,7 +5523,7 @@ export function SourceImportPanel(props: {
               </p>
               <BareButton
                 className="mt-4 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                disabled={working}
+                disabled={working || Boolean(attempt)}
                 onClick={() => void choose()}
               >
                 {working ? "正在解析…" : "选择文件并解析"}
@@ -4580,7 +5545,7 @@ export function SourceImportPanel(props: {
                 </span>
                 <BareButton
                   className="ml-auto rounded-md border border-line bg-surface-raised px-2 py-1 text-xs text-brand disabled:opacity-50"
-                  disabled={working}
+                  disabled={working || Boolean(attempt)}
                   onClick={() => void choose()}
                 >
                   重新选择
@@ -4644,6 +5609,7 @@ export function SourceImportPanel(props: {
                     ))}
                     <BareButton
                       className="mt-2 w-full rounded-md border border-line px-2 py-1 text-xs text-brand"
+                      disabled={Boolean(attempt) || working}
                       onClick={addChapter}
                     >
                       新增章节
@@ -4655,6 +5621,7 @@ export function SourceImportPanel(props: {
                         <input
                           className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
                           aria-label="导入章节标题"
+                          disabled={Boolean(attempt) || working}
                           value={activeChapter.title}
                           onChange={(event) =>
                             updateChapter({ title: event.target.value })
@@ -4662,7 +5629,11 @@ export function SourceImportPanel(props: {
                         />
                         <BareButton
                           className="rounded-lg border border-red-200 px-2 text-xs text-red-600 disabled:opacity-50"
-                          disabled={preview.chapters.length <= 1}
+                          disabled={
+                            preview.chapters.length <= 1 ||
+                            Boolean(attempt) ||
+                            working
+                          }
                           onClick={removeChapter}
                         >
                           删除
@@ -4671,13 +5642,14 @@ export function SourceImportPanel(props: {
                       <textarea
                         className="min-h-48 w-full rounded-lg border border-line p-3 font-editor text-sm"
                         aria-label="导入章节正文"
+                        disabled={Boolean(attempt) || working}
                         value={activeChapter.content}
                         onChange={(event) =>
                           updateChapter({ content: event.target.value })
                         }
                       />
                       <p className="text-xs text-muted">
-                        可在确认前编辑、拆分或新增章节；空章节不会写入项目。
+                        可在确认前编辑、拆分或新增章节；新增空章节也会按确认的原输入保存，请先审阅。
                       </p>
                     </div>
                   )}
@@ -4689,11 +5661,14 @@ export function SourceImportPanel(props: {
                     className="mt-1"
                     type="checkbox"
                     checked={rightsConfirmed}
+                    disabled={Boolean(attempt) || working}
                     onChange={(event) =>
                       setRightsConfirmed(event.target.checked)
                     }
                   />
-                  我确认拥有此内容的使用权，或已经取得必要授权。
+                  {attempt
+                    ? "原请求已记录权利声明；恢复不是新的授权证明。"
+                    : "我确认拥有此内容的使用权，或已经取得必要授权。"}
                 </label>
                 <p className="text-sm">
                   导入方式：
@@ -4702,7 +5677,7 @@ export function SourceImportPanel(props: {
                   </span>
                 </p>
                 <p className="text-xs text-muted">
-                  写入在同一个数据库事务中完成；解析、校验或写入失败不会留下部分章节、剧本或场景。
+                  章节／制作内容与本域回执整批保存；最终导入回执分阶段完成。若回复未知，保留原输入与动作键恢复，不重复导入。原权利勾选只记录声明，不证明授权。
                 </p>
               </div>
               <div className="flex justify-end gap-2">
@@ -4717,7 +5692,11 @@ export function SourceImportPanel(props: {
                   disabled={!canCommit}
                   onClick={() => void commit()}
                 >
-                  {working ? "正在导入…" : "确认导入"}
+                  {working
+                    ? "正在核验／导入…"
+                    : attempt
+                      ? "恢复同一次导入"
+                      : "确认导入"}
                 </BareButton>
               </div>
             </>
@@ -4756,6 +5735,10 @@ export function ImportExtractionReviewPanel(props: {
   onChanged(): void;
   showEmpty?: boolean;
 }) {
+  const location = useLocation();
+  const requestedExtractionId = new URLSearchParams(location.search).get(
+    "extractionId",
+  );
   const client = useStudio();
   const queryClient = useQueryClient();
   const { data: changeSets = [] } = useQuery({
@@ -4939,202 +5922,217 @@ export function ImportExtractionReviewPanel(props: {
         </p>
       )}
       <div className="mt-4 space-y-4">
-        {changeSets.map((changeSet) => {
-          const draftCount = changeSet.candidates.filter(
-            (candidate) => candidate.status === "draft",
-          ).length;
-          return (
-            <article
-              key={changeSet.id}
-              className="rounded-xl border border-line p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{changeSet.sourceTitle}</p>
-                  <p className="mt-1 text-xs text-muted">{changeSet.summary}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {IMPORT_EXTRACTION_STATUS_LABELS[changeSet.status] ??
-                      changeSet.status}{" "}
-                    · {draftCount} 条可选
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {draftCount > 0 &&
-                    ["draft", "applied"].includes(changeSet.status) && (
+        {requestedExtractionId &&
+          !changeSets.some((item) => item.id === requestedExtractionId) && (
+            <p role="status" className="text-sm text-muted">
+              正在核对指定导入候选；若已删除或不可用，不会打开其他候选代替。
+            </p>
+          )}
+        {changeSets
+          .filter(
+            (item) =>
+              !requestedExtractionId || item.id === requestedExtractionId,
+          )
+          .map((changeSet) => {
+            const draftCount = changeSet.candidates.filter(
+              (candidate) => candidate.status === "draft",
+            ).length;
+            return (
+              <article
+                key={changeSet.id}
+                data-extraction-id={changeSet.id}
+                className="rounded-xl border border-line p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{changeSet.sourceTitle}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {changeSet.summary}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {IMPORT_EXTRACTION_STATUS_LABELS[changeSet.status] ??
+                        changeSet.status}{" "}
+                      · {draftCount} 条可选
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {draftCount > 0 &&
+                      ["draft", "applied"].includes(changeSet.status) && (
+                        <BareButton
+                          className="rounded-md bg-brand px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                          disabled={workingId === changeSet.id}
+                          onClick={() => void adopt(changeSet)}
+                        >
+                          采用已选项目
+                        </BareButton>
+                      )}
+                    {["applied", "stale"].includes(changeSet.status) && (
                       <BareButton
-                        className="rounded-md bg-brand px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                        className="rounded-md border border-line px-3 py-1.5 text-xs text-brand disabled:opacity-50"
                         disabled={workingId === changeSet.id}
-                        onClick={() => void adopt(changeSet)}
+                        onClick={() => void undo(changeSet)}
                       >
-                        采用已选项目
+                        撤销采用
                       </BareButton>
                     )}
-                  {["applied", "stale"].includes(changeSet.status) && (
-                    <BareButton
-                      className="rounded-md border border-line px-3 py-1.5 text-xs text-brand disabled:opacity-50"
-                      disabled={workingId === changeSet.id}
-                      onClick={() => void undo(changeSet)}
-                    >
-                      撤销采用
-                    </BareButton>
-                  )}
+                  </div>
                 </div>
-              </div>
-              {changeSet.errorMessage && (
-                <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
-                  {changeSet.errorMessage}
-                </p>
-              )}
-              <div className="mt-3 space-y-2">
-                {changeSet.candidates.map((candidate) => {
-                  const editing = editingId === candidate.id;
-                  const selectable = candidate.status === "draft";
-                  return (
-                    <div
-                      key={candidate.id}
-                      className="rounded-lg border border-line bg-canvas p-3"
-                    >
-                      <div className="flex flex-wrap items-start gap-3">
-                        {selectable && (
-                          <input
-                            className="mt-1"
-                            aria-label={`选择候选 ${candidate.title}`}
-                            type="checkbox"
-                            checked={selectedIds.has(candidate.id)}
-                            onChange={() => toggle(candidate.id)}
-                          />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-brand">
-                              {IMPORT_EXTRACTION_TYPE_LABELS[candidate.type]}
-                            </span>
-                            <span className="text-xs text-muted">
-                              {IMPORT_EXTRACTION_STATUS_LABELS[
-                                candidate.status
-                              ] ?? candidate.status}{" "}
-                              · 置信度 {Math.round(candidate.confidence * 100)}%
-                            </span>
-                          </div>
-                          {editing ? (
-                            <div className="mt-2 space-y-2">
-                              <input
-                                className="w-full rounded-md border border-line bg-surface-raised px-2 py-1 text-sm"
-                                aria-label="候选标题"
-                                value={draft.title}
-                                onChange={(event) =>
-                                  setDraft((value) => ({
-                                    ...value,
-                                    title: event.target.value,
-                                  }))
-                                }
-                              />
-                              <textarea
-                                className="min-h-20 w-full rounded-md border border-line bg-surface-raised p-2 text-sm"
-                                aria-label="候选说明"
-                                value={draft.summary}
-                                onChange={(event) =>
-                                  setDraft((value) => ({
-                                    ...value,
-                                    summary: event.target.value,
-                                  }))
-                                }
-                              />
+                {changeSet.errorMessage && (
+                  <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+                    {changeSet.errorMessage}
+                  </p>
+                )}
+                <div className="mt-3 space-y-2">
+                  {changeSet.candidates.map((candidate) => {
+                    const editing = editingId === candidate.id;
+                    const selectable = candidate.status === "draft";
+                    return (
+                      <div
+                        key={candidate.id}
+                        className="rounded-lg border border-line bg-canvas p-3"
+                      >
+                        <div className="flex flex-wrap items-start gap-3">
+                          {selectable && (
+                            <input
+                              className="mt-1"
+                              aria-label={`选择候选 ${candidate.title}`}
+                              type="checkbox"
+                              checked={selectedIds.has(candidate.id)}
+                              onChange={() => toggle(candidate.id)}
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-brand">
+                                {IMPORT_EXTRACTION_TYPE_LABELS[candidate.type]}
+                              </span>
+                              <span className="text-xs text-muted">
+                                {IMPORT_EXTRACTION_STATUS_LABELS[
+                                  candidate.status
+                                ] ?? candidate.status}{" "}
+                                · 置信度{" "}
+                                {Math.round(candidate.confidence * 100)}%
+                              </span>
                             </div>
-                          ) : (
-                            <>
-                              <p className="mt-2 font-medium">
-                                {candidate.title}
-                              </p>
-                              <p className="mt-1 text-sm text-muted">
-                                {candidate.summary}
-                              </p>
-                            </>
-                          )}
-                          {candidate.sourceRefs.map((ref) => (
-                            <blockquote
-                              key={`${ref.sourceKey}-${ref.start}`}
-                              className="mt-2 border-l-2 border-brand/30 pl-2 text-xs text-muted"
-                            >
-                              《{ref.chapterTitle}》 {ref.start}–{ref.end}：
-                              {ref.excerpt || "（原文为空）"}
-                            </blockquote>
-                          ))}
-                          {candidate.conflictNote && (
-                            <p className="mt-2 text-xs text-amber-800">
-                              {candidate.conflictNote}
-                            </p>
-                          )}
-                        </div>
-                        {candidate.status !== "adopted" && (
-                          <div className="flex gap-2">
                             {editing ? (
+                              <div className="mt-2 space-y-2">
+                                <input
+                                  className="w-full rounded-md border border-line bg-surface-raised px-2 py-1 text-sm"
+                                  aria-label="候选标题"
+                                  value={draft.title}
+                                  onChange={(event) =>
+                                    setDraft((value) => ({
+                                      ...value,
+                                      title: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <textarea
+                                  className="min-h-20 w-full rounded-md border border-line bg-surface-raised p-2 text-sm"
+                                  aria-label="候选说明"
+                                  value={draft.summary}
+                                  onChange={(event) =>
+                                    setDraft((value) => ({
+                                      ...value,
+                                      summary: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                            ) : (
                               <>
+                                <p className="mt-2 font-medium">
+                                  {candidate.title}
+                                </p>
+                                <p className="mt-1 text-sm text-muted">
+                                  {candidate.summary}
+                                </p>
+                              </>
+                            )}
+                            {candidate.sourceRefs.map((ref) => (
+                              <blockquote
+                                key={`${ref.sourceKey}-${ref.start}`}
+                                className="mt-2 border-l-2 border-brand/30 pl-2 text-xs text-muted"
+                              >
+                                《{ref.chapterTitle}》 {ref.start}–{ref.end}：
+                                {ref.excerpt || "（原文为空）"}
+                              </blockquote>
+                            ))}
+                            {candidate.conflictNote && (
+                              <p className="mt-2 text-xs text-amber-800">
+                                {candidate.conflictNote}
+                              </p>
+                            )}
+                          </div>
+                          {candidate.status !== "adopted" && (
+                            <div className="flex gap-2">
+                              {editing ? (
+                                <>
+                                  <BareButton
+                                    className="rounded-md bg-brand px-2 py-1 text-xs text-white disabled:opacity-50"
+                                    disabled={workingId === candidate.id}
+                                    onClick={() =>
+                                      void saveEdit(changeSet.id, candidate.id)
+                                    }
+                                  >
+                                    保存
+                                  </BareButton>
+                                  <BareButton
+                                    className="rounded-md border border-line px-2 py-1 text-xs text-muted"
+                                    onClick={() => setEditingId(undefined)}
+                                  >
+                                    取消
+                                  </BareButton>
+                                </>
+                              ) : (
                                 <BareButton
-                                  className="rounded-md bg-brand px-2 py-1 text-xs text-white disabled:opacity-50"
+                                  className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                                  onClick={() => startEdit(candidate)}
+                                >
+                                  编辑
+                                </BareButton>
+                              )}
+                              {candidate.status === "draft" && (
+                                <BareButton
+                                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
                                   disabled={workingId === candidate.id}
                                   onClick={() =>
-                                    void saveEdit(changeSet.id, candidate.id)
+                                    void setCandidateStatus(
+                                      changeSet.id,
+                                      candidate.id,
+                                      "rejected",
+                                    )
                                   }
                                 >
-                                  保存
+                                  不采用
                                 </BareButton>
+                              )}
+                              {(candidate.status === "rejected" ||
+                                candidate.status === "conflict") && (
                                 <BareButton
-                                  className="rounded-md border border-line px-2 py-1 text-xs text-muted"
-                                  onClick={() => setEditingId(undefined)}
+                                  className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                                  disabled={workingId === candidate.id}
+                                  onClick={() =>
+                                    void setCandidateStatus(
+                                      changeSet.id,
+                                      candidate.id,
+                                      "draft",
+                                    )
+                                  }
                                 >
-                                  取消
+                                  重新审查
                                 </BareButton>
-                              </>
-                            ) : (
-                              <BareButton
-                                className="rounded-md border border-line px-2 py-1 text-xs text-brand"
-                                onClick={() => startEdit(candidate)}
-                              >
-                                编辑
-                              </BareButton>
-                            )}
-                            {candidate.status === "draft" && (
-                              <BareButton
-                                className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
-                                disabled={workingId === candidate.id}
-                                onClick={() =>
-                                  void setCandidateStatus(
-                                    changeSet.id,
-                                    candidate.id,
-                                    "rejected",
-                                  )
-                                }
-                              >
-                                不采用
-                              </BareButton>
-                            )}
-                            {(candidate.status === "rejected" ||
-                              candidate.status === "conflict") && (
-                              <BareButton
-                                className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
-                                disabled={workingId === candidate.id}
-                                onClick={() =>
-                                  void setCandidateStatus(
-                                    changeSet.id,
-                                    candidate.id,
-                                    "draft",
-                                  )
-                                }
-                              >
-                                重新审查
-                              </BareButton>
-                            )}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-          );
-        })}
+                    );
+                  })}
+                </div>
+              </article>
+            );
+          })}
       </div>
     </section>
   );
@@ -5168,7 +6166,10 @@ export function ProjectActivityPanel(props: { projectId: string }) {
           <article key={task.id} className="rounded-lg bg-canvas p-3 text-sm">
             <p className="truncate font-medium">{task.title}</p>
             <p className="mt-1 text-xs text-muted">
-              {TASK_STATUS_LABELS[task.status] ?? "未知状态"}
+              {task.kind === "quality-check" ||
+              task.kind === "creative_diagnostics"
+                ? "历史记录 · 质量未认证"
+                : (TASK_STATUS_LABELS[task.status] ?? "未知状态")}
             </p>
           </article>
         ))}

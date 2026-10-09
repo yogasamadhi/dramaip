@@ -6,6 +6,8 @@ Router**, **NativeWind v5** (Tailwind CSS v4), **gluestack-ui v5**, and
 
 The mobile client extends the optional cloud and collaboration surface of DramaIP; it is not the local creative authority or a standalone video generator. Product copy and feature scope follow the canonical [product positioning](../../../../docs/product/POSITIONING.md): AI-assisted story/IP development, adaptation, screenplay production, continuity, review, and delivery.
 
+Novel writing is a first-class Desktop capability with independent manuscript outcomes, not a mandatory step before video production. Mobile scope must be stated per implemented route and API; this client does not imply full Desktop authoring parity or automatic synchronization of private drafts. Future workflow changes remain in the [execution plan](../../../../docs/PLAN.md).
+
 ## Stack
 
 | Concern        | Choice                                                |

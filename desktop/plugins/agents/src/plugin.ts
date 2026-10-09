@@ -35,6 +35,7 @@ import {
   recoverAvailableAgentRuns,
 } from "./runs/recovery.js";
 import { createAgentTaskRunner } from "./runs/task-runner.js";
+import { agentUsageRoutes } from "./runs/usage-routes.js";
 import {
   assistantConversationRoutes,
   typedAgentSessionRoutes,
@@ -103,6 +104,7 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
       for (const route of [
         ...providerRoutes(context, host),
         ...agentContextRoutes(agentContext),
+        ...agentUsageRoutes(context),
         ...assistantRoutes,
         ...typedAgentSessionRoutes(context, host, {
           create: assistantHandler("agents:assistant-conversations-create"),
@@ -120,8 +122,8 @@ export function createAgentsPlugin(host?: DesktopHostClient) {
           `route:${registered.id}`,
         );
       }
-      await restoreSavedAgentConfiguration(context, host, () =>
-        recoverAvailableAgentRuns(context, host),
+      await restoreSavedAgentConfiguration(context, host, (isStopping) =>
+        recoverAvailableAgentRuns(context, host, isStopping),
       );
     },
   });

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
-import { openProductionStage } from "./project-tools";
+import { selectWorkspaceObject, openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -28,12 +28,10 @@ test("多轨时间线可定位、编辑、撤销并在重开后保留编辑", as
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
   await openProductionStage(page, "多轨时间线");
 
   const editor = page.getByLabel("多轨时间线编辑器");
@@ -41,11 +39,19 @@ test("多轨时间线可定位、编辑、撤销并在重开后保留编辑", as
   await expect(editor.getByText("视频", { exact: true })).toBeVisible();
   await expect(editor.getByText("对白", { exact: true })).toBeVisible();
   await expect(editor.getByText("字幕", { exact: true })).toBeVisible();
-  await editor.getByRole("button", { name: "播放", exact: true }).click();
+  // Sample shots have no actual frozen files: editing remains available, fake playback does not.
   await expect(
-    editor.getByRole("button", { name: "暂停", exact: true }),
-  ).toBeVisible();
-  await editor.getByRole("button", { name: "暂停", exact: true }).click();
+    editor.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
+  await editor
+    .getByRole("button", { name: "加载实际同步预览", exact: true })
+    .click();
+  await expect(
+    editor.getByTestId("timeline-actual-preview").getByRole("alert"),
+  ).toContainText("片段缺少明确可读素材");
+  await expect(
+    editor.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
   await editor.getByLabel("播放头定位").fill("1");
   await expect(editor.getByText("1.00 秒", { exact: true })).toBeVisible();
 
@@ -73,12 +79,10 @@ test("多轨时间线可定位、编辑、撤销并在重开后保留编辑", as
 
   await page.reload();
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
   await openProductionStage(page, "多轨时间线");
   await expect(page.getByLabel("多轨时间线编辑器")).toBeVisible();
   await expect(page.getByText("v4", { exact: false })).toBeVisible();

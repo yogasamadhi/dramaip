@@ -47,8 +47,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span>尽意 <span className="font-normal text-stone-400">DramaIP</span></span>
           </Link>
           <div className="hidden items-center gap-5 text-sm lg:flex">
-            <NavLink href="/cases/demo" current={pathname === '/cases/demo'}>
-              样片案例
+            <NavLink href="/cases" current={pathname.startsWith('/cases')}>
+              创作案例
             </NavLink>
             <NavLink href="/trust" current={pathname === '/trust'}>
               信任中心

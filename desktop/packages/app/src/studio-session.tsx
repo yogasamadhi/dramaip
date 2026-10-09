@@ -1,5 +1,10 @@
 import type { Project, ProjectMode } from "@dramaip/contracts/product";
-import { useQuery } from "@tanstack/react-query";
+import {
+  ProjectGoalConfirmationInputSchema,
+  type ProjectInput,
+  type ProjectGoalConfirmationInput,
+} from "@dramaip/contracts/workspace";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useContext,
@@ -15,6 +20,17 @@ import {
   type ProjectCreationSource,
 } from "./project-intake";
 import { useStudioClient } from "./runtime-connection";
+export { hasExactObjectReference } from "./exact-object-navigation";
+import { hasExactObjectReference } from "./exact-object-navigation";
+import { productionContextKeys } from "./production-object-context";
+import {
+  NativeScriptIntakeBindingSchema,
+  type NativeScriptIntakeBinding,
+} from "./native-script-intake";
+import type {
+  SourceImportAttempt,
+  SourceImportDraft,
+} from "./source-import-binding";
 
 const CREATION_DRAFT_KEY = "dramaip-creation-draft:v1";
 const ACTIVE_PROJECT_KEY = "dramaip-active-project:v1";
@@ -40,9 +56,15 @@ export type CreationDraftV1 = {
   scriptDraft: string;
   creatorTopic: string;
   origin: CreationDraftOrigin;
+  intakeStep?: 1 | 2 | 3;
   attemptId?: string;
+  goalConfirmation?: ProjectGoalConfirmationInput;
+  frozenProjectInput?: ProjectInput;
   createdProjectId?: string;
   initializationSteps: CreationInitializationStep[];
+  nativeScriptIntake?: NativeScriptIntakeBinding;
+  pendingSourceImport?: SourceImportDraft;
+  sourceImportAttempt?: SourceImportAttempt;
   updatedAt: string;
 };
 
@@ -125,11 +147,26 @@ export function parseCreationDraft(
       !["project-home", "novel-quick-start", "inspiration"].includes(
         String(parsed.origin),
       ) ||
+      (parsed.intakeStep !== undefined &&
+        (typeof parsed.intakeStep !== "number" ||
+          ![1, 2, 3].includes(parsed.intakeStep))) ||
       !Array.isArray(parsed.initializationSteps) ||
+      (parsed.nativeScriptIntake !== undefined &&
+        !NativeScriptIntakeBindingSchema.safeParse(parsed.nativeScriptIntake)
+          .success) ||
       typeof parsed.updatedAt !== "string"
     )
       return undefined;
-    return parsed as CreationDraftV1;
+    // Invalid new proof is not inferred from old mode/step fields. Preserve any
+    // ambiguous creation key and raw frozen input; the write boundary validates
+    // the latter and must not silently erase recovery identity on parse failure.
+    const confirmation = ProjectGoalConfirmationInputSchema.safeParse(
+      parsed.goalConfirmation,
+    );
+    return {
+      ...parsed,
+      goalConfirmation: confirmation.success ? confirmation.data : undefined,
+    } as CreationDraftV1;
   } catch {
     return undefined;
   }
@@ -217,6 +254,7 @@ export function safeLocalRoute(value: string | undefined): string | undefined {
     pathname === "/produce" ||
     pathname === "/review" ||
     pathname === "/tasks" ||
+    pathname === "/pending" ||
     pathname === "/inspiration" ||
     pathname === "/settings" ||
     pathname === "/search" ||
@@ -256,6 +294,21 @@ export function parsePendingNavigationIntent(
   }
 }
 
+export function hasExactWorkflowReference(search: string): boolean {
+  return Boolean(new URLSearchParams(search).get("workflowId")?.trim());
+}
+export function hasExactWorkspaceReference(input: {
+  pathname: string;
+  search: string;
+}): boolean {
+  return (
+    hasExactObjectReference(input.search) ||
+    (/^\/projects\/[^/]+$/.test(input.pathname) &&
+      new URLSearchParams(input.search).has("chapterId")) ||
+    (["/adapt", "/produce", "/review"].includes(input.pathname) &&
+      new URLSearchParams(input.search).has("projectId"))
+  );
+}
 export function projectIdFromLocation(input: {
   pathname: string;
   search: string;
@@ -270,7 +323,10 @@ export function resolveActiveProjectId(input: {
   projects: readonly Project[];
   routeProjectId?: string;
   storedProjectId?: string;
+  preserveRouteIdentity?: boolean;
 }): string | undefined {
+  if (input.preserveRouteIdentity && input.routeProjectId)
+    return input.routeProjectId;
   if (
     input.routeProjectId &&
     input.projects.some((project) => project.id === input.routeProjectId)
@@ -289,13 +345,48 @@ export function resolveActiveProjectId(input: {
 export function contextualNavigationTarget(
   target: string,
   projectId?: string,
+  context?: ProjectWorkspaceContextV2,
 ): string {
   if (!projectId) return target;
   if (target === "/write") return `/projects/${encodeURIComponent(projectId)}`;
   if (!["/create", "/adapt", "/produce", "/review", "/tasks"].includes(target))
     return target;
   const search = new URLSearchParams({ projectId });
+  if (["/adapt", "/produce", "/review"].includes(target) && context) {
+    const [pathname = "", originalSearch = ""] = context.route.split("?");
+    // Session data is an unverified navigation hint. Reparse a local, owned
+    // Production route; never forward a formal tool's stable episode key,
+    // workflow/candidate, stage, body, or authority to a resource workspace.
+    if (
+      ["/adapt", "/produce", "/review"].includes(pathname) &&
+      projectIdFromLocation({ pathname, search: originalSearch }) === projectId
+    ) {
+      const params = new URLSearchParams(originalSearch);
+      for (const key of productionContextKeys) {
+        for (const value of params.getAll(key)) search.append(key, value);
+      }
+    }
+  }
   return `${target}?${search}`;
+}
+
+export function rememberedWorkspaceContext(
+  previous: ProjectWorkspaceContextV2 | undefined,
+  next: ProjectWorkspaceContextV2,
+): ProjectWorkspaceContextV2 {
+  // Project overview/tools/tasks must not erase the previous resource choice.
+  // A new resource route replaces the hint, including explicit bad references;
+  // owner validation at the destination prevents silently opening another one.
+  const hasProductionReference = (value: ProjectWorkspaceContextV2) =>
+    ["adapt", "produce", "review"].includes(value.workArea) &&
+    productionContextKeys.some((key) =>
+      new URLSearchParams(value.route.split("?")[1]).has(key),
+    );
+  return previous &&
+    hasProductionReference(previous) &&
+    !hasProductionReference(next)
+    ? previous
+    : next;
 }
 
 type StudioSessionValue = {
@@ -306,6 +397,10 @@ type StudioSessionValue = {
   activeProjectNotice?: string;
   selectProject(projectId: string): void;
   rememberProjectRoute(projectId: string, route: string): void;
+  rememberProductionObjectContext(
+    projectId: string,
+    references: Partial<Record<(typeof productionContextKeys)[number], string>>,
+  ): void;
   lastProjectRoute(projectId: string): string | undefined;
   projectContext(projectId: string): ProjectWorkspaceContextV2 | undefined;
   creationDraft?: CreationDraftV1;
@@ -351,8 +446,17 @@ function initialPendingIntent(): PendingNavigationIntentV1 | undefined {
 
 export function StudioSessionProvider(props: { children: ReactNode }) {
   const client = useStudioClient();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
+  useEffect(
+    () =>
+      client.events.subscribe((event) => {
+        if (event.type.startsWith("workspace.project-"))
+          void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      }),
+    [client, queryClient],
+  );
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -370,6 +474,7 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
     projects,
     routeProjectId,
     storedProjectId: activeState.projectId,
+    preserveRouteIdentity: hasExactWorkspaceReference(location),
   });
   const activeProject = projects.find(
     (project) => project.id === activeProjectId,
@@ -391,6 +496,9 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
   useEffect(() => {
     if (!routeProjectId || !activeProjectId || projectsLoading) return;
     if (projects.some((project) => project.id === routeProjectId)) return;
+    // A stale project list cannot change an explicitly requested object's
+    // identity. Its own page must report missing/foreign ownership instead.
+    if (hasExactWorkspaceReference(location)) return;
     if (location.pathname.startsWith("/projects/")) {
       navigate(`/projects/${encodeURIComponent(activeProjectId)}`, {
         replace: true,
@@ -418,7 +526,7 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
     const storedInvalid =
       Boolean(activeState.projectId) &&
       !projects.some((project) => project.id === activeState.projectId);
-    if (storedInvalid)
+    if (storedInvalid && !routeProjectId)
       setActiveProjectNotice(
         "上次使用的项目已不可用，已切换到最近更新的项目。",
       );
@@ -427,15 +535,24 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
       !projects.some((project) => project.id === routeProjectId);
     if (routeInvalid)
       setActiveProjectNotice(
-        "链接中的项目已不可用，已切换到最近更新的有效项目。",
+        hasExactWorkspaceReference(location)
+          ? "指定对象的项目暂未核验，保留原深链接；不会改读最近项目或候选。"
+          : "链接中的项目已不可用，已切换到最近更新的有效项目。",
       );
+    else if (routeProjectId) setActiveProjectNotice(undefined);
     if (activeState.projectId === activeProjectId && !routeProjectId) return;
     setActiveState((current) => ({
       ...current,
       projectId: activeProjectId,
       updatedAt: new Date().toISOString(),
     }));
-  }, [activeProjectId, activeState.projectId, projects, routeProjectId]);
+  }, [
+    activeProjectId,
+    activeState.projectId,
+    projects,
+    routeProjectId,
+    location.search,
+  ]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -461,7 +578,10 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
             },
             contextByProject: {
               ...current.contextByProject,
-              [routeProjectId]: context,
+              [routeProjectId]: rememberedWorkspaceContext(
+                current.contextByProject[routeProjectId],
+                context,
+              ),
             },
             updatedAt: new Date().toISOString(),
           },
@@ -500,6 +620,29 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
       lastProjectRoute(projectId) {
         return safeLocalRoute(activeState.lastRouteByProject[projectId]);
       },
+      rememberProductionObjectContext(projectId, references) {
+        const search = new URLSearchParams({ projectId });
+        for (const key of productionContextKeys) {
+          if (references[key]) search.set(key, references[key]!);
+        }
+        const context = workspaceContextFromRoute({
+          pathname: "/adapt",
+          search: `?${search}`,
+        });
+        if (!context) return;
+        setActiveState((current) =>
+          current.contextByProject[projectId]?.route === context.route
+            ? current
+            : {
+                ...current,
+                contextByProject: {
+                  ...current.contextByProject,
+                  [projectId]: context,
+                },
+                updatedAt: new Date().toISOString(),
+              },
+        );
+      },
       projectContext(projectId) {
         return activeState.contextByProject[projectId];
       },
@@ -511,13 +654,15 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
             ? {}
             : {
                 attemptId: undefined,
+                frozenProjectInput: undefined,
+                sourceImportAttempt: undefined,
                 createdProjectId: undefined,
                 initializationSteps: [],
               }),
           updatedAt: new Date().toISOString(),
         } satisfies CreationDraftV1;
-        setCreationDraft(next);
         window.localStorage.setItem(CREATION_DRAFT_KEY, JSON.stringify(next));
+        setCreationDraft(next);
       },
       clearCreationDraft() {
         setCreationDraft(undefined);

@@ -18,6 +18,10 @@ const runtimeAliases = {
     root,
     "../../packages/contracts/src/agent-context.ts",
   ),
+  "@dramaip/contracts/creation-project-lineage": resolve(
+    root,
+    "../../packages/contracts/src/creation-project-lineage.ts",
+  ),
   "@dramaip/contracts/creation": resolve(
     root,
     "../../packages/contracts/src/creation.ts",
@@ -65,6 +69,10 @@ const runtimeAliases = {
   "@dramaip/contracts/timeline": resolve(
     root,
     "../../packages/contracts/src/timeline.ts",
+  ),
+  "@dramaip/contracts/timeline-copy": resolve(
+    root,
+    "../../packages/contracts/src/timeline-copy.ts",
   ),
   "@dramaip/contracts/workspace": resolve(
     root,
@@ -194,6 +202,42 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        "@dramaip/contracts/review": resolve(
+          root,
+          "../../packages/contracts/src/review.ts",
+        ),
+        "@dramaip/contracts/media": resolve(
+          root,
+          "../../packages/contracts/src/media.ts",
+        ),
+        "@dramaip/contracts/timeline": resolve(
+          root,
+          "../../packages/contracts/src/timeline.ts",
+        ),
+        "@dramaip/contracts/timeline-copy": resolve(
+          root,
+          "../../packages/contracts/src/timeline-copy.ts",
+        ),
+        "@dramaip/contracts/knowledge": resolve(
+          root,
+          "../../packages/contracts/src/knowledge.ts",
+        ),
+        "@dramaip/contracts/insights": resolve(
+          root,
+          "../../packages/contracts/src/insights.ts",
+        ),
+        "@dramaip/contracts/creative-quality": resolve(
+          root,
+          "../../packages/contracts/src/creative-quality.ts",
+        ),
+        "@dramaip/contracts/delivery": resolve(
+          root,
+          "../../packages/contracts/src/delivery.ts",
+        ),
+        "@dramaip/contracts/creation-project-lineage": resolve(
+          root,
+          "../../packages/contracts/src/creation-project-lineage.ts",
+        ),
         "@dramaip/contracts/creation": resolve(
           root,
           "../../packages/contracts/src/creation.ts",
@@ -209,6 +253,14 @@ export default defineConfig({
         "@dramaip/contracts/production": resolve(
           root,
           "../../packages/contracts/src/production.ts",
+        ),
+        "@dramaip/contracts/workspace": resolve(
+          root,
+          "../../packages/contracts/src/workspace.ts",
+        ),
+        "@dramaip/contracts/writing": resolve(
+          root,
+          "../../packages/contracts/src/writing.ts",
         ),
         "@dramaip/contracts": pkgSrc("contracts"),
         "@": resolve(root, "../../packages/app/src"),

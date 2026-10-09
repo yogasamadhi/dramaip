@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
-import { openProductionStage } from "./project-tools";
+import { selectWorkspaceObject, openProductionStage } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -28,21 +28,13 @@ test("已采用的音轨可以审查、选择采用为时间线 change set，并
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "制作", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page
-    .getByRole("combobox", { name: "剧本" })
-    .selectOption({ label: "第 1 集剧本" });
-  await page
-    .getByRole("combobox", { name: "场景" })
-    .selectOption({ label: "场景 1：雨夜门口" });
-  await page
-    .getByRole("combobox", { name: "分镜" })
-    .selectOption({ label: "镜头 1：门缝中的雨夜" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "剧本", { label: "第 1 集剧本" });
+  await selectWorkspaceObject(page, "场景", { label: "场景 1：雨夜门口" });
+  await selectWorkspaceObject(page, "分镜", { label: "镜头 1：门缝中的雨夜" });
   await openProductionStage(page, "音频制作");
 
   for (const [kind, label, text] of [
@@ -64,7 +56,9 @@ test("已采用的音轨可以审查、选择采用为时间线 change set，并
     ).toBeVisible();
     await page.getByRole("button", { name: "采用此音轨", exact: true }).click();
     await expect(
-      page.getByText("已采用音轨。若镜头或剧本更新，系统会将它标记为过期。"),
+      page.getByText(
+        "已采用音轨并核对实际来源版本；镜头、素材、音色或正式来源变化后须另行复核。",
+      ),
     ).toBeVisible();
   }
 

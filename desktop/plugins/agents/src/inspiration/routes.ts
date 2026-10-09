@@ -546,8 +546,6 @@ export function inspirationRoutes(
                 reason: string;
                 error: string | null;
                 model: string | null;
-                input_tokens: number;
-                output_tokens: number;
                 context_snapshot_id: string | null;
                 context_manifest_sha256: string | null;
                 created_at: string;
@@ -576,8 +574,15 @@ export function inspirationRoutes(
                 ...(job.context_manifest_sha256
                   ? { contextManifestSha256: job.context_manifest_sha256 }
                   : {}),
-                inputTokens: job.input_tokens,
-                outputTokens: job.output_tokens,
+                usageRuns: transaction
+                  .all<{ run_id: string; project_id: string | null }>(
+                    "SELECT run_id, project_id FROM agent_auxiliary_usage_runs WHERE memory_job_id = ? ORDER BY created_at, run_id",
+                    job.id,
+                  )
+                  .map((run) => ({
+                    runId: run.run_id,
+                    ...(run.project_id ? { projectId: run.project_id } : {}),
+                  })),
                 createdAt: job.created_at,
                 updatedAt: job.updated_at,
               })),

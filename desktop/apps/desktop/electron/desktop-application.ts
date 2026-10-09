@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import type { JsonValue } from "@dramaip/contracts";
+import { normalizeAgentUsage, type JsonValue } from "@dramaip/contracts";
 import {
   createDesktopHost,
   discoverLocalModelRuntime,
@@ -40,7 +40,10 @@ import {
   loadVerifiedFfprobe,
 } from "./host/ffprobe-sidecar";
 import { archiveRemoteVideo } from "./host/media-archive";
+import { ManagedMediaReader } from "./host/managed-media-reader";
 import { RenderSupervisor } from "./host/render-supervisor";
+import { loadVerifiedRendererFonts } from "./host/renderer-fonts";
+import { NleCopySupervisor } from "./host/nle-copy-supervisor";
 import { safeHttpRequest } from "./host/safe-http-transport";
 import { extractSafeWebPage } from "./host/web-page-content";
 import { EngineEventChannel } from "./engines/engine-event-channel";
@@ -64,11 +67,20 @@ import {
 import { shutdownApplication } from "./application-supervisor";
 import { ExtensionProcessSupervisor } from "./extensions/extension-process-supervisor";
 import { extractGrantedDocument } from "./document-import";
+import {
+  installBackgroundNativeGuards,
+  isBackgroundDebugMode,
+} from "./background-debug";
 
 const require = createRequire(import.meta.url);
 const developmentIconPath = join(__dirname, "../../build/icon.png");
 const isolatedTestUserData = process.env.DRAMAIP_E2E_USER_DATA;
 if (isolatedTestUserData) app.setPath("userData", isolatedTestUserData);
+const backgroundDebug = isBackgroundDebugMode(process.env);
+if (backgroundDebug) {
+  installBackgroundNativeGuards(dialog, shell);
+  if (process.platform === "darwin") app.setActivationPolicy("accessory");
+}
 
 type Ready = {
   baseUrl: string;
@@ -146,6 +158,9 @@ let piEngine: ManagedProcess | undefined;
 let langgraphEngine: ManagedProcess | undefined;
 let initialization: Promise<Ready> | undefined;
 let hostServer: { close(): void; port: number } | undefined;
+let managedMediaReader: ManagedMediaReader | undefined;
+let managedRenderSupervisor: RenderSupervisor | undefined;
+let managedNleCopySupervisor: NleCopySupervisor | undefined;
 let runtimeReady: Ready | undefined;
 const safeStorageKeyProtector: VaultKeyProtector = {
   async status() {
@@ -179,6 +194,10 @@ const credentialVault = new LocalCredentialVault(
 );
 let credentialCaptureManager: CredentialCaptureManager | undefined;
 const fileCapabilities = new Map<string, FileCapability>();
+const nleWriteDirectoryCapabilities = new Map<
+  string,
+  { path: string; generation: number; expiresAt: number }
+>();
 const artifactCapabilities = new Map<string, string>();
 const managedPortraitMedia = new Map<string, string>();
 const managedArchivedMedia = new Map<string, string>();
@@ -1274,21 +1293,7 @@ function hostEngineStreamEvent(
   if (value.type === "usage")
     return {
       type: "usage",
-      ...(typeof value.inputTokens === "number"
-        ? { inputTokens: value.inputTokens }
-        : {}),
-      ...(typeof value.outputTokens === "number"
-        ? { outputTokens: value.outputTokens }
-        : {}),
-      ...(typeof value.cachedTokens === "number"
-        ? { cachedTokens: value.cachedTokens }
-        : {}),
-      ...(typeof value.estimatedCost === "number"
-        ? { estimatedCost: value.estimatedCost }
-        : {}),
-      ...(typeof value.currency === "string"
-        ? { currency: value.currency }
-        : {}),
+      ...normalizeAgentUsage(value),
     };
   return undefined;
 }
@@ -1653,11 +1658,26 @@ function createHost(
   verifiedFfprobe: Awaited<ReturnType<typeof loadVerifiedFfprobe>>,
   renderSupervisor?: RenderSupervisor,
 ) {
+  const mediaReader = new ManagedMediaReader(
+    join(app.getPath("userData"), "media-library"),
+  );
+  managedMediaReader = mediaReader;
+  const nleCopies = new NleCopySupervisor({
+    journalRoot: join(app.getPath("userData"), "nle-copy-jobs"),
+    hostGeneration,
+    reader: mediaReader,
+    resolveWriteGrant: async (ref) => {
+      const grant = nleWriteDirectoryCapabilities.get(ref);
+      return grant ? { ...grant, permission: "write-directory" } : undefined;
+    },
+  });
+  managedNleCopySupervisor = nleCopies;
   return createDesktopHost({
     accessToken,
     capabilities: [
       { id: "files", available: true },
       { id: "media-library", available: true },
+      { id: "media-playback", available: true },
       {
         id: "media-archive",
         available: Boolean(verifiedFfprobe),
@@ -1666,7 +1686,26 @@ function createHost(
       {
         id: "renderer.ffmpeg-x264",
         available: Boolean(renderSupervisor),
-        ...(verifiedFfprobe ? { version: verifiedFfprobe.version } : {}),
+        ...(renderSupervisor
+          ? { version: renderSupervisor.rendererVersion }
+          : {}),
+      },
+      {
+        id: "renderer.ffmpeg-audio-mix-v1",
+        available: renderSupervisor?.audioMixAvailable === true,
+        ...(renderSupervisor?.audioMixAvailable
+          ? { version: renderSupervisor.rendererVersion }
+          : {}),
+      },
+      {
+        id: "renderer.ffmpeg-subtitles-v1",
+        available: renderSupervisor?.subtitleBurnInAvailable === true,
+        ...(renderSupervisor?.subtitleBurnInAvailable
+          ? {
+              version: renderSupervisor.rendererVersion,
+              fonts: renderSupervisor.subtitleFonts,
+            }
+          : {}),
       },
       { id: "credentials", available: true },
       { id: "window", available: true },
@@ -1682,6 +1721,48 @@ function createHost(
       { id: "updater", available: false },
     ],
     actions: {
+      readManagedMedia: (input, signal) => mediaReader.read(input, signal),
+      startNleMediaCopy: (id, input, writeGrantRef) =>
+        nleCopies.start(id, input, writeGrantRef),
+      getNleMediaCopy: (id, projectId) => nleCopies.get(id, projectId),
+      cancelNleMediaCopy: (id, projectId) => nleCopies.cancel(id, projectId),
+      async revealNleMediaCopy(id, projectId, artifactRef) {
+        const path = await nleCopies.resolveArtifact(
+          id,
+          projectId,
+          artifactRef,
+        );
+        if (!path) return false;
+        shell.showItemInFolder(path);
+        return true;
+      },
+      async pickNleCopyDirectory() {
+        const controlled =
+          isolatedTestUserData && process.env.DRAMAIP_E2E_NLE_COPY_DIRECTORY;
+        const result =
+          controlled && existsSync(controlled)
+            ? { canceled: false, filePaths: [controlled] }
+            : await dialog.showOpenDialog({
+                title: "选择仅用于本次原媒体包复制的输出目录",
+                properties: ["openDirectory"],
+              });
+        const path = result.filePaths[0];
+        if (result.canceled || !path) return null;
+        const grantId = randomUUID(),
+          expiresAt = Date.now() + 10 * 60_000;
+        nleWriteDirectoryCapabilities.set(grantId, {
+          path,
+          generation: hostGeneration,
+          expiresAt,
+        });
+        return {
+          grantId,
+          permission: "write-directory",
+          displayName: path.split(/[\\/]/).pop() ?? "选中输出目录",
+          expiresAt: new Date(expiresAt).toISOString(),
+          generation: hostGeneration,
+        };
+      },
       async pickFiles(options) {
         const e2eSourceImport =
           isolatedTestUserData && process.env.DRAMAIP_E2E_SOURCE_IMPORT_FILE;
@@ -1894,9 +1975,50 @@ function createHost(
         });
         if (result.canceled || !result.filePath) return { saved: false };
         await writeFile(result.filePath, input.content, "utf8");
+        // Verify the bytes actually written, not merely the requested string.
+        const savedBytes = await readFile(result.filePath);
+        const expectedBytes = Buffer.from(input.content, "utf8");
+        if (!savedBytes.equals(expectedBytes))
+          throw new Error("导出文件完整性校验失败，未记录成功交付。");
         const artifactRef = randomUUID();
         artifactCapabilities.set(artifactRef, result.filePath);
-        return { saved: true, artifactRef };
+        return {
+          saved: true,
+          artifactRef,
+          sha256: createHash("sha256").update(savedBytes).digest("hex"),
+          byteSize: savedBytes.byteLength,
+          savedAt: new Date().toISOString(),
+        };
+      },
+      async saveBinaryFile(input) {
+        const bytes = Buffer.from(input.contentBase64, "base64");
+        if (
+          bytes.length > 33_554_432 ||
+          bytes.subarray(0, 4).toString("hex") !== "504b0304"
+        )
+          throw new Error("试制包不是有效的受支持 ZIP 文件。");
+        const suggestedName = input.suggestedName
+          .replace(/[\\/]/g, "-")
+          .slice(0, 180);
+        const result = await dialog.showSaveDialog({
+          title: "保存内部试制包",
+          defaultPath: suggestedName || "DramaIP-pilot.zip",
+          filters: [{ name: "ZIP 试制包", extensions: ["zip"] }],
+        });
+        if (result.canceled || !result.filePath) return { saved: false };
+        await writeFile(result.filePath, bytes);
+        const savedBytes = await readFile(result.filePath);
+        if (!savedBytes.equals(bytes))
+          throw new Error("试制包写入完整性校验失败。");
+        const artifactRef = randomUUID();
+        artifactCapabilities.set(artifactRef, result.filePath);
+        return {
+          saved: true,
+          artifactRef,
+          sha256: createHash("sha256").update(savedBytes).digest("hex"),
+          byteSize: savedBytes.length,
+          savedAt: new Date().toISOString(),
+        };
       },
       openExternal: (url) => shell.openExternal(url),
       async revealGrant(grantId) {
@@ -1948,10 +2070,10 @@ function createHost(
         });
       },
       async focusWindow() {
-        BrowserWindow.getFocusedWindow()?.focus();
+        if (!backgroundDebug) BrowserWindow.getFocusedWindow()?.focus();
       },
       async notify(input) {
-        new Notification(input).show();
+        if (!backgroundDebug) new Notification(input).show();
       },
       async fetchExtensionRegistry(input) {
         const response = await safeHttpRequest({
@@ -2093,6 +2215,15 @@ async function initialize(): Promise<Ready> {
     return undefined;
   });
   const mediaRoot = join(app.getPath("userData"), "media-library");
+  const rendererFonts = await loadVerifiedRendererFonts({
+    root: join(app.getPath("userData"), "renderer-fonts", "active"),
+    publicKeyPem: process.env.DRAMAIP_RENDERER_FONT_PUBLIC_KEY_PEM,
+  }).catch((cause) => {
+    console.warn(
+      `Renderer font verification failed: ${cause instanceof Error ? cause.message : "unknown error"}`,
+    );
+    return [];
+  });
   const renderSupervisor =
     verifiedFfprobe && verifiedFfmpeg
       ? new RenderSupervisor({
@@ -2100,9 +2231,25 @@ async function initialize(): Promise<Ready> {
           rendererVersion: verifiedFfmpeg.version,
           mediaRoot,
           probe: verifiedFfprobe.probe,
+          probeAudio: verifiedFfprobe.probeAudio,
+          audioMixAvailable: verifiedFfmpeg.audioMixAvailable,
+          probeVideo: verifiedFfprobe.probeVideo,
+          videoProofAvailable: verifiedFfmpeg.videoProofAvailable,
+          rendererFonts,
         })
       : undefined;
+  managedRenderSupervisor = renderSupervisor;
+  await renderSupervisor?.verifySubtitleCapability().catch((cause) => {
+    console.warn(
+      `Renderer subtitle capability verification failed: ${cause instanceof Error ? cause.message : "unknown error"}`,
+    );
+  });
+  if (shuttingDown)
+    throw new Error(
+      "Desktop initialization stopped during renderer capability verification",
+    );
   const host = createHost(hostToken, verifiedFfprobe, renderSupervisor);
+  managedRenderSupervisor = renderSupervisor;
   hostServer = await host.start({ hostname, port: 0 });
   const runtimeToken = randomBytes(32).toString("base64url");
   coreRuntime = (await spawnSidecar(
@@ -2211,6 +2358,7 @@ function createWindow(ready: Ready): BrowserWindow {
   return createMainWindow({
     bootstrap: ready,
     preloadPath: join(__dirname, "../preload/index.js"),
+    background: backgroundDebug,
     ...(!app.isPackaged ? { developmentIconPath } : {}),
     ...(process.env.ELECTRON_RENDERER_URL
       ? { developmentUrl: process.env.ELECTRON_RENDERER_URL }
@@ -2221,7 +2369,7 @@ function createWindow(ready: Ready): BrowserWindow {
 app
   .whenReady()
   .then(async () => {
-    if (process.platform === "darwin" && !app.isPackaged) {
+    if (process.platform === "darwin" && !app.isPackaged && !backgroundDebug) {
       app.dock?.setIcon(developmentIconPath);
     }
     registerRendererProtocol(join(__dirname, "../renderer"));
@@ -2229,6 +2377,7 @@ app
     credentialCaptureManager = new CredentialCaptureManager(
       credentialVault,
       join(__dirname, "../preload/credential-capture.js"),
+      backgroundDebug,
     );
     credentialCaptureManager.register();
     initialization = initialize();
@@ -2273,7 +2422,14 @@ app.on("before-quit", (event) => {
         langgraphEngine,
       ],
       runtime: coreRuntime,
-      host: hostServer,
+      host: {
+        close: async () => {
+          await managedNleCopySupervisor?.dispose();
+          await managedRenderSupervisor?.dispose();
+          await managedMediaReader?.dispose();
+          hostServer?.close();
+        },
+      },
       disposeSupervision: () => {
         for (const budget of restartBudgets.values()) budget.dispose();
       },

@@ -1,7 +1,10 @@
 import { CreationWorkbench } from "../creation-workbench";
+import { NarrativePlanningWorkbench } from "../novel/NarrativePlanningWorkbench";
+import { StoryIntelligencePanel } from "./StoryIntelligencePanel";
 import { BareButton } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
 import { useStudioSession } from "../../studio-session";
 import {
@@ -10,8 +13,14 @@ import {
   StoryBibleChangeSetPanel,
 } from "../studio-widgets";
 export function CreativeWorkspace() {
+  const location = useLocation();
+  const requestedChangeSetId = new URLSearchParams(location.search).get(
+    "changeSetId",
+  );
   const session = useStudioSession();
-  const projectId = session.activeProjectId;
+  const projectId =
+    new URLSearchParams(location.search).get("projectId") ??
+    session.activeProjectId;
   return (
     <div className="space-y-5">
       <WorkspaceIntro
@@ -21,15 +30,25 @@ export function CreativeWorkspace() {
         badge="智能创作"
       />
       {projectId && (
-        <CreationWorkbench projectId={projectId} operation="knowledge-plan" />
+        <NarrativePlanningWorkbench
+          projectId={projectId}
+          operation="knowledge-plan"
+        />
       )}
-      <details className="rounded-lg border border-line p-4">
+      <details
+        key={requestedChangeSetId ?? "all-changes"}
+        open={requestedChangeSetId ? true : undefined}
+        className="rounded-lg border border-line p-4"
+      >
         <summary className="cursor-pointer text-sm">已有变更提案</summary>
         <StoryBibleChangeSetPanel projectId={projectId} />
       </details>
       <ChapterAnalysisPanel projectId={projectId} />
       <CreativeDiagnosticsPanel projectId={projectId} />
-      <StoryIntelligencePanel projectId={projectId} />
+      <StoryIntelligencePanel
+        key={projectId ?? "no-project"}
+        projectId={projectId}
+      />
       <details className="rounded-lg border border-line p-4">
         <summary className="cursor-pointer text-sm">资料管理与人工补充</summary>
         <PluginResourceWorkspace
@@ -78,163 +97,6 @@ export function CreativeWorkspace() {
           projectId={projectId}
         />
       </details>
-    </div>
-  );
-}
-
-function StoryIntelligencePanel(props: { projectId?: string }) {
-  const client = useStudio();
-  const session = useStudioSession();
-  const { data: projects = [] } = useQuery({
-    queryKey: ["projects"],
-    queryFn: client.projects.list,
-  });
-  const [projectId, setProjectId] = useState(props.projectId ?? "");
-  const [hypothesis, setHypothesis] = useState("");
-  const [notice, setNotice] = useState<string>();
-  const [running, setRunning] = useState(false);
-  useEffect(() => {
-    if (props.projectId && projectId !== props.projectId)
-      setProjectId(props.projectId);
-  }, [projectId, props.projectId]);
-  const { data: graph, refetch } = useQuery({
-    queryKey: ["story-intelligence", projectId],
-    queryFn: () => client.storyIntelligence.graph(projectId),
-    enabled: Boolean(projectId),
-  });
-  const { data: risks = [] } = useQuery({
-    queryKey: ["originality-risks", projectId],
-    queryFn: () => client.storyIntelligence.originalityRisks(projectId),
-    enabled: Boolean(projectId),
-  });
-
-  const addNode = async () => {
-    if (!projectId) return;
-    const title = window.prompt("人工观察：人物、事件、秘密或规则名称")?.trim();
-    if (!title) return;
-    const kind = (window.prompt(
-      "类型：character / event / secret / rule / location / organization / resource / relationship / inspiration",
-      "event",
-    ) ?? "event") as
-      | "character"
-      | "event"
-      | "secret"
-      | "rule"
-      | "location"
-      | "organization"
-      | "resource"
-      | "relationship"
-      | "inspiration";
-    await client.storyIntelligence.createNode(projectId, {
-      kind,
-      title,
-      summary: window.prompt("简要说明", "") ?? "",
-      sourceType: "manual",
-      sourceId: crypto.randomUUID(),
-      sourceVersion: 0,
-      confirmed: true,
-    });
-    await refetch();
-  };
-
-  const simulate = async () => {
-    if (!projectId || !hypothesis.trim()) return;
-    setRunning(true);
-    setNotice(undefined);
-    try {
-      const twin = await client.storyIntelligence.buildTwin(projectId);
-      const result = await client.storyIntelligence.createSimulation(
-        projectId,
-        { snapshotId: twin.id, hypothesis: hypothesis.trim() },
-      );
-      setNotice(
-        `已创建只读推演：${result.deterministicFindings.join("；")} 未确认前不会修改故事圣经。`,
-      );
-    } catch (cause) {
-      setNotice(message(cause));
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  return (
-    <section className="rounded-xl border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold">IP 数字孪生与因果模拟</h2>
-          <p className="mt-1 text-sm text-muted">
-            由已确认知识构建只读快照，分开显示确定性冲突和模型推断；模拟不会直接改写项目。
-          </p>
-        </div>
-        <BareButton
-          className="rounded-lg border border-line px-3 py-2 text-sm"
-          disabled={!projectId}
-          onClick={() => void addNode()}
-        >
-          添加知识节点
-        </BareButton>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-[260px_minmax(0,1fr)_auto]">
-        <select
-          className="rounded-lg border border-line px-3 py-2 text-sm"
-          value={projectId}
-          onChange={(event) => {
-            const nextProjectId = event.target.value;
-            setProjectId(nextProjectId);
-            if (nextProjectId) session.selectProject(nextProjectId);
-          }}
-        >
-          <option value="">选择项目</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.title}
-            </option>
-          ))}
-        </select>
-        <input
-          className="rounded-lg border border-line px-3 py-2 text-sm"
-          value={hypothesis}
-          onChange={(event) => setHypothesis(event.target.value)}
-          placeholder="例如：如果反派在第三章就知道主角的秘密……"
-        />
-        <BareButton
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          disabled={!projectId || !hypothesis.trim() || running}
-          onClick={() => void simulate()}
-        >
-          {running ? "推演中…" : "创建推演"}
-        </BareButton>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <Stat label="知识节点" value={graph?.nodes.length ?? 0} />
-        <Stat label="因果关系" value={graph?.edges.length ?? 0} />
-        <Stat label="认知状态" value={graph?.audienceStates.length ?? 0} />
-        <Stat label="原创性复核" value={risks.length} />
-      </div>
-      {notice && (
-        <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
-          {notice}
-        </p>
-      )}
-      {risks.length > 0 && (
-        <div className="mt-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
-          <strong>原创性账本只提供复核线索，不构成侵权或法律结论。</strong>
-          {risks.slice(0, 3).map((risk) => (
-            <p key={risk.id} className="mt-1 text-muted">
-              {risk.reason}
-            </p>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function Stat(props: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-subtle p-3 text-sm">
-      <span className="block text-xs text-muted">{props.label}</span>
-      <strong className="text-lg">{props.value}</strong>
     </div>
   );
 }

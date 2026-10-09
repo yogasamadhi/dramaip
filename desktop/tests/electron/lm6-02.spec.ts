@@ -40,6 +40,7 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
 
   const projectId = /\/projects\/([^/?]+)/.exec(page.url())?.[1];
   expect(projectId).toBeTruthy();
+  await page.getByText("按需进入改编、制作或审片", { exact: true }).click();
   await page.getByRole("link", { name: "审核交付", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "质量、审片与交付" }),

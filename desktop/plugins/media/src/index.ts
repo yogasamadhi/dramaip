@@ -1,4 +1,6 @@
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
+import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -20,6 +22,7 @@ import {
   AssetCenterActionInputSchema,
   AssetCenterPreviewMediaSchema,
   AssetCenterSchema,
+  mediaDeclarationStatus,
   AnimaticDraftInputSchema,
   AnimaticDraftSchema,
   AnimaticInitializationSchema,
@@ -42,6 +45,7 @@ import {
   MediaRecordInputSchema,
   MediaRecordPatchSchema,
   MediaRecordSchema,
+  MediaArtifactDescriptorSchema,
   TtsGenerationInputSchema,
   TtsGenerationRunSchema,
   VideoGenerationBatchPreflightInputSchema,
@@ -57,8 +61,6 @@ import {
   type AnimaticClip,
   type AnimaticDraft,
   type AnimaticInitialization,
-  type AudioTrack,
-  type AudioTrackInput,
   type MediaAudioTrackService,
   type MediaRecord,
   type MediaRecordInput,
@@ -94,8 +96,30 @@ import {
 import { z, type ZodType } from "zod";
 import {
   videoProviderAdapter,
+  videoProviderInputIssues,
   type MediaVideoProviderKind,
 } from "./video-provider-adapters.js";
+import { registerStoryboardInvalidation } from "./storyboard-invalidation.js";
+import { mediaPlaybackRoutes } from "./playback.js";
+import { mediaByteVerificationMigration } from "./byte-verifications.js";
+import { createMediaDeliveryEvidence } from "./delivery-evidence.js";
+import {
+  appendSourceBinding,
+  manualShotSource,
+  RetiredShotSourceError,
+  mediaSourceMigration,
+  mediaSourceRoutes,
+  mediaSourceStatus,
+} from "./source-bindings.js";
+import {
+  audioSourceMigration,
+  AudioSourceError,
+  createAudioSourceService,
+} from "./audio-sources.js";
+import {
+  audioRevisionMigration,
+  audioRevisionRoutes,
+} from "./audio-revisions.js";
 
 interface MediaRow {
   id: string;
@@ -136,22 +160,6 @@ interface LikenessPhotoRow {
   removed_at: string | null;
 }
 
-interface AudioTrackRow {
-  id: string;
-  project_id: string;
-  episode_id: string;
-  kind: AudioTrack["kind"];
-  label: string;
-  source_fingerprint: string;
-  clips_json: string;
-  status: AudioTrack["status"];
-  stale: number;
-  stale_reason: string | null;
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
-
 interface VoiceProfileRow {
   id: string;
   project_id: string;
@@ -186,6 +194,7 @@ interface VideoJobRow {
   project_id: string;
   episode_id: string | null;
   shot_id: string | null;
+  source_shot_version: number | null;
   provider_id: string;
   provider_kind: MediaVideoProviderKind | null;
   model_revision: string | null;
@@ -276,24 +285,6 @@ function likenessPhoto(row: LikenessPhotoRow): LikenessPhoto {
   };
 }
 
-function toAudioTrack(row: AudioTrackRow): AudioTrack {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    episodeId: row.episode_id,
-    kind: row.kind,
-    label: row.label,
-    sourceFingerprint: row.source_fingerprint,
-    clips: JSON.parse(row.clips_json) as AudioTrack["clips"],
-    status: row.status,
-    stale: Boolean(row.stale),
-    ...(row.stale_reason ? { staleReason: row.stale_reason } : {}),
-    version: row.version,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
 function toVoiceProfile(row: VoiceProfileRow): VoiceProfile {
   return {
     id: row.id,
@@ -326,55 +317,6 @@ function toAnimatic(row: AnimaticRow): AnimaticDraft {
   };
 }
 
-function createAudioTrack(
-  context: PluginContext,
-  input: AudioTrackInput,
-): AudioTrack {
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const clips = input.clips.map((clip) => ({
-    ...clip,
-    id: crypto.randomUUID(),
-    sourceFingerprint: JSON.stringify({
-      shotId: clip.shotId,
-      assetId: clip.assetId,
-      text: clip.text,
-    }),
-  }));
-  return context.uow.execute((transaction) => {
-    transaction.run(
-      `INSERT INTO media_audio_tracks(
-        id, project_id, episode_id, kind, label, source_fingerprint,
-        clips_json, status, stale, stale_reason, version, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 0, NULL, 0, ?, ?)`,
-      id,
-      input.projectId,
-      input.episodeId,
-      input.kind,
-      input.label.trim(),
-      JSON.stringify(input.clips),
-      JSON.stringify(clips),
-      now,
-      now,
-    );
-    const value = toAudioTrack(
-      transaction.get<AudioTrackRow>(
-        "SELECT * FROM media_audio_tracks WHERE id = ?",
-        id,
-      )!,
-    );
-    transaction.append({
-      type: "media.audio-track-created.v1",
-      pluginId: "media",
-      aggregateType: "audio-track",
-      aggregateId: value.id,
-      aggregateVersion: value.version,
-      payload: JSON.parse(JSON.stringify(value)),
-    });
-    return value;
-  });
-}
-
 function appendEvent(
   transaction: UnitOfWorkTransaction,
   action: string,
@@ -394,7 +336,12 @@ function createRecord(
   context: PluginContext,
   kind: MediaRecordKind,
   input: MediaRecordInput,
+  generationSource?: { id: string; version: number } | null,
 ): MediaRecord {
+  const source =
+    generationSource === undefined
+      ? manualShotSource(context, { ...input, payload: input.payload ?? {} })
+      : generationSource;
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   return context.uow.execute((transaction) => {
@@ -418,6 +365,13 @@ function createRecord(
         id,
       )!,
     );
+    if (source)
+      appendSourceBinding(
+        transaction,
+        value,
+        source,
+        generationSource === undefined ? "manual-record" : "generation",
+      );
     appendEvent(transaction, `${kind}-created`, value);
     return value;
   });
@@ -427,14 +381,59 @@ function registerArchivedArtifact(
   context: PluginContext,
   input: Parameters<MediaRecordService["registerArchivedArtifact"]>[0],
 ): MediaRecord {
+  MediaArtifactDescriptorSchema.omit({ artifactId: true })
+    .strict()
+    .parse(input.descriptor);
+  const source = manualShotSource(context, { ...input, payload: {} });
   return context.uow.execute((transaction) => {
-    const existing = transaction.get<MediaRow>(
-      `SELECT records.* FROM media_records records
-       JOIN media_artifacts artifacts ON artifacts.media_record_id = records.id
-       WHERE artifacts.media_ref = ?`,
+    const artifacts = transaction.all<Record<string, unknown>>(
+      "SELECT * FROM media_artifacts WHERE media_ref = ?",
       input.descriptor.mediaRef,
     );
-    if (existing) return toRecord(existing);
+    if (artifacts.length) {
+      const artifact = artifacts[0]!;
+      const existing = transaction.get<MediaRow>(
+        "SELECT * FROM media_records WHERE id = ?",
+        artifact.media_record_id,
+      );
+      const record = existing ? toRecord(existing) : undefined;
+      const expected = {
+        project_id: input.projectId,
+        kind: input.descriptor.kind,
+        mime_type: input.descriptor.mimeType,
+        extension: input.descriptor.extension,
+        size_bytes: input.descriptor.sizeBytes,
+        sha256: input.descriptor.sha256,
+        width: input.descriptor.width ?? null,
+        height: input.descriptor.height ?? null,
+        duration_frames: input.descriptor.durationFrames ?? null,
+        frame_rate_numerator: input.descriptor.frameRate?.numerator ?? null,
+        frame_rate_denominator: input.descriptor.frameRate?.denominator ?? null,
+        drop_frame: input.descriptor.frameRate
+          ? Number(input.descriptor.frameRate.dropFrame)
+          : null,
+        status: input.descriptor.status,
+        removed_at: null,
+      };
+      if (
+        artifacts.length !== 1 ||
+        !record ||
+        record.version !== 0 ||
+        record.projectId !== input.projectId ||
+        record.parentId !== input.parentId ||
+        record.kind !==
+          (input.descriptor.kind === "video" ? "video" : "assets") ||
+        record.title !== input.title.trim() ||
+        !Object.entries(expected).every(
+          ([key, value]) => artifact[key] === value,
+        ) ||
+        !isDeepStrictEqual(record.payload.lineage, input.lineage)
+      )
+        throw new Error(
+          "归档回执与实际项目、存档或冻结谱系冲突，不能复用该引用。",
+        );
+      return record;
+    }
     const mediaRecordId = crypto.randomUUID();
     const artifactId = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -492,6 +491,8 @@ function registerArchivedArtifact(
         mediaRecordId,
       )!,
     );
+    if (source)
+      appendSourceBinding(transaction, record, source, "manual-record");
     appendEvent(transaction, `${record.kind}-created`, record);
     transaction.append({
       type: "media.artifact-archived.v1",
@@ -596,21 +597,21 @@ function likenessPreflight(
 }
 
 function problem(
-  context: RouteContext,
+  _context: RouteContext,
   status: number,
   code: string,
   title: string,
 ): Response {
-  return context.json(
-    {
+  return new Response(
+    JSON.stringify({
       type: `https://dramaip.local/problems/${code.toLowerCase()}`,
       title,
       detail: title,
       status,
       code,
       traceId: crypto.randomUUID(),
-    },
-    status,
+    }),
+    { status, headers: { "Content-Type": "application/problem+json" } },
   );
 }
 
@@ -631,6 +632,14 @@ function openapi(input: {
     tags: ["media"],
     request: {
       ...(input.params ? { params: input.params } : {}),
+      ...(input.operationId === "episode-media.adoptAudioTrack"
+        ? {
+            headers: z.object({
+              "If-Match": z.string().regex(/^"\d+"$/u),
+              "Idempotency-Key": z.string().min(1).max(200),
+            }),
+          }
+        : {}),
       ...(input.body
         ? {
             body: {
@@ -663,6 +672,22 @@ function openapi(input: {
           "application/problem+json": { schema: ProblemDetailsSchema },
         },
       },
+      ...(input.operationId === "episode-media.adoptAudioTrack"
+        ? {
+            412: {
+              description: "Source version conflict",
+              content: {
+                "application/problem+json": { schema: ProblemDetailsSchema },
+              },
+            },
+            428: {
+              description: "Precondition required",
+              content: {
+                "application/problem+json": { schema: ProblemDetailsSchema },
+              },
+            },
+          }
+        : {}),
     },
   } as never);
 }
@@ -672,7 +697,20 @@ function route(
   declaration: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return defineRouteContribution({ ...metadata, declaration, handler });
+  return defineRouteContribution({
+    ...metadata,
+    declaration,
+    handler,
+    ...(metadata.operationId === "episode-media.adoptAudioTrack"
+      ? {
+          policy: {
+            idempotency: "required" as const,
+            idempotencyReplay: "handler" as const,
+            concurrency: "if-match-required" as const,
+          },
+        }
+      : {}),
+  });
 }
 
 function category(
@@ -694,6 +732,7 @@ function stringList(value: unknown): string[] {
 }
 
 function assetCenter(
+  context: PluginContext,
   projectId: string,
   records: MediaRecordService,
   production: ProductionRecordService,
@@ -703,6 +742,7 @@ function assetCenter(
     projectId,
     assets: assets.map((record) => {
       const payload = record.payload;
+      const source = mediaSourceStatus(context, record);
       const usages = stringList(payload["镜头用途"])
         .map((shotId) => production.get(shotId))
         .filter((shot) => shot?.kind === "shots")
@@ -733,7 +773,11 @@ function assetCenter(
           payload["锁定状态"] === "已锁定" || payload["locked"] === true
             ? "locked"
             : "unlocked",
-        stale: payload["stale"] === true || payload["过期状态"] === "已过期",
+        stale:
+          source.state === "stale" ||
+          source.state === "unverified" ||
+          payload["stale"] === true ||
+          payload["过期状态"] === "已过期",
         preview: {
           kind: previewKind,
           status:
@@ -746,19 +790,7 @@ function assetCenter(
             ? { label: String(payload["预览说明"]) }
             : {}),
         },
-        rightsStatus:
-          payload["权利状态"] === "已核验"
-            ? "verified"
-            : payload["权利状态"] === "受限"
-              ? "restricted"
-              : "unknown",
-        costStatus: payload["费用状态"] === "已知" ? "known" : "unknown",
-        providerStatus:
-          payload["服务状态"] === "不可用"
-            ? "unavailable"
-            : payload["服务状态"] === "无需服务"
-              ? "not-required"
-              : "available",
+        ...mediaDeclarationStatus(payload, record.kind),
         usages,
         version: record.version,
       };
@@ -848,7 +880,18 @@ function resourceRoutes(
               "VALIDATION_ERROR",
               "媒体条目内容无效。",
             );
-          return requestContext.json(records.create(kind, input.data), 201);
+          try {
+            return requestContext.json(records.create(kind, input.data), 201);
+          } catch (error) {
+            if (error instanceof RetiredShotSourceError)
+              return problem(
+                requestContext,
+                409,
+                "SOURCE_RETIRED",
+                error.message,
+              );
+            throw error;
+          }
         },
       ),
       route(
@@ -1313,6 +1356,7 @@ function likenessRoutes(
 }
 
 function assetCenterRoutes(
+  context: PluginContext,
   records: MediaRecordService,
   production: ProductionRecordService,
 ): RouteContribution[] {
@@ -1337,7 +1381,12 @@ function assetCenterRoutes(
       }),
       (requestContext) =>
         requestContext.json(
-          assetCenter(requestContext.req.param("id"), records, production),
+          assetCenter(
+            context,
+            requestContext.req.param("id"),
+            records,
+            production,
+          ),
         ),
     ),
     route(
@@ -1411,6 +1460,20 @@ function assetCenterRoutes(
             "资产版本已更新，请刷新。",
           );
         const payload = { ...current.payload };
+        if (["adopt", "lock", "assign-shot"].includes(input.data.action)) {
+          const source = mediaSourceStatus(context, current);
+          if (
+            source.state === "stale" ||
+            source.state === "unverified" ||
+            current.payload.stale === true
+          )
+            return problem(
+              requestContext,
+              409,
+              "SOURCE_STALE",
+              "素材来源已变化或未核验，请先人工复核。",
+            );
+        }
         if (input.data.action === "adopt") payload["采用状态"] = "已采用";
         if (input.data.action === "lock") {
           if (payload["采用状态"] !== "已采用")
@@ -1429,7 +1492,8 @@ function assetCenterRoutes(
         ) {
           if (
             !input.data.shotId ||
-            production.get(input.data.shotId)?.kind !== "shots"
+            production.get(input.data.shotId)?.kind !== "shots" ||
+            production.get(input.data.shotId)?.projectId !== current.projectId
           )
             return problem(
               requestContext,
@@ -1462,7 +1526,7 @@ function assetCenterRoutes(
             "资产版本已更新，请刷新。",
           );
         return requestContext.json(
-          assetCenter(current.projectId, records, production),
+          assetCenter(context, current.projectId, records, production),
         );
       },
     ),
@@ -1494,7 +1558,15 @@ function audioTrackRoutes(
       (requestContext) => {
         const episodeId = requestContext.req.param("episodeId");
         return production.get(episodeId)?.kind === "episodes"
-          ? requestContext.json(tracks.list(episodeId))
+          ? (() => {
+              const body = JSON.stringify(tracks.list(episodeId));
+              return new Response(body, {
+                headers: {
+                  "Content-Type": "application/json",
+                  ETag: `"${createHash("sha256").update(body).digest("hex")}"`,
+                },
+              });
+            })()
           : problem(requestContext, 404, "NOT_FOUND", "未找到分集。");
       },
     ),
@@ -1533,7 +1605,25 @@ function audioTrackRoutes(
             "VALIDATION_ERROR",
             "音轨内容或制作谱系无效。",
           );
-        return requestContext.json(tracks.create(input.data), 201);
+        try {
+          return requestContext.json(tracks.create(input.data), 201);
+        } catch (error) {
+          if (error instanceof AudioSourceError)
+            return new Response(
+              JSON.stringify({
+                type: `https://dramaip.local/problems/${error.code.toLowerCase()}`,
+                title: error.message,
+                status: error.status,
+                code: error.code,
+                traceId: crypto.randomUUID(),
+              }),
+              {
+                status: error.status,
+                headers: { "Content-Type": "application/problem+json" },
+              },
+            );
+          throw error;
+        }
       },
     ),
     route(
@@ -1552,16 +1642,57 @@ function audioTrackRoutes(
         response: AudioTrackSchema,
       }),
       (requestContext) => {
-        const value = tracks.adopt(requestContext.req.param("id"));
-        return value
-          ? requestContext.json(value)
-          : problem(requestContext, 404, "NOT_FOUND", "未找到音轨草案。");
+        const key = requestContext.req.header("Idempotency-Key")?.trim();
+        const match = requestContext.req
+          .header("If-Match")
+          ?.match(/^"(\d+)"$/u);
+        if (!key || key.length > 200 || !match)
+          return problem(
+            requestContext,
+            428,
+            "PRECONDITION_REQUIRED",
+            "采用须提供实际音轨版本和幂等键。",
+          );
+        try {
+          const value = tracks.adopt(
+            requestContext.req.param("id"),
+            Number(match[1]),
+            key,
+          );
+          return value
+            ? new Response(JSON.stringify(value), {
+                headers: {
+                  "Content-Type": "application/json",
+                  ETag: `"${value.version}"`,
+                },
+              })
+            : problem(requestContext, 404, "NOT_FOUND", "未找到音轨草案。");
+        } catch (error) {
+          if (error instanceof AudioSourceError)
+            return new Response(
+              JSON.stringify({
+                type: `https://dramaip.local/problems/${error.code.toLowerCase()}`,
+                title: error.message,
+                status: error.status,
+                code: error.code,
+                traceId: crypto.randomUUID(),
+              }),
+              {
+                status: error.status,
+                headers: { "Content-Type": "application/problem+json" },
+              },
+            );
+          throw error;
+        }
       },
     ),
   ];
 }
 
-function visualActionRoutes(records: MediaRecordService): RouteContribution[] {
+function visualActionRoutes(
+  context: PluginContext,
+  records: MediaRecordService,
+): RouteContribution[] {
   return [
     ["shot-stills", "adopt", "visuals.adoptStill"],
     ["visual-assets", "adopt", "visuals.adoptVisualAsset"],
@@ -1589,6 +1720,18 @@ function visualActionRoutes(records: MediaRecordService): RouteContribution[] {
         const current = records.get(requestContext.req.param("id"));
         if (!current || current.kind !== kind)
           return problem(requestContext, 404, "NOT_FOUND", "未找到视觉候选。");
+        const source = mediaSourceStatus(context, current);
+        if (
+          current.payload.stale === true ||
+          source.state === "stale" ||
+          source.state === "unverified"
+        )
+          return problem(
+            requestContext,
+            409,
+            "SOURCE_STALE",
+            "关联镜头已变化，旧候选保留待复核，不能直接重新采用。",
+          );
         const payload = {
           ...current.payload,
           ...(action === "adopt" ? { 采用状态: "已采用" } : {}),
@@ -1653,6 +1796,7 @@ function episodeShots(production: ProductionRecordService, episodeId: string) {
 }
 
 function initializeAnimatic(
+  context: PluginContext,
   production: ProductionRecordService,
   records: MediaRecordService,
   episodeId: string,
@@ -1665,7 +1809,12 @@ function initializeAnimatic(
     const adopted = (kind: "video" | "shot-stills") =>
       records
         .list(kind, { parentId: shot.id })
-        .find((candidate) => candidate.payload["采用状态"] === "已采用");
+        .find(
+          (candidate) =>
+            candidate.payload["采用状态"] === "已采用" &&
+            candidate.payload.stale !== true &&
+            mediaSourceStatus(context, candidate).state === "current",
+        );
     const video = adopted("video");
     const still = adopted("shot-stills");
     const media = video ?? still;
@@ -1883,6 +2032,7 @@ function episodeMediaRoutes(
       }),
       (requestContext) => {
         const value = initializeAnimatic(
+          context,
           production,
           records,
           requestContext.req.param("id"),
@@ -1944,7 +2094,12 @@ function episodeMediaRoutes(
           await requestContext.req.json(),
         );
         const current = input.success
-          ? initializeAnimatic(production, records, input.data.episodeId)
+          ? initializeAnimatic(
+              context,
+              production,
+              records,
+              input.data.episodeId,
+            )
           : undefined;
         if (
           !input.success ||
@@ -2025,6 +2180,20 @@ function episodeMediaRoutes(
             "VALIDATION_ERROR",
             "审核结论无效。",
           );
+        const existing = context.uow.execute((transaction) =>
+          transaction.get<AnimaticRow>(
+            "SELECT * FROM media_animatic_drafts WHERE id = ?",
+            requestContext.req.param("id"),
+          ),
+        );
+        const initialized = existing
+          ? initializeAnimatic(
+              context,
+              production,
+              records,
+              existing.episode_id,
+            )
+          : undefined;
         const result = context.uow.execute((transaction) => {
           const current = transaction.get<AnimaticRow>(
             "SELECT * FROM media_animatic_drafts WHERE id = ?",
@@ -2033,11 +2202,6 @@ function episodeMediaRoutes(
           if (!current) return { state: "missing" as const };
           if (current.version !== input.data.version)
             return { state: "conflict" as const };
-          const initialized = initializeAnimatic(
-            production,
-            records,
-            current.episode_id,
-          );
           if (
             input.data.status === "approved" &&
             initialized?.sourceFingerprint !== current.source_fingerprint
@@ -2100,6 +2264,7 @@ function episodeMediaRoutes(
       }),
       (requestContext) => {
         const initialized = initializeAnimatic(
+          context,
           production,
           records,
           requestContext.req.param("id"),
@@ -2296,6 +2461,42 @@ function recordGeneration(
   )?.record(input);
 }
 
+function captureShotSource(
+  context: PluginContext,
+  projectId: string,
+  shotId?: string,
+) {
+  if (!shotId) return undefined;
+  const shot = optionalService(context, PRODUCTION_RECORD_SERVICE)?.get(shotId);
+  if (
+    !shot ||
+    shot.kind !== "shots" ||
+    shot.projectId !== projectId ||
+    shot.retirement
+  )
+    throw new Error("媒体生成须绑定当前实际镜头，不补造来源身份。");
+  return { id: shot.id, version: shot.version };
+}
+function shotSourcePayload(
+  context: PluginContext,
+  source: ReturnType<typeof captureShotSource>,
+) {
+  if (!source) return {};
+  const actual = optionalService(context, PRODUCTION_RECORD_SERVICE)?.get(
+    source.id,
+  );
+  return {
+    sourceShotId: source.id,
+    sourceShotVersion: source.version,
+    ...(actual?.version === source.version
+      ? {}
+      : {
+          stale: true,
+          staleReason: "生成期间关联镜头版本变化，结果保留待复核。",
+        }),
+  };
+}
+
 async function runImageGeneration(input: {
   context: PluginContext;
   host: DesktopHostClient;
@@ -2305,6 +2506,11 @@ async function runImageGeneration(input: {
 }) {
   const provider = providerFor(input.context, input.value.providerId);
   if (!provider?.baseUrl) throw new Error("图片服务商配置不完整。");
+  const sourceShot = captureShotSource(
+    input.context,
+    input.value.projectId,
+    input.value.shotId,
+  );
   const referenceMedia = input.value.referenceSubjectIds
     ? likenessPreflight(input.context, input.value.referenceSubjectIds)
     : undefined;
@@ -2353,38 +2559,50 @@ async function runImageGeneration(input: {
     const outputs = imageOutputs(upstream(response));
     if (!outputs.length) throw new Error("服务商未返回可归档的图片候选。");
     const assets = outputs.map((output, index) =>
-      input.records.create("assets", {
-        projectId: input.value.projectId,
-        parentId: input.value.shotId,
-        title: `生成图片素材 ${index + 1}`,
-        payload: {
-          素材类型: "生成图片",
-          服务商: provider.title,
-          模型: provider.model,
-          生成任务标识: task.id,
-          ...(output.preview
-            ? { 预览类型: "image", 预览数据: output.preview }
-            : {}),
-          ...(output.remoteUrl ? { 远端资源: output.remoteUrl } : {}),
+      createRecord(
+        input.context,
+        "assets",
+        {
+          projectId: input.value.projectId,
+          parentId: input.value.shotId,
+          title: `生成图片素材 ${index + 1}`,
+          payload: {
+            素材类型: "生成图片",
+            ...shotSourcePayload(input.context, sourceShot),
+            服务商: provider.title,
+            模型: provider.model,
+            生成任务标识: task.id,
+            ...(output.preview
+              ? { 预览类型: "image", 预览数据: output.preview }
+              : {}),
+            ...(output.remoteUrl ? { 远端资源: output.remoteUrl } : {}),
+          },
         },
-      }),
+        sourceShot ?? null,
+      ),
     );
     const candidates = outputs.map((output, index) =>
-      input.records.create("shot-stills", {
-        projectId: input.value.projectId,
-        parentId: input.value.shotId,
-        title: `静帧候选 ${index + 1}`,
-        payload: {
-          候选类型: input.value.kind,
-          采用状态: "未采用",
-          生成提示: input.value.prompt,
-          来源素材: assets[index]!.id,
-          ...(output.preview
-            ? { 预览类型: "image", 预览数据: output.preview }
-            : {}),
-          ...(output.remoteUrl ? { 远端资源: output.remoteUrl } : {}),
+      createRecord(
+        input.context,
+        "shot-stills",
+        {
+          projectId: input.value.projectId,
+          parentId: input.value.shotId,
+          title: `静帧候选 ${index + 1}`,
+          payload: {
+            候选类型: input.value.kind,
+            ...shotSourcePayload(input.context, sourceShot),
+            采用状态: "未采用",
+            生成提示: input.value.prompt,
+            来源素材: assets[index]!.id,
+            ...(output.preview
+              ? { 预览类型: "image", 预览数据: output.preview }
+              : {}),
+            ...(output.remoteUrl ? { 远端资源: output.remoteUrl } : {}),
+          },
         },
-      }),
+        sourceShot ?? null,
+      ),
     );
     const completed = input.tasks.update(task.id, {
       status: "succeeded",
@@ -2403,8 +2621,10 @@ async function runImageGeneration(input: {
       summary: `已归档 ${candidates.length} 个静帧候选，等待人工采用。`,
       ...(provider.estimatedUnitCost !== undefined
         ? {
-            actualCost: provider.estimatedUnitCost,
-            currency: provider.currency,
+            configuredUnitEstimate: {
+              amount: provider.estimatedUnitCost,
+              ...(provider.currency ? { unit: provider.currency } : {}),
+            },
           }
         : {}),
     });
@@ -2427,6 +2647,11 @@ async function runTtsGeneration(input: {
 }) {
   const provider = providerFor(input.context, input.value.providerId);
   if (!provider?.baseUrl) throw new Error("语音服务商配置不完整。");
+  const sourceShot = captureShotSource(
+    input.context,
+    input.value.projectId,
+    input.value.shotId,
+  );
   const task = input.tasks.start({
     kind: "tts-generation",
     title: "语音生成",
@@ -2455,22 +2680,28 @@ async function runTtsGeneration(input: {
     if (response.status < 200 || response.status >= 300 || !response.base64)
       throw new Error(`语音服务商调用失败：HTTP ${response.status}`);
     const mime = response.contentType.split(";")[0] || `audio/${format}`;
-    const asset = input.records.create("assets", {
-      projectId: input.value.projectId,
-      parentId: input.value.episodeId,
-      title: `${input.value.kind === "dialogue" ? "对白" : "旁白"}音频`,
-      payload: {
-        素材类型: input.value.kind === "dialogue" ? "对白音频" : "旁白音频",
-        生成任务标识: task.id,
-        服务商: provider.title,
-        预览类型: "audio",
-        预览数据: `data:${mime};base64,${response.base64}`,
-        ...(input.value.shotId ? { 关联分镜: input.value.shotId } : {}),
-        ...(input.value.voiceProfileId
-          ? { 音色档案: input.value.voiceProfileId }
-          : {}),
+    const asset = createRecord(
+      input.context,
+      "assets",
+      {
+        projectId: input.value.projectId,
+        parentId: input.value.episodeId,
+        title: `${input.value.kind === "dialogue" ? "对白" : "旁白"}音频`,
+        payload: {
+          素材类型: input.value.kind === "dialogue" ? "对白音频" : "旁白音频",
+          ...shotSourcePayload(input.context, sourceShot),
+          生成任务标识: task.id,
+          服务商: provider.title,
+          预览类型: "audio",
+          预览数据: `data:${mime};base64,${response.base64}`,
+          ...(input.value.shotId ? { 关联分镜: input.value.shotId } : {}),
+          ...(input.value.voiceProfileId
+            ? { 音色档案: input.value.voiceProfileId }
+            : {}),
+        },
       },
-    });
+      sourceShot ?? null,
+    );
     const completed = input.tasks.update(task.id, {
       status: "succeeded",
       progress: 1,
@@ -2506,44 +2737,110 @@ function videoPreflight(
   if (
     !shot ||
     shot.kind !== "shots" ||
+    shot.retirement ||
     shot.projectId !== input.projectId ||
     !provider
   )
     return undefined;
   const adoptedStill = records
     .list("shot-stills", { parentId: shotId })
-    .find((item) => item.payload["采用状态"] === "已采用");
-  const lockedAssetIds = records
-    .list("visual-assets", { projectId: input.projectId })
-    .filter(
+    .find(
       (item) =>
-        item.payload["锁定状态"] === "已锁定" &&
-        stringList(item.payload["镜头用途"]).includes(shotId),
-    )
-    .map((item) => item.id);
+        item.payload["采用状态"] === "已采用" &&
+        item.payload.stale !== true &&
+        mediaSourceStatus(context, item).state === "current",
+    );
+  const assignedAssets = records
+    .list("visual-assets", { projectId: input.projectId })
+    .filter((item) => stringList(item.payload["镜头用途"]).includes(shotId))
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((record) => ({ record, source: mediaSourceStatus(context, record) }));
   const blockers: string[] = [];
   const warnings: string[] = [];
+  const lockedAssetIds: string[] = [];
+  const restrictedRights = (record: MediaRecord) =>
+    mediaDeclarationStatus(record.payload, record.kind).rightsStatus ===
+    "restricted";
+  for (const { record, source } of assignedAssets) {
+    const prefix = `本镜头视觉资产 ${record.id}`;
+    let usable = true;
+    if (record.payload["采用状态"] !== "已采用") {
+      blockers.push(`${prefix} 尚未明确采用。`);
+      usable = false;
+    }
+    if (record.payload["锁定状态"] !== "已锁定") {
+      blockers.push(`${prefix} 尚未锁定。`);
+      usable = false;
+    }
+    if (
+      record.payload.stale === true ||
+      !["current", "unbound"].includes(source.state)
+    ) {
+      blockers.push(`${prefix} 的实际来源已失效或未核验。`);
+      usable = false;
+    }
+    if (restrictedRights(record)) {
+      blockers.push(`${prefix} 已声明权利受限、撤回或过期。`);
+      usable = false;
+    }
+    if (usable) lockedAssetIds.push(record.id);
+  }
   const adapter = provider ? videoProviderAdapter(provider) : undefined;
   if (!provider.baseUrl) blockers.push("服务商尚未配置调用地址。");
   if (!adapter)
     blockers.push(
       "视频服务商必须明确使用 Seedance 或 MiniMax H3 Cloud 协议；不再支持通用 /videos 猜测合同。",
     );
+  else blockers.push(...videoProviderInputIssues(adapter.capabilities, input));
   if (!adoptedStill) blockers.push("请先采用一张静帧候选。");
+  else if (restrictedRights(adoptedStill))
+    blockers.push("已采用静帧已声明权利受限、撤回或过期，不能提交视频。");
   if (!lockedAssetIds.length) warnings.push("当前分镜没有已锁定的视觉资产。");
+  warnings.push(
+    "素材权利声明与锁定状态不是独立授权核验；未知权利不报告为已核验。",
+  );
   const costStatus =
-    provider.estimatedUnitCost === undefined ? "unknown" : "known";
+    provider.estimatedUnitCost === undefined || !provider.currency?.trim()
+      ? "unknown"
+      : "known";
   if (costStatus === "unknown" && !input.confirmUnknownCost)
     blockers.push("费用未知；必须明确确认后才能提交。 ");
-  const snapshotHash = stableFingerprint({
-    shot: [shot.id, shot.version, shot.payload],
-    provider: [provider.id, provider.model, provider.estimatedUnitCost],
-    adoptedStill: adoptedStill
-      ? [adoptedStill.id, adoptedStill.version]
-      : undefined,
-    lockedAssetIds,
-    request: input,
-  });
+  const snapshotHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        format: "video-readiness-v2",
+        shot: [shot.id, shot.version, shot.payload],
+        provider: [
+          provider.id,
+          provider.model,
+          provider.protocol,
+          provider.baseUrl,
+          adapter?.capabilities,
+          provider.estimatedUnitCost,
+          provider.currency,
+        ],
+        adoptedStill: adoptedStill
+          ? [
+              adoptedStill.id,
+              adoptedStill.version,
+              adoptedStill.payload,
+              mediaSourceStatus(context, adoptedStill),
+            ]
+          : undefined,
+        // Include all explicitly assigned assets, including blocked ones. Never
+        // silently drop a bad input or bind only its ID while its version changes.
+        assignedAssets: assignedAssets.map(({ record, source }) => [
+          record.id,
+          record.version,
+          record.payload,
+          source,
+        ]),
+        // The receipt confirms the semantic input; it cannot be part of the
+        // snapshot it confirms, or adding it at submit changes that snapshot.
+        request: { ...input, readinessHash: undefined },
+      }),
+    )
+    .digest("hex");
   return {
     shotId,
     providerId: provider.id,
@@ -2623,6 +2920,11 @@ async function createVideoGeneration(input: {
   if (!preflight?.ready) throw new Error("视频提交前置条件未满足。");
   if (preflight.snapshotHash !== input.value.readinessHash)
     throw new Error("视频预检快照已变化，请重新预检。");
+  const sourceShot = captureShotSource(
+    input.context,
+    input.value.projectId,
+    shotId,
+  )!;
   const provider = providerFor(input.context, input.value.providerId)!;
   const adapter = videoProviderAdapter(provider);
   if (!adapter)
@@ -2661,8 +2963,8 @@ async function createVideoGeneration(input: {
           id, task_id, project_id, episode_id, shot_id, provider_id,
           provider_kind, model_revision, idempotency_key, request_sha256,
           remote_job_id, prompt, request_json, status, remote_status,
-          archive_status, results_json, error, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', NULL, ?, ?)`,
+          archive_status, results_json, error, created_at, updated_at, source_shot_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', NULL, ?, ?, ?)`,
         id,
         task.id,
         input.value.projectId,
@@ -2681,6 +2983,7 @@ async function createVideoGeneration(input: {
         archiveStatus,
         now,
         now,
+        sourceShot.version,
       );
       const created = transaction.get<VideoJobRow>(
         "SELECT * FROM media_video_jobs WHERE id = ?",
@@ -2785,6 +3088,16 @@ async function refreshVideoJob(input: {
           : "远端视频已生成，但本地归档校验失败；未保存易失 URL。";
     }
   }
+  const sourceLineage =
+    current.shot_id && current.source_shot_version !== null
+      ? shotSourcePayload(input.context, {
+          id: current.shot_id,
+          version: current.source_shot_version,
+        })
+      : {
+          stale: true,
+          staleReason: "历史任务缺少实际镜头版本绑定，归档结果保留待复核。",
+        };
   const result = input.context.uow.execute((transaction) => {
     const now = new Date().toISOString();
     const latest = transaction.get<VideoJobRow>(
@@ -2806,6 +3119,7 @@ async function refreshVideoJob(input: {
       const modelRevision =
         remote.modelRevision ?? latest.model_revision ?? provider.model;
       const payload = {
+        ...sourceLineage,
         mediaRef: archived.mediaRef,
         artifactId,
         mimeType: archived.mimeType,
@@ -2870,6 +3184,13 @@ async function refreshVideoJob(input: {
           mediaRecordId,
         )!,
       );
+      if (latest.shot_id && latest.source_shot_version !== null)
+        appendSourceBinding(
+          transaction,
+          record,
+          { id: latest.shot_id, version: latest.source_shot_version },
+          "generation",
+        );
       appendEvent(transaction, "video-created", record);
       transaction.append({
         type: "media.artifact-archived.v1",
@@ -3033,7 +3354,8 @@ function generationRoutes(
         );
         if (
           !input.success ||
-          production.get(input.data.shotId)?.kind !== "shots"
+          production.get(input.data.shotId)?.kind !== "shots" ||
+          production.get(input.data.shotId)?.retirement
         )
           return problem(
             requestContext,
@@ -3086,7 +3408,11 @@ function generationRoutes(
         const input = TtsGenerationInputSchema.safeParse(
           await requestContext.req.json(),
         );
-        if (!input.success || !episodeShots(production, input.data.episodeId))
+        if (
+          !input.success ||
+          !episodeShots(production, input.data.episodeId) ||
+          (input.data.shotId && production.get(input.data.shotId)?.retirement)
+        )
           return problem(
             requestContext,
             400,
@@ -3195,10 +3521,7 @@ function generationRoutes(
           blockers: values.flatMap((item) =>
             item.blockers.map((blocker) => `分镜 ${item.shotId}：${blocker}`),
           ),
-          knownEstimatedCost: values.reduce(
-            (sum, item) => sum + (item.estimatedCost ?? 0),
-            0,
-          ),
+          aggregationStatus: "not-aggregated",
           unknownCostCount: values.filter(
             (item) => item.costStatus === "unknown",
           ).length,
@@ -3272,6 +3595,13 @@ function generationRoutes(
             400,
             "VALIDATION_ERROR",
             "视频生成参数无效。",
+          );
+        if (input.data.shotId && production.get(input.data.shotId)?.retirement)
+          return problem(
+            requestContext,
+            409,
+            "SOURCE_RETIRED",
+            "实际镜头已退役，保留历史但不能启动新视频任务。",
           );
         const claimed = claim(requestContext, "video-generation", input.data);
         if (claimed.response) return claimed.response;
@@ -3814,6 +4144,17 @@ const mediaMigrations = [
         WHERE idempotency_key IS NOT NULL;
     `,
   },
+  {
+    id: "media.0006.shot-source-versions",
+    pluginId: "media",
+    version: "3.0.0-alpha.4",
+    dependsOn: ["media.0005.artifact-archive-and-provider-jobs"],
+    sql: "ALTER TABLE media_video_jobs ADD COLUMN source_shot_version INTEGER CHECK(source_shot_version IS NULL OR source_shot_version >= 0);",
+  },
+  mediaSourceMigration,
+  audioSourceMigration,
+  audioRevisionMigration,
+  mediaByteVerificationMigration,
 ] as const;
 
 export function createMediaPlugin(host?: DesktopHostClient) {
@@ -3868,7 +4209,57 @@ export function createMediaPlugin(host?: DesktopHostClient) {
         AUTOMATION_TASK_SERVICE,
       );
       if (!tasks) throw new Error("media requires automation task service");
+      registerStoryboardInvalidation(context);
       const service: MediaRecordService = {
+        archivedArtifact: (id, projectId, recordVersion) =>
+          context.uow.execute((tx) => {
+            const record = tx.get<MediaRow>(
+              "SELECT * FROM media_records WHERE id = ?",
+              id,
+            );
+            if (
+              !record ||
+              record.project_id !== projectId ||
+              record.version !== recordVersion
+            )
+              return undefined;
+            const rows = tx.all<{
+              artifact_id: string;
+              project_id: string;
+              media_ref: string;
+              kind: string;
+              mime_type: string;
+              extension: string;
+              size_bytes: number;
+              sha256: string;
+              status: string;
+            }>(
+              "SELECT artifact_id,project_id,media_ref,kind,mime_type,extension,size_bytes,sha256,status FROM media_artifacts WHERE media_record_id = ?",
+              id,
+            );
+            if (
+              rows.length !== 1 ||
+              rows[0]!.project_id !== projectId ||
+              rows[0]!.status !== "archived"
+            )
+              return undefined;
+            const row = rows[0]!;
+            const parsed = MediaArtifactDescriptorSchema.safeParse({
+              artifactId: row.artifact_id,
+              mediaRef: row.media_ref,
+              kind: row.kind,
+              mimeType: row.mime_type,
+              extension: row.extension,
+              sizeBytes: row.size_bytes,
+              sha256: row.sha256,
+              status: row.status,
+            });
+            return parsed.success ? parsed.data : undefined;
+          }),
+        sourceStatus: (id) => {
+          const record = service.get(id);
+          return record ? mediaSourceStatus(context, record) : undefined;
+        },
         create: (kind, input) => createRecord(context, kind, input),
         registerArchivedArtifact: (input) =>
           registerArchivedArtifact(context, input),
@@ -3931,6 +4322,12 @@ export function createMediaPlugin(host?: DesktopHostClient) {
             return true;
           }),
       };
+      const deliveryEvidence = createMediaDeliveryEvidence(
+        context,
+        service,
+        workspace,
+      );
+      service.deliveryEvidence = deliveryEvidence.read;
       context.effect(
         () => provideService(context, MEDIA_RECORD_SERVICE, service),
         `service:${MEDIA_RECORD_SERVICE}`,
@@ -3959,48 +4356,12 @@ export function createMediaPlugin(host?: DesktopHostClient) {
         () => provideService(context, MEDIA_LIKENESS_SERVICE, likeness),
         `service:${MEDIA_LIKENESS_SERVICE}`,
       );
-      const audioTracks: MediaAudioTrackService = {
-        list: (episodeId) =>
-          context.uow.execute((transaction) =>
-            transaction
-              .all<AudioTrackRow>(
-                "SELECT * FROM media_audio_tracks WHERE episode_id = ? ORDER BY created_at, id",
-                episodeId,
-              )
-              .map(toAudioTrack),
-          ),
-        create: (input) => createAudioTrack(context, input),
-        adopt: (id) =>
-          context.uow.execute((transaction) => {
-            const row = transaction.get<AudioTrackRow>(
-              "SELECT * FROM media_audio_tracks WHERE id = ?",
-              id,
-            );
-            if (!row || row.stale) return undefined;
-            const now = new Date().toISOString();
-            transaction.run(
-              `UPDATE media_audio_tracks SET status = 'adopted',
-             version = version + 1, updated_at = ? WHERE id = ?`,
-              now,
-              id,
-            );
-            const value = toAudioTrack(
-              transaction.get<AudioTrackRow>(
-                "SELECT * FROM media_audio_tracks WHERE id = ?",
-                id,
-              )!,
-            );
-            transaction.append({
-              type: "media.audio-track-adopted.v1",
-              pluginId: "media",
-              aggregateType: "audio-track",
-              aggregateId: value.id,
-              aggregateVersion: value.version,
-              payload: JSON.parse(JSON.stringify(value)),
-            });
-            return value;
-          }),
-      };
+      const audioTracks = createAudioSourceService(
+        context,
+        workspace,
+        production,
+        service,
+      );
       context.effect(
         () => provideService(context, MEDIA_AUDIO_TRACK_SERVICE, audioTracks),
         `service:${MEDIA_AUDIO_TRACK_SERVICE}`,
@@ -4083,11 +4444,15 @@ export function createMediaPlugin(host?: DesktopHostClient) {
         );
       }
       for (const contribution of [
+        deliveryEvidence.route,
         ...resourceRoutes(workspace, service),
         ...likenessRoutes(context, workspace, host),
-        ...assetCenterRoutes(service, production),
-        ...visualActionRoutes(service),
+        ...assetCenterRoutes(context, service, production),
+        ...visualActionRoutes(context, service),
+        ...mediaSourceRoutes(context, service, workspace),
+        ...mediaPlaybackRoutes(context, service, workspace, host),
         ...audioTrackRoutes(workspace, production, audioTracks),
+        ...audioRevisionRoutes(context, audioTracks, workspace),
         ...episodeMediaRoutes(
           context,
           workspace,

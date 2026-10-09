@@ -1,5 +1,25 @@
+import { createHash } from "node:crypto";
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
 import { registerInsightsCreation } from "./creation.js";
+import { creativeFunnelMigration } from "./funnel.js";
+import { creativeContinuationMigration } from "./continuation.js";
+import { creativeQualityAssociationMigration } from "./quality-associations.js";
+import { creativeInitialGoalMigration } from "./initial-goals.js";
+import { creativeSourceConfirmationMigration } from "./source-confirmations.js";
+import { creativePlanningAdoptionMigration } from "./planning-adoptions.js";
+import { novelRevisionMigration } from "./novel-revisions.js";
+import {
+  appendGenerationCost,
+  costObservation,
+  generationCostMigration,
+  generationCostHistory,
+  GenerationCostIntegrityError,
+  readGenerationCost,
+} from "./generation-costs.js";
+import {
+  creativeOutcomeMigration,
+  registerCreativeOutcomes,
+} from "./outcomes.js";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
@@ -16,6 +36,7 @@ import {
   FeedbackPreviewInputSchema,
   FeedbackPreviewSchema,
   GenerationRecordPatchSchema,
+  GenerationCostObservationPageSchema,
   GenerationRecordSchema,
   INSIGHTS_GENERATION_SERVICE,
   type GenerationRecord,
@@ -31,11 +52,16 @@ import {
   definePlugin,
   type PluginContext,
   type RouteContribution,
+  type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 
 interface RouteContext {
-  req: { param(name: string): string; json<T = unknown>(): Promise<T> };
+  req: {
+    param(name: string): string;
+    query(): Record<string, string>;
+    json<T = unknown>(): Promise<T>;
+  };
   json(value: unknown, status?: number): Response;
 }
 type RouteHandler = (context: RouteContext) => Response | Promise<Response>;
@@ -100,21 +126,29 @@ interface GenerationRow {
 }
 
 function problem(
-  context: RouteContext,
+  _context: RouteContext,
   status: number,
   code: string,
   title: string,
 ): Response {
-  return context.json(
+  return new Response(
+    JSON.stringify(
+      ProblemDetailsSchema.parse({
+        type: `https://dramaip.local/problems/${code.toLowerCase()}`,
+        title,
+        detail: title,
+        status,
+        code,
+        traceId: crypto.randomUUID(),
+      }),
+    ),
     {
-      type: `https://dramaip.local/problems/${code.toLowerCase()}`,
-      title,
-      detail: title,
       status,
-      code,
-      traceId: crypto.randomUUID(),
+      headers: {
+        "content-type": "application/problem+json",
+        "cache-control": "no-store",
+      },
     },
-    status,
   );
 }
 function declaration(input: {
@@ -122,6 +156,7 @@ function declaration(input: {
   path: string;
   operationId: string;
   params?: ZodType;
+  query?: ZodType;
   body?: ZodType;
   response: ZodType;
   status?: 200 | 201;
@@ -134,6 +169,7 @@ function declaration(input: {
     tags: ["insights"],
     request: {
       ...(input.params ? { params: input.params } : {}),
+      ...(input.query ? { query: input.query } : {}),
       ...(input.body
         ? {
             body: {
@@ -162,6 +198,12 @@ function declaration(input: {
       },
       409: {
         description: "Conflict",
+        content: {
+          "application/problem+json": { schema: ProblemDetailsSchema },
+        },
+      },
+      503: {
+        description: "Local evidence cannot be verified",
         content: {
           "application/problem+json": { schema: ProblemDetailsSchema },
         },
@@ -216,7 +258,10 @@ const cluster = (row: ClusterRow) => ({
   commentCount: row.comment_count,
   createdAt: row.created_at,
 });
-function generation(row: GenerationRow): GenerationRecord {
+function generation(
+  row: GenerationRow,
+  transaction: UnitOfWorkTransaction,
+): GenerationRecord {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -225,7 +270,7 @@ function generation(row: GenerationRow): GenerationRecord {
     title: row.title,
     status: row.status,
     summary: row.summary,
-    ...(row.actual_cost === null ? {} : { actualCost: row.actual_cost }),
+    ...readGenerationCost(transaction, row.id, row.actual_cost),
     currency: row.currency,
     ...(row.cost_note ? { costNote: row.cost_note } : {}),
     createdAt: row.created_at,
@@ -342,16 +387,36 @@ function createGenerationService(
           input.title,
           input.status,
           input.summary,
-          input.actualCost ?? null,
+          input.configuredUnitEstimate ? null : (input.actualCost ?? null),
           input.currency ?? "CNY",
           now,
           now,
+        );
+        appendGenerationCost(
+          transaction,
+          id,
+          input.configuredUnitEstimate
+            ? costObservation(
+                "configured-unit-estimate",
+                input.configuredUnitEstimate.amount,
+                input.configuredUnitEstimate.unit,
+                now,
+              )
+            : costObservation(
+                input.actualCost === undefined
+                  ? "unspecified"
+                  : "legacy-unverified",
+                input.actualCost,
+                input.currency,
+                now,
+              ),
         );
         const value = generation(
           transaction.get<GenerationRow>(
             "SELECT * FROM insights_generation_records WHERE id = ?",
             id,
           )!,
+          transaction,
         );
         transaction.append({
           type: "insights.generation-recorded.v1",
@@ -765,7 +830,100 @@ function generationRoutes(
   workspace: WorkspaceProjectService,
 ): RouteContribution[] {
   const idParams = z.object({ id: z.string().uuid() });
+  const costCursor = z
+    .string()
+    .regex(/^[1-9]\d*$/u)
+    .transform(Number)
+    .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER));
+  const costQuery = z
+    .object({
+      projectId: z.string().uuid(),
+      cursor: costCursor.optional(),
+      limit: costCursor.pipe(z.number().max(100)).default(25),
+    })
+    .strict();
   return [
+    route(
+      {
+        id: "insights:generation-cost-history",
+        pluginId: "insights",
+        method: "get",
+        path: "/api/v2/generation-ledger/{id}/cost-observations",
+        operationId: "generation.costObservations",
+      },
+      declaration({
+        method: "get",
+        path: "/api/v2/generation-ledger/{id}/cost-observations",
+        operationId: "generation.costObservations",
+        params: idParams,
+        query: costQuery,
+        response: GenerationCostObservationPageSchema,
+      }),
+      (requestContext) => {
+        const query = costQuery.safeParse(requestContext.req.query());
+        if (!query.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "费用观察须绑定原项目和有效分页范围。",
+          );
+        try {
+          const value = context.uow.execute((tx) => {
+            const row = tx.get<GenerationRow>(
+              "SELECT * FROM insights_generation_records WHERE id = ? AND project_id = ?",
+              requestContext.req.param("id"),
+              query.data.projectId,
+            );
+            if (!row) return undefined;
+            const history = generationCostHistory(tx, row.id, row.actual_cost);
+            const eligible = history.items
+              .filter(
+                (item) =>
+                  query.data.cursor === undefined ||
+                  item.sequence < query.data.cursor,
+              )
+              .reverse();
+            const items = eligible.slice(0, query.data.limit);
+            return GenerationCostObservationPageSchema.parse({
+              recordId: row.id,
+              projectId: row.project_id,
+              billingStatus: "unknown",
+              observationCount: history.items.length,
+              items,
+              ...(history.legacyObservation
+                ? { legacyObservation: history.legacyObservation }
+                : {}),
+              ...(eligible.length > items.length
+                ? { nextCursor: items.at(-1)!.sequence }
+                : {}),
+            });
+          });
+          if (!value)
+            return problem(
+              requestContext,
+              404,
+              "NOT_FOUND",
+              "原项目中未找到生成记录。",
+            );
+          const response = requestContext.json(value);
+          response.headers.set("cache-control", "no-store");
+          response.headers.set(
+            "ETag",
+            `"${createHash("sha256").update(JSON.stringify(value)).digest("hex")}"`,
+          );
+          return response;
+        } catch (error) {
+          if (!(error instanceof GenerationCostIntegrityError)) throw error;
+          return problem(
+            requestContext,
+            503,
+            "GENERATION_COST_INTEGRITY_ERROR",
+            "费用观察原记录无法核对；未返回推测记录。",
+          );
+        }
+      },
+    ),
     route(
       {
         id: "insights:generation-list",
@@ -785,16 +943,26 @@ function generationRoutes(
         const projectId = requestContext.req.param("id");
         if (!workspace.get(projectId))
           return problem(requestContext, 404, "NOT_FOUND", "未找到项目。");
-        return requestContext.json(
-          context.uow.execute((transaction) =>
-            transaction
-              .all<GenerationRow>(
-                "SELECT * FROM insights_generation_records WHERE project_id = ? ORDER BY created_at DESC, id",
-                projectId,
-              )
-              .map(generation),
-          ),
-        );
+        try {
+          return requestContext.json(
+            context.uow.execute((transaction) =>
+              transaction
+                .all<GenerationRow>(
+                  "SELECT * FROM insights_generation_records WHERE project_id = ? ORDER BY created_at DESC, id",
+                  projectId,
+                )
+                .map((row) => generation(row, transaction)),
+            ),
+          );
+        } catch (error) {
+          if (!(error instanceof GenerationCostIntegrityError)) throw error;
+          return problem(
+            requestContext,
+            503,
+            "GENERATION_COST_INTEGRITY_ERROR",
+            "费用观察的原始记录无法核对；未返回缓存或推测费用。",
+          );
+        }
       },
     ),
     route(
@@ -824,41 +992,81 @@ function generationRoutes(
             "VALIDATION_ERROR",
             "成本记录无效。",
           );
-        const value = context.uow.execute((transaction) => {
-          const current = transaction.get<GenerationRow>(
-            "SELECT * FROM insights_generation_records WHERE id = ?",
-            requestContext.req.param("id"),
-          );
-          if (!current) return undefined;
-          transaction.run(
-            `UPDATE insights_generation_records
+        try {
+          const value = context.uow.execute((transaction) => {
+            const current = transaction.get<GenerationRow>(
+              "SELECT * FROM insights_generation_records WHERE id = ?",
+              requestContext.req.param("id"),
+            );
+            if (!current) return undefined;
+            const previous = readGenerationCost(
+              transaction,
+              current.id,
+              current.actual_cost,
+            );
+            const now = new Date().toISOString();
+            if (input.data.actualCost !== undefined) {
+              if (
+                previous.costObservationCount === 0 &&
+                current.actual_cost !== null
+              )
+                appendGenerationCost(
+                  transaction,
+                  current.id,
+                  previous.costObservation,
+                );
+              appendGenerationCost(
+                transaction,
+                current.id,
+                costObservation(
+                  "human-declared",
+                  input.data.actualCost,
+                  input.data.currency,
+                  now,
+                ),
+              );
+            }
+            transaction.run(
+              `UPDATE insights_generation_records
              SET actual_cost = ?, currency = ?, cost_note = ?, updated_at = ?
              WHERE id = ?`,
-            input.data.actualCost ?? current.actual_cost,
-            input.data.currency ?? current.currency,
-            input.data.costNote?.trim() || current.cost_note,
-            new Date().toISOString(),
-            current.id,
-          );
-          const updated = generation(
-            transaction.get<GenerationRow>(
-              "SELECT * FROM insights_generation_records WHERE id = ?",
+              input.data.actualCost ?? current.actual_cost,
+              input.data.currency ?? current.currency,
+              input.data.costNote === undefined
+                ? current.cost_note
+                : input.data.costNote.trim(),
+              now,
               current.id,
-            )!,
-          );
-          transaction.append({
-            type: "insights.generation-updated.v1",
-            pluginId: "insights",
-            aggregateType: "generation-record",
-            aggregateId: current.id,
-            aggregateVersion: 1,
-            payload: JSON.parse(JSON.stringify(updated)),
+            );
+            const updated = generation(
+              transaction.get<GenerationRow>(
+                "SELECT * FROM insights_generation_records WHERE id = ?",
+                current.id,
+              )!,
+              transaction,
+            );
+            transaction.append({
+              type: "insights.generation-updated.v1",
+              pluginId: "insights",
+              aggregateType: "generation-record",
+              aggregateId: current.id,
+              aggregateVersion: 1,
+              payload: JSON.parse(JSON.stringify(updated)),
+            });
+            return updated;
           });
-          return updated;
-        });
-        return value
-          ? requestContext.json(value)
-          : problem(requestContext, 404, "NOT_FOUND", "未找到生成记录。");
+          return value
+            ? requestContext.json(value)
+            : problem(requestContext, 404, "NOT_FOUND", "未找到生成记录。");
+        } catch (error) {
+          if (!(error instanceof GenerationCostIntegrityError)) throw error;
+          return problem(
+            requestContext,
+            503,
+            "GENERATION_COST_INTEGRITY_ERROR",
+            "费用观察的原始记录无法核对；未修改记录。",
+          );
+        }
       },
     ),
   ];
@@ -914,7 +1122,18 @@ export function createInsightsPlugin(host?: DesktopHostClient) {
         },
       },
     ],
-    migrations,
+    migrations: [
+      ...migrations,
+      creativeOutcomeMigration,
+      creativeFunnelMigration,
+      creativeContinuationMigration,
+      generationCostMigration,
+      creativeQualityAssociationMigration,
+      creativeInitialGoalMigration,
+      creativeSourceConfirmationMigration,
+      creativePlanningAdoptionMigration,
+      novelRevisionMigration,
+    ],
     apply: (context) => {
       registerInsightsCreation(context);
       const workspace = optionalService<WorkspaceProjectService>(
@@ -927,6 +1146,7 @@ export function createInsightsPlugin(host?: DesktopHostClient) {
       );
       if (!workspace || !tasks)
         throw new Error("insights requires workspace and automation services");
+      registerCreativeOutcomes(context, workspace);
       const generationService = createGenerationService(context);
       context.effect(
         () =>

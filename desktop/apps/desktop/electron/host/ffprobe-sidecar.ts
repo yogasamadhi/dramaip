@@ -1,10 +1,23 @@
 import { createHash, verify } from "node:crypto";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { promisify } from "node:util";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { MediaProbeResult } from "./media-archive";
+import {
+  interpretRenderAudioProbe,
+  type RenderAudioProbe,
+} from "./audio-probe";
+import { buildTimelineAudioMix } from "./render-audio";
+import { renderMediaInputOptions } from "./render-media-input";
+import {
+  interpretRenderVideoProbe,
+  VideoFrameProofError,
+  type RenderVideoProbe,
+} from "./video-proof";
+import { verifyRenderVideoFrames } from "./render-video-execution";
 
 const executeFile = promisify(execFile);
 
@@ -101,6 +114,14 @@ export async function loadVerifiedFfprobe(input: {
   | {
       version: string;
       probe(path: string): Promise<MediaProbeResult>;
+      probeAudio(
+        path: string,
+        kind: "audio" | "video",
+      ): Promise<RenderAudioProbe>;
+      probeVideo(
+        path: string,
+        output?: { width: number; height: number; durationFrames: number },
+      ): Promise<RenderVideoProbe>;
     }
   | undefined
 > {
@@ -123,10 +144,67 @@ export async function loadVerifiedFfprobe(input: {
     throw new Error("Renderer sidecar artifact checksum mismatch");
   return {
     version: manifest.version,
+    async probeVideo(path, output) {
+      const { stdout } = await executeFile(
+        executablePath,
+        [
+          "-v",
+          "error",
+          ...renderMediaInputOptions(path),
+          "-show_streams",
+          "-show_format",
+          "-of",
+          "json",
+          path,
+        ],
+        { timeout: 30_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
+      );
+      try {
+        return interpretRenderVideoProbe(JSON.parse(stdout), output);
+      } catch (cause) {
+        throw new VideoFrameProofError(
+          "Actual video stream inventory or presentation clock is invalid",
+          { cause },
+        );
+      }
+    },
+    async probeAudio(path, kind) {
+      const { stdout } = await executeFile(
+        executablePath,
+        [
+          "-v",
+          "error",
+          ...renderMediaInputOptions(path),
+          "-show_streams",
+          "-show_format",
+          "-of",
+          "json",
+          path,
+        ],
+        { timeout: 30_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
+      );
+      return interpretRenderAudioProbe(JSON.parse(stdout), kind);
+    },
     async probe(path) {
       const { stdout } = await executeFile(
         executablePath,
-        ["-v", "error", "-show_streams", "-show_format", "-of", "json", path],
+        [
+          "-v",
+          "error",
+          "-protocol_whitelist",
+          "file",
+          "-f",
+          "mov",
+          "-enable_drefs",
+          "0",
+          "-use_absolute_path",
+          "0",
+          "-show_streams",
+          "-show_format",
+          "-of",
+          "json",
+          path,
+        ],
         { timeout: 30_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
       );
       const output = JSON.parse(stdout) as {
@@ -164,6 +242,8 @@ export async function loadVerifiedFfmpeg(input: {
   | {
       version: string;
       executablePath: string;
+      audioMixAvailable: boolean;
+      videoProofAvailable: boolean;
     }
   | undefined
 > {
@@ -184,5 +264,172 @@ export async function loadVerifiedFfmpeg(input: {
     .digest("hex");
   if (executableSha256 !== manifest.sha256)
     throw new Error("Renderer sidecar artifact checksum mismatch");
-  return { version: manifest.version, executablePath };
+  // Failure disables only the new policy. Legacy jobs never inherit an unverified mix capability.
+  const audioMixAvailable = await verifyFfmpegAudioMixCapability(
+    executablePath,
+  ).catch(() => false);
+  const videoProofAvailable = await verifyFfmpegVideoProofCapability(
+    executablePath,
+  ).catch(() => false);
+  return {
+    version: manifest.version,
+    executablePath,
+    audioMixAvailable,
+    videoProofAvailable,
+  };
+}
+
+/** Actual x264 MP4 decode, three frames and original demux clock, not a filter-list or process-exists check. */
+export async function verifyFfmpegVideoProofCapability(
+  executablePath: string,
+): Promise<boolean> {
+  const directory = await mkdtemp(join(tmpdir(), "dramaip-video-capability-"));
+  try {
+    const path = join(directory, "controlled.mp4");
+    await executeFile(
+      executablePath,
+      [
+        "-nostdin",
+        "-v",
+        "error",
+        "-xerror",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=s=16x16:r=25:d=0.12",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-video_track_timescale",
+        "12800",
+        path,
+      ],
+      { timeout: 10_000, maxBuffer: 64 * 1024, windowsHide: true },
+    );
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 10_000);
+    try {
+      const proof = await verifyRenderVideoFrames({
+        executable: executablePath,
+        path,
+        probe: {
+          streamIndex: 0,
+          width: 16,
+          height: 16,
+          codecName: "h264",
+          pixelFormat: "yuv420p",
+          timeBase: { n: 1n, d: 12800n },
+          startTicks: 0n,
+          durationTicks: 1536n,
+          origin: { n: 0n, d: 1n },
+        },
+        outputFrames: 3,
+        signal: abort.signal,
+        observer: () => {},
+      });
+      return proof.frames === 3;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+/** Exercise the actual mixer and AAC/x264 encoders after signature+executable SHA verification. */
+export async function verifyFfmpegAudioMixCapability(
+  executablePath: string,
+): Promise<boolean> {
+  const controls = {
+    inputIndex: 0,
+    channels: 1 as const,
+    startFrame: 0,
+    durationFrames: 1,
+    sourceOffsetFrame: 0,
+    volume: 0.8,
+    fadeInFrames: 1,
+    fadeOutFrames: 1,
+    duckingGain: 0.5,
+  };
+  const mix = buildTimelineAudioMix(1, [
+    { ...controls, kind: "bgm" },
+    { ...controls, kind: "dialogue", volume: 0 },
+  ]);
+  const { stdout } = await executeFile(
+    executablePath,
+    [
+      "-nostdin",
+      "-v",
+      "error",
+      "-xerror",
+      "-f",
+      "lavfi",
+      "-i",
+      "aevalsrc=0.125:s=48000:d=0.04",
+      "-filter_complex",
+      mix.filters.join(";"),
+      "-map",
+      `[${mix.outputLabel}]`,
+      "-c:a",
+      "pcm_f32le",
+      "-f",
+      "f32le",
+      "pipe:1",
+    ],
+    {
+      timeout: 10_000,
+      maxBuffer: 64 * 1024,
+      windowsHide: true,
+      encoding: "buffer",
+    },
+  );
+  if (stdout.length !== 1920 * 8)
+    throw new Error(
+      "Signed mixer did not produce the exact capability sample count",
+    );
+  for (let sample = 0; sample < 1920; sample++) {
+    const expected =
+      0.125 * 0.8 * (sample / 1920) * ((1920 - sample) / 1920) * 0.5;
+    for (let channel = 0; channel < 2; channel++) {
+      const actual = stdout.readFloatLE((sample * 2 + channel) * 4);
+      if (!Number.isFinite(actual) || Math.abs(actual - expected) > 1e-6)
+        throw new Error(
+          "Signed mixer did not preserve the frozen gain/sample-clock policy",
+        );
+    }
+  }
+  await executeFile(
+    executablePath,
+    [
+      "-nostdin",
+      "-v",
+      "error",
+      "-xerror",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=black:s=16x16:r=25:d=0.04",
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=r=48000:cl=stereo:d=0.04",
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-frames:v",
+      "1",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      "-f",
+      "null",
+      "-",
+    ],
+    { timeout: 10_000, maxBuffer: 64 * 1024, windowsHide: true },
+  );
+  return true;
 }

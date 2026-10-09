@@ -6,6 +6,12 @@ Shared product and architecture docs live in `../../docs` at the workspace level
 
 The canonical current positioning is documented in [产品定位](../../docs/product/POSITIONING.md): DramaIP is a local-first AI screenwriting and IP-adaptation workspace for AI short dramas and animated dramas. Platform capabilities remain optional cloud services around inspiration, identity, subscriptions, collaboration, review, and operations; Desktop remains the local authoritative creation environment.
 
+Novel writing is a first-class capability with independent chapter, manuscript, and submission outcomes, not merely an adaptation input. Cloud copy and business plans must distinguish this path from screenplay/pilot delivery. Local-first does not mean offline model inference or automatic cross-client synchronization; proposed changes in [PLAN](../../docs/PLAN.md) are not implementation evidence.
+
+- [Platform scope and launchers](../README.md)
+- [Local development](./LOCAL_DEVELOPMENT.md)
+- [Public client contracts](./CLIENT_CONTRACTS.md)
+
 For local metrics, alerts, logs, and tracing operations, see [OBSERVABILITY.md](./OBSERVABILITY.md).
 
 For public creative-corpus rollout, source review, rights takedown, snapshot signing, and failure recovery, see [CREATIVE_CORPUS_OPERATIONS.md](./CREATIVE_CORPUS_OPERATIONS.md).

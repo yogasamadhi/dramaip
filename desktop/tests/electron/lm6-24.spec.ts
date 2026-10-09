@@ -1,3 +1,4 @@
+import { selectWorkspaceObject } from "./project-tools";
 import { expect, test } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -27,15 +28,11 @@ test("审核交付页明确展示可选云审片的最小上传与安全连接�
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "审核交付" }).click();
-  await page
-    .getByRole("combobox", { name: "项目", exact: true })
-    .selectOption({ label: "示例短剧：雨夜归来" });
-  await page
-    .getByRole("combobox", { name: "改编项目" })
-    .selectOption({ label: "雨夜归来·第一季改编方案" });
-  await page
-    .getByRole("combobox", { name: "分集" })
-    .selectOption({ label: "第 1 集：雨夜敲门" });
+  await selectWorkspaceObject(page, "项目", { label: "示例短剧：雨夜归来" });
+  await selectWorkspaceObject(page, "改编项目", {
+    label: "雨夜归来·第一季改编方案",
+  });
+  await selectWorkspaceObject(page, "分集", { label: "第 1 集：雨夜敲门" });
   await page.getByRole("button", { name: "预览与修订", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "可选云审片" })).toBeVisible();

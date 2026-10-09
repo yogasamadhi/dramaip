@@ -234,7 +234,6 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
     model: session.model ?? activeProvider.model,
   };
   const controller = new AbortController();
-  const usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
   session.activeRunId = runId;
   activeRuns.set(runId, { controller, sessionId });
   try {
@@ -258,16 +257,16 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
           runId,
           event: { type: "content.delta", delta },
         }),
-      onUsage: (next) => {
-        usage.inputTokens += next.inputTokens;
-        usage.outputTokens += next.outputTokens;
-        usage.cachedTokens += next.cachedTokens;
-      },
-    });
-    parentPort!.postMessage({
-      type: "event",
-      runId,
-      event: { type: "usage", ...usage },
+      onUsage: (next) =>
+        parentPort!.postMessage({
+          type: "event",
+          runId,
+          event: {
+            type: "usage",
+            measurementScope: "response-increment",
+            ...next,
+          },
+        }),
     });
     session.history = trimHistory([
       ...session.history,

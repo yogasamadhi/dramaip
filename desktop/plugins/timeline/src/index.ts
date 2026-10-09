@@ -1,9 +1,15 @@
 import { optionalService, provideService } from "@dramaip/plugin-api/internal";
+import { createHash } from "node:crypto";
+import {
+  WORKSPACE_PROJECT_SERVICE,
+  type WorkspaceProjectService,
+} from "@dramaip/contracts/workspace";
 import { createRoute } from "@hono/zod-openapi";
 import { ProblemDetailsSchema } from "@dramaip/contracts";
 import {
   MEDIA_AUDIO_TRACK_SERVICE,
   MEDIA_RECORD_SERVICE,
+  MediaArtifactDescriptorSchema,
   type MediaAudioTrackService,
   type MediaRecordService,
 } from "@dramaip/contracts/media";
@@ -23,13 +29,20 @@ import {
   TimelineMediaPreviewSchema,
   TimelineRenderCreateInputSchema,
   TimelineRenderJobSchema,
+  TimelineRenderCatalogSchema,
+  TimelineRenderCatalogQuerySchema,
   TimelineRenderPreflightSchema,
+  TimelineRenderPreflightQuerySchema,
+  TimelineRenderSubtitlePolicySchema,
+  TimelineRendererFontDescriptorSchema,
+  TIMELINE_RENDER_SUBTITLE_PROFILE_VERSION,
   TIMELINE_SERVICE,
   type AudioAssemblyPreview,
   type TimelineClip,
   type TimelineEditCommand,
   type TimelineManifest,
   type TimelineRenderJob,
+  type TimelineRenderSubtitlePolicy,
   type TimelineService,
   type TimelineTrack,
 } from "@dramaip/contracts/timeline";
@@ -40,11 +53,23 @@ import {
   type RouteContribution,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
-import type {
-  DesktopHostClient,
-  HostTimelineRenderJob,
+import {
+  validTimelineRenderSubtitlePlan,
+  type DesktopHostClient,
+  type HostTimelineRenderJob,
 } from "@dramaip/desktop-host";
 import { z, type ZodType } from "zod";
+import {
+  audioResolutionMigration,
+  audioResolutionRoutes,
+} from "./audio-resolution.js";
+import { timelinePlaybackPlanRoute } from "./playback-plan.js";
+import { buildTimelineRenderSources } from "./render-sources.js";
+import { buildTimelineDeliveryManifest } from "./delivery-manifest.js";
+import {
+  timelineMediaCopyMigration,
+  timelineMediaCopyRoutes,
+} from "./media-copy.js";
 
 interface TimelineRow {
   id: string;
@@ -67,6 +92,12 @@ interface TimelineRenderRow {
   output_media_ref: string | null;
   output_sha256: string | null;
   failure_code: string | null;
+  source_fingerprint: string | null;
+  source_snapshot_json: string | null;
+  request_fingerprint: string | null;
+  output_record_id: string | null;
+  output_record_version: number | null;
+  output_project_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -75,6 +106,8 @@ interface RouteContext {
   req: {
     param(name: string): string;
     query(name: string): string | undefined;
+    query(): Record<string, string>;
+    queries(): Record<string, string[]>;
     header(name: string): string | undefined;
     json<T = unknown>(): Promise<T>;
   };
@@ -89,21 +122,21 @@ const timelineExportParams = episodeParams.extend({
 });
 
 function problem(
-  context: RouteContext,
+  _context: RouteContext,
   status: number,
   code: string,
   title: string,
 ): Response {
-  return context.json(
-    {
+  return new Response(
+    JSON.stringify({
       type: `https://dramaip.local/problems/${code.toLowerCase()}`,
       title,
       detail: title,
       status,
       code,
       traceId: crypto.randomUUID(),
-    },
-    status,
+    }),
+    { status, headers: { "Content-Type": "application/problem+json" } },
   );
 }
 
@@ -112,6 +145,7 @@ function openapi(input: {
   path: string;
   operationId: string;
   params?: ZodType;
+  query?: ZodType;
   body?: ZodType;
   response: ZodType;
 }): unknown {
@@ -122,6 +156,15 @@ function openapi(input: {
     tags: ["timeline"],
     request: {
       ...(input.params ? { params: input.params } : {}),
+      ...(input.query ? { query: input.query } : {}),
+      ...(input.operationId === "timeline.applyAudioAssembly"
+        ? {
+            headers: z.object({
+              "If-Match": z.string().min(1),
+              "Idempotency-Key": z.string().min(1).max(200),
+            }),
+          }
+        : {}),
       ...(input.body
         ? {
             body: {
@@ -154,6 +197,22 @@ function openapi(input: {
           "application/problem+json": { schema: ProblemDetailsSchema },
         },
       },
+      ...(input.operationId === "timeline.applyAudioAssembly"
+        ? {
+            412: {
+              description: "Timeline version conflict",
+              content: {
+                "application/problem+json": { schema: ProblemDetailsSchema },
+              },
+            },
+            428: {
+              description: "Precondition required",
+              content: {
+                "application/problem+json": { schema: ProblemDetailsSchema },
+              },
+            },
+          }
+        : {}),
     },
   } as never);
 }
@@ -189,7 +248,20 @@ function route(
   declaration: unknown,
   handler: RouteHandler,
 ): RouteContribution {
-  return defineRouteContribution({ ...metadata, declaration, handler });
+  return defineRouteContribution({
+    ...metadata,
+    declaration,
+    handler,
+    ...(metadata.operationId === "timeline.applyAudioAssembly"
+      ? {
+          policy: {
+            idempotency: "required" as const,
+            idempotencyReplay: "handler" as const,
+            concurrency: "if-match-required" as const,
+          },
+        }
+      : {}),
+  });
 }
 
 function duration(record: ProductionRecord): number {
@@ -519,13 +591,15 @@ function saveForward(
   current: TimelineManifest,
   next: TimelineManifest,
   action: string,
+  receipt?: { key: string; requestHash: string },
+  finalize?: (tx: UnitOfWorkTransaction, saved: TimelineManifest) => void,
 ): TimelineManifest | "conflict" {
   return context.uow.execute((transaction) => {
     const row = transaction.get<TimelineRow>(
       "SELECT * FROM timelines WHERE id = ?",
       current.id,
     );
-    if (!row || parseManifest(row).version !== current.version)
+    if (!row || JSON.stringify(parseManifest(row)) !== JSON.stringify(current))
       return "conflict" as const;
     const undo = (JSON.parse(row.undo_json) as unknown[]).map(
       normalizeTimelineManifest,
@@ -540,7 +614,29 @@ function saveForward(
       JSON.stringify(undo.slice(-100)),
       current.id,
     );
-    appendTimelineEvent(transaction, action, next);
+    if (action === "audio-resolved")
+      transaction.append({
+        type: "timeline.audio-resolved.v1",
+        pluginId: "timeline",
+        aggregateType: "timeline",
+        aggregateId: next.id,
+        aggregateVersion: next.version,
+        payload: {
+          timelineId: next.id,
+          episodeId: next.episodeId,
+          version: next.version,
+        },
+      });
+    else appendTimelineEvent(transaction, action, next);
+    if (receipt)
+      transaction.run(
+        "INSERT INTO timeline_audio_assembly_requests VALUES (?,?,?,?)",
+        receipt.key,
+        receipt.requestHash,
+        current.id,
+        JSON.stringify(next),
+      );
+    finalize?.(transaction, next);
     return next;
   });
 }
@@ -683,9 +779,10 @@ function edlReel(assetId?: string): string {
 function exportDocument(
   timeline: TimelineManifest,
   media: MediaRecordService,
+  audioTracks: MediaAudioTrackService,
   format: z.infer<typeof timelineExportParams>["format"],
 ) {
-  const manifest = deliveryManifest(timeline, media);
+  const manifest = buildTimelineDeliveryManifest(timeline, media, audioTracks);
   const base = `timeline-${timeline.episodeId}-v${timeline.version}`;
   const videoClips = timeline.tracks
     .filter((track) => track.kind === "video")
@@ -706,14 +803,26 @@ function exportDocument(
       content: `${JSON.stringify(manifest, null, 2)}\n`,
     };
   if (format === "fcpxml") {
-    const referencedAssets = videoClips.flatMap((clip) => {
-      const relativePath = clip.assetId
-        ? mediaPaths.get(clip.assetId)
-        : undefined;
-      return relativePath && clip.assetId
-        ? [{ id: `asset-${clip.assetId}`, path: relativePath, name: clip.name }]
-        : [];
-    });
+    const referencedAssets = [
+      ...new Map(
+        videoClips
+          .flatMap((clip) => {
+            const relativePath = clip.assetId
+              ? mediaPaths.get(clip.assetId)
+              : undefined;
+            return relativePath && clip.assetId
+              ? [
+                  {
+                    id: `asset-${clip.assetId}`,
+                    path: relativePath,
+                    name: clip.name,
+                  },
+                ]
+              : [];
+          })
+          .map((asset) => [asset.id, asset]),
+      ).values(),
+    ];
     const resources = [
       '<format id="r1" frameDuration="1/25s" width="1080" height="1920" />',
       ...referencedAssets.map(
@@ -802,11 +911,14 @@ function exportDocument(
     content: `${JSON.stringify(
       {
         format: "dramaip-media-relink",
-        schemaVersion: 1,
+        schemaVersion: 2,
         timelineId: timeline.id,
         timelineVersion: timeline.version,
+        sourceFingerprint: manifest.sourceFingerprint,
         media: manifest.media,
+        sourceBlockers: manifest.sourceBlockers,
         unsupportedFeatures: manifest.unsupportedFeatures,
+        warnings: manifest.warnings,
       },
       null,
       2,
@@ -820,11 +932,19 @@ function assembly(
 ): AudioAssemblyPreview {
   const tracks = audioTracks
     .list(timeline.episodeId)
-    .filter((track) => track.status === "adopted");
-  const clips = tracks.flatMap((track) =>
+    .filter(
+      (track) =>
+        track.status === "adopted" && track.projectId === timeline.projectId,
+    );
+  const usable = tracks.filter(
+    (track) => !track.stale && track.sourceState === "current",
+  );
+  const clips = usable.flatMap((track) =>
     track.clips.map((clip) => ({
       id: clip.id,
       audioTrackId: track.id,
+      audioTrackVersion: track.version,
+      audioSourceFingerprint: track.sourceFingerprint,
       sourceClipId: clip.id,
       kind: track.kind,
       name: track.label,
@@ -856,6 +976,8 @@ function assembly(
     .map((clip) => ({
       id: crypto.randomUUID(),
       audioTrackId: clip.audioTrackId,
+      audioTrackVersion: clip.audioTrackVersion,
+      audioSourceFingerprint: clip.audioSourceFingerprint,
       sourceClipId: clip.sourceClipId,
       ...(clip.shotId ? { shotId: clip.shotId } : {}),
       startSeconds: clip.startSeconds,
@@ -872,16 +994,30 @@ function assembly(
     timelineId: timeline.id,
     timelineVersion: timeline.version,
     sourceFingerprint: JSON.stringify(
-      tracks.map((track) => [track.id, track.version]),
+      tracks.map((track) => [
+        track.id,
+        track.version,
+        track.sourceFingerprint,
+        track.sourceState,
+      ]),
     ),
     clips,
     subtitleCues,
     srt,
     webVtt: `WEBVTT\n\n${srt.replace(/,/gu, ".")}`,
-    warnings: clips.length ? ["部分音轨权利待核验。"] : [],
+    warnings: [
+      ...(clips.length
+        ? [
+            "部分音轨权利待核验；来源版本一致不证明实际音频、音色授权或质量通过。",
+          ]
+        : []),
+      ...(tracks.some((track) => track.stale)
+        ? ["过期／未核验音轨已从装配候选排除，旧轨和已编辑片段保留。"]
+        : []),
+    ],
     protectedClipIds: timeline.tracks
       .flatMap((track) => track.clips)
-      .filter((clip) => clip.locked)
+      .filter((clip) => clip.locked || clip.manuallyEdited)
       .map((clip) => clip.id),
     staleTrackIds: tracks
       .filter((track) => track.stale)
@@ -889,54 +1025,51 @@ function assembly(
   };
 }
 
-function deliveryManifest(
+function audioSourceProblems(
   timeline: TimelineManifest,
-  media: MediaRecordService,
-) {
-  const assetIds = [
-    ...new Set(
-      timeline.tracks
-        .flatMap((track) => track.clips)
-        .flatMap((clip) => (clip.assetId ? [clip.assetId] : [])),
-    ),
-  ];
-  return {
-    format: "dramaip-timeline-delivery" as const,
-    schemaVersion: 2 as const,
-    timeline,
-    media: assetIds.flatMap((assetId) => {
-      const record = media.get(assetId);
-      return record
-        ? [
-            {
-              assetId,
-              title: record.title,
-              sourceVersion: record.version,
-              relativePath: `media/${assetId}`,
-              mediaStatus: "unattached" as const,
-              rightsStatus:
-                record.payload["权利状态"] === "已核验"
-                  ? ("cleared" as const)
-                  : ("unknown" as const),
-              lineage: [record.kind, record.id],
-            },
-          ]
-        : [];
-    }),
-    unsupportedFeatures: ["timeline_render"],
-    warnings: assetIds.length
-      ? []
-      : ["时间线当前只包含受控引用，媒体需在剪辑软件中重新链接。"],
-  };
+  audioTracks: MediaAudioTrackService,
+): string[] {
+  const tracks = audioTracks.list(timeline.episodeId);
+  const reasons: string[] = [];
+  for (const { clip, kind } of timeline.tracks.flatMap((track) =>
+    track.clips.map((clip) => ({ clip, kind: track.kind })),
+  )) {
+    if (!clip.audioTrackId) continue;
+    const track = tracks.find((item) => item.id === clip.audioTrackId);
+    const source = track?.clips.find((item) => item.id === clip.sourceClipId);
+    if (
+      !track ||
+      track.projectId !== timeline.projectId ||
+      track.status !== "adopted" ||
+      track.stale ||
+      track.sourceState !== "current"
+    )
+      reasons.push(
+        `音轨 ${clip.audioTrackId} 已过期、未核验或不再是本分集采用版本。`,
+      );
+    else if (
+      !source ||
+      clip.audioTrackVersion !== track.version ||
+      clip.audioSourceFingerprint !== track.sourceFingerprint ||
+      source.shotId !== clip.shotId ||
+      (kind !== "subtitle" && source.assetId !== clip.assetId)
+    )
+      reasons.push(
+        `音轨 ${clip.audioTrackId} 的装配冻结版本／片段关联已变化，需重新预览并明确装配。`,
+      );
+  }
+  return [...new Set(reasons)];
 }
 
-const P0_PROFILE_VERSION = "1080x1920-25-48000-stereo-v1";
+const P0_PROFILE_VERSION = "1080x1920-25-48000-stereo-audio-mix-v1";
+const SUBTITLE_PROFILE_VERSION = TIMELINE_RENDER_SUBTITLE_PROFILE_VERSION;
 
 function timelineEtag(timeline: TimelineManifest): string {
   return `"timeline:${timeline.id}:${timeline.version}"`;
 }
 
 function toRenderJob(row: TimelineRenderRow): TimelineRenderJob {
+  const subtitlePolicy = frozenSubtitlePolicy(row);
   return {
     jobId: row.id,
     timelineId: row.timeline_id,
@@ -944,6 +1077,25 @@ function toRenderJob(row: TimelineRenderRow): TimelineRenderJob {
     timelineProfileVersion: row.timeline_profile_version,
     rendererVersion: row.renderer_version,
     sidecarArtifactVersion: row.sidecar_artifact_version,
+    ...(subtitlePolicy ? { subtitlePolicy } : {}),
+    ...(row.source_fingerprint
+      ? { sourceFingerprint: row.source_fingerprint }
+      : {}),
+    ...(row.request_fingerprint
+      ? { requestFingerprint: row.request_fingerprint }
+      : {}),
+    ...(row.status === "succeeded" &&
+    row.output_record_id &&
+    row.output_project_id &&
+    row.output_record_version !== null
+      ? {
+          outputRecord: {
+            id: row.output_record_id,
+            projectId: row.output_project_id,
+            version: row.output_record_version,
+          },
+        }
+      : {}),
     status: row.status,
     progress: row.progress,
     ...(row.output_media_ref ? { outputMediaRef: row.output_media_ref } : {}),
@@ -954,56 +1106,159 @@ function toRenderJob(row: TimelineRenderRow): TimelineRenderJob {
   };
 }
 
-function videoRenderClips(timeline: TimelineManifest) {
-  return timeline.tracks
-    .filter((track) => track.kind === "video" && !track.muted)
-    .flatMap((track) => track.clips)
-    .sort((left, right) => left.startFrame - right.startFrame);
+/** Never invent policy from a profile label or repair a historical/corrupt snapshot. */
+function frozenSubtitlePolicy(
+  row: TimelineRenderRow,
+): TimelineRenderSubtitlePolicy | undefined {
+  if (
+    row.timeline_profile_version !== SUBTITLE_PROFILE_VERSION ||
+    !row.source_snapshot_json ||
+    createHash("sha256").update(row.source_snapshot_json).digest("hex") !==
+      row.source_fingerprint
+  )
+    return undefined;
+  try {
+    const snapshot = JSON.parse(row.source_snapshot_json);
+    const parsed = TimelineRenderSubtitlePolicySchema.safeParse(
+      snapshot?.subtitles?.policy,
+    );
+    const plan = snapshot?.subtitles?.subtitlePlan;
+    if (
+      !parsed.success ||
+      snapshot?.timeline?.id !== row.timeline_id ||
+      snapshot?.timeline?.version !== row.timeline_version ||
+      !validTimelineRenderSubtitlePlan(
+        plan,
+        snapshot.timeline.durationFrames,
+      ) ||
+      plan.mode !== parsed.data.mode ||
+      (plan.mode === "burn-in" &&
+        parsed.data.mode === "burn-in" &&
+        JSON.stringify(plan.font) !== JSON.stringify(parsed.data.font))
+    )
+      return undefined;
+    return parsed.data;
+  } catch {
+    return undefined;
+  }
 }
 
 async function renderPreflight(
   timeline: TimelineManifest,
+  media: MediaRecordService,
+  audioTracks: MediaAudioTrackService,
   host?: DesktopHostClient,
+  subtitlePolicy?: TimelineRenderSubtitlePolicy,
 ) {
-  const clips = videoRenderClips(timeline);
-  const blockers: string[] = [];
+  const sources = buildTimelineRenderSources(
+    timeline,
+    media,
+    audioTracks,
+    subtitlePolicy,
+  );
+  const blockers: string[] = [...sources.blockers];
   const warnings = [
-    "当前实验渲染器生成独立 SRT，且 P0 首版输出使用静音 AAC-LC 音轨；不会静默烧录字幕。",
+    "当前实验渲染器按冻结音轨控制混音为 AAC；muted／solo 排除的音轨不参与，没有实际可听来源时才输出已知静音。混音超幅会拒绝，不自动改音量。字幕按明确策略处理，不认证字体发行授权或排版／内容质量。",
+    subtitlePolicy?.mode === "burn-in"
+      ? "只烧录当前未muted字幕的完整原文字节与原字体；缺字、重叠、超区或实际绘制失败拒绝，不自动换字体、截短或输出无字幕成功。"
+      : "本次不烧录字幕；独立SRT仍可另行导出，历史absence不升级为新明确策略。",
   ];
-  if (!clips.length) blockers.push("时间线没有可渲染的视频片段。");
-  if (clips.some((clip) => !clip.mediaRef || clip.mediaStatus !== "linked"))
-    blockers.push("所有视频片段必须先链接到已归档的 opaque mediaRef。");
-  for (let index = 1; index < clips.length; index += 1) {
-    const previous = clips[index - 1]!;
-    const current = clips[index]!;
-    if (current.startFrame < previous.startFrame + previous.durationFrames) {
-      blockers.push("P0 实验渲染器尚不支持重叠视频片段。");
-      break;
-    }
-  }
+  const profile = timeline.profile;
+  if (
+    profile.width !== 1080 ||
+    profile.height !== 1920 ||
+    profile.frameRate.numerator !== 25 ||
+    profile.frameRate.denominator !== 1 ||
+    profile.frameRate.dropFrame ||
+    profile.audioSampleRate !== 48_000 ||
+    profile.channels !== 2
+  )
+    blockers.push(
+      "当前实验渲染器只核验 1080×1920／25 fps／48 kHz stereo 配置。",
+    );
   let rendererVersion: string | undefined;
+  let subtitleBurnInAvailable = false;
+  let subtitleFonts: z.infer<typeof TimelineRendererFontDescriptorSchema>[] =
+    [];
   if (!host) blockers.push("当前运行模式没有 Desktop Host 渲染能力。");
   else {
     try {
       const health = await host.health();
       const capability = health.capabilities.find(
-        (item) => item.id === "renderer.ffmpeg-x264",
+        (item) => item.id === "renderer.ffmpeg-audio-mix-v1",
       );
-      if (!capability?.available)
-        blockers.push("尚未安装并校验项目签名的 FFmpeg+x264 sidecar。");
+      if (
+        !capability?.available ||
+        typeof capability.version !== "string" ||
+        !capability.version ||
+        capability.version.length > 120
+      )
+        blockers.push(
+          "尚未核验项目签名 sidecar 的实际音频探测、混音过滤器和 AAC／x264 能力；不降级为静音任务。",
+        );
       else rendererVersion = capability.version;
+      const native = health.capabilities.find(
+        (item) => item.id === "renderer.ffmpeg-subtitles-v1",
+      );
+      const fonts = z
+        .array(TimelineRendererFontDescriptorSchema)
+        .min(1)
+        .max(16)
+        .safeParse(native?.fonts);
+      if (
+        native?.available &&
+        rendererVersion &&
+        native.version === rendererVersion &&
+        fonts.success &&
+        new Set(fonts.data.map((font) => font.id)).size === fonts.data.length &&
+        fonts.data.reduce((total, font) => total + font.sizeBytes, 0) <=
+          64 * 1024 * 1024
+      ) {
+        subtitleBurnInAvailable = true;
+        subtitleFonts = fonts.data;
+      }
+      if (
+        subtitlePolicy?.mode === "burn-in" &&
+        (!subtitleBurnInAvailable ||
+          !subtitleFonts.some(
+            (font) =>
+              font.id === subtitlePolicy.font.id &&
+              font.packVersion === subtitlePolicy.font.packVersion &&
+              font.sha256 === subtitlePolicy.font.sha256,
+          ))
+      )
+        blockers.push(
+          "原签名字体或实际字幕能力不可用／身份变化；不能回退系统字体或omit。",
+        );
     } catch {
       blockers.push("Desktop Host 渲染能力当前不可用。");
     }
   }
+  const current = buildTimelineRenderSources(
+    timeline,
+    media,
+    audioTracks,
+    subtitlePolicy,
+  );
+  if (
+    current.sourceFingerprint !== sources.sourceFingerprint ||
+    current.blockers.length
+  )
+    blockers.push("预检期间实际媒体来源已变化，请重新核对；不自动换源。");
   return {
     timelineId: timeline.id,
     timelineVersion: timeline.version,
     timelineEtag: timelineEtag(timeline),
-    profileVersion: P0_PROFILE_VERSION,
+    profileVersion: subtitlePolicy
+      ? SUBTITLE_PROFILE_VERSION
+      : P0_PROFILE_VERSION,
+    ...(subtitlePolicy ? { subtitlePolicy } : {}),
+    subtitleBurnInAvailable,
+    subtitleFonts,
     ready: blockers.length === 0,
     blockers,
     warnings,
+    sourceFingerprint: sources.sourceFingerprint,
     ...(rendererVersion ? { rendererVersion } : {}),
     ...(rendererVersion ? { sidecarArtifactVersion: rendererVersion } : {}),
   };
@@ -1015,22 +1270,118 @@ function persistHostRender(
   row: TimelineRenderRow,
   hostJob: HostTimelineRenderJob,
 ): TimelineRenderRow {
-  const found = getById(context, row.timeline_id);
+  row =
+    context.uow.execute((tx) =>
+      tx.get<TimelineRenderRow>(
+        "SELECT * FROM timeline_render_jobs WHERE id = ?",
+        row.id,
+      ),
+    ) ?? row;
+  if (!["queued", "running"].includes(row.status)) return row;
+  const frozen = row.source_snapshot_json
+    ? TimelineManifestSchema.safeParse(
+        (JSON.parse(row.source_snapshot_json) as { timeline?: unknown })
+          .timeline,
+      )
+    : undefined;
+  const sourceTimeline =
+    frozen?.success &&
+    frozen.data.id === row.timeline_id &&
+    frozen.data.version === row.timeline_version &&
+    row.source_snapshot_json &&
+    createHash("sha256").update(row.source_snapshot_json).digest("hex") ===
+      row.source_fingerprint
+      ? frozen.data
+      : undefined;
+  const output = hostJob.output
+    ? MediaArtifactDescriptorSchema.omit({ artifactId: true }).safeParse(
+        hostJob.output,
+      )
+    : undefined;
+  const identity = TimelineRenderJobSchema.safeParse({
+    ...hostJob,
+    timelineId: row.timeline_id,
+    timelineVersion: row.timeline_version,
+    timelineProfileVersion: row.timeline_profile_version,
+  });
+  if (
+    !identity.success ||
+    hostJob.jobId !== row.id ||
+    hostJob.rendererVersion !== row.renderer_version ||
+    hostJob.sidecarArtifactVersion !== row.sidecar_artifact_version ||
+    (hostJob.status === "succeeded" &&
+      (!sourceTimeline ||
+        !output?.success ||
+        output.data.kind !== "video" ||
+        output.data.mimeType !== "video/mp4" ||
+        output.data.extension !== ".mp4" ||
+        output.data.status !== "archived" ||
+        output.data.width !== sourceTimeline.profile.width ||
+        output.data.height !== sourceTimeline.profile.height ||
+        output.data.durationFrames !== sourceTimeline.durationFrames ||
+        output.data.frameRate?.numerator !==
+          sourceTimeline.profile.frameRate.numerator ||
+        output.data.frameRate?.denominator !==
+          sourceTimeline.profile.frameRate.denominator ||
+        output.data.frameRate?.dropFrame !==
+          sourceTimeline.profile.frameRate.dropFrame))
+  ) {
+    hostJob = {
+      jobId: row.id,
+      status: "failed",
+      progress: 0,
+      rendererVersion: row.renderer_version,
+      sidecarArtifactVersion: row.sidecar_artifact_version,
+      failureCode: "HOST_RENDER_PROOF_INVALID",
+      createdAt: row.created_at,
+      updatedAt: new Date().toISOString(),
+    };
+  }
   let outputMediaRef = row.output_media_ref;
-  if (hostJob.status === "succeeded" && hostJob.output && found) {
-    media.registerArchivedArtifact({
-      projectId: found.timeline.projectId,
-      parentId: found.timeline.episodeId,
-      title: `时间线渲染 v${found.timeline.version}`,
-      descriptor: hostJob.output,
-      lineage: {
-        timelineId: found.timeline.id,
-        timelineVersion: row.timeline_version,
-        rendererVersion: hostJob.rendererVersion,
-        sidecarArtifactVersion: hostJob.sidecarArtifactVersion,
-      },
-    });
-    outputMediaRef = hostJob.output.mediaRef;
+  let outputRecord:
+    { id: string; projectId: string; version: number } | undefined;
+  if (hostJob.status === "succeeded" && hostJob.output && sourceTimeline) {
+    try {
+      const registered = media.registerArchivedArtifact({
+        projectId: sourceTimeline.projectId,
+        parentId: sourceTimeline.episodeId,
+        title: `时间线渲染 v${row.timeline_version}`,
+        descriptor: hostJob.output,
+        lineage: {
+          timelineId: sourceTimeline.id,
+          timelineVersion: row.timeline_version,
+          ...(row.source_fingerprint
+            ? { sourceFingerprint: row.source_fingerprint }
+            : {}),
+          rendererVersion: hostJob.rendererVersion,
+          sidecarArtifactVersion: hostJob.sidecarArtifactVersion,
+        },
+      });
+      if (
+        registered.projectId !== sourceTimeline.projectId ||
+        registered.parentId !== sourceTimeline.episodeId ||
+        registered.kind !== "video" ||
+        registered.version !== 0
+      )
+        throw new Error("输出归档回执身份无法核对。");
+      outputRecord = {
+        id: registered.id,
+        projectId: registered.projectId,
+        version: registered.version,
+      };
+      outputMediaRef = hostJob.output.mediaRef;
+    } catch {
+      hostJob = {
+        jobId: row.id,
+        status: "failed",
+        progress: 0,
+        rendererVersion: row.renderer_version,
+        sidecarArtifactVersion: row.sidecar_artifact_version,
+        failureCode: "OUTPUT_ARCHIVE_CONFLICT",
+        createdAt: row.created_at,
+        updatedAt: new Date().toISOString(),
+      };
+    }
   }
   return context.uow.execute((transaction) => {
     const changed =
@@ -1043,7 +1394,7 @@ function persistHostRender(
       `UPDATE timeline_render_jobs SET status = ?, progress = ?,
        renderer_version = ?, sidecar_artifact_version = ?,
        output_media_ref = ?, output_sha256 = ?, failure_code = ?,
-       updated_at = ? WHERE id = ?`,
+       updated_at = ?, output_record_id = ?, output_project_id = ?, output_record_version = ? WHERE id = ?`,
       hostJob.status,
       hostJob.progress,
       hostJob.rendererVersion,
@@ -1052,6 +1403,9 @@ function persistHostRender(
       hostJob.output?.sha256 ?? row.output_sha256,
       hostJob.failureCode ?? null,
       hostJob.updatedAt,
+      outputRecord?.id ?? row.output_record_id,
+      outputRecord?.projectId ?? row.output_project_id,
+      outputRecord?.version ?? row.output_record_version,
       row.id,
     );
     const updated = transaction.get<TimelineRenderRow>(
@@ -1076,6 +1430,25 @@ function persistHostRender(
   });
 }
 
+function persistRenderFailure(
+  context: PluginContext,
+  media: MediaRecordService,
+  row: TimelineRenderRow,
+  code: string,
+  status: "failed" | "interrupted" = "failed",
+) {
+  return persistHostRender(context, media, row, {
+    jobId: row.id,
+    status,
+    progress: row.progress,
+    rendererVersion: row.renderer_version,
+    sidecarArtifactVersion: row.sidecar_artifact_version,
+    failureCode: code,
+    createdAt: row.created_at,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 function timelineRoutes(
   context: PluginContext,
   production: ProductionRecordService,
@@ -1085,7 +1458,162 @@ function timelineRoutes(
 ): RouteContribution[] {
   const getTimeline = (episodeId: string) =>
     getOrCreate(context, episodeId, production);
+  const peekTimeline = (episodeId: string) => {
+    const episode = production.get(episodeId);
+    if (!episode || episode.kind !== "episodes") return undefined;
+    const timeline = context.uow.execute((tx) => {
+      const row = tx.get<TimelineRow>(
+        "SELECT * FROM timelines WHERE episode_id = ?",
+        episodeId,
+      );
+      return row
+        ? normalizeTimelineManifest(JSON.parse(row.manifest_json))
+        : undefined;
+    });
+    return timeline?.projectId === episode.projectId ? timeline : undefined;
+  };
   const routes: RouteContribution[] = [
+    route(
+      {
+        id: "timeline:render-catalog",
+        pluginId: "timeline",
+        method: "get",
+        path: "/api/v2/episodes/{episodeId}/timeline-renders",
+        operationId: "timeline.renderCatalog",
+      },
+      openapi({
+        method: "get",
+        path: "/api/v2/episodes/{episodeId}/timeline-renders",
+        operationId: "timeline.renderCatalog",
+        params: episodeParams,
+        query: TimelineRenderCatalogQuerySchema,
+        response: TimelineRenderCatalogSchema,
+      }),
+      (request) => {
+        const parsed = TimelineRenderCatalogQuerySchema.safeParse({
+          projectId: request.req.query("projectId"),
+          limit: request.req.query("limit"),
+          cursor: request.req.query("cursor"),
+          requestFingerprint: request.req.query("requestFingerprint"),
+        });
+        if (!parsed.success)
+          return problem(
+            request,
+            400,
+            "VALIDATION_ERROR",
+            "渲染历史范围或游标无效。",
+          );
+        const query = parsed.data;
+        const episodeId = request.req.param("episodeId");
+        const episode = production.get(episodeId);
+        if (
+          !episode ||
+          episode.kind !== "episodes" ||
+          episode.projectId !== query.projectId
+        )
+          return problem(request, 404, "NOT_FOUND", "未找到本项目的实际分集。");
+        const result = context.uow.execute((tx) => {
+          const timelineRow = tx.get<TimelineRow>(
+            "SELECT * FROM timelines WHERE episode_id = ?",
+            episodeId,
+          );
+          const timeline = timelineRow
+            ? normalizeTimelineManifest(JSON.parse(timelineRow.manifest_json))
+            : undefined;
+          if (timeline && timeline.projectId !== query.projectId)
+            return "scope" as const;
+          let after: [string, string] | undefined;
+          if (query.cursor) {
+            if (!timeline || query.requestFingerprint) return "cursor" as const;
+            try {
+              const value = z
+                .tuple([
+                  z.literal("timeline.renders"),
+                  z.literal(query.projectId),
+                  z.literal(episodeId),
+                  z.literal(timeline.id),
+                  z.string().datetime(),
+                  z.string().uuid(),
+                ])
+                .parse(
+                  JSON.parse(Buffer.from(query.cursor, "base64url").toString()),
+                );
+              if (
+                !tx.get(
+                  "SELECT id FROM timeline_render_jobs WHERE timeline_id = ? AND id = ? AND created_at = ?",
+                  timeline.id,
+                  value[5],
+                  value[4],
+                )
+              )
+                return "cursor" as const;
+              after = [value[4], value[5]];
+            } catch {
+              return "cursor" as const;
+            }
+          }
+          const rows = timeline
+            ? tx.all<TimelineRenderRow>(
+                `SELECT * FROM timeline_render_jobs WHERE timeline_id = ?
+            ${query.requestFingerprint ? "AND request_fingerprint = ?" : ""}
+            ${after ? "AND (created_at < ? OR (created_at = ? AND id < ?))" : ""}
+            ORDER BY created_at DESC, id DESC LIMIT ?`,
+                timeline.id,
+                ...(query.requestFingerprint ? [query.requestFingerprint] : []),
+                ...(after ? [after[0], after[0], after[1]] : []),
+                query.limit + 1,
+              )
+            : [];
+          const items = rows.slice(0, query.limit).map(toRenderJob);
+          const last = items.at(-1);
+          return {
+            projectId: query.projectId,
+            episodeId,
+            ...(timeline
+              ? {
+                  timeline: {
+                    id: timeline.id,
+                    version: timeline.version,
+                    etag: timelineEtag(timeline),
+                  },
+                }
+              : {}),
+            items,
+            ...(rows.length > query.limit && last
+              ? {
+                  nextCursor: Buffer.from(
+                    JSON.stringify([
+                      "timeline.renders",
+                      query.projectId,
+                      episodeId,
+                      timeline!.id,
+                      last.createdAt,
+                      last.jobId,
+                    ]),
+                  ).toString("base64url"),
+                }
+              : {}),
+          };
+        });
+        if (result === "scope")
+          return problem(request, 404, "NOT_FOUND", "时间线归属无法核对。");
+        if (result === "cursor")
+          return problem(
+            request,
+            400,
+            "INVALID_CURSOR",
+            "游标不属于本分集实际渲染历史。",
+          );
+        const body = JSON.stringify(TimelineRenderCatalogSchema.parse(result));
+        return new Response(body, {
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            ETag: `"${createHash("sha256").update(body).digest("hex")}"`,
+          },
+        });
+      },
+    ),
     route(
       {
         id: "timeline:get",
@@ -1152,14 +1680,27 @@ function timelineRoutes(
           const asset = media.get(input.data.command.assetId);
           const mediaRef = asset?.payload["mediaRef"];
           const linked = findClip(next, input.data.command.clipId);
-          if (!asset || typeof mediaRef !== "string" || !linked)
+          if (
+            !asset ||
+            asset.projectId !== found.timeline.projectId ||
+            !z.string().uuid().safeParse(mediaRef).success ||
+            !linked
+          )
             return problem(
               requestContext,
               409,
               "MEDIA_NOT_ARCHIVED",
               "目标媒体尚未完成 Host 归档，不能链接到可渲染时间线。",
             );
-          linked.clip.mediaRef = mediaRef;
+          if (linked.clip.audioTrackId)
+            return problem(
+              requestContext,
+              409,
+              "AUDIO_SOURCE_CONFLICT",
+              "已装配的冻结音轨须通过逐片段换源确认，不能用手工重新链接绕过谱系。",
+            );
+          linked.clip.mediaRef = mediaRef as string;
+          linked.clip.assetVersion = asset.version;
         }
         const saved = saveForward(context, found.timeline, next, "commanded");
         return saved === "conflict"
@@ -1290,9 +1831,20 @@ function timelineRoutes(
         response: TimelineDeliveryManifestSchema,
       }),
       (requestContext) => {
-        const timeline = getTimeline(requestContext.req.param("episodeId"));
+        const timeline = peekTimeline(requestContext.req.param("episodeId"));
         return timeline
-          ? requestContext.json(deliveryManifest(timeline, media))
+          ? new Response(
+              JSON.stringify(
+                buildTimelineDeliveryManifest(timeline, media, audioTracks),
+              ),
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  "Cache-Control": "no-store",
+                  ETag: timelineEtag(timeline),
+                },
+              },
+            )
           : problem(requestContext, 404, "NOT_FOUND", "未找到时间线。");
       },
     ),
@@ -1309,13 +1861,63 @@ function timelineRoutes(
         path: "/api/v2/timelines/{id}/render-preflight",
         operationId: "timeline.renderPreflight",
         params: idParams,
+        query: TimelineRenderPreflightQuerySchema,
         response: TimelineRenderPreflightSchema,
       }),
       async (requestContext) => {
+        const query = TimelineRenderPreflightQuerySchema.safeParse(
+          requestContext.req.query(),
+        );
+        if (
+          !query.success ||
+          Object.values(requestContext.req.queries()).some(
+            (values) => values.length !== 1,
+          )
+        )
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "须提供唯一明确字幕策略及完整原字体身份；未知／重复参数拒绝。",
+          );
+        const selection = query.data;
+        const subtitlePolicy =
+          selection.subtitleMode === "omit"
+            ? { version: 1 as const, mode: "omit" as const }
+            : selection.subtitleMode === "burn-in"
+              ? TimelineRenderSubtitlePolicySchema.parse({
+                  version: 1,
+                  mode: "burn-in",
+                  font: {
+                    id: selection.fontId,
+                    packVersion: selection.fontPackVersion,
+                    sha256: selection.fontSha256,
+                  },
+                })
+              : undefined;
         const found = getById(context, requestContext.req.param("id"));
-        return found
-          ? requestContext.json(await renderPreflight(found.timeline, host))
-          : problem(requestContext, 404, "NOT_FOUND", "未找到时间线。");
+        if (!found)
+          return problem(requestContext, 404, "NOT_FOUND", "未找到时间线。");
+        const preflight = await renderPreflight(
+          found.timeline,
+          media,
+          audioTracks,
+          host,
+          subtitlePolicy,
+        );
+        if (
+          getById(context, found.timeline.id)?.timeline.version !==
+          found.timeline.version
+        )
+          preflight.blockers.push("预检期间时间线已变化，请重新核对当前版本。");
+        preflight.ready = preflight.blockers.length === 0;
+        return new Response(JSON.stringify(preflight), {
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            ETag: timelineEtag(found.timeline),
+          },
+        });
       },
     ),
     route(
@@ -1366,7 +1968,13 @@ function timelineRoutes(
             "TIMELINE_CONFLICT",
             "时间线版本已变化，请重新执行渲染预检。",
           );
-        const preflight = await renderPreflight(found.timeline, host);
+        const preflight = await renderPreflight(
+          found.timeline,
+          media,
+          audioTracks,
+          host,
+          parsed.data.subtitlePolicy,
+        );
         if (!preflight.ready)
           return problem(
             requestContext,
@@ -1378,7 +1986,8 @@ function timelineRoutes(
           parsed.data.timelineProfileVersion !== preflight.profileVersion ||
           parsed.data.rendererVersion !== preflight.rendererVersion ||
           parsed.data.sidecarArtifactVersion !==
-            preflight.sidecarArtifactVersion
+            preflight.sidecarArtifactVersion ||
+          parsed.data.sourceFingerprint !== preflight.sourceFingerprint
         )
           return problem(
             requestContext,
@@ -1394,7 +2003,44 @@ function timelineRoutes(
             idempotencyKey,
           ),
         );
-        if (replay) return requestContext.json(toRenderJob(replay));
+        if (replay) {
+          if (
+            replay.source_fingerprint !== parsed.data.sourceFingerprint ||
+            replay.timeline_version !== found.timeline.version ||
+            replay.renderer_version !== parsed.data.rendererVersion ||
+            replay.sidecar_artifact_version !==
+              parsed.data.sidecarArtifactVersion ||
+            replay.timeline_profile_version !==
+              parsed.data.timelineProfileVersion
+          )
+            return problem(
+              requestContext,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "同一请求键已绑定另一份冻结渲染输入。",
+            );
+          return requestContext.json(toRenderJob(replay));
+        }
+        const sources = buildTimelineRenderSources(
+          found.timeline,
+          media,
+          audioTracks,
+          parsed.data.subtitlePolicy,
+        );
+        const sourceProblems = sources.blockers;
+        const latest = getById(context, found.timeline.id);
+        if (
+          sourceProblems.length ||
+          sources.blockers.length ||
+          sources.sourceFingerprint !== parsed.data.sourceFingerprint ||
+          latest?.timeline.version !== found.timeline.version
+        )
+          return problem(
+            requestContext,
+            409,
+            "RENDER_SOURCE_CONFLICT",
+            sourceProblems.join("；") || "预检期间时间线已改变。",
+          );
         const jobId = crypto.randomUUID();
         const now = new Date().toISOString();
         const row = context.uow.execute((transaction) => {
@@ -1403,8 +2049,8 @@ function timelineRoutes(
               id, timeline_id, timeline_version, timeline_profile_version,
               renderer_version, sidecar_artifact_version, idempotency_key,
               status, progress, output_media_ref, output_sha256, failure_code,
-              created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, NULL, NULL, ?, ?)`,
+              created_at, updated_at, source_fingerprint, source_snapshot_json, request_fingerprint
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, NULL, NULL, ?, ?, ?, ?, ?)`,
             jobId,
             found.timeline.id,
             found.timeline.version,
@@ -1414,6 +2060,9 @@ function timelineRoutes(
             idempotencyKey,
             now,
             now,
+            sources.sourceFingerprint,
+            JSON.stringify(sources.snapshot),
+            createHash("sha256").update(idempotencyKey).digest("hex"),
           );
           transaction.append({
             type: "timeline.render-status-changed.v1",
@@ -1434,29 +2083,22 @@ function timelineRoutes(
             timelineId: found.timeline.id,
             durationFrames: found.timeline.durationFrames,
             profile: found.timeline.profile,
-            clips: videoRenderClips(found.timeline).map((clip) => ({
-              mediaRef: clip.mediaRef!,
-              startFrame: clip.startFrame,
-              durationFrames: clip.durationFrames,
-              sourceOffsetFrame: clip.sourceOffsetFrame,
-            })),
+            clips: sources.clips,
+            audioPlan: sources.audioPlan,
+            ...(sources.subtitlePlan
+              ? { subtitlePlan: sources.subtitlePlan }
+              : {}),
           });
           return requestContext.json(
             toRenderJob(persistHostRender(context, media, row, hostJob)),
           );
         } catch {
-          const failed = context.uow.execute((transaction) => {
-            transaction.run(
-              `UPDATE timeline_render_jobs SET status = 'failed',
-               failure_code = 'HOST_START_FAILED', updated_at = ? WHERE id = ?`,
-              new Date().toISOString(),
-              jobId,
-            );
-            return transaction.get<TimelineRenderRow>(
-              "SELECT * FROM timeline_render_jobs WHERE id = ?",
-              jobId,
-            )!;
-          });
+          const failed = persistRenderFailure(
+            context,
+            media,
+            row,
+            "HOST_START_FAILED",
+          );
           return requestContext.json(toRenderJob(failed));
         }
       },
@@ -1495,18 +2137,13 @@ function timelineRoutes(
             );
           } catch (cause) {
             if (cause instanceof Error && cause.message.includes("404"))
-              row = context.uow.execute((transaction) => {
-                transaction.run(
-                  `UPDATE timeline_render_jobs SET status = 'interrupted',
-                   failure_code = 'HOST_RESTARTED', updated_at = ? WHERE id = ?`,
-                  new Date().toISOString(),
-                  row!.id,
-                );
-                return transaction.get<TimelineRenderRow>(
-                  "SELECT * FROM timeline_render_jobs WHERE id = ?",
-                  row!.id,
-                )!;
-              });
+              row = persistRenderFailure(
+                context,
+                media,
+                row,
+                "HOST_RESTARTED",
+                "interrupted",
+              );
           }
         }
         return requestContext.json(toRenderJob(row));
@@ -1598,18 +2235,59 @@ function timelineRoutes(
             "当前模式无法重试本地渲染。",
           );
         const found = getById(context, previous.timeline_id);
+        if (
+          ![P0_PROFILE_VERSION, SUBTITLE_PROFILE_VERSION].includes(
+            previous.timeline_profile_version,
+          )
+        )
+          return problem(
+            requestContext,
+            409,
+            "RENDER_POLICY_VERSION_CONFLICT",
+            "原任务使用旧静音输出策略，不能用重试切换为混音；请保留原记录，重新预检并创建独立新任务。",
+          );
         const parsed = TimelineRenderCreateInputSchema.safeParse(
           await requestContext.req.json(),
         );
         const idempotencyKey = requestContext.req
           .header("Idempotency-Key")
           ?.trim();
-        if (!found || !parsed.success || !idempotencyKey)
+        if (
+          !found ||
+          !parsed.success ||
+          !idempotencyKey ||
+          idempotencyKey.length > 200
+        )
           return problem(
             requestContext,
             400,
             "VALIDATION_ERROR",
             "重试请求缺少时间线、版本参数或 Idempotency-Key。",
+          );
+        if (
+          previous.timeline_profile_version !==
+            parsed.data.timelineProfileVersion ||
+          JSON.stringify(frozenSubtitlePolicy(previous)) !==
+            JSON.stringify(parsed.data.subtitlePolicy) ||
+          (previous.timeline_profile_version === SUBTITLE_PROFILE_VERSION &&
+            !frozenSubtitlePolicy(previous))
+        )
+          return problem(
+            requestContext,
+            409,
+            "RENDER_POLICY_VERSION_CONFLICT",
+            "原字幕策略／字体身份缺证或与重试不同；保留原任务，不能换策略重试。",
+          );
+        if (
+          previous.renderer_version !== parsed.data.rendererVersion ||
+          previous.sidecar_artifact_version !==
+            parsed.data.sidecarArtifactVersion
+        )
+          return problem(
+            requestContext,
+            409,
+            "RENDER_VERSION_CONFLICT",
+            "原任务渲染器／sidecar版本与重试不同；不能更换原输入，请创建独立新任务。",
           );
         if (
           found.timeline.version !== previous.timeline_version ||
@@ -1622,13 +2300,20 @@ function timelineRoutes(
             "TIMELINE_CONFLICT",
             "原任务的时间线版本已变化，请为当前版本创建新的渲染。",
           );
-        const preflight = await renderPreflight(found.timeline, host);
+        const preflight = await renderPreflight(
+          found.timeline,
+          media,
+          audioTracks,
+          host,
+          parsed.data.subtitlePolicy,
+        );
         if (
           !preflight.ready ||
           parsed.data.timelineProfileVersion !== preflight.profileVersion ||
           parsed.data.rendererVersion !== preflight.rendererVersion ||
           parsed.data.sidecarArtifactVersion !==
-            preflight.sidecarArtifactVersion
+            preflight.sidecarArtifactVersion ||
+          parsed.data.sourceFingerprint !== preflight.sourceFingerprint
         )
           return problem(
             requestContext,
@@ -1644,8 +2329,59 @@ function timelineRoutes(
             idempotencyKey,
           ),
         );
-        if (replay) return requestContext.json(toRenderJob(replay));
+        if (
+          !previous.source_fingerprint ||
+          !previous.source_snapshot_json ||
+          createHash("sha256")
+            .update(previous.source_snapshot_json)
+            .digest("hex") !== previous.source_fingerprint ||
+          previous.source_fingerprint !== parsed.data.sourceFingerprint
+        )
+          return problem(
+            requestContext,
+            409,
+            "RENDER_SOURCE_CONFLICT",
+            "原任务缺少冻结归档证明或实际来源已变化；请为当前来源重新预检并创建新任务。",
+          );
+        if (replay) {
+          if (
+            replay.source_fingerprint !== parsed.data.sourceFingerprint ||
+            replay.timeline_version !== found.timeline.version ||
+            replay.renderer_version !== parsed.data.rendererVersion ||
+            replay.sidecar_artifact_version !==
+              parsed.data.sidecarArtifactVersion ||
+            replay.timeline_profile_version !==
+              parsed.data.timelineProfileVersion
+          )
+            return problem(
+              requestContext,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "同一请求键已绑定另一份冻结渲染输入。",
+            );
+          return requestContext.json(toRenderJob(replay));
+        }
         const jobId = crypto.randomUUID();
+        const sources = buildTimelineRenderSources(
+          found.timeline,
+          media,
+          audioTracks,
+          parsed.data.subtitlePolicy,
+        );
+        const sourceProblems = sources.blockers;
+        const latest = getById(context, found.timeline.id);
+        if (
+          sourceProblems.length ||
+          sources.blockers.length ||
+          sources.sourceFingerprint !== previous.source_fingerprint ||
+          latest?.timeline.version !== found.timeline.version
+        )
+          return problem(
+            requestContext,
+            409,
+            "RENDER_SOURCE_CONFLICT",
+            sourceProblems.join("；") || "预检期间时间线已改变。",
+          );
         const now = new Date().toISOString();
         const row = context.uow.execute((transaction) => {
           transaction.run(
@@ -1653,8 +2389,8 @@ function timelineRoutes(
               id, timeline_id, timeline_version, timeline_profile_version,
               renderer_version, sidecar_artifact_version, idempotency_key,
               status, progress, output_media_ref, output_sha256, failure_code,
-              created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, NULL, NULL, ?, ?)`,
+              created_at, updated_at, source_fingerprint, source_snapshot_json, request_fingerprint
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, NULL, NULL, ?, ?, ?, ?, ?)`,
             jobId,
             found.timeline.id,
             found.timeline.version,
@@ -1664,6 +2400,9 @@ function timelineRoutes(
             idempotencyKey,
             now,
             now,
+            sources.sourceFingerprint,
+            JSON.stringify(sources.snapshot),
+            createHash("sha256").update(idempotencyKey).digest("hex"),
           );
           transaction.append({
             type: "timeline.render-status-changed.v1",
@@ -1684,29 +2423,22 @@ function timelineRoutes(
             timelineId: found.timeline.id,
             durationFrames: found.timeline.durationFrames,
             profile: found.timeline.profile,
-            clips: videoRenderClips(found.timeline).map((clip) => ({
-              mediaRef: clip.mediaRef!,
-              startFrame: clip.startFrame,
-              durationFrames: clip.durationFrames,
-              sourceOffsetFrame: clip.sourceOffsetFrame,
-            })),
+            clips: sources.clips,
+            audioPlan: sources.audioPlan,
+            ...(sources.subtitlePlan
+              ? { subtitlePlan: sources.subtitlePlan }
+              : {}),
           });
           return requestContext.json(
             toRenderJob(persistHostRender(context, media, row, hostJob)),
           );
         } catch {
-          const failed = context.uow.execute((transaction) => {
-            transaction.run(
-              `UPDATE timeline_render_jobs SET status = 'failed',
-               failure_code = 'HOST_START_FAILED', updated_at = ? WHERE id = ?`,
-              new Date().toISOString(),
-              jobId,
-            );
-            return transaction.get<TimelineRenderRow>(
-              "SELECT * FROM timeline_render_jobs WHERE id = ?",
-              jobId,
-            )!;
-          });
+          const failed = persistRenderFailure(
+            context,
+            media,
+            row,
+            "HOST_START_FAILED",
+          );
           return requestContext.json(toRenderJob(failed));
         }
       },
@@ -1817,6 +2549,8 @@ function timelineRoutes(
           await requestContext.req.json(),
         );
         const current = getTimeline(requestContext.req.param("episodeId"));
+        const key = requestContext.req.header("Idempotency-Key")?.trim();
+        const match = requestContext.req.header("If-Match");
         if (!input.success || !current)
           return problem(
             requestContext,
@@ -1824,16 +2558,66 @@ function timelineRoutes(
             "VALIDATION_ERROR",
             "音频编排参数无效。",
           );
-        if (input.data.timelineVersion !== current.version)
-          return problem(requestContext, 409, "CONFLICT", "时间线版本已更新。");
+        if (!key || key.length > 200 || !match)
+          return problem(
+            requestContext,
+            428,
+            "PRECONDITION_REQUIRED",
+            "装配须提供当前时间线版本和幂等键。",
+          );
+        const requestHash = JSON.stringify({
+          episodeId: current.episodeId,
+          match,
+          input: input.data,
+        });
+        const replay = context.uow.execute((tx) =>
+          tx.get<{ request_hash: string; response_json: string }>(
+            "SELECT * FROM timeline_audio_assembly_requests WHERE request_key = ?",
+            key,
+          ),
+        );
+        if (replay)
+          return replay.request_hash === requestHash
+            ? requestContext.json(JSON.parse(replay.response_json))
+            : problem(
+                requestContext,
+                409,
+                "IDEMPOTENCY_CONFLICT",
+                "同一装配键不能更换版本／所选音轨。",
+              );
+        if (
+          input.data.timelineId !== current.id ||
+          input.data.timelineVersion !== current.version ||
+          match !== timelineEtag(current)
+        )
+          return problem(
+            requestContext,
+            412,
+            "PRECONDITION_FAILED",
+            "时间线版本已更新。",
+          );
         const preview = assembly(current, audioTracks);
+        if (
+          preview.sourceFingerprint !== input.data.sourceFingerprint ||
+          input.data.audioTrackIds.some(
+            (id) => !preview.clips.some((clip) => clip.audioTrackId === id),
+          )
+        )
+          return problem(
+            requestContext,
+            409,
+            "AUDIO_SOURCE_CONFLICT",
+            "装配预览或所选音轨来源已变化，请重新核对；未写入时间线。",
+          );
         const chosen = preview.clips.filter((clip) =>
           input.data.audioTrackIds.includes(clip.audioTrackId),
         );
         const next = structuredClone(current);
         for (const kind of ["dialogue", "narration", "bgm", "sfx"] as const) {
           const track = next.tracks.find((item) => item.kind === kind)!;
-          const locked = track.clips.filter((clip) => clip.locked);
+          const locked = track.clips.filter(
+            (clip) => clip.locked || clip.manuallyEdited,
+          );
           track.clips = [
             ...locked,
             ...chosen
@@ -1842,13 +2626,16 @@ function timelineRoutes(
                 (clip) =>
                   !locked.some(
                     (protectedClip) =>
-                      protectedClip.audioTrackId === clip.audioTrackId,
+                      protectedClip.audioTrackId === clip.audioTrackId &&
+                      protectedClip.sourceClipId === clip.sourceClipId,
                   ),
               )
               .map((clip) => ({
                 id: crypto.randomUUID(),
                 sourceClipId: clip.sourceClipId,
                 audioTrackId: clip.audioTrackId,
+                audioTrackVersion: clip.audioTrackVersion,
+                audioSourceFingerprint: clip.audioSourceFingerprint,
                 trackId: track.id,
                 ...(clip.shotId ? { shotId: clip.shotId } : {}),
                 ...(clip.assetId ? { assetId: clip.assetId } : {}),
@@ -1877,21 +2664,45 @@ function timelineRoutes(
           (track) => track.kind === "subtitle",
         )!;
         if (input.data.includeSubtitles)
-          subtitle.clips = preview.subtitleCues.map((cue) => ({
-            id: crypto.randomUUID(),
-            sourceClipId: cue.sourceClipId,
-            audioTrackId: cue.audioTrackId,
-            trackId: subtitle.id,
-            ...(cue.shotId ? { shotId: cue.shotId } : {}),
-            name: cue.text,
-            text: cue.text,
-            startFrame: framesFromSeconds(cue.startSeconds),
-            durationFrames: Math.max(1, framesFromSeconds(cue.durationSeconds)),
-            sourceOffsetFrame: 0,
-            mediaStatus: "unattached",
-            manuallyEdited: false,
-          }));
-        const saved = saveForward(context, current, next, "audio-assembled");
+          subtitle.clips = [
+            ...subtitle.clips.filter(
+              (clip) => clip.locked || clip.manuallyEdited,
+            ),
+            ...preview.subtitleCues
+              .filter(
+                (cue) =>
+                  input.data.audioTrackIds.includes(cue.audioTrackId) &&
+                  !subtitle.clips.some(
+                    (clip) =>
+                      (clip.locked || clip.manuallyEdited) &&
+                      clip.sourceClipId === cue.sourceClipId &&
+                      clip.audioTrackId === cue.audioTrackId,
+                  ),
+              )
+              .map((cue) => ({
+                id: crypto.randomUUID(),
+                sourceClipId: cue.sourceClipId,
+                audioTrackId: cue.audioTrackId,
+                audioTrackVersion: cue.audioTrackVersion,
+                audioSourceFingerprint: cue.audioSourceFingerprint,
+                trackId: subtitle.id,
+                ...(cue.shotId ? { shotId: cue.shotId } : {}),
+                name: cue.text,
+                text: cue.text,
+                startFrame: framesFromSeconds(cue.startSeconds),
+                durationFrames: Math.max(
+                  1,
+                  framesFromSeconds(cue.durationSeconds),
+                ),
+                sourceOffsetFrame: 0,
+                mediaStatus: "unattached" as const,
+                manuallyEdited: false,
+              })),
+          ];
+        const saved = saveForward(context, current, next, "audio-assembled", {
+          key,
+          requestHash,
+        });
         return saved === "conflict"
           ? problem(requestContext, 409, "CONFLICT", "时间线版本已更新。")
           : requestContext.json(saved);
@@ -1927,10 +2738,34 @@ function timelineRoutes(
             "VALIDATION_ERROR",
             "不支持的时间线导出格式。",
           );
-        const timeline = getTimeline(params.data.episodeId);
+        const timeline = peekTimeline(params.data.episodeId);
+        if (timeline) {
+          const reasons = audioSourceProblems(timeline, audioTracks);
+          if (reasons.length)
+            return problem(
+              requestContext,
+              409,
+              "AUDIO_SOURCE_CONFLICT",
+              reasons.join("；"),
+            );
+        }
         return timeline
-          ? requestContext.json(
-              exportDocument(timeline, media, params.data.format),
+          ? new Response(
+              JSON.stringify(
+                exportDocument(
+                  timeline,
+                  media,
+                  audioTracks,
+                  params.data.format,
+                ),
+              ),
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  "Cache-Control": "no-store",
+                  ETag: timelineEtag(timeline),
+                },
+              },
             )
           : problem(requestContext, 404, "NOT_FOUND", "未找到时间线。");
       },
@@ -2010,11 +2845,43 @@ const timelineMigrations = [
         ON timeline_deliveries(episode_id, created_at DESC);
     `,
   },
+  {
+    id: "timeline.0003.audio-assembly-receipts",
+    pluginId: "timeline",
+    version: "3.0.0-alpha.4",
+    dependsOn: ["timeline.0002.frame-profile-renders-and-deliveries"],
+    sql: `CREATE TABLE timeline_audio_assembly_requests (
+      request_key TEXT PRIMARY KEY, request_hash TEXT NOT NULL,
+      timeline_id TEXT NOT NULL REFERENCES timelines(id) ON DELETE CASCADE, response_json TEXT NOT NULL
+    );`,
+  },
+  audioResolutionMigration,
+  {
+    id: "timeline.0005.frozen-render-source-proof",
+    pluginId: "timeline",
+    version: "3.0.0-alpha.4",
+    dependsOn: ["timeline.0004.explicit-audio-source-resolutions"],
+    sql: `ALTER TABLE timeline_render_jobs ADD COLUMN source_fingerprint TEXT;
+      ALTER TABLE timeline_render_jobs ADD COLUMN source_snapshot_json TEXT;`,
+  },
+  {
+    id: "timeline.0006.render-request-and-output-identities",
+    pluginId: "timeline",
+    version: "3.0.0-alpha.4",
+    dependsOn: ["timeline.0005.frozen-render-source-proof"],
+    sql: `ALTER TABLE timeline_render_jobs ADD COLUMN request_fingerprint TEXT;
+      ALTER TABLE timeline_render_jobs ADD COLUMN output_record_id TEXT;
+      ALTER TABLE timeline_render_jobs ADD COLUMN output_project_id TEXT;
+      ALTER TABLE timeline_render_jobs ADD COLUMN output_record_version INTEGER;
+      CREATE INDEX timeline_render_requests_fingerprint ON timeline_render_jobs(timeline_id, request_fingerprint);`,
+  },
+  timelineMediaCopyMigration,
 ] as const;
 
 export function createTimelinePlugin(host?: DesktopHostClient) {
   return definePlugin({
     inject: [
+      WORKSPACE_PROJECT_SERVICE.id,
       MEDIA_AUDIO_TRACK_SERVICE.id,
       MEDIA_RECORD_SERVICE.id,
       PRODUCTION_RECORD_SERVICE.id,
@@ -2023,7 +2890,7 @@ export function createTimelinePlugin(host?: DesktopHostClient) {
       id: "timeline",
       version: "3.0.0-alpha.3",
       apiVersion: "2",
-      requires: ["foundation", "production", "media"],
+      requires: ["foundation", "workspace", "production", "media"],
       provides: ["timeline.canonical", "timeline.audio-assembly"],
       stability: "internal",
     },
@@ -2040,9 +2907,19 @@ export function createTimelinePlugin(host?: DesktopHostClient) {
         kind: "toolbar",
         metadata: { slot: "timeline.toolbar", title: "时间线命令" },
       },
+      {
+        id: "timeline.panel.render-jobs",
+        pluginId: "timeline",
+        kind: "panel",
+        metadata: { slot: "production.renders", title: "本地实验静音渲染" },
+      },
     ],
     migrations: timelineMigrations,
     apply: (context) => {
+      const workspace = optionalService<WorkspaceProjectService>(
+        context,
+        WORKSPACE_PROJECT_SERVICE,
+      );
       const production = optionalService<ProductionRecordService>(
         context,
         PRODUCTION_RECORD_SERVICE,
@@ -2055,30 +2932,130 @@ export function createTimelinePlugin(host?: DesktopHostClient) {
         context,
         MEDIA_AUDIO_TRACK_SERVICE,
       );
-      if (!production || !media || !audioTracks)
-        throw new Error("timeline requires production and media services");
+      if (!workspace || !production || !media || !audioTracks)
+        throw new Error(
+          "timeline requires workspace, production and media services",
+        );
       const service: TimelineService = {
         get: (episodeId) => getOrCreate(context, episodeId, production),
+        peek: (episodeId) =>
+          context.uow.execute((tx) => {
+            const row = tx.get<TimelineRow>(
+              "SELECT * FROM timelines WHERE episode_id = ?",
+              episodeId,
+            );
+            return row
+              ? normalizeTimelineManifest(JSON.parse(row.manifest_json))
+              : undefined;
+          }),
+        export: (episodeId, format) => {
+          const timeline = service.peek!(episodeId);
+          return timeline && !audioSourceProblems(timeline, audioTracks).length
+            ? exportDocument(timeline, media, audioTracks, format)
+            : undefined;
+        },
+        deliveryManifest: (episodeId) => {
+          const timeline = service.peek!(episodeId);
+          return timeline
+            ? buildTimelineDeliveryManifest(timeline, media, audioTracks)
+            : undefined;
+        },
       };
-      context.uow.execute((transaction) =>
-        transaction.run(
-          `UPDATE timeline_render_jobs SET status = 'interrupted',
-         failure_code = 'RUNTIME_RESTARTED', updated_at = ?
-         WHERE status IN ('queued', 'running')`,
-          new Date().toISOString(),
-        ),
-      );
+      context.uow.execute((transaction) => {
+        for (const row of transaction.all<TimelineRenderRow>(
+          "SELECT * FROM timeline_render_jobs WHERE status IN ('queued', 'running')",
+        )) {
+          transaction.run(
+            "UPDATE timeline_render_jobs SET status = 'interrupted', failure_code = 'RUNTIME_RESTARTED', updated_at = ? WHERE id = ?",
+            new Date().toISOString(),
+            row.id,
+          );
+          transaction.append({
+            type: "timeline.render-status-changed.v1",
+            pluginId: "timeline",
+            aggregateType: "timeline-render",
+            aggregateId: row.id,
+            aggregateVersion: 0,
+            payload: {
+              status: "interrupted",
+              progress: row.progress,
+              failureCode: "RUNTIME_RESTARTED",
+            },
+          });
+        }
+      });
       context.effect(
         () => provideService(context, TIMELINE_SERVICE, service),
         `service:${TIMELINE_SERVICE}`,
       );
-      for (const contribution of timelineRoutes(
-        context,
-        production,
-        media,
-        audioTracks,
-        host,
-      ))
+      for (const contribution of [
+        ...timelineRoutes(context, production, media, audioTracks, host),
+        timelinePlaybackPlanRoute(
+          (id) => getById(context, id)?.timeline,
+          media,
+          audioTracks,
+          workspace,
+        ),
+        ...audioResolutionRoutes(
+          context,
+          audioTracks,
+          media,
+          {
+            read: (id) => getById(context, id)?.timeline,
+            matches: (tx, current) => {
+              const row = tx.get<TimelineRow>(
+                "SELECT * FROM timelines WHERE id = ?",
+                current.id,
+              );
+              return Boolean(
+                row &&
+                JSON.stringify(parseManifest(row)) === JSON.stringify(current),
+              );
+            },
+            save: (current, next, finalize) =>
+              saveForward(
+                context,
+                current,
+                next,
+                "audio-resolved",
+                undefined,
+                finalize,
+              ),
+          },
+          workspace,
+        ),
+        ...timelineMediaCopyRoutes(
+          context,
+          workspace,
+          media,
+          audioTracks,
+          {
+            read: (id) => {
+              const timeline = getById(context, id)?.timeline;
+              const episode = timeline
+                ? production.get(timeline.episodeId)
+                : undefined;
+              return episode?.kind === "episodes" &&
+                episode.projectId === timeline?.projectId
+                ? timeline
+                : undefined;
+            },
+            matches: (transaction, timeline) => {
+              const row = transaction.get<TimelineRow>(
+                "SELECT * FROM timelines WHERE id = ?",
+                timeline.id,
+              );
+              return (
+                !!row &&
+                JSON.stringify(parseManifest(row)) === JSON.stringify(timeline)
+              );
+            },
+            document: (timeline, format) =>
+              exportDocument(timeline, media, audioTracks, format),
+          },
+          host,
+        ),
+      ])
         context.effect(
           () => context.http.register(contribution),
           `route:${contribution.id}`,
