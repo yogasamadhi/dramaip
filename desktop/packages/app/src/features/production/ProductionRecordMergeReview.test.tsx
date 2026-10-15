@@ -214,7 +214,7 @@ test("actual-field selectors require an explicit side for true conflicts and dis
   expect(html.match(/<select/gu)).toHaveLength(report.units.length);
   expect(html).toContain("请明确选择真实冲突");
   expect(html).toContain("保留当前人工值");
-  expect(html).toContain("使用冻结候选值");
+  expect(html).toContain("使用冻结草稿值");
   expect(html).toContain("真实原字段 &lt;旧&gt;");
   expect(html).not.toContain("<button");
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { StoryCausalNodeKindSchema } from "@dramaip/contracts";
 import {
   NarrativeIndexCatalogSchema,
@@ -306,9 +306,8 @@ export function StoryDeclarationPanel({
       )}
       <label className="mt-3 block text-sm">
         声明来源类型
-        <select
+        <NativeSelect
           aria-label="声明来源类型"
-          className={field}
           value={sourceMode}
           disabled={busy}
           onChange={(event) => {
@@ -322,7 +321,7 @@ export function StoryDeclarationPanel({
         >
           <option value="novel">小说实际段落／精确采用资料</option>
           <option value="screenplay">直接剧本已保存块（不要求小说）</option>
-        </select>
+        </NativeSelect>
       </label>
       <BareButton
         className={`${button} mt-3`}
@@ -370,9 +369,8 @@ export function StoryDeclarationPanel({
           >
             <label className="block text-sm">
               声明原章节
-              <select
+              <NativeSelect
                 aria-label="声明原章节"
-                className={field}
                 value={chapterId}
                 onChange={(event) => {
                   setChapterId(event.target.value);
@@ -387,7 +385,7 @@ export function StoryDeclarationPanel({
                     {chapter.hasContent ? "" : " · 空正文"}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             {source && !detailQuery.isFetching && (
               <div aria-label="可选精确声明来源" className="space-y-2">
@@ -447,9 +445,8 @@ export function StoryDeclarationPanel({
             )}
             <label className="block text-sm">
               正式声明类型
-              <select
+              <NativeSelect
                 aria-label="正式声明类型"
-                className={field}
                 value={kind}
                 onChange={(event) =>
                   setKind(StoryCausalNodeKindSchema.parse(event.target.value))
@@ -460,7 +457,7 @@ export function StoryDeclarationPanel({
                     {value}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="block text-sm">
               正式声明名称
@@ -487,7 +484,7 @@ export function StoryDeclarationPanel({
               />
             )}
             <BareButton type="submit" className={button} disabled={!canCreate}>
-              仅保存正式来源候选
+              仅保存正式来源草稿
             </BareButton>
           </fieldset>
         </form>

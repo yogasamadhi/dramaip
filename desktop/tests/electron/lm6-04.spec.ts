@@ -50,8 +50,8 @@ test("小说导入后可审阅五类候选并选择性采用", async () => {
     .check();
   await page.getByRole("button", { name: "确认导入" }).click();
 
-  await expect(page.getByText("导入候选审阅", { exact: true })).toBeVisible();
-  await expect(page.getByText("全部候选预览", { exact: true })).toBeVisible();
+  await expect(page.getByText("导入草稿审阅", { exact: true })).toBeVisible();
+  await expect(page.getByText("全部草稿预览", { exact: true })).toBeVisible();
   for (const label of ["人物", "场景", "道具", "章节摘要", "改编建议"])
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/《第一章 雨夜来信》/).first()).toBeVisible();
@@ -66,7 +66,7 @@ test("小说导入后可审阅五类候选并选择性采用", async () => {
     .getByRole("button", { name: "确认", exact: true })
     .click();
   await expect(
-    page.getByText("已采用所选候选，并保留可撤销记录。"),
+    page.getByText("已采用所选草稿，并保留可撤销记录。"),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "撤销采用" })).toBeVisible();
 });

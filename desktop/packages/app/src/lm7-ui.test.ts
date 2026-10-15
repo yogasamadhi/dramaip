@@ -60,6 +60,16 @@ describe("LM7 desktop UI architecture", () => {
     expect(offenders).toEqual([]);
   });
 
+  test("renderer selects use the shared NativeSelect primitive", () => {
+    const glob = new Bun.Glob("**/*.tsx");
+    const offenders: string[] = [];
+    for (const file of glob.scanSync({
+      cwd: new URL(".", import.meta.url).pathname,
+    }))
+      if (/<select[\s>]/.test(read(`./${file}`))) offenders.push(file);
+    expect(offenders).toEqual([]);
+  });
+
   test("navigation and design-token limits remain stable", () => {
     const shell = read("./app-shell.tsx");
     const studio = read("./studio-shell.tsx");

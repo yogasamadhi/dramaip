@@ -172,9 +172,9 @@ test("独立本地人工／规则质量：无模型、丢回复原请求后台�
       },
     );
     await panel()
-      .getByRole("button", { name: "保存人工声明候选", exact: true })
+      .getByRole("button", { name: "保存人工声明草稿", exact: true })
       .click();
-    await confirm("确认保存人工候选");
+    await confirm("确认保存人工草稿");
     await expect(
       panel().getByRole("button", {
         name: "恢复并重发原本地请求",

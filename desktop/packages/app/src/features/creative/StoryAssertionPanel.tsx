@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import {
   AudienceKnowledgeValueSchema,
   StoryCausalEdgeRelationSchema,
@@ -297,9 +297,8 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
   ) => (
     <label className="block text-sm">
       {label}
-      <select
+      <NativeSelect
         aria-label={label}
-        className={field}
         value={value}
         onChange={(event) => change(event.target.value)}
       >
@@ -311,7 +310,7 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
               {node.title} · {node.kind} · v{node.version}
             </option>
           ))}
-      </select>
+      </NativeSelect>
     </label>
   );
   const content = (
@@ -341,9 +340,8 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
       </label>
       <label className="block text-sm">
         关系认知解释类型
-        <select
+        <NativeSelect
           aria-label="关系认知解释类型"
-          className={field}
           value={interpretation}
           onChange={(event) =>
             setInterpretation(
@@ -360,7 +358,7 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
             作者认为来源明示（仍非语义证明）
           </option>
           <option value="author-inferred">作者推断（保留不确定性）</option>
-        </select>
+        </NativeSelect>
       </label>
       {kind === "relationship" ? (
         <>
@@ -368,9 +366,8 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
           {selectNode("关系目标节点", to, setTo)}
           <label className="block text-sm">
             来源关系类型
-            <select
+            <NativeSelect
               aria-label="来源关系类型"
-              className={field}
               value={relation}
               onChange={(event) =>
                 setRelation(
@@ -383,7 +380,7 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
                   {relation}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="block text-sm">
             作者关系置信估计（非校准概率）
@@ -403,9 +400,8 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
         <>
           <label className="block text-sm">
             来源认知主体类型
-            <select
+            <NativeSelect
               aria-label="来源认知主体类型"
-              className={field}
               value={subjectKind}
               onChange={(event) => {
                 setSubjectKind(
@@ -417,7 +413,7 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
             >
               <option value="character">实际角色节点</option>
               <option value="audience">明确观众组</option>
-            </select>
+            </NativeSelect>
           </label>
           {subjectKind === "character" ? (
             selectNode("来源认知角色", subject, setSubject, true)
@@ -448,9 +444,8 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
           </label>
           <label className="block text-sm">
             来源认知状态
-            <select
+            <NativeSelect
               aria-label="来源认知状态"
-              className={field}
               value={state}
               onChange={(event) =>
                 setState(AudienceKnowledgeValueSchema.parse(event.target.value))
@@ -461,7 +456,7 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
                   {state}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </>
       )}
@@ -495,9 +490,8 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
           )}
           <label className="mt-3 block text-sm">
             来源声明结果
-            <select
+            <NativeSelect
               aria-label="来源声明结果"
-              className={field}
               value={kind}
               disabled={busy}
               onChange={(event) => {
@@ -513,13 +507,12 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
             >
               <option value="relationship">因果／关系</option>
               <option value="cognition">角色／观众认知</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="mt-3 block text-sm">
             关系认知来源类型
-            <select
+            <NativeSelect
               aria-label="关系认知来源类型"
-              className={field}
               value={mode}
               disabled={busy}
               onChange={(event) =>
@@ -530,14 +523,14 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
             >
               <option value="novel">小说段落／精确采用资料</option>
               <option value="screenplay">已保存剧本块（不要求小说）</option>
-            </select>
+            </NativeSelect>
           </label>
           <BareButton
             className={`${button} mt-3`}
             disabled={!projectId || busy}
             onClick={refresh}
           >
-            重读关系认知来源与原候选
+            重读关系认知来源与原草稿
           </BareButton>
           {mode === "screenplay" ? (
             <ScreenplayDeclarationComposer

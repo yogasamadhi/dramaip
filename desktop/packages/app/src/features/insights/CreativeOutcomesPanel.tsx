@@ -426,8 +426,8 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
                   </h4>
                   <p>
                     {measure.metric === "adaptation.strategy"
-                      ? "原首候选内明确选项采用"
-                      : "原首候选直接采用"}{" "}
+                      ? "原首稿内明确选项采用"
+                      : "原首稿直接采用"}{" "}
                     {measure.firstAdopted} / {measure.firstCandidates} ·
                     截至当前占比{" "}
                     {measure.firstCandidateAdoptionRatio === null
@@ -521,7 +521,7 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
                           ? `明确选项 ${measure.firstAccepted.selectedOption!.id}（非整包采用）`
                           : measure.firstAccepted.adoptionMode ===
                               "exact-candidate"
-                            ? "原候选"
+                            ? "原 AI 草稿"
                             : "改写 AI 草稿"}
                       </p>
                       <p>

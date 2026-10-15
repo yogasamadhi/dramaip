@@ -1,3 +1,4 @@
+import { NativeSelect } from "@dramaip/ui-shared";
 import type {
   StoryDeclarationInput,
   StoryEventTimeline,
@@ -86,8 +87,7 @@ export function StoryEventTimelineFields({
           </label>
           <label className="block text-sm">
             事件时间解释来源
-            <select
-              className={field}
+            <NativeSelect
               aria-label="事件时间解释来源"
               value={value.interpretation}
               onChange={(event) =>
@@ -106,7 +106,7 @@ export function StoryEventTimelineFields({
               <option value="source-stated">
                 作者声明原文有陈述（不是语义认证）
               </option>
-            </select>
+            </NativeSelect>
           </label>
         </>
       )}

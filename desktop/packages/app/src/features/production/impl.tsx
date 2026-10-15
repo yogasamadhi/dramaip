@@ -4,7 +4,7 @@ import {
   CreationRunCard,
 } from "../creation-workbench";
 import type { DomainEntity } from "@dramaip/contracts/product";
-import { BareButton, confirmDialog } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect, confirmDialog } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -375,8 +375,7 @@ function AdaptationWorkspaceInstance(props: {
           <section className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-5">
             <label className="grid gap-1 text-sm">
               项目
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 value={projectId}
                 onChange={(event) => {
                   const nextProjectId = event.target.value;
@@ -402,12 +401,11 @@ function AdaptationWorkspaceInstance(props: {
                     {project.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               改编项目
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!projectId}
                 value={adaptationId}
                 onChange={(event) => {
@@ -447,12 +445,11 @@ function AdaptationWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               分集
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!adaptationId}
                 value={episodeId}
                 onChange={(event) => {
@@ -475,12 +472,11 @@ function AdaptationWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               剧本
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!episodeId}
                 value={scriptId}
                 onChange={(event) => {
@@ -497,12 +493,11 @@ function AdaptationWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               场景
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!scriptId}
                 value={sceneId}
                 onChange={(event) => {
@@ -518,13 +513,12 @@ function AdaptationWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             {stage === "shots" && (
               <label className="grid gap-1 text-sm">
                 分镜
-                <select
-                  className="rounded-lg border border-line px-3 py-2"
+                <NativeSelect
                   disabled={!sceneId}
                   value={shotId}
                   onChange={(event) => {
@@ -539,7 +533,7 @@ function AdaptationWorkspaceInstance(props: {
                       {item.title}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             )}
           </section>

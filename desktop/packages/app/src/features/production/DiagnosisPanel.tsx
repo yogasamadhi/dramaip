@@ -241,7 +241,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
             ? legacy
               ? "采用诊断与选定策略"
               : "采用改编诊断"
-            : "放弃诊断候选",
+            : "放弃诊断 AI 草稿",
         description:
           action === "adopt"
             ? legacy
@@ -561,7 +561,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
                   ? "已放弃"
                   : item.status === "conflicted"
                     ? "冲突"
-                    : "候选"}
+                    : "AI 草稿"}
             </Button>
           ))}
         </nav>
@@ -659,7 +659,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
             </section>
           ))}
           <details>
-            <summary>旧诊断内策略（兼容路径）</summary>
+            <summary>旧诊断内策略（旧版流程）</summary>
             <p className="my-3 text-sm text-muted">
               仅为旧记录或明确选择的旧流程保留。新主流程采用上方诊断证据后，在独立策略工作台选择正式策略，不必在此重复选择。
             </p>
@@ -754,7 +754,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
               }
               onClick={() => void transition("discard")}
             >
-              放弃诊断候选
+              放弃诊断 AI 草稿
             </Button>
           </div>
         </article>

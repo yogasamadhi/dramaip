@@ -932,7 +932,7 @@ export function AgentRevisionPreviewCard(props: {
       )}
       <details className="mt-3 rounded-md bg-surface-raised/80 p-3">
         <summary className="cursor-pointer text-sm font-medium text-brand">
-          查看候选正文
+          查看 AI 草稿正文
         </summary>
         <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-6 text-ink">
           {props.preview.proposedContent}

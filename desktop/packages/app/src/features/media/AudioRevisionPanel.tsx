@@ -5,7 +5,7 @@ import type {
   AudioRevisionInput,
   AudioTrack,
 } from "@dramaip/contracts/media";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { message, useStudio } from "../../studio-shared";
 import { MediaPlaybackPanel } from "./MediaPlaybackPanel";
 
@@ -322,8 +322,7 @@ export function AudioRevisionPanel({
             </label>
             <label>
               修订音轨类型
-              <select
-                className={field}
+              <NativeSelect
                 value={input.kind}
                 onChange={(event) =>
                   setInput({
@@ -342,7 +341,7 @@ export function AudioRevisionPanel({
                     {label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           </div>
           {input.clips.map((clip, index) => (
@@ -371,8 +370,7 @@ export function AudioRevisionPanel({
                 </label>
                 <label>
                   音频素材
-                  <select
-                    className={field}
+                  <NativeSelect
                     value={clip.assetId ?? ""}
                     onChange={(event) =>
                       updateClip(index, {
@@ -394,12 +392,11 @@ export function AudioRevisionPanel({
                         {asset.title} · v{asset.version}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   修订音色
-                  <select
-                    className={field}
+                  <NativeSelect
                     value={clip.voiceProfileId ?? ""}
                     onChange={(event) =>
                       updateClip(index, {
@@ -421,7 +418,7 @@ export function AudioRevisionPanel({
                         {voice.title} · v{voice.version}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   修订起点（秒）
@@ -477,7 +474,7 @@ export function AudioRevisionPanel({
                   })
                 }
               >
-                从候选移除此片段
+                从草稿移除此片段
               </BareButton>
             </fieldset>
           ))}
@@ -495,7 +492,7 @@ export function AudioRevisionPanel({
                 })
               }
             >
-              新增候选片段
+              新增草稿片段
             </BareButton>
             <BareButton
               className={button}

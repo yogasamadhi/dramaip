@@ -199,7 +199,7 @@ test("小说驾驶舱精确返回较早未决运行，后台重启不换候选�
       exactRoute,
     );
     await expect(
-      object().getByRole("button", { name: "放弃候选", exact: true }),
+      object().getByRole("button", { name: "放弃 AI 草稿", exact: true }),
     ).toBeEnabled();
     await hidden();
     manager!.disconnect();
@@ -221,7 +221,7 @@ test("小说驾驶舱精确返回较早未决运行，后台重启不换候选�
     expect(await client!.chapters.get(chapter.id)).toEqual(chapter);
     expect(unexpectedWrites).toBe(0);
     await object()
-      .getByRole("button", { name: "放弃候选", exact: true })
+      .getByRole("button", { name: "放弃 AI 草稿", exact: true })
       .click();
     await expect
       .poll(async () => (await client!.creation.get(original.id)).stage)

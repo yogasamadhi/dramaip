@@ -245,8 +245,8 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
         operation === "adopt"
           ? "采用这个整季方案？"
           : operation === "reorder"
-            ? "保存重排为新候选？"
-            : "放弃这个季纲候选？",
+            ? "保存重排为新草稿？"
+            : "放弃这个季纲草稿？",
       description:
         operation === "adopt"
           ? "核对实际来源覆盖、完整分集顺序与风险。替换当前方案，保留旧版本；不会自动生成剧本或媒体。"
@@ -257,7 +257,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
         operation === "adopt"
           ? "明确采用方案"
           : operation === "reorder"
-            ? "保存新候选"
+            ? "保存新草稿"
             : "明确放弃",
       tone: operation === "discard" ? "danger" : "default",
     });
@@ -416,7 +416,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
               }}
             >
               方案 v{item.version} ·{" "}
-              {item.origin === "human-reorder" ? "人工重排" : "模型候选"} ·{" "}
+              {item.origin === "human-reorder" ? "人工重排" : "模型草稿"} ·{" "}
               {item.status === "adopted"
                 ? "已采用"
                 : item.status === "discarded"
@@ -569,11 +569,11 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
               disabled={!canEdit || busy || !changedOrder}
               onClick={() => void action("reorder")}
             >
-              保存重排为新候选
+              保存重排为新草稿
             </Button>
             {changedOrder && (
               <p className="text-sm text-muted">
-                当前只是未保存顺序草稿；保存新候选后还须明确采用。原版本不变。
+                当前只是未保存顺序草稿；保存新草稿后还须明确采用。原版本不变。
               </p>
             )}
           </section>
@@ -600,7 +600,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
               }
               onClick={() => void action("discard")}
             >
-              放弃这个季纲候选
+              放弃这个季纲草稿
             </Button>
           </div>
         </article>

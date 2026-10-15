@@ -909,7 +909,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
               正在重核指定原运行；
               {value
                 ? "保留上次实际原快照，操作暂不可用。"
-                : "未恢复缓存候选或重新生成。"}
+                : "未恢复缓存 AI 草稿或重新生成。"}
             </p>
           )}
           {(error ||
@@ -1044,7 +1044,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                   <NarrativeSourceCoverage
                     basis={value.authorIntentBasis.sourceBasis}
                     chapters={value.authorIntentBasis.chapters ?? []}
-                    label="AI 意图原冻结来源表达"
+                    label="AI 意图原参考内容表达"
                   />
                 </div>
               )}
@@ -1460,7 +1460,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                           ? "质量报告工作台"
                           : props.operation === "season-plan"
                             ? "整季方案 AI 草稿"
-                            : "诊断候选"}
+                            : "诊断 AI 草稿"}
                   </Link>
                   {props.operation === "author-intent"
                     ? "中核对八字段差异与实际来源，再明确采用或放弃；不改原稿。"
@@ -1504,7 +1504,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                       })
                     }
                   >
-                    放弃候选
+                    放弃 AI 草稿
                   </Button>
                 </>
               )
@@ -1548,7 +1548,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 }
                 onClick={() => void start()}
               >
-                按要求生成新候选
+                按要求生成新 AI 草稿
               </Button>
             )}
             {value &&
@@ -1603,7 +1603,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                       AI 候选：{unit.candidate}
                     </p>
                   </div>
-                  <select
+                  <NativeSelect
                     aria-label="剧本冲突块选择"
                     value={scriptChoices[unit.id] ?? ""}
                     onChange={(event) => {
@@ -1619,7 +1619,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                     </option>
                     <option value="main">保留当前块</option>
                     <option value="branch">采用 AI 草稿块</option>
-                  </select>
+                  </NativeSelect>
                 </section>
               ))}
             {scriptMerge && (
@@ -1739,7 +1739,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                       </pre>
                     </div>
                     <div>
-                      <h3 className="font-medium">AI 候选</h3>
+                      <h3 className="font-medium">AI 草稿</h3>
                       <pre className="whitespace-pre-wrap font-editor text-sm">
                         {item.candidate}
                       </pre>

@@ -41,7 +41,7 @@ test("静帧 Gate 未通过时桌面端不会发出视频提交", async () => {
   await selectWorkspaceObject(page, "分镜", { label: "镜头 1：门缝中的雨夜" });
   await openProductionStage(page, "视频制作");
   await expect(
-    page.getByRole("heading", { name: "视频生成与候选采用" }),
+    page.getByRole("heading", { name: "视频生成与 AI 草稿采用" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "提交视频生成" }),

@@ -81,7 +81,7 @@ export function ScriptMergeOrderReview({
             )
           }
         >
-          以候选块顺序为排序起点
+          以 AI 草稿块顺序为排序起点
         </Button>
       </div>
       <p className="text-muted">
@@ -96,7 +96,7 @@ export function ScriptMergeOrderReview({
               <p className="break-all">
                 {index + 1} · {id} ·{" "}
                 {unit.kind ? changeLabels[unit.kind] : "历史未标记"} ·{" "}
-                {choice === "main" ? "当前稿正文" : "候选正文"}
+                {choice === "main" ? "当前稿正文" : "AI 草稿正文"}
               </p>
               <p className="whitespace-pre-wrap">
                 {choice === "main" ? unit.current : unit.candidate}

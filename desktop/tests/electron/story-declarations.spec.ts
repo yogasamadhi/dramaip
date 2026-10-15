@@ -139,7 +139,7 @@ test("正式来源声明实际段落候选与双重审阅采用，后台重启�
       .getByLabel("作者声明解释", { exact: true })
       .fill("PRIVATE 人工解释仍需审阅，不是语义证明。");
     const save = form.getByRole("button", {
-      name: "仅保存正式来源候选",
+      name: "仅保存正式来源草稿",
       exact: true,
     });
     await expect(save).toBeDisabled();

@@ -6,7 +6,7 @@ export function CreationIssueEvidence({ issue }: { issue: CreationIssue }) {
   if (!recorded)
     return (
       <p className="mt-2 text-xs text-muted">
-        此历史意见未记录候选引文位置，不从最新稿补造证据。
+        此历史意见未记录 AI 草稿引文位置，不从最新稿补造证据。
       </p>
     );
   return (

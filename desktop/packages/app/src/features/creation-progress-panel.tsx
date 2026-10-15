@@ -22,7 +22,7 @@ const stages: Record<string, { title: string; waiting: string; step: number }> =
       step: 2,
     },
     revising: {
-      title: "修订候选",
+      title: "修订 AI 草稿",
       waiting: "正在根据检查意见修改，等待修订内容",
       step: 2,
     },

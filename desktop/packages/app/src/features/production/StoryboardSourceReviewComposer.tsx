@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "@dramaip/ui-shared";
+import { Button, NativeSelect } from "@dramaip/ui-shared";
 import type {
   EpisodeDevelopmentImpact,
   StoryboardAttributionImpactSelection,
@@ -89,9 +89,9 @@ export function StoryboardSourceReviewComposer({
               实际记录 {shot.record?.id ?? "缺失"} · 当前版本{" "}
               {shot.record?.currentVersion ?? "未核全"}
             </span>
-            <select
+            <NativeSelect
               aria-label={`来源审阅镜头决定 ${shot.shotId}`}
-              className="w-full rounded border border-line bg-panel p-2"
+              className="w-full"
               value={draft.decisions[shot.shotId] ?? ""}
               onChange={(event) => {
                 const decisions = { ...draft.decisions };
@@ -105,7 +105,7 @@ export function StoryboardSourceReviewComposer({
               <option value="">请明确决定，不自动填入</option>
               <option value="redo">重做</option>
               <option value="retain">保留（不是语义安全保证）</option>
-            </select>
+            </NativeSelect>
           </label>
         );
       })}

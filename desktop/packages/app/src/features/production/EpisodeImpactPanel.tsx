@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@dramaip/ui-shared";
+import { Button, NativeSelect } from "@dramaip/ui-shared";
 import type {
   EpisodeImpactReason,
   EpisodeDevelopmentImpact,
@@ -185,9 +185,9 @@ export function EpisodeImpactPanel({
         <div className="space-y-2">
           <label className="block">
             原人工关联版本（可选）
-            <select
+            <NativeSelect
               aria-label="影响观察原关联版本"
-              className="mt-1 w-full rounded border border-line bg-panel p-2"
+              className="mt-1 w-full"
               disabled={query.isFetching || !associations}
               value={selected ? `${selected.id}:${selected.version}` : ""}
               onChange={(event) => {
@@ -232,7 +232,7 @@ export function EpisodeImpactPanel({
                       : "来源未核全"}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <p className="text-muted">
             明确选择后再点“核对变化影响”，读取同一原关联版本；来源变化的历史可以观察，但不能自动改连节点、换引文位置或解除复核。

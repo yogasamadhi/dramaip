@@ -100,7 +100,7 @@ export function ChapterPreviewRevisionPanel({
   return (
     <section className="mt-2 space-y-2" aria-label="候选正文实际修订台账">
       <Button disabled={pending} onClick={() => void read()}>
-        {pending ? "正在核对原修订台账…" : "查看候选正文实际修订次数"}
+        {pending ? "正在核对原修订台账…" : "查看 AI 草稿正文实际修订次数"}
       </Button>
       {error && (
         <p role="alert" className="text-xs text-danger-strong">

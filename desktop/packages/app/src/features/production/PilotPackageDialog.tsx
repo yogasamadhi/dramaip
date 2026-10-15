@@ -319,7 +319,8 @@ export function PilotPackageDialog(props: {
                     setIncludeWorkflowLineage(event.target.checked)
                   }
                 />
-                明确附所选三正式阶段的原工作流脱敏谱系（不含指令、正文或候选；缺失保留未知，人工确认不当新模型运行）
+                明确附所选三正式阶段的原工作流脱敏谱系（不含指令、正文或 AI
+                草稿；缺失保留未知，人工确认不当新模型运行）
               </label>
               <label className="block text-sm">
                 可选：明确已采用的逐镜头关联

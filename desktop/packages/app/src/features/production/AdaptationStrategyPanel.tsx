@@ -314,7 +314,7 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
         !original.error &&
         (!original.isFetchedAfterMount || original.isFetching) && (
           <p role="status">
-            正在读取指定原策略运行；未恢复缓存候选或重新生成。
+            正在读取指定原策略运行；未恢复缓存 AI 草稿或重新生成。
           </p>
         )}
       {workflowId &&

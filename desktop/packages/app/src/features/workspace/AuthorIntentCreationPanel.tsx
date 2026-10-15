@@ -349,7 +349,7 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
                   className="text-link underline"
                   to={`${location.pathname}?${new URLSearchParams({ intentId: workflow.authorIntentId, intentWorkflowId: workflow.id })}`}
                 >
-                  比较并确认此 AI 意图候选
+                  比较并确认此 AI 意图草稿
                 </Link>
               ) : (
                 <p role="alert">

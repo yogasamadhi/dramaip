@@ -103,10 +103,10 @@ test("后台平台资料明确选择／采用原候选，旧预检拒绝且丢�
       .fill("原作者提交简介");
     await panel().getByLabel("标签词", { exact: true }).fill("原标签,明确采用");
     await panel()
-      .getByRole("button", { name: "保存为新候选", exact: true })
+      .getByRole("button", { name: "保存为新草稿", exact: true })
       .click();
     await expect(
-      panel().getByText("已保存候选", { exact: false }),
+      panel().getByText("已保存草稿", { exact: false }),
     ).toBeVisible();
     const [candidate] = await client.platformDelivery.listVariants(
       adaptation.id,
@@ -128,10 +128,10 @@ test("后台平台资料明确选择／采用原候选，旧预检拒绝且丢�
       panel().getByRole("button", { name: "创建提交资料归档", exact: true }),
     ).toBeDisabled();
     await panel()
-      .getByRole("button", { name: "采用此候选", exact: true })
+      .getByRole("button", { name: "采用此草稿", exact: true })
       .click();
     await expect(
-      panel().getByText("原候选已明确采用", { exact: false }),
+      panel().getByText("原草稿已明确采用", { exact: false }),
     ).toBeVisible();
     await expect(checkbox()).not.toBeChecked();
     expect(adoptPosts).toBe(1);

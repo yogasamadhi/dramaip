@@ -522,7 +522,7 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
     if (!value || !actualRun?.previewId || busy) return;
     if (
       !(await confirmDialog({
-        title: action === "commit" ? "采用质量报告" : "放弃质量报告候选",
+        title: action === "commit" ? "采用质量报告" : "放弃质量报告 AI 草稿",
         description:
           action === "commit"
             ? `采用报告 v${value.version}，不改正文、不自动接受风险；${value.blockers.length} 项错误仍须处理。来源或竞争头变化会拒绝采用。`

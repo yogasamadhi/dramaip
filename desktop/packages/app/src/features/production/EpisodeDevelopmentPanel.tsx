@@ -264,7 +264,7 @@ export function EpisodeCandidate({ workflow }: { workflow: CreationWorkflow }) {
                   <p key={unit.id} className="whitespace-pre-wrap break-words">
                     {unit.kind === "shots" ? "镜头" : "场景"} {unit.recordId} ·{" "}
                     {unit.field} ·{" "}
-                    {side === "main" ? "当前人工值" : "冻结候选值"}：
+                    {side === "main" ? "当前人工值" : "冻结草稿值"}：
                     {value.state === "text"
                       ? value.text
                       : "字段不可核对，不应采用"}
@@ -1339,9 +1339,9 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
           </Link>
           <label className="block text-sm">
             开发分集
-            <select
+            <NativeSelect
               aria-label="开发分集"
-              className="ml-2 rounded border border-line bg-surface p-2"
+              className="ml-2"
               value={currentEpisodeId ?? ""}
               onChange={(event) => {
                 setEpisodeId(event.target.value);
@@ -1364,15 +1364,15 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
                   第{item.orderIndex + 1}集 · {item.title}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           {direct && operation === "episode-outline" && (
             <div className="flex flex-wrap gap-4 text-sm">
               <label>
                 实际原剧本
-                <select
+                <NativeSelect
                   aria-label="实际原剧本"
-                  className="ml-2 rounded border border-line bg-surface p-2"
+                  className="ml-2"
                   value={selectedSourceId}
                   onChange={(event) => {
                     setSourceScriptId(event.target.value);
@@ -1411,7 +1411,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
                         : `v${item.documentVersion}`}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label>
                 本集目标秒数

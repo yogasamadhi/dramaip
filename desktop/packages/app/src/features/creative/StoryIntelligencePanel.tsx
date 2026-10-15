@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import {
   StoryCausalNodeKindSchema,
   StoryCausalEdgeRelationSchema,
@@ -203,9 +203,8 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
       </p>
       <label className="mt-3 block text-sm">
         声明所属项目
-        <select
+        <NativeSelect
           aria-label="声明所属项目"
-          className={field}
           value={projectId}
           disabled={running || projects.isError}
           onChange={(event) => {
@@ -226,7 +225,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
               {project.title}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       {projects.isError && (
         <p role="alert" className="mt-3 text-sm text-warning">
@@ -299,9 +298,8 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
           <fieldset disabled={!available} className="space-y-3">
             <label className="block text-sm">
               节点类型
-              <select
+              <NativeSelect
                 aria-label="节点类型"
-                className={field}
                 value={kind}
                 onChange={(event) =>
                   setKind(StoryCausalNodeKindSchema.parse(event.target.value))
@@ -312,7 +310,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                     {kinds[value]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="block text-sm">
               节点名称
@@ -387,41 +385,38 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
           <fieldset disabled={!available} className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
               关系起点
-              <select
+              <NativeSelect
                 aria-label="关系起点"
-                className={field}
                 value={from}
                 onChange={(event) => setFrom(event.target.value)}
               >
                 <option value="">选择节点</option>
                 {graph?.nodes.map((node) => (
                   <option key={node.id} value={node.id}>
-                    {node.title}（{node.confirmed ? "人工确认" : "候选"}）
+                    {node.title}（{node.confirmed ? "人工确认" : "草稿"}）
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="text-sm">
               关系终点
-              <select
+              <NativeSelect
                 aria-label="关系终点"
-                className={field}
                 value={to}
                 onChange={(event) => setTo(event.target.value)}
               >
                 <option value="">选择节点</option>
                 {graph?.nodes.map((node) => (
                   <option key={node.id} value={node.id}>
-                    {node.title}（{node.confirmed ? "人工确认" : "候选"}）
+                    {node.title}（{node.confirmed ? "人工确认" : "草稿"}）
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="text-sm">
               关系类型
-              <select
+              <NativeSelect
                 aria-label="关系类型"
-                className={field}
                 value={relation}
                 onChange={(event) =>
                   setRelation(
@@ -434,7 +429,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                     {relations[value]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="text-sm">
               关系说明
@@ -502,9 +497,8 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
           <fieldset disabled={!available} className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
               认知主体
-              <select
+              <NativeSelect
                 aria-label="认知主体"
-                className={field}
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
               >
@@ -516,13 +510,12 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                       {node.title}
                     </option>
                   ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="text-sm">
               认知对象
-              <select
+              <NativeSelect
                 aria-label="认知对象"
-                className={field}
                 value={target}
                 onChange={(event) => setTarget(event.target.value)}
               >
@@ -532,7 +525,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                     {node.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="text-sm">
               故事顺序
@@ -547,9 +540,8 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
             </label>
             <label className="text-sm">
               认知状态
-              <select
+              <NativeSelect
                 aria-label="认知状态"
-                className={field}
                 value={state}
                 onChange={(event) =>
                   setState(
@@ -562,7 +554,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                     {states[value]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="text-sm sm:col-span-2">
               认知证据说明

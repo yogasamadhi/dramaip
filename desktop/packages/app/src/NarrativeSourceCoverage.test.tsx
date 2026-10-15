@@ -100,7 +100,7 @@ test("quality source coverage includes the exact frozen interpretation without a
       }}
     />,
   );
-  expect(html).toContain("质量评议原冻结来源表达");
+  expect(html).toContain("质量评议原参考内容表达");
   expect(html).toContain("所选原文段落");
   expect(html).toContain("本轮冻结叙事解释 1 条");
   expect(html).toContain(declaration);

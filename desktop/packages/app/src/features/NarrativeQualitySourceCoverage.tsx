@@ -17,7 +17,7 @@ export function NarrativeQualitySourceCoverage({
       <NarrativeSourceCoverage
         basis={basis.sourceBasis}
         chapters={basis.chapterCoverage?.included ?? []}
-        label="质量评议原冻结来源表达"
+        label="质量评议原参考内容表达"
       />
     </div>
   );

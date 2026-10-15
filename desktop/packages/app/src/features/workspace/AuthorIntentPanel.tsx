@@ -394,7 +394,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
                 setBaseAdoptedId(adopted.id);
               }}
             >
-              基于当前正式版本创建候选
+              基于当前正式版本创建草稿
             </Button>
           )}
           <Button
@@ -460,7 +460,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
           disabled={working || !current.data || Boolean(current.error)}
           onClick={() => void preview()}
         >
-          保存意图候选并预览差异
+          保存意图草稿并预览差异
         </Button>
         <Button
           variant="ghost"
@@ -471,7 +471,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
               !(await confirmDialog({
                 title: "清空本地意图编辑草稿",
                 description:
-                  "只清空此项目本机编辑区的八个字段和旧来源基准；已保存候选、正式意图、章节、剧本及其他项目不变。",
+                  "只清空此项目本机编辑区的八个字段和旧来源基准；已保存草稿、正式意图、章节、剧本及其他项目不变。",
                 confirmLabel: "确认清空编辑草稿",
                 tone: "danger",
               })) ||
@@ -497,7 +497,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
             editRef.current = next;
             setEdit(next);
             setDraftNotice(
-              "本项目本机编辑草稿已明确清空，正式版本与已保存候选保持不变。",
+              "本项目本机编辑草稿已明确清空，正式版本与已保存草稿保持不变。",
             );
           }}
         >
@@ -563,7 +563,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
             {candidate.sourceState === "stale" &&
               candidate.status !== "adopted" && (
                 <p role="alert">
-                  项目设定、选定来源或当前采用版本已变化，不能直接采用旧候选；请核对并保存新预览。
+                  项目设定、选定来源或当前采用版本已变化，不能直接采用旧草稿；请核对并保存新预览。
                 </p>
               )}
             <div className="overflow-x-auto">
@@ -663,7 +663,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
                   }
                   onClick={() => void transition(candidate, "discard")}
                 >
-                  放弃此意图候选
+                  放弃此意图草稿
                 </Button>
               )}
             </div>

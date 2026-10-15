@@ -70,7 +70,7 @@ export const DOMAIN_LABELS: Record<string, string> = {
   scripts: "剧本",
   scenes: "场景",
   shots: "分镜",
-  "shot-stills": "分镜静帧候选",
+  "shot-stills": "分镜静帧 AI 草稿",
   "visual-assets": "视觉资产",
   "asset-center": "资产中心",
   storyboard: "导演看板",

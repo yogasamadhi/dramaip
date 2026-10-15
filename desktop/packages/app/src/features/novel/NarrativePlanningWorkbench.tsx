@@ -16,6 +16,9 @@ import {
 import { CreationWorkbench } from "../creation-workbench";
 import { NovelContextPicker } from "./NovelContextPicker";
 
+/** Above this many chapters, original text is not preselected as the expression. */
+const PRESELECT_ORIGINAL_LIMIT = 12;
+
 const emptyContext = (): NarrativeContextRequest => ({
   format: "narrative-context-v1",
   chapters: [],
@@ -136,14 +139,37 @@ function PlanningInstance(props: {
   const unchanged = samePlanningRequest(draft, confirmed);
   const hasBody = chapters.some((chapter) => chapter.content.trim());
   const [autoNone, setAutoNone] = useState(false);
-  // With no saved chapter text there is nothing to choose: plan from the brief
-  // and author intent, and treat that as this round's confirmed scope.
+  const [preselected, setPreselected] = useState(false);
+  // Preselect the recommended scope once the directory is read. Without saved
+  // chapter text there is nothing to choose, so "none" is also confirmed. With
+  // text, all non-empty chapters are preselected (as original text when the
+  // book is short) but still need one explicit confirmation before use.
   useEffect(() => {
-    if (directory.data && !directory.error && scope === undefined && !hasBody) {
+    if (!directory.data || directory.error || scope !== undefined) return;
+    const filled = directory.data.chapters.filter((chapter) =>
+      chapter.content.trim(),
+    );
+    if (!filled.length) {
       setScope({ mode: "none", chapters: [] });
       setAutoNone(true);
+      return;
     }
-  }, [directory.data, directory.error, scope, hasBody]);
+    setScope({
+      mode: "full",
+      directoryFingerprint: directory.data.fingerprint,
+      chapters: filled.map(({ id, version }) => ({ id, version })),
+    });
+    if (filled.length <= PRESELECT_ORIGINAL_LIMIT)
+      setContext({
+        format: "narrative-context-v1",
+        chapters: filled.map(({ id, version }) => ({
+          id,
+          version,
+          representation: "original",
+        })),
+      });
+    setPreselected(true);
+  }, [directory.data, directory.error, scope]);
   useEffect(() => {
     if (autoNone && ready && draft && !confirmed) {
       setConfirmed(draft);
@@ -151,6 +177,7 @@ function PlanningInstance(props: {
     }
   }, [autoNone, ready, draft, confirmed]);
   const changeScope = (value: NarrativePlanningRequest["chapterScope"]) => {
+    setPreselected(false);
     setScope(value);
     setContext(emptyContext());
     setConfirmed(undefined);
@@ -164,7 +191,7 @@ function PlanningInstance(props: {
         <h3 className="font-semibold">本轮规划来源确认</h3>
         <p className="text-muted">
           {hasBody
-            ? "选择本轮参考哪些正文；没选的正文、旧摘要和旧方案不会自动带入。更改范围后需要重新确认。"
+            ? "已按推荐预选全部有正文的章节；确认后才会使用。没选的正文、旧摘要和旧方案不会自动带入。"
             : "还没有正文，本轮只依据项目简报与作者意图规划。"}
         </p>
         {directory.error && (
@@ -286,6 +313,13 @@ function PlanningInstance(props: {
         )}
         {scope && current && !complete && (
           <p role="status">所选章节尚未全部明确表达，不自动补正文或摘要。</p>
+        )}
+        {preselected && !confirmed && (
+          <p className="text-muted">
+            {context.chapters.length
+              ? `推荐：参考全部 ${scope?.chapters.length ?? 0} 章原文。可直接确认，或改选范围与表达。`
+              : `推荐：参考全部 ${scope?.chapters.length ?? 0} 章。章节较多，请在“规划来源表达”中为每章选择原文、摘要或段落。`}
+          </p>
         )}
         <Button size="sm" disabled={!ready} onClick={() => setConfirmed(draft)}>
           确认本轮规划范围与表达

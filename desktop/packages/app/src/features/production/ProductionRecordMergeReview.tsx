@@ -211,13 +211,13 @@ export function ProductionRecordComparisonView({
             <Value value={unit.base} />
             <h5>当前人工记录</h5>
             <Value value={unit.current} />
-            <h5>冻结候选</h5>
+            <h5>冻结草稿</h5>
             <Value value={unit.candidate} />
             <p className="text-muted">
               未冲突字段的拟议默认：
               {unit.defaultChoice === "main"
                 ? "保留当前人工值"
-                : "使用冻结候选值"}
+                : "使用冻结草稿值"}
               ；尚未写入。
             </p>
             {onChoice && (
@@ -241,7 +241,7 @@ export function ProductionRecordComparisonView({
                     请明确选择真实冲突
                   </option>
                   <option value="main">保留当前人工值</option>
-                  <option value="branch">使用冻结候选值</option>
+                  <option value="branch">使用冻结草稿值</option>
                 </NativeSelect>
               </label>
             )}
@@ -546,7 +546,7 @@ export function ProductionRecordMergeReview({
           <Link
             to={`/projects/${encodeURIComponent(workflow.input.projectId)}/tools/episode-development?operation=storyboard-package&workflowId=${encodeURIComponent(currentRecovery.receipt.id)}`}
           >
-            打开字段合并候选
+            打开字段合并草稿
           </Link>
         </div>
       )}

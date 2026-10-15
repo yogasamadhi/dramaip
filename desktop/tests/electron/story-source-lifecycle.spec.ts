@@ -261,7 +261,7 @@ test("明确节点／关系／认知撤回替换：独立新审阅、后台重�
         .getByLabel("指定新来源候选 ID", { exact: true })
         .fill(pair.next.id);
       await review
-        .getByRole("button", { name: "读取并审阅此新候选", exact: true })
+        .getByRole("button", { name: "读取并审阅此新草稿", exact: true })
         .click();
       let newReview = review.getByLabel("替换新候选独立审阅", { exact: true });
       await expect(newReview).toContainText(pair.next.id);
@@ -270,7 +270,7 @@ test("明确节点／关系／认知撤回替换：独立新审阅、后台重�
       ).not.toBeChecked();
       await expect(
         newReview.getByRole("button", {
-          name: "明确替换并独立采用此新候选",
+          name: "明确替换并独立采用此新草稿",
           exact: true,
         }),
       ).toBeDisabled();
@@ -297,7 +297,7 @@ test("明确节点／关系／认知撤回替换：独立新审阅、后台重�
           .getByLabel("指定新来源候选 ID", { exact: true })
           .fill(pair.next.id);
         await review
-          .getByRole("button", { name: "读取并审阅此新候选", exact: true })
+          .getByRole("button", { name: "读取并审阅此新草稿", exact: true })
           .click();
         newReview = review.getByLabel("替换新候选独立审阅", { exact: true });
         await expect(newReview).toContainText(pair.next.id);
@@ -318,7 +318,7 @@ test("明确节点／关系／认知撤回替换：独立新审阅、后台重�
           }),
         );
         await review
-          .getByRole("button", { name: "读取并审阅此新候选", exact: true })
+          .getByRole("button", { name: "读取并审阅此新草稿", exact: true })
           .click();
         await expect(review.getByRole("alert")).toContainText(
           "指定新候选读取失败",
@@ -326,7 +326,7 @@ test("明确节点／关系／认知撤回替换：独立新审阅、后台重�
         await expect(newReview).toHaveCount(0);
         await page.unroute(pattern);
         await review
-          .getByRole("button", { name: "读取并审阅此新候选", exact: true })
+          .getByRole("button", { name: "读取并审阅此新草稿", exact: true })
           .click();
         await expect(newReview).toContainText(pair.next.id);
       }
@@ -363,7 +363,7 @@ test("明确节点／关系／认知撤回替换：独立新审阅、后台重�
         );
       await newReview
         .getByRole("button", {
-          name: "明确替换并独立采用此新候选",
+          name: "明确替换并独立采用此新草稿",
           exact: true,
         })
         .click();

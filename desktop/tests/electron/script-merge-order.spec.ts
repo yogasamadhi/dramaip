@@ -288,7 +288,7 @@ test("真实剧本块正文与排序分别确认，已成功丢回复的原请�
     await expect(
       panel.getByRole("button", { name: "采用", exact: true }),
     ).toHaveCount(0);
-    await expect(panel).toContainText("未恢复缓存候选或重新生成");
+    await expect(panel).toContainText("未恢复缓存 AI 草稿或重新生成");
     releaseOriginalRead();
     await expect(panel.getByRole("alert")).toContainText("原运行");
     await expect(
@@ -486,7 +486,7 @@ test("真实剧本块正文与排序分别确认，已成功丢回复的原请�
       .getByRole("combobox", { name: "剧本冲突块选择", exact: true })
       .selectOption("branch");
     await dialog
-      .getByRole("button", { name: "以候选块顺序为排序起点", exact: true })
+      .getByRole("button", { name: "以 AI 草稿块顺序为排序起点", exact: true })
       .click();
     await dialog
       .getByRole("button", { name: "上移合并块 6", exact: true })

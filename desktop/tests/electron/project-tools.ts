@@ -97,7 +97,7 @@ export async function openProductionStage(
     | "导演看板"
     | "版权声明"
     | "视觉资产"
-    | "分镜静帧候选"
+    | "分镜静帧 AI 草稿"
     | "图片生成"
     | "音频制作"
     | "视频制作"
@@ -107,8 +107,8 @@ export async function openProductionStage(
 ): Promise<void> {
   const group =
     stage === "导演看板" || stage === "资产中心"
-      ? "导演看板"
-      : ["素材", "版权声明", "视觉资产", "分镜静帧候选"].includes(stage)
+      ? "分镜与资产"
+      : ["素材", "版权声明", "视觉资产", "分镜静帧 AI 草稿"].includes(stage)
         ? "素材与角色"
         : ["图片生成", "音频制作", "视频制作"].includes(stage)
           ? "音视频"

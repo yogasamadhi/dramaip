@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { StoryCausalNodeKindSchema } from "@dramaip/contracts";
 import {
   StoryDeclarationInputSchema,
@@ -129,7 +129,7 @@ export function ScreenplayDeclarationComposer({
   };
   return (
     <form
-      aria-label={sourceOnly ? "关系认知剧本来源表单" : "正式剧本来源候选表单"}
+      aria-label={sourceOnly ? "关系认知剧本来源表单" : "正式剧本来源草稿表单"}
       className="mt-3 space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
@@ -161,9 +161,8 @@ export function ScreenplayDeclarationComposer({
       >
         <label className="block text-sm">
           声明原剧本
-          <select
+          <NativeSelect
             aria-label="声明原剧本"
-            className={field}
             value={scriptId}
             onChange={(event) => {
               setScriptId(event.target.value);
@@ -177,7 +176,7 @@ export function ScreenplayDeclarationComposer({
                 {item.state === "unavailable" ? " · 来源不可用" : ""}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {(cursor || page?.nextCursor) && (
           <div className="flex gap-2">
@@ -242,9 +241,8 @@ export function ScreenplayDeclarationComposer({
           <>
             <label className="block text-sm">
               正式声明类型
-              <select
+              <NativeSelect
                 aria-label="正式声明类型"
-                className={field}
                 value={kind}
                 onChange={(event) =>
                   setKind(StoryCausalNodeKindSchema.parse(event.target.value))
@@ -255,7 +253,7 @@ export function ScreenplayDeclarationComposer({
                     {value}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="block text-sm">
               正式声明名称
@@ -284,7 +282,7 @@ export function ScreenplayDeclarationComposer({
           </>
         )}
         <BareButton type="submit" className={button} disabled={!canCreate}>
-          {sourceOnly ? "仅保存关系认知来源候选" : "仅保存正式来源候选"}
+          {sourceOnly ? "仅保存关系认知来源候选" : "仅保存正式来源草稿"}
         </BareButton>
       </fieldset>
     </form>

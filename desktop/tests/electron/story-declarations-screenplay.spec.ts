@@ -116,7 +116,7 @@ test("直接剧本无需小说，后台实际块候选／双重审阅／请求�
       .getByLabel("声明来源类型", { exact: true })
       .selectOption("screenplay");
     let form = panel.getByRole("form", {
-      name: "正式剧本来源候选表单",
+      name: "正式剧本来源草稿表单",
       exact: true,
     });
     await expect(form.getByLabel("声明原剧本", { exact: true })).toBeEnabled();
@@ -143,7 +143,7 @@ test("直接剧本无需小说，后台实际块候选／双重审阅／请求�
       .getByLabel("作者声明解释", { exact: true })
       .fill("PRIVATE 作者解释仍需审阅，不是语义证明。");
     const save = form.getByRole("button", {
-      name: "仅保存正式来源候选",
+      name: "仅保存正式来源草稿",
       exact: true,
     });
     await expect(save).toBeDisabled();
@@ -255,7 +255,7 @@ test("直接剧本无需小说，后台实际块候选／双重审阅／请求�
       .getByLabel("声明来源类型", { exact: true })
       .selectOption("screenplay");
     form = panel.getByRole("form", {
-      name: "正式剧本来源候选表单",
+      name: "正式剧本来源草稿表单",
       exact: true,
     });
     await form
@@ -278,7 +278,7 @@ test("直接剧本无需小说，后台实际块候选／双重审阅／请求�
       form.getByLabel("可选实际剧本块", { exact: true }),
     ).toHaveCount(0);
     await expect(
-      form.getByRole("button", { name: "仅保存正式来源候选", exact: true }),
+      form.getByRole("button", { name: "仅保存正式来源草稿", exact: true }),
     ).toBeDisabled();
     expect(failed).toBeGreaterThan(0);
     await page.unroute(sourceRoute);

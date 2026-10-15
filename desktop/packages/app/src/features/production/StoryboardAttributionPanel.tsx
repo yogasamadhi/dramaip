@@ -309,7 +309,7 @@ export function StoryboardAttributionPanel({
       if (
         !(await confirmDialog({
           title: "明确确认逐镜头关联来源",
-          description: `正式分镜 ${result.id} v${result.version}，${fresh.source.shots.length} 个实际镜头。完整引文位置与剧本块已读取；新草稿清空未提交选择，已保存候选及原历史不改。人工关联不证明语义或权利通过。`,
+          description: `正式分镜 ${result.id} v${result.version}，${fresh.source.shots.length} 个实际镜头。完整引文位置与剧本块已读取；新草稿清空未提交选择，已保存草稿及原历史不改。人工关联不证明语义或权利通过。`,
           confirmLabel: "确认此正式版本来源",
         }))
       )
@@ -402,9 +402,9 @@ export function StoryboardAttributionPanel({
     });
     if (
       !(await confirmDialog({
-        title: "保存明确镜头关联候选",
+        title: "保存明确镜头关联草稿",
         description: `${input.selections.length} 条明确位置选择；只保存人工草稿，另行审阅采用。不改变正式稿、未选镜头，不调用模型。`,
-        confirmLabel: "保存原关联候选",
+        confirmLabel: "保存原关联草稿",
       }))
     )
       return;
@@ -811,7 +811,7 @@ export function StoryboardAttributionPanel({
                     }
                     onClick={() => void create()}
                   >
-                    保存明确关联候选（尚不采用）
+                    保存明确关联草稿（尚不采用）
                   </Button>
                 </div>
               )}

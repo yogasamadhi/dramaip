@@ -328,7 +328,7 @@ test("关系和认知独立来源的后台候选／双重审阅／响应丢失�
       await route.abort("failed");
     });
     await panel
-      .getByRole("button", { name: "重读关系认知来源与原候选", exact: true })
+      .getByRole("button", { name: "重读关系认知来源与原草稿", exact: true })
       .click();
     await expect(form.getByRole("alert")).toContainText("旧缓存不作为当前依据");
     expect(failures).toBeGreaterThan(0);
@@ -346,7 +346,7 @@ test("关系和认知独立来源的后台候选／双重审阅／响应丢失�
       },
     });
     await panel
-      .getByRole("button", { name: "重读关系认知来源与原候选", exact: true })
+      .getByRole("button", { name: "重读关系认知来源与原草稿", exact: true })
       .click();
     await expect(review).toContainText("来源 stale");
     await expect(review).toContainText("SELECTED 关系实际证据。");

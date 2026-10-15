@@ -296,7 +296,7 @@ test("正式作者意图经差异预览、明确采用、来源冲突与重启�
       .getByLabel("必须避免", { exact: true })
       .fill("不强制机械反转");
     await panel()
-      .getByRole("button", { name: "保存意图候选并预览差异", exact: true })
+      .getByRole("button", { name: "保存意图草稿并预览差异", exact: true })
       .click();
     await expect(preview()).toContainText("等待审阅采用");
     await expect(preview()).toContainText("PRIVATE 学会求助");
@@ -362,13 +362,13 @@ test("正式作者意图经差异预览、明确采用、来源冲突与重启�
     expect(await json(`chapters/${chapter.id}`)).toMatchObject(chapter);
 
     await panel()
-      .getByRole("button", { name: "基于当前正式版本创建候选", exact: true })
+      .getByRole("button", { name: "基于当前正式版本创建草稿", exact: true })
       .click();
     await panel()
       .getByLabel("作品主题", { exact: true })
       .fill("PRIVATE 第二份候选等待核对");
     await panel()
-      .getByRole("button", { name: "保存意图候选并预览差异", exact: true })
+      .getByRole("button", { name: "保存意图草稿并预览差异", exact: true })
       .click();
     await expect(preview()).toContainText("PRIVATE 第二份候选");
     const secondId = (
@@ -383,7 +383,7 @@ test("正式作者意图经差异预览、明确采用、来源冲突与重启�
     );
     // An already-open panel must react to the real project event, without reload.
     await expect(preview().getByRole("alert")).toContainText(
-      "不能直接采用旧候选",
+      "不能直接采用旧草稿",
     );
     await expect(
       preview().getByRole("button", {
@@ -410,7 +410,7 @@ test("正式作者意图经差异预览、明确采用、来源冲突与重启�
       .click();
     await expect(preview()).toHaveAttribute("data-intent-preview-id", secondId);
     await preview()
-      .getByRole("button", { name: "放弃此意图候选", exact: true })
+      .getByRole("button", { name: "放弃此意图草稿", exact: true })
       .click();
     await confirm(true);
     await expect(preview()).toContainText("已放弃");

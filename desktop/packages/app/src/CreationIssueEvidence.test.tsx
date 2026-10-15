@@ -41,7 +41,7 @@ test("candidate evidence shows all original field positions, exact fingerprint a
 
 test("historical model issues retain unknown anchors and structural rules do not pretend to be candidate literal evidence", () => {
   const html = renderToStaticMarkup(<CreationIssueEvidence issue={issue} />);
-  expect(html).toContain("未记录候选引文位置");
+  expect(html).toContain("未记录 AI 草稿引文位置");
   expect(html).not.toContain("SHA-256");
   expect(
     renderToStaticMarkup(

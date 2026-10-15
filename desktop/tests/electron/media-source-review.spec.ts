@@ -452,14 +452,14 @@ test("音轨人工修订在后台冻结完整差异、重启清空声明、生�
       .click();
     await panel().getByLabel("修订音轨名称", { exact: true }).fill("UI 新音轨");
     await panel()
-      .getByRole("button", { name: "从候选移除此片段", exact: true })
+      .getByRole("button", { name: "从草稿移除此片段", exact: true })
       .first()
       .click();
     await panel()
       .getByLabel("修订文本", { exact: true })
       .fill("明确映射的人工新旁白");
     await panel()
-      .getByRole("button", { name: "新增候选片段", exact: true })
+      .getByRole("button", { name: "新增草稿片段", exact: true })
       .click();
     await panel()
       .getByLabel("修订文本", { exact: true })

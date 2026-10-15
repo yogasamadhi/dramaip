@@ -467,7 +467,7 @@ export function NarrativeLocalQualityPanel({
               : "只检查目标原文字段中 40–2000 字的逐字重复段落，最多100项／每项12证据，不读隐式外部来源，不提供语义维度覆盖或质量评分。",
           confirmLabel:
             origin === "human-declared"
-              ? "确认保存人工候选"
+              ? "确认保存人工草稿"
               : "确认运行本地规则",
         }))
       )
@@ -765,7 +765,7 @@ export function NarrativeLocalQualityPanel({
               disabled={locked || !draft.summary.trim()}
               onClick={() => void create("human-declared")}
             >
-              保存人工声明候选
+              保存人工声明草稿
             </Button>
             <Button
               size="sm"

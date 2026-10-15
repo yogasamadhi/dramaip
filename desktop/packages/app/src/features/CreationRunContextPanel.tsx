@@ -57,7 +57,9 @@ export function CreationRunContextView({
         ))}
       </ul>
       <details>
-        <summary>查看此阶段完整原提示（可能包含本地私有正文或候选）</summary>
+        <summary>
+          查看此阶段完整原提示（可能包含本地私有正文或 AI 草稿）
+        </summary>
         <pre className="whitespace-pre-wrap">{snapshot.finalPrompt}</pre>
       </details>
     </section>

@@ -667,7 +667,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
       { "If-Match": declaration.etag },
     );
     await workbench()
-      .getByRole("button", { name: "放弃候选", exact: true })
+      .getByRole("button", { name: "放弃 AI 草稿", exact: true })
       .click();
     await expect(workbench().locator("header").getByRole("status")).toHaveText(
       "已放弃",

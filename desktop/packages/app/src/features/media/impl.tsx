@@ -303,7 +303,7 @@ function ProductionWorkspaceInstance(props: {
   const stageGroups = [
     {
       id: "director",
-      label: "导演看板",
+      label: "分镜与资产",
       stages: ["storyboard", "asset-center"],
     },
     {
@@ -398,8 +398,7 @@ function ProductionWorkspaceInstance(props: {
           <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-1 text-sm">
               项目
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 value={projectId}
                 onChange={(event) => {
                   const nextProjectId = event.target.value;
@@ -421,12 +420,11 @@ function ProductionWorkspaceInstance(props: {
                     {project.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               改编项目
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!projectId}
                 value={adaptationId}
                 onChange={(event) => {
@@ -451,12 +449,11 @@ function ProductionWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               分集
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!adaptationId}
                 value={episodeId}
                 onChange={(event) => {
@@ -479,12 +476,11 @@ function ProductionWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               剧本
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!episodeId}
                 value={scriptId}
                 onChange={(event) => {
@@ -501,12 +497,11 @@ function ProductionWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               场景
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!scriptId}
                 value={sceneId}
                 onChange={(event) => {
@@ -522,12 +517,11 @@ function ProductionWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               分镜
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!sceneId}
                 value={shotId}
                 onChange={(event) => {
@@ -542,7 +536,7 @@ function ProductionWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           </section>
         </WorkspaceObjectControls>
@@ -1402,7 +1396,7 @@ export function AssetCenterPanel(props: {
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <dt className="text-muted">采用</dt>
-                <dd>{asset.adopted ? "已采用" : "候选"}</dd>
+                <dd>{asset.adopted ? "已采用" : "AI 草稿"}</dd>
               </div>
               <div>
                 <dt className="text-muted">锁定</dt>
@@ -1846,7 +1840,7 @@ export function VideoGenerationPanel(props: {
         />
       </details>
       <div>
-        <h2 className="font-semibold">视频生成与候选采用</h2>
+        <h2 className="font-semibold">视频生成与 AI 草稿采用</h2>
         <p className="mt-1 text-sm text-muted">
           先核对静帧来源、资产和费用，再以服务端签发的快照提交已配置的 Seedance
           或 MiniMax H3 Cloud 接口；预检阻断会在厂商调用前停止。

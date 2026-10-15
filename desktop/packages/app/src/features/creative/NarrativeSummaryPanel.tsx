@@ -7,7 +7,7 @@ import {
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, NativeSelect, confirmDialog } from "@dramaip/ui-shared";
 import {
   NarrativeSummaryRequestSchema,
   type NarrativeSummaryRequest,
@@ -59,7 +59,7 @@ function SummarySource({
       </legend>
       <label className="flex flex-wrap items-center gap-2">
         来源表达
-        <select
+        <NativeSelect
           aria-label={`${chapter.title}摘要来源表达`}
           value={
             value.representation === "original" ? "original" : value.record.id
@@ -84,7 +84,7 @@ function SummarySource({
                   },
             );
           }}
-          className="max-w-full rounded border border-line bg-surface p-2"
+          className="max-w-full"
         >
           <option value="original">
             完整原文 · 估算 {chapter.originalEstimatedTokens} token
@@ -104,7 +104,7 @@ function SummarySource({
                 已选摘要未核验，须重新选择
               </option>
             )}
-        </select>
+        </NativeSelect>
       </label>
       <Button
         size="sm"
@@ -496,10 +496,10 @@ export function NarrativeSummaryPanel({ projectId }: { projectId: string }) {
           ))}
           <label className="block text-sm">
             实际摘要范围
-            <select
+            <NativeSelect
               aria-label="实际摘要范围"
               value={scope ? `${scope.target.kind}:${scope.target.id}` : ""}
-              className="ml-2 max-w-full rounded border border-line bg-surface p-2"
+              className="ml-2 max-w-full"
               onChange={(event) => {
                 setScope(
                   sources.data?.scopes.find(
@@ -524,7 +524,7 @@ export function NarrativeSummaryPanel({ projectId }: { projectId: string }) {
                   {item.state !== "current" ? " · 范围失效／未绑定" : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           {scope && (
             <div className="space-y-2">

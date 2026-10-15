@@ -315,7 +315,7 @@ export function StorySourceLifecycleReview(props: Props) {
               else setCandidateId(id);
             }}
           >
-            读取并审阅此新候选
+            读取并审阅此新草稿
           </BareButton>
           {query.isError && (
             <p role="alert">
@@ -399,7 +399,7 @@ export function StorySourceLifecycleReview(props: Props) {
                 }
                 onClick={() => void act("replace")}
               >
-                明确替换并独立采用此新候选
+                明确替换并独立采用此新草稿
               </BareButton>
             </section>
           )}

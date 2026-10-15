@@ -386,7 +386,7 @@ async function discardNewerEpisodeCandidate(
     ).items;
   const beforeIds = new Set((await list()).map((item) => item.id));
   await workbench()
-    .getByRole("button", { name: "按要求生成新候选", exact: true })
+    .getByRole("button", { name: "按要求生成新 AI 草稿", exact: true })
     .click();
   let newer: CreationWorkflow | undefined;
   await expect
@@ -413,7 +413,7 @@ async function discardNewerEpisodeCandidate(
     "等待审阅采用",
   );
   await workbench()
-    .getByRole("button", { name: "放弃候选", exact: true })
+    .getByRole("button", { name: "放弃 AI 草稿", exact: true })
     .click();
   await expect
     .poll(
@@ -468,7 +468,7 @@ async function adoptIntentInUi(page: Page, content: AuthorIntentContent) {
       .fill(Array.isArray(value) ? value.join("\n") : value);
   }
   await panel
-    .getByRole("button", { name: "保存意图候选并预览差异", exact: true })
+    .getByRole("button", { name: "保存意图草稿并预览差异", exact: true })
     .click();
   const preview = panel.locator("[data-intent-preview-id]");
   await expect(preview).toContainText("等待审阅采用");
@@ -2152,7 +2152,7 @@ for (const contextRevision of [false, true])
         .getByRole("button", { name: "生成并检查作者意图建议", exact: true })
         .click();
       const link = panel().getByRole("link", {
-        name: "比较并确认此 AI 意图候选",
+        name: "比较并确认此 AI 意图草稿",
         exact: true,
       });
       await expect(link).toBeVisible({ timeout: 30_000 });
@@ -2288,7 +2288,7 @@ for (const contextRevision of [false, true])
         await expect(actual).toContainText("不是全书章节覆盖率");
         await expect(actual).toContainText("不证明模型已经读取或理解");
         await actual
-          .getByText("查看此阶段完整原提示（可能包含本地私有正文或候选）", {
+          .getByText("查看此阶段完整原提示（可能包含本地私有正文或 AI 草稿）", {
             exact: true,
           })
           .click();
@@ -2364,7 +2364,7 @@ for (const contextRevision of [false, true])
       }, href!);
       await expect(
         panel().getByRole("link", {
-          name: "比较并确认此 AI 意图候选",
+          name: "比较并确认此 AI 意图草稿",
           exact: true,
         }),
       ).toBeVisible({ timeout: 30_000 });
@@ -2523,7 +2523,7 @@ test("AI 作者意图支持简报独立入口、明确后章与已有剧本，�
         .getByRole("button", { name: "生成并检查作者意图建议", exact: true })
         .click();
       const link = panel.getByRole("link", {
-        name: "比较并确认此 AI 意图候选",
+        name: "比较并确认此 AI 意图草稿",
         exact: true,
       });
       await expect(link).toBeVisible({ timeout: 30_000 });
@@ -2800,18 +2800,24 @@ test("五类规划独立确认实际段落、不隐式读正文，目录失败�
           .getByRole("button", { name: "重新读取规划来源目录", exact: true })
           .click();
         await expect(planning.getByRole("alert")).toHaveCount(0);
-        await planning
-          .getByRole("radio", {
+        // The recommended full scope with original text is preselected, but it
+        // is not used until explicitly confirmed.
+        await expect(
+          planning.getByRole("radio", {
             name: "当前全部非空正文目录（不代表全文表达或全书质量通过）",
             exact: true,
-          })
-          .check();
+          }),
+        ).toBeChecked();
         await expect(
           planning.getByRole("button", {
             name: "确认本轮规划范围与表达",
             exact: true,
           }),
-        ).toBeDisabled();
+        ).toBeEnabled();
+        await expect(
+          planning.locator('[data-planning-confirmed="false"]'),
+        ).toBeVisible();
+        await expect(generate).toBeDisabled();
       }
       await confirmParagraph();
       await generate.click();
@@ -4054,7 +4060,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
       }),
     ).not.toContainText(FIRST_FACT);
     await running.page
-      .getByRole("button", { name: "候选稿", exact: true })
+      .getByRole("button", { name: "AI 草稿", exact: true })
       .click();
     await expect(
       running.page.getByRole("textbox", {
@@ -5649,7 +5655,7 @@ for (const independentEpisode of [false, true]) {
       const frozenQualityCard = () =>
         qualityPanel()
           .locator(`[data-narrative-report-id="${qualityReport.id}"]`)
-          .getByLabel("质量评议原冻结来源表达", { exact: true });
+          .getByLabel("质量评议原参考内容表达", { exact: true });
       await expect(frozenQualityCard()).toBeVisible();
       const originalReferences = qualityReport.basis.sourceBasis!.references;
       expect(originalReferences).toHaveLength(2);
@@ -5798,7 +5804,7 @@ for (const independentEpisode of [false, true]) {
         .click();
       await expect(
         aiIntent().getByRole("link", {
-          name: "比较并确认此 AI 意图候选",
+          name: "比较并确认此 AI 意图草稿",
           exact: true,
         }),
       ).toBeVisible({ timeout: 25_000 });
@@ -5830,7 +5836,7 @@ for (const independentEpisode of [false, true]) {
         expect(call.prompt).not.toContain(JSON.stringify(second.content));
       }
       const aiCard = () =>
-        aiIntent().getByLabel("AI 意图原冻结来源表达", { exact: true });
+        aiIntent().getByLabel("AI 意图原参考内容表达", { exact: true });
       await aiIntent()
         .locator("summary")
         .filter({ hasText: /^引用资料 · \d+ 项$/u })
@@ -6013,7 +6019,7 @@ for (const independentEpisode of [false, true]) {
       });
       await diagnosisPanel()
         .locator("summary")
-        .filter({ hasText: "旧诊断内策略（兼容路径）" })
+        .filter({ hasText: "旧诊断内策略（旧版流程）" })
         .click();
       await diagnosisPanel()
         .getByRole("radio", { name: "选择策略 忠实人物弧", exact: true })
@@ -6447,7 +6453,7 @@ for (const independentEpisode of [false, true]) {
           exact: true,
         });
       const workflowChoice = pilotDialog().getByLabel(
-        "明确附所选三正式阶段的原工作流脱敏谱系（不含指令、正文或候选；缺失保留未知，人工确认不当新模型运行）",
+        "明确附所选三正式阶段的原工作流脱敏谱系（不含指令、正文或 AI 草稿；缺失保留未知，人工确认不当新模型运行）",
         { exact: true },
       );
       await expect(workflowChoice).not.toBeChecked();
@@ -7273,13 +7279,13 @@ for (const { novelMode, sourceChange } of [
       }
       await association()
         .getByRole("button", {
-          name: "保存明确关联候选（尚不采用）",
+          name: "保存明确关联草稿（尚不采用）",
           exact: true,
         })
         .click();
       await running.page
-        .getByRole("dialog", { name: "保存明确镜头关联候选", exact: true })
-        .getByRole("button", { name: "保存原关联候选", exact: true })
+        .getByRole("dialog", { name: "保存明确镜头关联草稿", exact: true })
+        .getByRole("button", { name: "保存原关联草稿", exact: true })
         .click();
       await expect(
         association().getByLabel("精确原镜头关联候选", { exact: true }),
@@ -7631,11 +7637,11 @@ for (const { novelMode, sourceChange } of [
           .getByRole("button", { name: `上移 ${episodeId}`, exact: true })
           .click();
         await seasonPanel()
-          .getByRole("button", { name: "保存重排为新候选", exact: true })
+          .getByRole("button", { name: "保存重排为新草稿", exact: true })
           .click();
         await running.page
-          .getByRole("dialog", { name: "保存重排为新候选？", exact: true })
-          .getByRole("button", { name: "保存新候选", exact: true })
+          .getByRole("dialog", { name: "保存重排为新草稿？", exact: true })
+          .getByRole("button", { name: "保存新草稿", exact: true })
           .click();
         await expect(
           seasonPanel().getByLabel("整季方案 v2", { exact: true }),
@@ -9538,13 +9544,13 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
       const saveCandidate = async () => {
         await link()
           .getByRole("button", {
-            name: "保存明确关联候选（尚不采用）",
+            name: "保存明确关联草稿（尚不采用）",
             exact: true,
           })
           .click();
         await running!.page
-          .getByRole("dialog", { name: "保存明确镜头关联候选", exact: true })
-          .getByRole("button", { name: "保存原关联候选", exact: true })
+          .getByRole("dialog", { name: "保存明确镜头关联草稿", exact: true })
+          .getByRole("button", { name: "保存原关联草稿", exact: true })
           .click();
       };
       await saveCandidate();
@@ -11216,7 +11222,7 @@ test("旧 episode 默认折叠，后台重启精确恢复原候选并按兼容�
     }, `${route}&workflowId=${original.id}`);
     await expect(workbench()).toContainText("旧候选 1");
     await workbench()
-      .getByRole("button", { name: "按要求生成新候选", exact: true })
+      .getByRole("button", { name: "按要求生成新 AI 草稿", exact: true })
       .click();
     await expect(workbench()).toContainText("旧候选 3", {
       timeout: 25_000,
@@ -11413,7 +11419,7 @@ for (const independentStrategy of [false, true]) {
       } else {
         await candidate()
           .locator("summary")
-          .filter({ hasText: "旧诊断内策略（兼容路径）" })
+          .filter({ hasText: "旧诊断内策略（旧版流程）" })
           .click();
         const adopt = candidate().getByRole("button", {
           name: "采用选定策略与诊断",
@@ -11768,11 +11774,11 @@ for (const independentStrategy of [false, true]) {
         }),
       ).toBeDisabled();
       await seasonPanel()
-        .getByRole("button", { name: "保存重排为新候选", exact: true })
+        .getByRole("button", { name: "保存重排为新草稿", exact: true })
         .click();
       await running.page
-        .getByRole("dialog", { name: "保存重排为新候选？", exact: true })
-        .getByRole("button", { name: "保存新候选", exact: true })
+        .getByRole("dialog", { name: "保存重排为新草稿？", exact: true })
+        .getByRole("button", { name: "保存新草稿", exact: true })
         .click();
       await expect(
         seasonPanel().getByLabel("整季方案 v2", { exact: true }),
@@ -12887,10 +12893,10 @@ for (const independentStrategy of [false, true]) {
         })
         .click();
       await seasonPanel()
-        .getByRole("button", { name: "放弃这个季纲候选", exact: true })
+        .getByRole("button", { name: "放弃这个季纲草稿", exact: true })
         .click();
       await running.page
-        .getByRole("dialog", { name: "放弃这个季纲候选？", exact: true })
+        .getByRole("dialog", { name: "放弃这个季纲草稿？", exact: true })
         .getByRole("button", { name: "明确放弃", exact: true })
         .click();
       await seasonPanel()
@@ -12903,11 +12909,11 @@ for (const independentStrategy of [false, true]) {
         .getByRole("button", { name: "上移 stable-episode-0", exact: true })
         .click();
       await seasonPanel()
-        .getByRole("button", { name: "保存重排为新候选", exact: true })
+        .getByRole("button", { name: "保存重排为新草稿", exact: true })
         .click();
       await running.page
-        .getByRole("dialog", { name: "保存重排为新候选？", exact: true })
-        .getByRole("button", { name: "保存新候选", exact: true })
+        .getByRole("dialog", { name: "保存重排为新草稿？", exact: true })
+        .getByRole("button", { name: "保存新草稿", exact: true })
         .click();
       await expect(
         seasonPanel().getByLabel("整季方案 v3", { exact: true }),
@@ -13154,13 +13160,13 @@ for (const independentStrategy of [false, true]) {
       // mounted query synchronously. Wait for its actual rendered CAS basis.
       await expect(stale).toHaveAttribute("data-diagnosis-state-version", "1");
       await expect(
-        stale.getByRole("button", { name: "放弃诊断候选", exact: true }),
+        stale.getByRole("button", { name: "放弃诊断 AI 草稿", exact: true }),
       ).toBeEnabled();
       await stale
-        .getByRole("button", { name: "放弃诊断候选", exact: true })
+        .getByRole("button", { name: "放弃诊断 AI 草稿", exact: true })
         .click();
       await running.page
-        .getByRole("dialog", { name: "放弃诊断候选", exact: true })
+        .getByRole("dialog", { name: "放弃诊断 AI 草稿", exact: true })
         .getByRole("button", { name: "确认放弃", exact: true })
         .click();
       await expect
@@ -13572,7 +13578,7 @@ test("独立小说质量报告经真实证据、精确待确认、人工风险�
     const pending = running.page.locator(
       `[data-confirmation-key="narrative-report:${old.id}"]`,
     );
-    await expect(pending).toContainText("质量报告候选");
+    await expect(pending).toContainText("质量报告 AI 草稿");
     await expect(pending).not.toContainText(FIRST_FACT);
     await pending
       .getByRole("link", { name: "返回对应对象", exact: true })
@@ -15571,7 +15577,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         ).toContainText(lostMergeId);
         expect(fixture.calls).toHaveLength(callsAfterMerge);
         await actualFields()
-          .getByRole("link", { name: "打开字段合并候选", exact: true })
+          .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
           redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
@@ -15884,7 +15890,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           "结构私有旁注不发模型",
         );
         await structuralReview()
-          .getByRole("link", { name: "打开字段合并候选", exact: true })
+          .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
           redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
@@ -16284,7 +16290,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         ).toContainText(lostPlanMergeId);
         expect(fixture.calls).toHaveLength(callsBeforePlanMerge + 1);
         await shotPlanReview()
-          .getByRole("link", { name: "打开字段合并候选", exact: true })
+          .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
           redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
@@ -16740,7 +16746,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         ).toContainText(lostTopologyMergeId);
         expect(fixture.calls).toHaveLength(topologyCalls + 3);
         await topologyReview()
-          .getByRole("link", { name: "打开字段合并候选", exact: true })
+          .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
           redoWorkbench().getByLabel("冻结作者场景拓扑计划", { exact: true }),

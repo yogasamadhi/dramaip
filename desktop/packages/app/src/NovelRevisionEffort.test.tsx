@@ -367,7 +367,7 @@ describe("first formal novel adoption revision observations", () => {
       <NovelRevisionEffortView value={value} />,
     );
     expect(html).toContain("局部正文修订 2 次");
-    expect(html).toContain("放弃、失败及重试候选");
+    expect(html).toContain("放弃、失败及重试 AI 草稿");
     expect(html).toContain("模型修订阶段");
     expect(html).not.toContain("PRIVATE");
     expect(

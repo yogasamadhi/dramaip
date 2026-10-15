@@ -6,7 +6,7 @@ import type {
   TimelineManifest,
   TimelineClip,
 } from "@dramaip/contracts/timeline";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { AudioRevisionClipView } from "./AudioRevisionPanel";
 import { message, useStudio } from "../../studio-shared";
 const button =
@@ -335,8 +335,7 @@ export function AudioResolutionPanel({
                 ))}
                 <label>
                   片段处理方式
-                  <select
-                    className={field}
+                  <NativeSelect
                     aria-label="片段处理方式"
                     value={choice.action}
                     onChange={(event) =>
@@ -348,14 +347,13 @@ export function AudioResolutionPanel({
                     <option value="keep">保留，不处理</option>
                     <option value="replace">明确换源，保留人工参数</option>
                     <option value="remove">明确移除本时间线引用</option>
-                  </select>
+                  </NativeSelect>
                 </label>
                 {choice.action === "replace" && (
                   <>
                     <label>
                       明确替换片段
-                      <select
-                        className={field}
+                      <NativeSelect
                         aria-label="明确替换片段"
                         value={choice.target}
                         onChange={(event) =>
@@ -373,7 +371,7 @@ export function AudioResolutionPanel({
                             {target.availableFrames} 帧
                           </option>
                         ))}
-                      </select>
+                      </NativeSelect>
                     </label>
                     {!item.replacements.length && (
                       <p className="text-warning-strong">
@@ -383,8 +381,7 @@ export function AudioResolutionPanel({
                     {item.kind === "subtitle" && (
                       <label>
                         字幕文本选择
-                        <select
-                          className={field}
+                        <NativeSelect
                           aria-label="字幕文本选择"
                           value={choice.subtitleText}
                           onChange={(event) =>
@@ -396,7 +393,7 @@ export function AudioResolutionPanel({
                         >
                           <option value="keep">保留人工字幕文本</option>
                           <option value="replacement">明确使用新源文本</option>
-                        </select>
+                        </NativeSelect>
                       </label>
                     )}
                   </>

@@ -6,7 +6,7 @@ import type {
   EpisodeCompliancePreflight,
   EpisodeWorkflowKind,
 } from "@dramaip/contracts/product";
-import { BareButton, NativeSelect } from "@dramaip/ui-shared";
+import { BareButton, Button, NativeSelect } from "@dramaip/ui-shared";
 import { StudioClientError } from "@dramaip/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -222,8 +222,7 @@ function ReviewDeliveryWorkspaceInstance(props: {
           <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-3">
             <label className="grid gap-1 text-sm">
               项目
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 value={projectId}
                 onChange={(event) => {
                   const nextProjectId = event.target.value;
@@ -243,12 +242,11 @@ function ReviewDeliveryWorkspaceInstance(props: {
                     {project.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               改编项目
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!projectId}
                 value={adaptationId}
                 onChange={(event) => {
@@ -264,12 +262,11 @@ function ReviewDeliveryWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm">
               分集
-              <select
-                className="rounded-lg border border-line px-3 py-2"
+              <NativeSelect
                 disabled={!adaptationId}
                 value={episodeId}
                 onChange={(event) => {
@@ -284,7 +281,7 @@ function ReviewDeliveryWorkspaceInstance(props: {
                     {item.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           </section>
         </WorkspaceObjectControls>
@@ -423,7 +420,7 @@ function PlatformDeliveryPanelInstance(props: {
     setManualFieldsConfirmed(false);
     setNotice(
       r.operation === "adopt"
-        ? "原候选已明确采用；请重新选择并核对预检。"
+        ? "原草稿已明确采用；请重新选择并核对预检。"
         : "原预检提交资料已归档；不代表成片／授权／结算／发行通过。",
     );
     void queryClient.invalidateQueries({ queryKey: ["platform-delivery"] });
@@ -651,7 +648,7 @@ function PlatformDeliveryPanelInstance(props: {
       );
       setPreflight(undefined);
       setManualFieldsConfirmed(false);
-      setNotice(`已保存候选「${created.label}」，仍需显式采用后才能归档。`);
+      setNotice(`已保存草稿「${created.label}」，仍需显式采用后才能归档。`);
       await queryClient.invalidateQueries({
         queryKey: [
           "platform-delivery",
@@ -1030,7 +1027,7 @@ function PlatformDeliveryPanelInstance(props: {
             disabled={Boolean(working)}
             onClick={() => void saveVariant()}
           >
-            {working === "保存候选" ? "正在保存…" : "保存为新候选"}
+            {working === "保存候选" ? "正在保存…" : "保存为新草稿"}
           </BareButton>
         </div>
       </section>
@@ -1053,7 +1050,7 @@ function PlatformDeliveryPanelInstance(props: {
                   : variant.status === "adopted" ||
                       variant.status === "archived"
                     ? "历史状态（当前采用未核验）"
-                    : "候选"}
+                    : "草稿"}
               </span>
               <span className="text-sm font-medium">
                 {variant.label} · v{variant.versionNumber} · {variant.title}
@@ -1064,7 +1061,7 @@ function PlatformDeliveryPanelInstance(props: {
                   disabled={Boolean(working)}
                   onClick={() => void adoptVariant(variant.id)}
                 >
-                  {working === "采用候选" ? "正在采用…" : "采用此候选"}
+                  {working === "采用候选" ? "正在采用…" : "采用此草稿"}
                 </BareButton>
               )}
             </div>
@@ -2503,18 +2500,25 @@ export function EpisodeWorkflowPanel(props: {
   const client = useStudio();
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string>();
+  const [results, setResults] = useState<
+    Partial<Record<EpisodeWorkflowKind, "done" | "failed">>
+  >({});
   const workflow = useMutation({
     mutationFn: (kind: EpisodeWorkflowKind) =>
       client.workflows.runEpisode(
         { projectId: props.projectId, episodeId: props.episodeId, kind },
         crypto.randomUUID(),
       ),
-    onSuccess: async (result) => {
+    onSuccess: async (result, kind) => {
       setNotice(result.summary);
+      setResults((current) => ({ ...current, [kind]: "done" }));
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
       await queryClient.invalidateQueries({ queryKey: ["resource"] });
     },
-    onError: (cause) => setNotice(message(cause)),
+    onError: (cause, kind) => {
+      setNotice(message(cause));
+      setResults((current) => ({ ...current, [kind]: "failed" }));
+    },
   });
   const actions: Array<{
     kind: EpisodeWorkflowKind;
@@ -2537,11 +2541,6 @@ export function EpisodeWorkflowPanel(props: {
       description: "按依赖关系整理优先处理步骤，不会直接改写任何内容。",
     },
     {
-      kind: "delivery-preflight",
-      label: "执行交付预检",
-      description: "核查质量、合规、审片和本地化记录是否具备交付条件。",
-    },
-    {
       kind: "animatic-draft",
       label: "生成动态分镜草案",
       description: "根据分镜创建可审阅的节奏时间线，不伪造实际视频成片。",
@@ -2551,13 +2550,18 @@ export function EpisodeWorkflowPanel(props: {
       label: "执行渲染预检",
       description: "确认剧本、场景、分镜和素材是否具备提交真实渲染任务的条件。",
     },
+    {
+      kind: "delivery-preflight",
+      label: "执行交付预检",
+      description: "核查质量、合规、审片和本地化记录是否具备交付条件。",
+    },
   ];
   return (
     <section className="rounded-xl border border-line bg-surface p-4">
       <div>
-        <h2 className="font-semibold">分集审核与制作工具</h2>
+        <h2 className="font-semibold">分集交付清单</h2>
         <p className="mt-1 text-sm text-muted">
-          每次执行都会创建可追踪任务和持久化报告；不会修改剧本、分镜或正式交付内容。
+          按顺序检查、审片、再预检交付。每项都会生成可追踪的任务和报告，不会修改剧本、分镜或正式交付内容。
         </p>
       </div>
       <p className="mt-3 text-sm text-muted">
@@ -2569,23 +2573,46 @@ export function EpisodeWorkflowPanel(props: {
           打开独立质量评议
         </Link>
       </p>
-      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {actions.map((action) => (
-          <BareButton
-            key={action.kind}
-            className="rounded-xl border border-line p-3 text-left transition hover:border-brand disabled:opacity-50"
-            disabled={workflow.isPending}
-            onClick={() => workflow.mutate(action.kind)}
-          >
-            <span className="block text-sm font-medium text-brand">
-              {action.label}
-            </span>
-            <span className="mt-1 block text-xs leading-5 text-muted">
-              {action.description}
-            </span>
-          </BareButton>
-        ))}
-      </div>
+      <ol aria-label="分集交付清单" className="mt-4 divide-y divide-line">
+        {actions.map((action, index) => {
+          const result = results[action.kind];
+          const running =
+            workflow.isPending && workflow.variables === action.kind;
+          return (
+            <li key={action.kind} className="flex items-start gap-3 py-3">
+              <span className="mt-0.5 w-5 shrink-0 text-xs font-semibold tabular-nums text-muted">
+                {index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">{action.label}</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted">
+                  {action.description}
+                </p>
+              </div>
+              <span
+                className={`mt-0.5 shrink-0 text-xs ${result === "done" ? "text-success-strong" : result === "failed" ? "text-danger-strong" : "text-muted"}`}
+              >
+                {running
+                  ? "正在执行"
+                  : result === "done"
+                    ? "本次已完成"
+                    : result === "failed"
+                      ? "未完成"
+                      : "未执行"}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label={action.label}
+                disabled={workflow.isPending}
+                onClick={() => workflow.mutate(action.kind)}
+              >
+                执行
+              </Button>
+            </li>
+          );
+        })}
+      </ol>
       {workflow.isPending && (
         <p className="mt-3 text-sm text-muted">正在执行检查并保存报告…</p>
       )}

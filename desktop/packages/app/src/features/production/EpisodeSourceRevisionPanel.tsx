@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, NativeSelect, confirmDialog } from "@dramaip/ui-shared";
 import {
   EpisodeOutlineContentSchema,
   EpisodeSourceRevisionInputSchema,
@@ -606,9 +606,8 @@ export function EpisodeSourceRevisionPanel({
                   </p>
                   <label>
                     明确实际剧本来源
-                    <select
+                    <NativeSelect
                       aria-label="新来源实际剧本"
-                      className={inputClass}
                       disabled={frozen}
                       value={sourceScriptId}
                       onChange={(event) =>
@@ -628,7 +627,7 @@ export function EpisodeSourceRevisionPanel({
                             {item.documentVersion ?? "未保存"}
                           </option>
                         ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label>
                     本集明确时长（秒）
@@ -655,9 +654,8 @@ export function EpisodeSourceRevisionPanel({
                   </p>
                   <label>
                     本集实际表达
-                    <select
+                    <NativeSelect
                       aria-label="新来源小说表达模式"
-                      className={inputClass}
                       disabled={frozen}
                       value={novelMode}
                       onChange={(event) =>
@@ -672,7 +670,7 @@ export function EpisodeSourceRevisionPanel({
                       <option value="independent">
                         本集独立选择实际原文／摘要／段落
                       </option>
-                    </select>
+                    </NativeSelect>
                   </label>
                   {novelMode === "independent" && (
                     <>
@@ -782,9 +780,8 @@ export function EpisodeSourceRevisionPanel({
                   <label key={link.blockIds[0]} className="block">
                     实际场景 {index + 1} · 稳定块 {link.blockIds[0]}（
                     {link.blockIds.length} 块）
-                    <select
+                    <NativeSelect
                       aria-label={`新来源场景映射 ${index + 1}`}
-                      className={inputClass}
                       disabled={frozen}
                       value={link.sceneId}
                       onChange={(event) =>
@@ -799,7 +796,7 @@ export function EpisodeSourceRevisionPanel({
                           {scene.id} · {scene.location} · {scene.goal}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                 ))}
               </section>

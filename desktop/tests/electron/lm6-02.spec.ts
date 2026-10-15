@@ -76,7 +76,7 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   const productionStages = page.getByRole("navigation", {
     name: "制作工作分组",
   });
-  for (const label of ["导演看板", "素材与角色", "音视频", "时间线与输出"])
+  for (const label of ["分镜与资产", "素材与角色", "音视频", "时间线与输出"])
     await expect(
       productionStages.getByRole("button", { name: label }),
     ).toBeVisible();

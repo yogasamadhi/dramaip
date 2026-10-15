@@ -188,7 +188,10 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
       .getByLabel("候选正文实际修订台账", { exact: true })
       .first();
     await revisions
-      .getByRole("button", { name: "查看候选正文实际修订次数", exact: true })
+      .getByRole("button", {
+        name: "查看 AI 草稿正文实际修订次数",
+        exact: true,
+      })
       .click();
     await expect(revisions).toContainText("已记录正文修改 1 次");
     await expect(revisions).toContainText("未知（历史不完整）");
@@ -199,7 +202,10 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     });
     revisionReadFails = true;
     await revisions
-      .getByRole("button", { name: "查看候选正文实际修订次数", exact: true })
+      .getByRole("button", {
+        name: "查看 AI 草稿正文实际修订次数",
+        exact: true,
+      })
       .click();
     await expect(revisions.getByRole("alert")).toContainText(
       "不显示旧缓存或推定零修订",
@@ -229,7 +235,7 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
       await route.continue();
     });
     await editor.fill(newest);
-    await page.getByRole("button", { name: "候选稿", exact: true }).click();
+    await page.getByRole("button", { name: "AI 草稿", exact: true }).click();
     await expect(editor).toContainText("界面验证的 AI 候选");
     await expect
       .poll(() =>
@@ -249,8 +255,10 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     ).not.toContain("界面验证的 AI 候选");
     releaseSave();
     await page.unroute(`**/api/v2/chapters/${chapter.id}`);
-    await panel.getByRole("button", { name: "放弃候选", exact: true }).click();
-    await expect(page.getByText("候选稿预览", { exact: true })).toBeHidden();
+    await panel
+      .getByRole("button", { name: "放弃 AI 草稿", exact: true })
+      .click();
+    await expect(page.getByText("AI 草稿预览", { exact: true })).toBeHidden();
     await expect(editor).toContainText("用户在候选返回后新添的内容必须保留。");
     await expect(editor).not.toContainText("界面验证的 AI 候选");
     await expect

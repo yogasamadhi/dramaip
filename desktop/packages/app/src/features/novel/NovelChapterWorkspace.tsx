@@ -1135,7 +1135,7 @@ function NovelEditor(
       extensions: [
         StarterKit.configure({ heading: { levels: [2, 3] } }),
         Placeholder.configure({
-          placeholder: "提出本章目标，让 AI 生成并检查候选正文。",
+          placeholder: "提出本章目标，让 AI 生成并检查 AI 草稿正文。",
         }),
         Markdown.configure({
           html: false,
@@ -1498,7 +1498,7 @@ function NovelEditor(
         const candidate = payload as unknown as ChangePreview;
         if (candidate.taskId !== run.taskId) return;
         if (props.chapter.id !== run.chapterId) {
-          setNotice("后台生成已经完成，请返回对应章节查看候选正文");
+          setNotice("后台生成已经完成，请返回对应章节查看 AI 草稿正文");
           setBusy(false);
           return;
         }
@@ -1605,7 +1605,7 @@ function NovelEditor(
         const resolvedContent =
           editedContent ?? proposedContent(candidate) ?? "";
         if (!resolvedContent.trim())
-          throw new Error("候选正文为空，无法采用。");
+          throw new Error("AI 草稿正文为空，无法采用。");
         let pending = candidate;
         if (saved.version !== target.baseVersion)
           pending = await props.client.changePreviews.rebase(
@@ -1682,7 +1682,7 @@ function NovelEditor(
       }
       setDiffOpen(false);
       setNotice(
-        "候选正文已生成；你可以继续编辑当前草稿，再查看差异并决定是否采用",
+        "AI 草稿正文已生成；你可以继续编辑当前草稿，再查看差异并决定是否采用",
       );
       setBusy(completion.busy);
     },
@@ -1966,8 +1966,8 @@ function NovelEditor(
       finishRun();
       setNotice(
         regenerate
-          ? "已放弃候选稿，正在重新生成"
-          : "已放弃候选稿，当前编辑草稿保持不变",
+          ? "已放弃 AI 草稿，正在重新生成"
+          : "已放弃 AI 草稿，当前编辑草稿保持不变",
       );
       if (regenerate && taskType) void startRun(taskType);
     } catch (cause) {
@@ -2226,7 +2226,7 @@ function NovelEditor(
         )}
         {preview && (
           <div className="flex flex-wrap items-center gap-2 border-b border-brand/20 bg-brand-soft/60 px-4 py-2 text-sm">
-            <span className="font-medium text-brand-strong">候选稿预览</span>
+            <span className="font-medium text-brand-strong">AI 草稿预览</span>
             <span className="text-xs text-muted">
               正式正文保持不变；审阅后采用或提出修改要求
             </span>
@@ -2241,7 +2241,7 @@ function NovelEditor(
                 className={`rounded-md px-2.5 py-1 ${previewView === "candidate" ? "bg-brand-soft font-medium text-brand" : "text-muted"}`}
                 onClick={() => showPreviewView("candidate")}
               >
-                候选稿
+                AI 草稿
               </BareButton>
             </div>
           </div>
@@ -2473,7 +2473,7 @@ function NovelEditor(
                   </div>
                   <div>
                     <p className="text-xs font-medium text-brand-strong">
-                      候选修订
+                      AI 草稿修订
                     </p>
                     <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
                       {revisionPreview.proposedContent}
@@ -2744,7 +2744,7 @@ function NovelEditor(
                     setPreviewView("original");
                     setDiffOpen(false);
                     setLengthPreview(undefined);
-                    setNotice("已放弃候选稿，当前草稿保持不变。");
+                    setNotice("已放弃 AI 草稿，当前草稿保持不变。");
                   }}
                   onAdopt={(candidate) => commitPreview(candidate)}
                   onApplied={async () => {
@@ -3296,7 +3296,7 @@ function WritingPanel(props: {
       {props.preview && (
         <section className="rounded-xl border border-brand/25 bg-brand-soft/60 p-4 shadow-card">
           <p className="text-sm font-semibold text-brand-strong">
-            候选正文已就绪
+            AI 草稿正文已就绪
           </p>
           <p className="mt-1 text-xs leading-5 text-muted">
             正文区正在只读预览，只有确认采用后才会覆盖原稿。
@@ -3320,7 +3320,7 @@ function WritingPanel(props: {
               disabled={props.busy}
               onClick={props.onDiscardPreview}
             >
-              放弃候选
+              放弃 AI 草稿
             </Button>
             <BareButton
               className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-xs hover:border-brand hover:text-brand disabled:opacity-40"

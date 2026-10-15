@@ -5880,7 +5880,7 @@ export function ImportExtractionReviewPanel(props: {
     setWorkingId(changeSet.id);
     try {
       await client.importExtractions.adopt(changeSet.id, { candidateIds: ids });
-      setNotice("已采用所选候选，并保留可撤销记录。");
+      setNotice("已采用所选草稿，并保留可撤销记录。");
       await refresh();
     } catch (cause) {
       setNotice(message(cause));
@@ -5929,7 +5929,7 @@ export function ImportExtractionReviewPanel(props: {
     <section className="rounded-xl border border-line bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-muted">导入候选审阅</p>
+          <p className="text-sm text-muted">导入草稿审阅</p>
           <h2 className="mt-1 text-xl font-semibold">
             先查看差异，再采用到项目资料
           </h2>
@@ -5939,7 +5939,7 @@ export function ImportExtractionReviewPanel(props: {
           </p>
         </div>
         <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
-          全部候选预览
+          全部草稿预览
         </span>
       </div>
       {notice && (
