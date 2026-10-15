@@ -338,7 +338,7 @@ export function NovelQuickStart() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 py-4">
       <Button variant="ghost" size="sm" onClick={() => navigate("/write")}>
-        ← 返回小说写作
+        ← 返回故事
       </Button>
       <section className="rounded-xl border border-line bg-surface p-6 shadow-card">
         <p className="studio-eyebrow">快速开始</p>

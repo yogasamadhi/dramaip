@@ -786,18 +786,7 @@ export const creativeQualityPlugin = definePlugin({
       id: "creative-quality.route.workspace",
       pluginId: "creative-quality",
       kind: "route",
-      metadata: { path: "/create", title: "创作工作区" },
-    },
-    {
-      id: "creative-quality.navigation.workspace",
-      pluginId: "creative-quality",
-      kind: "navigation",
-      metadata: {
-        section: "secondary",
-        order: 10,
-        label: "创作分析",
-        to: "/create",
-      },
+      metadata: { path: "/create", title: "创作分析" },
     },
     {
       id: "creative-quality.panel.diagnostics",

@@ -107,18 +107,6 @@ export const BUILTIN_UI_MANIFEST = {
     metadataHash:
       "2d320f4e8fe50886e72b349df0990b417d5ff356ed04dbea67c15e4f030329ba",
   },
-  "creative-quality.navigation.workspace": {
-    pluginId: "creative-quality",
-    kind: "navigation",
-    metadata: {
-      section: "secondary",
-      order: 10,
-      label: "创作分析",
-      to: "/create",
-    },
-    metadataHash:
-      "d7402ab0d65d24660b38c24566ef739218089c947cde9326686711fecbeecebb",
-  },
   "creative-quality.panel.diagnostics": {
     pluginId: "creative-quality",
     kind: "panel",
@@ -145,10 +133,10 @@ export const BUILTIN_UI_MANIFEST = {
     kind: "route",
     metadata: {
       path: "/create",
-      title: "创作工作区",
+      title: "创作分析",
     },
     metadataHash:
-      "c9ff4184a9c43f585465e57d6b1ede6b207ec94a348cf1c8f1d097f71afd5d98",
+      "0738bc7dd14c8a89338c817f2005d57390c2be77ff9776f96971afcc416776de",
   },
   "delivery.command.export": {
     pluginId: "delivery",
@@ -505,21 +493,21 @@ export const BUILTIN_UI_MANIFEST = {
     metadata: {
       section: "main",
       order: 20,
-      label: "小说写作",
+      label: "故事",
       to: "/write",
     },
     metadataHash:
-      "a6d40c469652ee8e3d507201c73c4ee02d52a80e874186a5ab5449a2942d7dd9",
+      "fa7d5633609df14620853a5f3dbd350cb1e1706219953593d3c0012df67c5669",
   },
   "writing.route.home": {
     pluginId: "writing",
     kind: "route",
     metadata: {
       path: "/write",
-      title: "小说写作",
+      title: "故事",
     },
     metadataHash:
-      "7c274e7324b39301d185704d4bab2d58ea79f4a60d55f6d237519a5471698901",
+      "e75780e3da481f43355bbd2fec0a0642bd5494c7f92785961686260824870a39",
   },
   "writing.route.quick-start": {
     pluginId: "writing",

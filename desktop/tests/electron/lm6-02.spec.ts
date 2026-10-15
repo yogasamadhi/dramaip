@@ -91,12 +91,8 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
     new RegExp(`/produce\\?projectId=${projectId}$`),
   );
 
-  await page.getByRole("link", { name: "创作分析", exact: true }).click();
-  await expect
-    .poll(() =>
-      new URL(page.url().replace("#/", "/")).searchParams.get("projectId"),
-    )
-    .toBe(projectId);
+  await page.getByRole("link", { name: "故事", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
 
   for (const label of ["改编", "制作", "审核交付"] as const) {
     await page.getByRole("link", { name: label, exact: true }).click();

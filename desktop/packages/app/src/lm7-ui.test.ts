@@ -72,7 +72,7 @@ describe("LM7 desktop UI architecture", () => {
       'metadata: { section: "main", order: 10, label: "项目", to: "/" }',
     );
     expect(writing).toContain(
-      'metadata: { section: "main", order: 20, label: "小说写作", to: "/write" }',
+      'metadata: { section: "main", order: 20, label: "故事", to: "/write" }',
     );
 
     const sources = [

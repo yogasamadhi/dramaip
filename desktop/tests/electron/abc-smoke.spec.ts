@@ -141,7 +141,7 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
     page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "小说写作", exact: true }),
+    page.getByRole("link", { name: "故事", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "设置", exact: true }).click();
   await expect(
@@ -207,7 +207,7 @@ test("主题跟随系统并持久化手动选择", async () => {
 test("最小窗口下应用栏可用且页面无横向溢出", async () => {
   await page.setViewportSize({ width: 1080, height: 700 });
   await expect(
-    page.getByRole("link", { name: "小说写作", exact: true }),
+    page.getByRole("link", { name: "故事", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /当前项目：示例短剧：雨夜归来/ }),

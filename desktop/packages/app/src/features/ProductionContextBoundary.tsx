@@ -69,19 +69,28 @@ export function WorkspaceObjectControls(props: {
 }) {
   if (!props.projectTitle) return props.children;
   return (
-    <section
-      className="rounded-xl border border-line bg-surface p-4"
-      aria-label="当前制作对象"
-    >
-      <p className="font-semibold">{props.projectTitle}</p>
-      <p className="mt-1 text-sm text-muted">
-        {props.objectTitles.join(" · ") || "尚未选择分集；制作与交付均为可选。"}
-      </p>
-      <details className="mt-3">
-        <summary className="cursor-pointer text-sm">
-          切换项目或制作对象（高级）
+    <section aria-label="当前制作对象" className="text-sm">
+      <details className="group">
+        <summary className="list-none">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-surface px-3 py-2">
+            <span className="text-muted">当前对象</span>
+            <span className="font-medium text-ink">{props.projectTitle}</span>
+            <span className="min-w-0 truncate text-muted">
+              {props.objectTitles.length
+                ? `· ${props.objectTitles.join(" · ")}`
+                : "· 尚未选择分集（制作与交付可选）"}
+            </span>
+            <span className="ml-auto cursor-pointer text-xs font-medium text-link group-open:hidden">
+              切换
+            </span>
+            <span className="ml-auto hidden cursor-pointer text-xs font-medium text-link group-open:inline">
+              收起
+            </span>
+          </span>
         </summary>
-        <div className="mt-3">{props.children}</div>
+        <div className="mt-2 rounded-lg border border-line bg-surface p-3">
+          {props.children}
+        </div>
       </details>
     </section>
   );

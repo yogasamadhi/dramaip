@@ -77,7 +77,6 @@ const PROJECT_ROUTES = new Set([
   "/adapt",
   "/produce",
   "/review",
-  "/insights",
 ]);
 const GLOBAL_ROUTES = new Set([
   "/",
@@ -85,6 +84,7 @@ const GLOBAL_ROUTES = new Set([
   "/search",
   "/tasks",
   "/pending",
+  "/insights",
   "/settings",
 ]);
 
@@ -113,6 +113,7 @@ function routeActive(pathname: string, target: string): boolean {
   if (target === "/write")
     return (
       pathname.startsWith("/write") ||
+      pathname.startsWith("/create") ||
       (pathname.startsWith("/projects/") && !pathname.includes("/tools/"))
     );
   return pathname.startsWith(target);
@@ -129,20 +130,33 @@ function appBarProjectModeLabel(mode: string): string {
   );
 }
 
-function workAreaLabel(pathname: string): string {
-  if (pathname.startsWith("/projects/") || pathname.startsWith("/write"))
-    return "故事";
-  if (pathname.startsWith("/adapt")) return "改编";
-  if (pathname.startsWith("/produce")) return "制作";
-  if (pathname.startsWith("/review")) return "审核交付";
-  if (pathname.startsWith("/create")) return "创作工具";
-  if (pathname.startsWith("/insights")) return "创作分析";
-  if (pathname.startsWith("/tasks")) return "任务";
-  if (pathname.startsWith("/pending")) return "待确认";
-  if (pathname.startsWith("/inspiration")) return "灵感";
-  if (pathname.startsWith("/search")) return "搜索";
-  if (pathname.startsWith("/settings")) return "设置";
-  return "项目库";
+const ADAPTATION_TOOLS = new Set([
+  "adaptation-diagnosis",
+  "adaptation-strategy",
+  "season-plan",
+  "episode-development",
+  "pilot",
+  "series",
+]);
+
+/** Breadcrumb labels come from the same navigation contributions as the sidebar. */
+function workAreaLabel(
+  pathname: string,
+  navigation: readonly ShellNavigationItem[],
+): string {
+  const labelFor = (to: string, fallback: string): string =>
+    navigation.find((item) => item.to === to)?.label ?? fallback;
+  const tool = /^\/projects\/[^/]+\/tools\/([^/?]+)/.exec(pathname)?.[1];
+  if (tool === "cockpit") return "概览";
+  if (tool && ADAPTATION_TOOLS.has(tool)) return labelFor("/adapt", "改编");
+  if (tool === "review") return labelFor("/review", "审核交付");
+  if (pathname.startsWith("/projects/")) return labelFor("/write", "故事");
+  if (pathname.startsWith("/create"))
+    return `${labelFor("/write", "故事")} / 创作分析`;
+  const match = navigation
+    .filter((item) => item.to !== "/" && pathname.startsWith(item.to))
+    .sort((left, right) => right.to.length - left.to.length)[0];
+  return match?.label ?? "项目库";
 }
 
 function objectTrail(search: string): Array<{ key: string; label: string }> {
@@ -429,18 +443,6 @@ export function AppShell(props: {
           </nav>
         ) : null}
       </div>
-      <div className="border-t border-line p-2">
-        <Button
-          variant="subtle"
-          size="sm"
-          className="w-full justify-start"
-          onClick={openAssistant}
-          aria-label="打开 AI 办事助手"
-        >
-          <Sparkles aria-hidden="true" className="size-4 shrink-0" />
-          <span className="studio-shell-nav-label">智能助手</span>
-        </Button>
-      </div>
     </>
   );
 
@@ -527,7 +529,7 @@ export function AppShell(props: {
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" size="sm" className="no-drag min-w-0">
                 <span className="truncate">
-                  {workAreaLabel(location.pathname)}
+                  {workAreaLabel(location.pathname, props.navigation)}
                 </span>
                 {trail.length ? (
                   <span className="hidden text-xs text-muted md:inline">
@@ -573,22 +575,26 @@ export function AppShell(props: {
               </Link>
             </IconButton>
             <ThemeMenu compact />
-            <IconButton
-              aria-label={
-                assistantOpen ? "关闭智能助手面板" : "打开智能助手面板"
-              }
-              variant={assistantOpen ? "subtle" : "ghost"}
-              size="sm"
-              onClick={() =>
-                assistantOpen ? setAssistantOpen(false) : openAssistant()
-              }
-            >
-              {assistantOpen ? (
+            {assistantOpen ? (
+              <IconButton
+                aria-label="关闭智能助手面板"
+                variant="subtle"
+                size="sm"
+                onClick={() => setAssistantOpen(false)}
+              >
                 <PanelRightClose aria-hidden="true" className="size-4" />
-              ) : (
-                <Sparkles aria-hidden="true" className="size-4" />
-              )}
-            </IconButton>
+              </IconButton>
+            ) : (
+              <Button
+                aria-label="打开智能助手面板"
+                variant="secondary"
+                size="sm"
+                onClick={openAssistant}
+              >
+                <Sparkles aria-hidden="true" className="size-4 text-brand" />
+                AI 助手
+              </Button>
+            )}
           </div>
         </div>
       </header>

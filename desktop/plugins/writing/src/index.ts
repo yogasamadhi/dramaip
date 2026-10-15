@@ -1805,7 +1805,7 @@ export const writingPlugin = definePlugin({
       id: "writing.route.home",
       pluginId: "writing",
       kind: "route",
-      metadata: { path: "/write", title: "小说写作" },
+      metadata: { path: "/write", title: "故事" },
     },
     {
       id: "writing.route.quick-start",
@@ -1817,7 +1817,7 @@ export const writingPlugin = definePlugin({
       id: "writing.navigation.home",
       pluginId: "writing",
       kind: "navigation",
-      metadata: { section: "main", order: 20, label: "小说写作", to: "/write" },
+      metadata: { section: "main", order: 20, label: "故事", to: "/write" },
     },
     {
       id: "writing.editor.chapter",
