@@ -51,7 +51,7 @@ export function ScriptMergeOrderReview({
           : "当前规则可确定单方或一致顺序，并在明确稳定间隔保留另一侧新增块；不是语义安全证明。"}
       </p>
       <details>
-        <summary>核对原基准／当前稿／候选的稳定 ID 顺序</summary>
+        <summary>核对原基准／当前稿／AI 草稿的稳定 ID 顺序</summary>
         <p className="break-all">原：{merge.blockOrder.base.join(" → ")}</p>
         <p className="break-all">
           当前：{merge.blockOrder.current.join(" → ")}

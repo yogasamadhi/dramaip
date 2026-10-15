@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, Disclosure } from "@dramaip/ui-shared";
 import { message, useStudio } from "../../studio-shared";
 import { SourceConfirmations } from "./SourceConfirmations";
 import { PlanningOutcomes } from "./PlanningOutcomes";
@@ -102,14 +102,22 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
         </BareButton>
       </div>
       <p className="text-sm text-muted">
-        分别统计正式采用、章节派生记忆实际写入与完整性回执匹配的实际保存。小说与剧本分开计数，同一实际版本集合的重放、重复保存、换格式或重试不会增加成果数；候选和页面点击不计入。
+        只统计你正式采用、写入记忆和保存的成果；数据只在本机，不外发。
       </p>
-      <p className="text-sm text-muted">
-        这是本地历史事实，不是当前版本质量、版权核验或爆款预测。仅包含开始记录后的权威事件，不补算旧资料；不会发送正文、提示词或台账到外部分析服务。
-      </p>
-      <p className="text-xs text-muted">
-        记忆写入按实际记录集合计一批，不计入人工正文采用或首候选采用率；自动同步与独立审阅的流程仍各自保留，此计数不认证触发方式、当前有效性或语义正确性。
-      </p>
+      <Disclosure summary="统计口径说明" summaryClassName="text-xs text-muted">
+        <div className="space-y-2">
+          <p className="text-sm text-muted">
+            分别统计正式采用、章节派生记忆实际写入与完整性回执匹配的实际保存。小说与剧本分开计数，同一实际版本集合的重放、重复保存、换格式或重试不会增加成果数；AI
+            草稿和页面点击不计入。
+          </p>
+          <p className="text-sm text-muted">
+            这是本地历史事实，不是当前版本质量、版权核验或爆款预测。仅包含开始记录后的权威事件，不补算旧资料；不会发送正文、提示词或台账到外部分析服务。
+          </p>
+          <p className="text-xs text-muted">
+            记忆写入按实际记录集合计一批，不计入人工正文采用或首稿采用率；自动同步与独立审阅的流程仍各自保留，此计数不认证触发方式、当前有效性或语义正确性。
+          </p>
+        </div>
+      </Disclosure>
       <CreativeExecutions key={projectId} projectId={projectId} />
       <CreativeDeliveryCoveragePanel
         key={`delivery:${projectId}`}
@@ -383,18 +391,29 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
             className="space-y-3 rounded-lg border border-line p-3"
           >
             <h3 className="font-medium">本地首候选与采用耗时</h3>
-            <p className="text-xs text-muted">
-              仅统计开始记录后的目标首个实际请求。重试、重新生成、人工合并不重置首轮；历史最初请求未记录的目标不进入首候选分母。占比是截至当前的本地记录，包含待决定，不是公开采用率、文学质量或受控／真实模型对比；当前运行分类均未知。
-            </p>
-            <p className="text-xs text-muted">
-              已核对来源冲突来自普通工作流拒绝，以及诊断、独立策略、季纲内容所有者已提交的拒绝；必须匹配原请求／候选回执并有实际来源身份、版本差异或完整全书非空章节集合增减，每个原候选最多计一次，不是完整冲突率。缺资料、读取失败、仅目标竞争、未覆盖来源和不匹配原
-              AI 候选的人工重排不补算；不证明当前有效性或文学质量。
-            </p>
-            <p className="text-xs text-muted">
-              采用被拒只统计已记录的工作流拒绝及匹配原候选的内容所有者状态决定，重复
-              owner 回执不增加次数；不代表全部 HTTP
-              409、无效操作或所有历史拒绝。来源变化、目标竞争和未分类拒绝分别保留。
-            </p>
+            <Disclosure
+              summary="统计口径说明"
+              summaryClassName="text-xs text-muted"
+            >
+              <div className="space-y-2">
+                <p className="text-xs text-muted">
+                  仅统计开始记录后的目标首个实际请求。重试、重新生成、人工合并不重置首轮；历史最初请求未记录的目标不进入首稿分母。占比是截至当前的本地记录，包含待决定，不是公开采用率、文学质量或受控／真实模型对比；当前运行分类均未知。
+                </p>
+                <p className="text-xs text-muted">
+                  已核对来源冲突来自普通工作流拒绝，以及诊断、独立策略、季纲内容所有者已提交的拒绝；必须匹配原请求／AI
+                  草稿回执并有实际来源身份、版本差异或完整全书非空章节集合增减，每个原
+                  AI
+                  草稿最多计一次，不是完整冲突率。缺资料、读取失败、仅目标竞争、未覆盖来源和不匹配原
+                  AI 草稿的人工重排不补算；不证明当前有效性或文学质量。
+                </p>
+                <p className="text-xs text-muted">
+                  采用被拒只统计已记录的工作流拒绝及匹配原 AI
+                  草稿的内容所有者状态决定，重复
+                  内容所有者回执不增加次数；不代表全部 HTTP
+                  409、无效操作或所有历史拒绝。来源变化、目标竞争和未分类拒绝分别保留。
+                </p>
+              </div>
+            </Disclosure>
             <div className="grid gap-3 md:grid-cols-2">
               {summary.data.funnel.measures.map((measure) => (
                 <section
@@ -439,7 +458,7 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
                       }
                     >
                       <summary className="cursor-pointer text-brand">
-                        查看最近原候选的来源变化证据
+                        查看最近原 AI 草稿的来源变化证据
                       </summary>
                       <p>
                         原工作流{" "}
@@ -503,7 +522,7 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
                           : measure.firstAccepted.adoptionMode ===
                               "exact-candidate"
                             ? "原候选"
-                            : "改写候选"}
+                            : "改写 AI 草稿"}
                       </p>
                       <p>
                         请求至候选{" "}
@@ -516,8 +535,8 @@ export function CreativeOutcomesPanel({ projectId }: { projectId: string }) {
                     </div>
                   ) : (
                     <p className="text-xs text-muted">
-                      尚无请求、候选与正式 owner 采用完整对应的耗时证据，不补为
-                      0。
+                      尚无请求、AI 草稿与正式 owner
+                      采用完整对应的耗时证据，不补为 0。
                     </p>
                   )}
                 </section>

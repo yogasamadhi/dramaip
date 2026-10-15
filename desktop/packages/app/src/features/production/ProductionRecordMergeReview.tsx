@@ -49,7 +49,8 @@ export function ProductionRecordComparisonView({
         原实际记录／当前人工记录／冻结候选。比较不写入；明确选择可另行冻结复检，不直接采用。语义质量尚未验证。
       </p>
       <p>
-        自定义字段留在本域；归属和稳定身份不可迁移。顺序、时长、资产及来源结构只能采用原候选已冻结的专用计划，不能按创作字段重解释。
+        自定义字段留在本域；归属和稳定身份不可迁移。顺序、时长、资产及来源结构只能采用原
+        AI 草稿已冻结的专用计划，不能按创作字段重解释。
       </p>
       {report.format === "storyboard-record-field-comparison-v2" && (
         <section
@@ -57,7 +58,8 @@ export function ProductionRecordComparisonView({
           className="space-y-1 break-all"
         >
           <p>
-            已确认块结构专用协议；仅采用原候选已冻结的原／新映射，不能用字段选择重写来源。
+            已确认块结构专用协议；仅采用原 AI
+            草稿已冻结的原／新映射，不能用字段选择重写来源。
           </p>
           <p>
             正式剧本 {report.structure.script.id} v
@@ -337,7 +339,7 @@ export function ProductionRecordMergeReview({
     retry: false,
     queryFn: async () => {
       if (!base || !basis || !eligible)
-        throw new Error("原候选范围已变化，不能比较实际字段。");
+        throw new Error("原 AI 草稿范围已变化，不能比较实际字段。");
       return {
         client,
         report: await client.episodeDevelopments.compareRecords(workflow.id, {
@@ -469,7 +471,8 @@ export function ProductionRecordMergeReview({
             : "比较实际字段"}
       </Button>
       <p className="text-muted">
-        只读核对原基准、当前人工记录和冻结候选；不调用模型、不改稿、不解除原采用的版本保护。历史缺原基准不自动升级。
+        只读核对原基准、当前人工记录和冻结 AI
+        草稿；不调用模型、不改稿、不解除原采用的版本保护。历史缺原基准不自动升级。
       </p>
       {opened && !query.isFetching && query.error && (
         <p role="alert" className="text-danger-strong">
@@ -482,7 +485,7 @@ export function ProductionRecordMergeReview({
         query.data &&
         (!data || !matchesProductionRecordComparison(workflow, data)) && (
           <p role="alert" className="text-danger-strong">
-            比较不属于当前客户端、候选或冻结基准；不补最新结果。
+            比较不属于当前客户端、AI 草稿或冻结基准；不补最新结果。
           </p>
         )}
       {currentRecovery?.error && (
@@ -510,7 +513,7 @@ export function ProductionRecordMergeReview({
                   !(await confirmDialog({
                     title: "放弃本地字段合并原请求？",
                     description:
-                      "只移除本地身份、字段选择、指纹与幂等键，不删除服务器候选或正式稿。若此前响应丢失，仍可在任务中查看实际运行。",
+                      "只移除本地身份、字段选择、指纹与幂等键，不删除服务器 AI 草稿或正式稿。若此前响应丢失，仍可在任务中查看实际运行。",
                     confirmLabel: "放弃本地原请求",
                   }))
                 )
@@ -580,7 +583,7 @@ export function ProductionRecordMergeReview({
                 })
               }
             />
-            我已逐项核对；明确同意将所选创作文字与原冻结来源发给本次原配置模型复检。标题和场景动作独立选择，须核对与镜头一致性；不含私有自定义字段，不直接写入正式稿。
+            我已逐项核对；明确同意将所选创作文字与原参考内容发给本次原配置模型复检。标题和场景动作独立选择，须核对与镜头一致性；不含私有自定义字段，不直接写入正式稿。
           </label>
           <Button
             disabled={

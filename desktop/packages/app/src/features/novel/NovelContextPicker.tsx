@@ -186,7 +186,7 @@ export function NovelContextPicker(
             ))}
           {readHigher && scopes.data && !higher.size && (
             <p className="text-muted">
-              没有实际采用摘要；生成候选和目录节点不升级为来源。
+              没有实际采用摘要；生成 AI 草稿和目录节点不升级为来源。
             </p>
           )}
         </section>

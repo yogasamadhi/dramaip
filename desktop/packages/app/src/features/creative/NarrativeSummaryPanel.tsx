@@ -145,7 +145,7 @@ function SummaryDetails({ value }: { value: NarrativeSummary }) {
           ? "当前有效采用头"
           : value.isHead
             ? "采用头已失效，保留历史"
-            : "候选或历史版本，不是当前采用头"}
+            : "AI 草稿或历史版本，不是当前采用头"}
         ；摘要不替代原文或语义质量评议。
       </p>
       {value.staleReasons.map((reason) => (
@@ -223,7 +223,7 @@ function SummaryCandidate({
   return value ? (
     <SummaryDetails value={value} />
   ) : (
-    <p>{result.error ? message(result.error) : "正在读取实际摘要候选…"}</p>
+    <p>{result.error ? message(result.error) : "正在读取实际摘要 AI 草稿…"}</p>
   );
 }
 
@@ -424,7 +424,8 @@ export function NarrativeSummaryPanel({ projectId }: { projectId: string }) {
         </summary>
         <section aria-label="分层摘要工作台" className="mt-4 space-y-4">
           <p className="text-sm text-muted">
-            指定摘要原版本只读复核；不改读最新候选，不自动重新生成或扩大原冻结范围。
+            指定摘要原版本只读复核；不改读最新 AI
+            草稿，不自动重新生成或扩大原冻结范围。
           </p>
           {navigationError ? (
             <p role="alert">{navigationError}</p>
@@ -438,7 +439,7 @@ export function NarrativeSummaryPanel({ projectId }: { projectId: string }) {
             >
               {requested.isLoading || workflow.isLoading
                 ? "正在核对指定摘要与原工作流…"
-                : "指定摘要或工作流未能读取、归属／关联不符；未显示最新摘要或上次候选代替。"}
+                : "指定摘要或工作流未能读取、归属／关联不符；未显示最新摘要或上次 AI 草稿代替。"}
             </p>
           )}
           <Button

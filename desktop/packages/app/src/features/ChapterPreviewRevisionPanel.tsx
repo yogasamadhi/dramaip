@@ -17,15 +17,15 @@ export function ChapterPreviewRevisionView({
       </p>
       <p>
         {value.status === "committed"
-          ? "此原候选链正式采用时"
-          : "此原候选链尚未正式采用"}{" "}
+          ? "此原 AI 草稿链正式采用时"
+          : "此原 AI 草稿链尚未正式采用"}{" "}
         · 局部正文修订次数：
         {value.localRevisionCount === null
           ? "未知（历史不完整）"
           : value.localRevisionCount}
       </p>
       <p className="text-muted">
-        仅本单章候选链已保存的实际正文变化；相同内容重复保存不计数。
+        仅本单章 AI 草稿链已保存的实际正文变化；相同内容重复保存不计数。
         不包含模型修订阶段、其他尝试、未保存编辑或编辑工作量，不证明文学质量。
       </p>
       {value.coverage !== "complete" && (
@@ -82,7 +82,7 @@ export function ChapterPreviewRevisionPanel({
         preview.projectId !== projectId ||
         (taskId !== undefined && preview.taskId !== taskId)
       )
-        throw new Error("原候选归属不一致，不读取其他预览。");
+        throw new Error("原 AI 草稿归属不一致，不读取其他预览。");
       const result = await client.previewRevisionEffort.read(
         preview,
         controller.signal,

@@ -157,7 +157,8 @@ export function ManuscriptExportDialog(props: {
               <fieldset disabled={working} className="space-y-2">
                 <legend className="font-medium">选择稿件范围</legend>
                 <p className="text-xs text-muted">
-                  仅导出已保存正文。未保存修改、空章和生成候选不会自动进入稿件。
+                  仅导出已保存正文。未保存修改、空章和生成 AI
+                  草稿不会自动进入稿件。
                 </p>
                 {chapters.map((chapter) => (
                   <label

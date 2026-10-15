@@ -672,7 +672,7 @@ export function StoryDeclarationPanel({
                   });
                 }}
               >
-                放弃该原候选
+                放弃该原 AI 草稿
               </BareButton>
             </>
           )}

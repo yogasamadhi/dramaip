@@ -185,7 +185,7 @@ export function StorySourceLifecycleReview(props: Props) {
       setNotice(
         action === "withdraw"
           ? "原实际记录已退役；原采用、冻结证据和回执保留。"
-          : "已独立采用明确的新候选；原记录退役，不自动重连已有关系／认知。",
+          : "已独立采用明确的新 AI 草稿；原记录退役，不自动重连已有关系／认知。",
       );
       setReason("");
       setCandidateInput("");
@@ -323,7 +323,7 @@ export function StorySourceLifecycleReview(props: Props) {
               ；不使用旧缓存或最新候选。
             </p>
           )}
-          {query.isFetching && <p>正在核对明确新候选 ID…</p>}
+          {query.isFetching && <p>正在核对明确新 AI 草稿 ID…</p>}
           {candidate && (
             <section
               aria-label="替换新候选独立审阅"
@@ -366,7 +366,7 @@ export function StorySourceLifecycleReview(props: Props) {
               </p>
               {!validNew && (
                 <p role="alert">
-                  必须另选本项目同类型、当前未采用的新候选；未自动调整选择。
+                  必须另选本项目同类型、当前未采用的新 AI 草稿；未自动调整选择。
                 </p>
               )}
               <label className="block text-sm">

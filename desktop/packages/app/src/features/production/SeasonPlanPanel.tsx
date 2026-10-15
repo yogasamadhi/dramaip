@@ -252,7 +252,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
           ? "核对实际来源覆盖、完整分集顺序与风险。替换当前方案，保留旧版本；不会自动生成剧本或媒体。"
           : operation === "reorder"
             ? "保留分集标识与全部内容，保存独立新版本；原方案不变，仍需明确采用。"
-            : "仅处理此候选，保留原稿、当前正式方案和其他顺序候选。",
+            : "仅处理此 AI 草稿，保留原稿、当前正式方案和其他顺序 AI 草稿。",
       confirmLabel:
         operation === "adopt"
           ? "明确采用方案"
@@ -332,7 +332,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
         <p className="mt-2 text-sm text-muted">
           {catalog.data?.strategyPath === "independent"
             ? "本轮须明确冻结独立策略版本；旧诊断内策略不代替它。"
-            : "旧诊断内已选策略为兼容路径，不冒充独立策略。"}{" "}
+            : "旧诊断内已选策略为旧版流程，不冒充独立策略。"}{" "}
           <Link
             className="text-link"
             to={`/projects/${projectId}/tools/adaptation-strategy`}

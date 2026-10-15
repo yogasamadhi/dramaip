@@ -107,7 +107,7 @@ export function PlanningOutcomes({
               <p>
                 首候选原样采用：
                 {row.firstCandidateAdoptionRatio === null
-                  ? "未记录首候选，不计算"
+                  ? "未记录首稿，不计算"
                   : `${row.firstAdopted}/${row.firstCandidates}（${(row.firstCandidateAdoptionRatio * 100).toFixed(1)}%）`}
               </p>
               {!row.sourceConflicts ? (
@@ -126,7 +126,7 @@ export function PlanningOutcomes({
                         row.sourceConflicts.last.sourceConflict.workflowId
                       }
                     >
-                      <summary>查看原规划候选的准确来源差异</summary>
+                      <summary>查看原规划 AI 草稿的准确来源差异</summary>
                       <p>
                         原工作流{" "}
                         {row.sourceConflicts.last.sourceConflict.workflowId} ·

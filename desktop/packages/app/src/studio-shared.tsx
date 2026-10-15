@@ -229,6 +229,8 @@ export function WorkspaceIntro(props: {
 export function StageNavigation(props: {
   label: string;
   items: readonly (string | WorkspaceStageItem)[];
+  /** Show the stages as an ordered checklist. */
+  numbered?: boolean;
   active: string;
   onChange(value: string): void;
 }) {
@@ -249,7 +251,7 @@ export function StageNavigation(props: {
         aria-label={props.label}
         className="flex flex-wrap gap-1 rounded-lg border border-line bg-surface-muted p-1.5"
       >
-        {items.map((item) => {
+        {items.map((item, index) => {
           const active = props.active === item.id;
           const blocked = item.availability === "blocked";
           return (
@@ -262,7 +264,14 @@ export function StageNavigation(props: {
               className={`rounded-md px-3 py-2 text-left text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-focus ${active ? "bg-surface-raised text-ink shadow-control" : "text-muted hover:bg-surface hover:text-ink"}`}
               onClick={() => props.onChange(item.id)}
             >
-              <span className="block">{item.label}</span>
+              <span className="block">
+                {props.numbered && (
+                  <span className="mr-1.5 tabular-nums text-muted">
+                    {index + 1}
+                  </span>
+                )}
+                {item.label}
+              </span>
               <span
                 id={`${props.label}-${item.id}-state`}
                 className={`mt-0.5 flex items-center gap-1 text-xs font-normal ${item.recommended && !blocked ? "text-brand" : "text-muted"}`}

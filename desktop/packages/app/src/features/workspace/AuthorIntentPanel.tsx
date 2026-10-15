@@ -279,7 +279,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
       if (!alive.current) return;
       select(result.id);
       setNotice(
-        "候选已保存，请核对差异后明确采用；尚未修改正式作者意图或正文。",
+        "AI 草稿已保存，请核对差异后明确采用；尚未修改正式作者意图或正文。",
       );
       await refresh();
     } catch (cause) {
@@ -299,7 +299,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
         tone: action === "adopt" ? "default" : "danger",
         description:
           action === "adopt"
-            ? `正式采用作者意图 v${value.version}？这会改变正式意图版本；不会改写章节、剧本或旧意图，也不会自动触发生成。新的小说、剧本、改编诊断与整季方案会冻结正式版本，旧意图或无正式意图的未采用候选将不能直接采用。`
+            ? `正式采用作者意图 v${value.version}？这会改变正式意图版本；不会改写章节、剧本或旧意图，也不会自动触发生成。新的小说、剧本、改编诊断与整季方案会冻结正式版本，旧意图或无正式意图的未采用 AI 草稿将不能直接采用。`
             : `放弃作者意图候选 v${value.version}？不会删除已采用版本或修改正文。`,
       }))
     )
@@ -316,7 +316,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
       setNotice(
         action === "adopt"
           ? `已正式采用作者意图 v${result.version}。`
-          : "已放弃此候选，正式内容保持不变。",
+          : "已放弃此 AI 草稿，正式内容保持不变。",
       );
     } catch (cause) {
       if (alive.current) setNotice(message(cause));
@@ -337,7 +337,9 @@ export function AuthorIntentPanel(props: { project: Project }) {
         <p className="studio-eyebrow">故事母本与创作约束</p>
         <h2 className="mt-1 text-2xl font-semibold">正式作者意图</h2>
         <p className="mt-2 text-sm text-muted">
-          意图版本与候选独立保存。旧项目设定不是已采用意图；新候选必须比较、明确采用，来源变化或并发采用会拒绝旧候选。小说不必短剧化，结局可暂不决定。
+          意图版本与 AI 草稿独立保存。旧项目设定不是已采用意图；新 AI
+          草稿必须比较、明确采用，来源变化或并发采用会拒绝旧 AI
+          草稿。小说不必短剧化，结局可暂不决定。
         </p>
         {current.isLoading ? (
           <p role="status">正在核对正式版本…</p>
@@ -415,7 +417,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
         </div>
       </div>
       <div className="rounded-xl border border-line bg-surface p-5">
-        <h3 className="font-semibold">编辑下一份意图候选</h3>
+        <h3 className="font-semibold">编辑下一份意图草稿</h3>
         <p className="mt-1 text-xs text-muted">
           冻结项目版本 {basisVersion} ·{" "}
           {sourceKind === "legacy-project" ? "旧字段待确认" : "作者手工填写"}
@@ -511,7 +513,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
         )}
       </div>
       <div className="rounded-xl border border-line bg-surface p-5">
-        <h3 className="font-semibold">意图版本与候选</h3>
+        <h3 className="font-semibold">意图版本与 AI 草稿</h3>
         {navigationError && <p role="alert">{navigationError}</p>}
         {list.error && (
           <p role="alert">版本列表未核全：{message(list.error)}</p>
@@ -567,7 +569,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <caption className="mb-2 text-left font-medium">
-                  本次候选与当前正式版本的差异
+                  本次 AI 草稿与当前正式版本的差异
                 </caption>
                 <thead>
                   <tr>
@@ -613,7 +615,7 @@ export function AuthorIntentPanel(props: { project: Project }) {
               )}
             {candidate.source.kind === "ai-generated" && (
               <details>
-                <summary>查看 AI 意图实际冻结来源与运行身份</summary>
+                <summary>查看 AI 意图实际参考内容与运行身份</summary>
                 <p className="mt-2 text-xs break-all">
                   工作流 {candidate.source.creation.workflowId} · 原快照{" "}
                   {candidate.source.creation.sourceSnapshotId} · 引擎{" "}

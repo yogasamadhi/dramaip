@@ -245,9 +245,9 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
         description:
           action === "adopt"
             ? legacy
-              ? `兼容路径：采用 v${value.version} 的「${chosen?.title}」。这会替换当前诊断头，保留历史；不创建独立策略，不写入小说、季纲、剧本或媒体。`
+              ? `旧版流程：采用 v${value.version} 的「${chosen?.title}」。这会替换当前诊断头，保留历史；不创建独立策略，不写入小说、季纲、剧本或媒体。`
               : `采用诊断 v${value.version} 的叙事证据与结论，保留历史。下一步单独比较独立策略；本次不选择诊断内旧策略，不写入原稿或下游内容。`
-            : "只放弃此候选，不改写作者正文或已采用诊断。",
+            : "只放弃此 AI 草稿，不改写作者正文或已采用诊断。",
         confirmLabel:
           action === "adopt"
             ? legacy
@@ -465,7 +465,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
           catalog.data?.inventoryFingerprint !==
             request.inventoryFingerprint && (
             <p role="alert" className="mt-2 text-sm text-danger-strong">
-              目录已变化，生成新候选前请重新确认来源；旧候选仍保留。
+              目录已变化，生成新 AI 草稿前请重新确认来源；旧 AI 草稿仍保留。
             </p>
           )}
       </div>

@@ -675,7 +675,7 @@ export function StoryAssertionPanel({ projectId }: { projectId: string }) {
                     }
                     onClick={() => act("discard")}
                   >
-                    放弃该原关系认知候选
+                    放弃该原关系认知 AI 草稿
                   </BareButton>
                 </>
               )}

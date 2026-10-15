@@ -289,7 +289,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                 setSummary("");
                 setConfirmed(false);
                 setNotice(
-                  "节点声明已保存；候选不会进入声明快照，人工确认不等于原文核验。",
+                  "节点声明已保存；AI 草稿不会进入声明快照，人工确认不等于原文核验。",
                 );
               }
               await refresh();
@@ -338,7 +338,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
                 checked={confirmed}
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
-              我明确确认这项人工声明；未勾选时仅保存候选
+              我明确确认这项人工声明；未勾选时仅保存 AI 草稿
             </label>
             <BareButton
               type="submit"
@@ -592,13 +592,13 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
       {graph && (
         <details className="mt-3 rounded-lg border border-line p-3">
           <summary className="cursor-pointer text-sm">
-            核对实际声明（含候选）
+            核对实际声明（含 AI 草稿）
           </summary>
           <ul className="mt-2 space-y-2 text-sm">
             {graph.nodes.map((node) => (
               <li key={node.id} data-node-id={node.id}>
                 <strong>{node.title}</strong> · {kinds[node.kind]} ·{" "}
-                {node.confirmed ? "人工确认" : "候选，不进入快照"}
+                {node.confirmed ? "人工确认" : "AI 草稿，不进入快照"}
                 <p className="whitespace-pre-wrap text-muted">{node.summary}</p>
               </li>
             ))}

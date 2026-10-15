@@ -526,7 +526,7 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
         description:
           action === "commit"
             ? `采用报告 v${value.version}，不改正文、不自动接受风险；${value.blockers.length} 项错误仍须处理。来源或竞争头变化会拒绝采用。`
-            : "只放弃这份候选，不删除作者正文或已采用报告。",
+            : "只放弃这份 AI 草稿，不删除作者正文或已采用报告。",
         confirmLabel: action === "commit" ? "确认采用报告" : "确认放弃报告",
         tone: action === "commit" ? "default" : "danger",
       }))
@@ -821,7 +821,7 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
         requestMismatch) && (
         <p role="alert" className="text-sm text-danger-strong">
           {requestMismatch
-            ? "指定报告或运行归属／关联不符，未打开最新报告或上次候选代替。"
+            ? "指定报告或运行归属／关联不符，未打开最新报告或上次 AI 草稿代替。"
             : (error ??
               message(
                 catalog.error ??
@@ -1015,7 +1015,7 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
             />
           ))}
           <details className="text-sm">
-            <summary className="cursor-pointer">实际冻结来源与运行</summary>
+            <summary className="cursor-pointer">实际参考内容与运行</summary>
             <p className="mt-2 break-all">
               报告 {value.id} · 工作流 {value.workflowId} · 快照{" "}
               {value.sourceSnapshotId} · Run {value.runIds.join("、")}

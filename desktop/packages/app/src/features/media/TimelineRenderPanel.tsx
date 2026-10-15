@@ -294,7 +294,7 @@ function RenderPanelBody({
     >
       <h2 className="font-semibold">本地实验混音渲染</h2>
       <p className="text-sm text-muted">
-        1080×1920／25 fps；按冻结来源与音量／淡入淡出／降配乐控制合成
+        1080×1920／25 fps；按参考内容与音量／淡入淡出／降配乐控制合成
         AAC，muted／solo
         排除的音轨不参与。没有实际可听来源时才输出已知静音；混音超幅会拒绝，不自动改音量。字幕必须明确选择不烧录，或选择原字体烧录完整原文；不证明内容质量、人物／声音／字体发行权或费用。只读打开不创建时间线、不自动选择策略、渲染或播放。
       </p>
@@ -409,7 +409,7 @@ function RenderPanelBody({
           }
           onChange={(event) => setConfirmed(event.target.checked)}
         />
-        已核对本次冻结来源、混音控制和明确字幕策略／原字体，发起本地编码；知道不代表正式发行、质量或授权通过
+        已核对本次参考内容、混音控制和明确字幕策略／原字体，发起本地编码；知道不代表正式发行、质量或授权通过
       </label>
       <div className="flex flex-wrap gap-2">
         <BareButton
@@ -540,7 +540,7 @@ function RenderPanelBody({
               <p>历史冻结任务，不代表当前时间线成片；不会自动替换来源。</p>
             )}
           {!job.sourceFingerprint && (
-            <p>历史任务没有冻结来源证明，不按最新来源补齐或重试。</p>
+            <p>历史任务没有参考内容证明，不按最新来源补齐或重试。</p>
           )}
           {job.failureCode && <p>实际失败：{job.failureCode}</p>}
           {["queued", "running"].includes(job.status) && (

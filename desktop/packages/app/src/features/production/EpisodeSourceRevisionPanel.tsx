@@ -204,7 +204,7 @@ export function EpisodeSourceRevisionPanel({
           { ...binding, id: requestedId! },
         )
       )
-        throw new Error("指定来源预览不属于完整原双头，不转到其他候选。");
+        throw new Error("指定来源预览不属于完整原双头，不转到其他 AI 草稿。");
       return value;
     },
   });

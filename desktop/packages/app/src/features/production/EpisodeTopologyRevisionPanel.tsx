@@ -565,7 +565,7 @@ export function EpisodeTopologyRevisionPanel({
                 </div>
               ))}
               <p className="text-sm text-muted">
-                来源身份和引文从原冻结来源继承，新增场景仍须逐场审阅，不能用标题或设定冒充故事正文。
+                来源身份和引文从原参考内容继承，新增场景仍须逐场审阅，不能用标题或设定冒充故事正文。
               </p>
               <details>
                 <summary>本场实际来源／引文</summary>

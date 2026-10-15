@@ -31,7 +31,7 @@ import {
   showToast,
   NativeSelect,
 } from "@dramaip/ui-shared";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -1428,16 +1428,17 @@ export function ProjectHome() {
       session.clearCreationDraft();
       return;
     }
-    if (
-      !(await confirmDialog(`将未完成项目「${project.title}」移入回收站吗？`))
-    )
-      return;
     try {
       await client.projects.trash(project.id);
       session.clearCreationDraft();
       setProjects((items) => items.filter((item) => item.id !== project.id));
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       setError(undefined);
+      showToast({
+        message: `未完成项目「${project.title}」已移入回收站。`,
+        actionLabel: "撤销",
+        onAction: () => restoreProject(project),
+      });
     } catch (cause) {
       setError(message(cause));
     }
@@ -1534,67 +1535,41 @@ export function ProjectHome() {
     <div className="space-y-6">
       <WorkspaceIntro
         title="项目工作台"
-        description="提供创意或导入来源，由 AI 规划、生成与修订，你来审阅和决定。"
-      />
-      {projects.length ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            {projects.length} 个本地项目 · 最近更新优先
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setPackageImportOpen((value) => !value)}
-            >
-              导入项目
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => setCreationOpen(true)}
-            >
-              新建项目
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <section className="grid gap-4 rounded-xl border border-line bg-surface p-6 shadow-card lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-          <div>
-            <p className="studio-eyebrow">第一次使用</p>
-            <h2 className="mt-2 text-2xl font-semibold">
-              从你的故事开始，写小说或开发剧本
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-              导入小说、大纲或已有剧本，也可以从创意开始。AI
-              提出候选，你来决定采用；小说可以独立写作和导出。
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
+        description={
+          projects.length
+            ? "继续最近的项目，或新建一个。"
+            : "从创意、小说或剧本开始；AI 生成与修订，你来决定采用。"
+        }
+        actions={
+          projects.length ? (
+            <>
               <Button
-                variant="ghost"
-                disabled={creatingDemo}
-                onClick={() => void createDemo()}
+                size="sm"
+                variant="secondary"
+                onClick={() => setPackageImportOpen((value) => !value)}
               >
-                {creatingDemo ? "正在创建示例…" : "先看看示例"}
+                导入项目
               </Button>
-            </div>
-          </div>
-          <ol className="grid gap-2 rounded-lg bg-surface-muted p-4 text-sm text-muted">
-            <li>
-              <span className="mr-2 font-semibold text-ink">1</span>
-              提供创意或导入已有来源
-            </li>
-            <li>
-              <span className="mr-2 font-semibold text-ink">2</span>AI
-              生成、检查与修订，你来审阅采用
-            </li>
-            <li>
-              <span className="mr-2 font-semibold text-ink">3</span>
-              导出小说稿件，或按需进入剧本与制作
-            </li>
-          </ol>
-        </section>
-      )}
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => setCreationOpen(true)}
+              >
+                新建项目
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={creatingDemo}
+              onClick={() => void createDemo()}
+            >
+              {creatingDemo ? "正在创建示例…" : "先看看示例"}
+            </Button>
+          )
+        }
+      />
       {session.activeProject && projects.length ? (
         <ProjectHomeContinueCard project={session.activeProject} />
       ) : null}
@@ -2366,13 +2341,8 @@ export function ProjectHome() {
       ) : null}
       {projects.length ? (
         <section>
-          <div className="mb-5 flex items-end justify-between">
-            <div>
-              <p className="studio-eyebrow">本地项目库</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-                项目
-              </h2>
-            </div>
+          <div className="mb-3 flex items-end justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">全部项目</h2>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted">{projects.length} 个</span>
               <BareButton
@@ -2561,7 +2531,7 @@ export const PROJECT_TOOL_META: ReadonlyArray<{
   {
     key: "pilot",
     label: "试制计划",
-    description: "恢复旧 1–3 集试制目录；一体化生成须明确打开兼容路径。",
+    description: "恢复旧 1–3 集试制目录；一体化生成须明确打开旧版流程。",
   },
   {
     key: "series",
@@ -3575,7 +3545,7 @@ export function ProjectWorkspace() {
     series_longform: {
       title: "系列长篇工作台",
       detail:
-        "人物与大纲 → 章节候选与采用 → 连续性记忆 → 下一章或稿件导出。小说可独立完成；改编、分镜和媒体制作按需选择。",
+        "人物与大纲 → 章节 AI 草稿与采用 → 连续性记忆 → 下一章或稿件导出。小说可独立完成；改编、分镜和媒体制作按需选择。",
       action: "管理长篇资料",
     },
     single_season: {
@@ -3700,25 +3670,13 @@ export function ProjectWorkspace() {
           )}
         </div>
       )}
-      <section className="shrink-0 border-b border-line bg-surface-raised px-4 py-3 lg:px-6">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
-          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-rust">
-            {projectModeLabel(project.mode)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{modeGuide.title}</p>
-            <p className="mt-0.5 text-xs leading-5 text-muted">
-              {modeGuide.detail}
-            </p>
-          </div>
-          <Link
-            className="shrink-0 text-sm font-medium text-link hover:text-brand-strong"
-            to={`/projects/${project.id}/tools`}
-          >
-            {modeGuide.action} →
-          </Link>
-        </div>
-      </section>
+      <ModeGuideBanner
+        mode={project.mode}
+        title={modeGuide.title}
+        detail={modeGuide.detail}
+        action={modeGuide.action}
+        to={`/projects/${project.id}/tools`}
+      />
       {storyPreset && (
         <section
           className="shrink-0 border-b border-brand/20 bg-brand-soft/45 px-4 py-3 lg:px-6"
@@ -3778,6 +3736,10 @@ export function ProjectWorkspace() {
           <NovelChapterWorkspace
             client={client}
             projectId={project.id}
+            adaptationTarget={
+              project.mode !== "series_longform" ||
+              Boolean(project.currentAdaptationId)
+            }
             chapters={chapters}
             activeChapter={active}
             onSelectChapter={selectChapter}
@@ -3918,6 +3880,69 @@ export function ProjectWorkspace() {
         </div>
       )}
     </div>
+  );
+}
+
+const MODE_GUIDE_DISMISSED_KEY = "dramaip-mode-guide-dismissed-v1";
+
+function readDismissedGuides(): string[] {
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(MODE_GUIDE_DISMISSED_KEY) ?? "[]",
+    ) as unknown;
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Per-mode workspace guide; once the author closes it, it stays closed. */
+function ModeGuideBanner(props: {
+  mode: string;
+  title: string;
+  detail: string;
+  action: string;
+  to: string;
+}) {
+  const [dismissed, setDismissed] = useState(() =>
+    readDismissedGuides().includes(props.mode),
+  );
+  if (dismissed) return null;
+  return (
+    <section className="shrink-0 border-b border-line bg-surface-raised px-4 py-2.5 lg:px-6">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{props.title}</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted">{props.detail}</p>
+        </div>
+        <Link
+          className="shrink-0 text-sm font-medium text-link hover:underline"
+          to={props.to}
+        >
+          {props.action} →
+        </Link>
+        <IconButton
+          aria-label="关闭工作台说明"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setDismissed(true);
+            try {
+              window.localStorage.setItem(
+                MODE_GUIDE_DISMISSED_KEY,
+                JSON.stringify([...readDismissedGuides(), props.mode]),
+              );
+            } catch {
+              // Storage is a convenience; the banner still closes for this view.
+            }
+          }}
+        >
+          <X aria-hidden="true" className="size-4" />
+        </IconButton>
+      </div>
+    </section>
   );
 }
 
@@ -4656,7 +4681,7 @@ export function ProjectPilotPanel(props: {
       await client.pilotPlans.action(plan.id, { action });
       setNotice(
         action === "confirm-source"
-          ? "来源已确认；AI 创作状态与候选显示在下方，连接问题会保留范围并提示。"
+          ? "来源已确认；AI 创作状态与 AI 草稿显示在下方，连接问题会保留范围并提示。"
           : action === "cancel"
             ? "试制运行已取消；已采用内容会保留在现有工作区。"
             : action === "resume"
@@ -5805,7 +5830,7 @@ export function ImportExtractionReviewPanel(props: {
         draft,
       );
       setEditingId(undefined);
-      setNotice("候选已更新；采用前仍可继续调整。");
+      setNotice("AI 草稿已更新；采用前仍可继续调整。");
       await refresh();
     } catch (cause) {
       setNotice(message(cause));
@@ -5825,8 +5850,8 @@ export function ImportExtractionReviewPanel(props: {
       });
       setNotice(
         status === "rejected"
-          ? "候选已保留为未采用，不会写入项目。"
-          : "候选已重新加入待审查列表。",
+          ? "AI 草稿已保留为未采用，不会写入项目。"
+          : "AI 草稿已重新加入待审查列表。",
       );
       await refresh();
     } catch (cause) {
@@ -5843,12 +5868,12 @@ export function ImportExtractionReviewPanel(props: {
       )
       .map((candidate) => candidate.id);
     if (!ids.length) {
-      setNotice("请至少选择一条待审查候选。未选择的候选不会被采用。");
+      setNotice("请至少选择一条待审查 AI 草稿。未选择的 AI 草稿不会被采用。");
       return;
     }
     if (
       !(await confirmDialog(
-        `将采用 ${ids.length} 条已选候选。系统会在一个事务中写入；如检测到人工内容冲突，不会部分采用。确定继续吗？`,
+        `将采用 ${ids.length} 条已选 AI 草稿。系统会在一个事务中写入；如检测到人工内容冲突，不会部分采用。确定继续吗？`,
       ))
     )
       return;
@@ -5889,7 +5914,7 @@ export function ImportExtractionReviewPanel(props: {
   if (!changeSets.length)
     return props.showEmpty ? (
       <EmptyState
-        title="没有待审阅的导入候选"
+        title="没有待审阅的导入草稿"
         description="导入原著后，如果系统提取出人物、场景或改编建议，会在这里等待你确认。"
         action={
           <Button asChild variant="primary">
@@ -5909,7 +5934,8 @@ export function ImportExtractionReviewPanel(props: {
             先查看差异，再采用到项目资料
           </h2>
           <p className="mt-2 max-w-3xl text-sm text-muted">
-            每个候选都保留原稿章节、文本范围与置信度。采用前不会改写权威资料；可逐项编辑、拒绝或选择性采用。
+            每个 AI
+            草稿都保留原稿章节、文本范围与置信度。采用前不会改写权威资料；可逐项编辑、拒绝或选择性采用。
           </p>
         </div>
         <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
@@ -5925,7 +5951,7 @@ export function ImportExtractionReviewPanel(props: {
         {requestedExtractionId &&
           !changeSets.some((item) => item.id === requestedExtractionId) && (
             <p role="status" className="text-sm text-muted">
-              正在核对指定导入候选；若已删除或不可用，不会打开其他候选代替。
+              正在核对指定导入草稿；若已删除或不可用，不会打开其他 AI 草稿代替。
             </p>
           )}
         {changeSets
@@ -6018,7 +6044,7 @@ export function ImportExtractionReviewPanel(props: {
                               <div className="mt-2 space-y-2">
                                 <input
                                   className="w-full rounded-md border border-line bg-surface-raised px-2 py-1 text-sm"
-                                  aria-label="候选标题"
+                                  aria-label="草稿标题"
                                   value={draft.title}
                                   onChange={(event) =>
                                     setDraft((value) => ({
@@ -6029,7 +6055,7 @@ export function ImportExtractionReviewPanel(props: {
                                 />
                                 <textarea
                                   className="min-h-20 w-full rounded-md border border-line bg-surface-raised p-2 text-sm"
-                                  aria-label="候选说明"
+                                  aria-label="AI 草稿说明"
                                   value={draft.summary}
                                   onChange={(event) =>
                                     setDraft((value) => ({
@@ -6195,15 +6221,11 @@ export function ContentVersionPanel(props: {
   const restore = async (item: DomainEntity) => {
     const payload = recordPayload(item.payload);
     const kind = String(payload["目标类型"] ?? "内容");
-    if (
-      !(await confirmDialog(
-        `恢复「${item.title}」将先保存当前${kind}为新的检查点。确定继续吗？`,
-      ))
-    )
-      return;
+    // Restoring first saves the current content as a checkpoint, so it is
+    // reversible and needs no confirmation.
     try {
       await client.contentVersions.restore(item.id);
-      setNotice("已恢复检查点，并保存恢复前内容。");
+      setNotice(`已恢复检查点；恢复前的${kind}已另存为新的检查点。`);
       props.onRestored();
       await queryClient.invalidateQueries({
         queryKey: ["content-versions", props.projectId],

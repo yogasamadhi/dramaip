@@ -80,7 +80,7 @@ export function AssetMediaPreview(props: {
                 : props.asset.preview.status === "missing"
                   ? "本地归档文件缺失；不会伪造预览。"
                   : (props.asset.preview.label ??
-                    "尚未附加本地媒体；可先保留为文字候选。")}
+                    "尚未附加本地媒体；可先保留为文字 AI 草稿。")}
         </p>
       )}
       <BareButton

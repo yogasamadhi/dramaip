@@ -145,7 +145,9 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
     >
       <h3 className="font-semibold">AI 辅助提出作者意图</h3>
       <p className="text-sm text-muted">
-        项目简报可以单独生成建议，也可明确选择非空章节或已有剧本。模型推测不是作者已确认的思想；这里只提出八字段候选，经检查后在下方比较并明确采用，不改小说正文或剧本。不声明读过未选材料，实际
+        项目简报可以单独生成建议，也可明确选择非空章节或已有剧本。模型推测不是作者已确认的思想；这里只提出八字段
+        AI
+        草稿，经检查后在下方比较并明确采用，不改小说正文或剧本。不声明读过未选材料，实际
         usage／费用仍以运行证据为准，未知不是零。
       </p>
       {catalog.isLoading && <p role="status">正在核对可选来源…</p>}
@@ -286,7 +288,7 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
                 search.delete("intentWorkflowId");
                 navigate(`${location.pathname}?${search}`);
                 setNotice(
-                  "已明确确认本次允许范围与表达；下一步生成前仍核每章表达、隐私和完整预算。未选材料不补入，旧工作流与候选保持不变。",
+                  "已明确确认本次允许范围与表达；下一步生成前仍核每章表达、隐私和完整预算。未选材料不补入，旧工作流与 AI 草稿保持不变。",
                 );
               }}
             >
@@ -324,7 +326,8 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
       )}
       {stale && (
         <p role="alert">
-          原项目、正式意图头或选定来源已变化。原运行与候选保留，重试仍使用旧快照；不能直接采用为当前方向。新运行请明确重新确认来源。
+          原项目、正式意图头或选定来源已变化。原运行与 AI
+          草稿保留，重试仍使用旧快照；不能直接采用为当前方向。新运行请明确重新确认来源。
         </p>
       )}
       {request && (!workflowId || original) && (
@@ -338,7 +341,9 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
           defaultInstruction="提出供我审阅的作品主题、情绪承诺、受众、声音与保留／可改／禁止及结局约束，不改写原稿。"
           renderCandidate={(workflow) => (
             <div className="space-y-2 text-sm">
-              <p>AI 建议仍是候选，结构与模型检查不是作者确认或真实质量证明。</p>
+              <p>
+                AI 建议仍是 AI 草稿，结构与模型检查不是作者确认或真实质量证明。
+              </p>
               {workflow.authorIntentId ? (
                 <Link
                   className="text-link underline"
@@ -348,7 +353,7 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
                 </Link>
               ) : (
                 <p role="alert">
-                  尚未取得实际意图候选身份，不打开最新版本代替。
+                  尚未取得实际意图草稿身份，不打开最新版本代替。
                 </p>
               )}
             </div>

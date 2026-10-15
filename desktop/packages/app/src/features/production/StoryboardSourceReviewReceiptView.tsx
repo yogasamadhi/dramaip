@@ -9,7 +9,7 @@ export function StoryboardSourceReviewReceiptView({
       aria-label="冻结完整来源审阅"
       className="space-y-2 rounded border border-line p-3 text-sm"
     >
-      <summary>原关联与全部镜头的冻结来源审阅（语义未认证）</summary>
+      <summary>原关联与全部镜头的参考内容审阅（语义未认证）</summary>
       <p className="break-all">
         原分镜 {value.storyboard.id} · v{value.storyboard.version} · 原关联{" "}
         {value.review.attribution.id} · v{value.review.attribution.version}

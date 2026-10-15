@@ -151,6 +151,8 @@ type ChapterEditablePatch = Partial<
 export interface NovelChapterWorkspaceProps {
   client: StudioClient;
   projectId: string;
+  /** Short-drama rewrites only make sense when the project targets adaptation. */
+  adaptationTarget?: boolean;
   chapters: Chapter[];
   activeChapter?: Chapter;
   onSelectChapter(id: string): void;
@@ -217,6 +219,11 @@ const COMMON_ACTIONS: readonly AiAction[] = [
     requiresContent: true,
   },
 ];
+
+const DRAMA_ONLY_TASKS: ReadonlySet<AgentTaskType> = new Set([
+  "enhance_ai_drama_feel",
+  "rewrite_as_ai_drama_novel",
+]);
 
 const ENHANCEMENT_ACTIONS: readonly AiAction[] = [
   {
@@ -507,6 +514,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
   }>({ statuses: [], storyArcs: [] });
   const [query, setQuery] = useState("");
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [batchMode, setBatchMode] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
   );
@@ -690,15 +698,27 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
         <div className="space-y-3 border-b border-line p-4">
           <div className="flex items-center justify-between text-sm font-medium">
             卷章目录
-            <BareButton
-              aria-label="收起章节目录"
-              onClick={() => {
-                setDirectoryOpen(false);
-                directoryToggleRef.current?.focus();
-              }}
-            >
-              收起
-            </BareButton>
+            <span className="flex items-center gap-3">
+              <BareButton
+                aria-pressed={batchMode}
+                className={`text-xs ${batchMode ? "text-link" : "text-muted hover:text-ink"}`}
+                onClick={() => {
+                  setBatchMode((value) => !value);
+                  setChecked(new Set());
+                }}
+              >
+                {batchMode ? "完成整理" : "批量整理"}
+              </BareButton>
+              <BareButton
+                aria-label="收起章节目录"
+                onClick={() => {
+                  setDirectoryOpen(false);
+                  directoryToggleRef.current?.focus();
+                }}
+              >
+                收起
+              </BareButton>
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <label className="min-w-0 flex-1">
@@ -803,20 +823,23 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                         >
                           ⋮⋮
                         </span>
-                        <input
-                          className="mt-1"
-                          aria-label={`选择${chapter.title}`}
-                          type="checkbox"
-                          checked={checked.has(chapter.id)}
-                          onChange={() =>
-                            setChecked((current) => {
-                              const next = new Set(current);
-                              if (next.has(chapter.id)) next.delete(chapter.id);
-                              else next.add(chapter.id);
-                              return next;
-                            })
-                          }
-                        />
+                        {batchMode && (
+                          <input
+                            className="mt-1"
+                            aria-label={`选择${chapter.title}`}
+                            type="checkbox"
+                            checked={checked.has(chapter.id)}
+                            onChange={() =>
+                              setChecked((current) => {
+                                const next = new Set(current);
+                                if (next.has(chapter.id))
+                                  next.delete(chapter.id);
+                                else next.add(chapter.id);
+                                return next;
+                              })
+                            }
+                          />
+                        )}
                         <BareButton
                           className="min-w-0 flex-1 text-left"
                           onClick={() => {
@@ -1561,7 +1584,7 @@ function NovelEditor(
         const target = candidate.targets.find(
           (item) => item.kind === "chapter" && item.id === props.chapter.id,
         );
-        if (!target) throw new Error("候选稿没有关联当前章节。");
+        if (!target) throw new Error("AI 草稿没有关联当前章节。");
         const baseContent = activeRunRef.current?.originalContent;
         if (
           editedContent === undefined &&
@@ -1758,7 +1781,7 @@ function NovelEditor(
         crypto.randomUUID(),
       );
       setBusy(false);
-      setNotice("创作已启动，可在 AI 创作中查看生成、检查与候选。");
+      setNotice("创作已启动，可在 AI 创作中查看生成、检查与 AI 草稿。");
     } catch (cause) {
       setBusy(false);
       setNotice(cause instanceof Error ? cause.message : String(cause));
@@ -2420,13 +2443,14 @@ function NovelEditor(
             <div className="space-y-1.5">
               <Dialog.Title>受控修订预览</Dialog.Title>
               <Dialog.Description>
-                候选内容会先保存为可审阅预览，确认后才写入正文并建立版本记录。
+                AI
+                草稿内容会先保存为可审阅预览，确认后才写入正文并建立版本记录。
               </Dialog.Description>
             </div>
             <div className="space-y-3">
               <Textarea
                 className="min-h-72 font-editor leading-7"
-                aria-label="候选修订正文"
+                aria-label="AI 草稿修订正文"
                 value={revisionContent}
                 disabled={Boolean(revisionPreview) || busy}
                 onChange={(event) => setRevisionContent(event.target.value)}
@@ -2647,6 +2671,7 @@ function NovelEditor(
                   }) => (
                     <>
                       <ChapterCreationActions
+                        adaptationTarget={Boolean(props.adaptationTarget)}
                         hasContent={Boolean(content.trim())}
                         selectedText={selectedRange?.text}
                         disabled={disabled || Boolean(preview)}
@@ -2789,7 +2814,7 @@ function NovelEditor(
                   if (
                     !conversationId ||
                     !(await confirmDialog(
-                      "永久删除此写作对话及未采用候选稿？已采用正文和检查点不会删除。",
+                      "永久删除此写作对话及未采用 AI 草稿？已采用正文和检查点不会删除。",
                     ))
                   )
                     return;
@@ -2954,6 +2979,7 @@ function EditorToolbar(props: {
 }
 
 function ChapterCreationActions(props: {
+  adaptationTarget: boolean;
   hasContent: boolean;
   selectedText?: string;
   disabled: boolean;
@@ -3016,13 +3042,16 @@ function ChapterCreationActions(props: {
         </Button>
       </section>
       <section aria-label="剧情与风格强化" className="space-y-2">
-        <h3 className="text-sm font-semibold">剧情与风格强化</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {ENHANCEMENT_ACTIONS.map((action) => (
+        <h3 className="text-xs font-medium text-muted">剧情与风格强化</h3>
+        <div className="flex flex-wrap gap-1.5">
+          {ENHANCEMENT_ACTIONS.filter(
+            (action) =>
+              props.adaptationTarget || !DRAMA_ONLY_TASKS.has(action.taskType),
+          ).map((action) => (
             <BareButton
               key={action.taskType}
               title={action.description}
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-left text-xs hover:border-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full border border-line bg-surface-raised px-3 py-1 text-xs hover:border-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
               disabled={props.disabled || !props.hasContent}
               onClick={() => props.onRun(action.instruction)}
             >
@@ -3688,7 +3717,7 @@ function DiffDialog(props: {
             disabled={props.busy}
             onClick={props.onCancel}
           >
-            返回候选稿
+            返回 AI 草稿
           </Button>
           <Button
             variant="primary"

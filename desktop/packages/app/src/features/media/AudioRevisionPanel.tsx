@@ -13,7 +13,7 @@ const button =
   "rounded border border-line px-2 py-1 text-xs disabled:opacity-50";
 const field = "min-w-0 w-full rounded border border-line px-2 py-1 text-xs";
 const checks = [
-  "已审查候选实际文本／音频及新旧差异",
+  "已审查 AI 草稿实际文本／音频及新旧差异",
   "已核对新增、删除和旧→新片段映射",
   "已核对作者意图与权利限制（声明不代替授权证明）",
 ];
@@ -543,7 +543,7 @@ export function AudioRevisionPanel({
                     : "已放弃"}{" "}
                 ·{" "}
                 {value.sourceState === "current"
-                  ? "冻结来源版本一致"
+                  ? "参考内容版本一致"
                   : "来源或竞争头已变，禁止确认"}
               </p>
               {value.reasons.map((reason) => (

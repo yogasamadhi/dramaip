@@ -90,9 +90,9 @@ export const CREATION_STAGE_LABELS: Record<CreationWorkflow["stage"], string> =
   {
     preparing: "准备上下文",
     generating: "AI 正在生成",
-    checking: "检查候选",
+    checking: "检查 AI 草稿",
     revising: "局部修订",
-    rechecking: "复检候选",
+    rechecking: "复检 AI 草稿",
     "awaiting-review": "等待审阅采用",
     applied: "已采用",
     discarded: "已放弃",
@@ -390,7 +390,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
             (props.targetId && item.input.targetId !== props.targetId)
           )
             throw new Error(
-              "创作运行目录的实际项目／目标或唯一身份无法核对，未选择最近候选。",
+              "创作运行目录的实际项目／目标或唯一身份无法核对，未选择最近 AI 草稿。",
             );
           ids.add(item.id);
         }
@@ -427,7 +427,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
           })
         )
           throw new Error(
-            "指定原运行的实际身份／项目／操作／原冻结请求不符，未打开其他候选。",
+            "指定原运行的实际身份／项目／操作／原冻结请求不符，未打开其他 AI 草稿。",
           );
         return result;
       },
@@ -549,7 +549,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
         (props.narrativePlanningRequired && !props.narrativePlanningRequest)
       )
         throw new Error(
-          "请先明确确认本轮规划范围与表达；原运行仍使用其冻结来源。",
+          "请先明确确认本轮规划范围与表达；原运行仍使用其参考内容。",
         );
       if (!settings.data) throw new Error("正在读取 AI 配置，请稍后重试。");
       const version = props.onPrepare
@@ -751,8 +751,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
         >
           {props.operation === "episode" && (
             <p className="rounded border border-line p-3 text-sm text-muted">
-              旧 episode
-              兼容工作流：原候选、来源快照与回执保留。此处仍使用旧的一体化采用规则，不会自动转成独立大纲、标准剧本或分镜版本。
+              旧 episode 兼容工作流：原 AI
+              草稿、来源快照与回执保留。此处仍使用旧的一体化采用规则，不会自动转成独立大纲、标准剧本或分镜版本。
             </p>
           )}
           {sourceRedoRecovery &&
@@ -835,7 +835,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 className="space-y-2 rounded border border-line p-3 text-sm"
               >
                 <p>
-                  存在尚未核对回执的本地原合并请求。不会自动重发、刷新比较基准或新建幂等键；重发仍可能启动原请求，已存在时只返回同一候选。
+                  存在尚未核对回执的本地原合并请求。不会自动重发、刷新比较基准或新建幂等键；重发仍可能启动原请求，已存在时只返回同一
+                  AI 草稿。
                 </p>
                 {mergeRecovery.error && (
                   <p role="alert">
@@ -874,7 +875,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                   </>
                 )}
                 <p>
-                  删除本地记录不撤销服务端候选；若请求已成功，仍须从原运行列表查看、采用或放弃。
+                  删除本地记录不撤销服务端 AI
+                  草稿；若请求已成功，仍须从原运行列表查看、采用或放弃。
                 </p>
                 <Button
                   variant="ghost"
@@ -933,7 +935,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
               <p>
                 {current.error || preview.error
                   ? "指定原运行或原预览读取失败，未使用可操作旧缓存；创作要求保留，不切换最近运行。"
-                  : "创作要求和已返回的候选仍然保留。"}
+                  : "创作要求和已返回的 AI 草稿仍然保留。"}
               </p>
               <AiSettingsLink
                 projectId={props.projectId}
@@ -989,7 +991,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
           })}
           {!capabilityReady && (
             <p role="status" className="text-sm text-muted">
-              当前创作能力未启用。已有要求和候选保留，可在扩展设置恢复对应功能。
+              当前创作能力未启用。已有要求和 AI
+              草稿保留，可在扩展设置恢复对应功能。
             </p>
           )}
           {!value && !props.renderQuickActions && (
@@ -1021,7 +1024,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 引用资料 · {value.sources.length} 项
               </summary>
               <p className="mt-2 text-sm text-muted">
-                本次来源与版本已保存；候选采用时再次核对。
+                本次来源与版本已保存；AI 草稿采用时再次核对。
               </p>
               {value.authorIntent && (
                 <p
@@ -1030,7 +1033,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 >
                   {value.authorIntent.state === "adopted"
                     ? `作者意图 · v${value.authorIntent.version}（冻结版本）`
-                    : "本轮开始时尚无正式作者意图；后来首次采用也会使此候选失效。"}
+                    : "本轮开始时尚无正式作者意图；后来首次采用也会使此 AI 草稿失效。"}
                 </p>
               )}
               {value.authorIntentBasis?.sourceBasis && (
@@ -1311,7 +1314,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
             !props.renderCandidate && (
               <article className="whitespace-pre-wrap text-sm leading-7">
                 <h3 className="mb-2 font-semibold">
-                  {displayValue.output.title || "候选方案"}
+                  {displayValue.output.title || "AI 草稿方案"}
                 </h3>
                 {displayValue.output.content}
                 {displayValue.output.items.map((item) => (
@@ -1452,11 +1455,11 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                     {props.operation === "author-intent"
                       ? "作者意图工作台"
                       : props.operation === "adaptation-strategy"
-                        ? "独立策略候选"
+                        ? "独立策略 AI 草稿"
                         : props.operation === "quality-review"
                           ? "质量报告工作台"
                           : props.operation === "season-plan"
-                            ? "整季方案候选"
+                            ? "整季方案 AI 草稿"
                             : "诊断候选"}
                   </Link>
                   {props.operation === "author-intent"
@@ -1566,7 +1569,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 disabled={actionBusy || !capabilityReady}
                 onClick={() => void action("continue")}
               >
-                保留候选重新检查
+                保留 AI 草稿重新检查
               </Button>
             )}
           </div>
@@ -1581,7 +1584,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
         <Dialog.Content className="max-w-4xl">
           <Dialog.Title>剧本已有变化，请确认合并</Dialog.Title>
           <Dialog.Description>
-            按稳定块保留独立正文修改，并核对完整顺序；正文冲突与位置冲突分别选择。合并只产生复检候选，不自动采用。比较基准变化须重新打开，不自动换版本。
+            按稳定块保留独立正文修改，并核对完整顺序；正文冲突与位置冲突分别选择。合并只产生复检
+            AI 草稿，不自动采用。比较基准变化须重新打开，不自动换版本。
           </Dialog.Description>
           <div className="max-h-[55vh] space-y-3 overflow-auto overscroll-contain">
             {scriptMerge?.units
@@ -1614,7 +1618,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                       请选择
                     </option>
                     <option value="main">保留当前块</option>
-                    <option value="branch">采用候选块</option>
+                    <option value="branch">采用 AI 草稿块</option>
                   </select>
                 </section>
               ))}
@@ -1710,7 +1714,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
         <Dialog.Content className="max-w-5xl">
           <Dialog.Title>正文已有变化，请确认冲突段落</Dialog.Title>
           <Dialog.Description>
-            不冲突的新增内容会自动保留。每处冲突都需要明确选择，关闭窗口会保留候选。
+            不冲突的新增内容会自动保留。每处冲突都需要明确选择，关闭窗口会保留
+            AI 草稿。
           </Dialog.Description>
           <div className="max-h-[60vh] space-y-4 overflow-auto overscroll-contain">
             {merge?.data.segments
@@ -1758,7 +1763,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                         请选择
                       </option>
                       <option value="current">保留当前正文</option>
-                      <option value="candidate">采用 AI 候选</option>
+                      <option value="candidate">采用 AI 草稿</option>
                       <option value="both">依次保留两段</option>
                     </NativeSelect>
                   </label>
@@ -1844,7 +1849,9 @@ export function CreationRecordWorkbench(props: {
     target.domain !== props.domain ||
     target.projectId !== props.projectId
   )
-    return <p role="alert">指定创作对象的身份或项目归属不符，未打开候选。</p>;
+    return (
+      <p role="alert">指定创作对象的身份或项目归属不符，未打开 AI 草稿。</p>
+    );
   return (
     <div className="space-y-3">
       {props.operation === "localization" && (
@@ -1899,7 +1906,7 @@ export function CreationRunCard(props: {
           (props.taskId && workflow.taskId !== props.taskId)
         )
           throw new Error(
-            "指定创作运行的实际身份、项目或任务绑定不符；未打开候选。",
+            "指定创作运行的实际身份、项目或任务绑定不符；未打开 AI 草稿。",
           );
         return workflow;
       },
@@ -1922,7 +1929,7 @@ export function CreationRunCard(props: {
   if (props.projectId && data.input.projectId !== props.projectId)
     return (
       <p role="alert" className="text-sm text-danger-strong">
-        该创作运行不属于当前项目，未打开候选。
+        该创作运行不属于当前项目，未打开 AI 草稿。
       </p>
     );
   return (

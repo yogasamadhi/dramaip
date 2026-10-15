@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@dramaip/ui-shared";
 import {
@@ -134,6 +134,22 @@ function PlanningInstance(props: {
     validHigher &&
     (!context.summaries?.length || (!higher.error && Boolean(higher.data)));
   const unchanged = samePlanningRequest(draft, confirmed);
+  const hasBody = chapters.some((chapter) => chapter.content.trim());
+  const [autoNone, setAutoNone] = useState(false);
+  // With no saved chapter text there is nothing to choose: plan from the brief
+  // and author intent, and treat that as this round's confirmed scope.
+  useEffect(() => {
+    if (directory.data && !directory.error && scope === undefined && !hasBody) {
+      setScope({ mode: "none", chapters: [] });
+      setAutoNone(true);
+    }
+  }, [directory.data, directory.error, scope, hasBody]);
+  useEffect(() => {
+    if (autoNone && ready && draft && !confirmed) {
+      setConfirmed(draft);
+      setAutoNone(false);
+    }
+  }, [autoNone, ready, draft, confirmed]);
   const changeScope = (value: NarrativePlanningRequest["chapterScope"]) => {
     setScope(value);
     setContext(emptyContext());
@@ -147,9 +163,9 @@ function PlanningInstance(props: {
       >
         <h3 className="font-semibold">本轮规划来源确认</h3>
         <p className="text-muted">
-          规划独立于章节写作，不新建空章。明确选择不使用正文、局部或完整范围，再选择实际表达；
-          未选正文、旧摘要、历史记忆和旧方案不会自动附加。项目简报与正式作者意图会在启动时冻结。
-          更改范围会清空本轮表达选择，请重新确认；这里的确认不是隐私、预算或文学质量通过。
+          {hasBody
+            ? "选择本轮参考哪些正文；没选的正文、旧摘要和旧方案不会自动带入。更改范围后需要重新确认。"
+            : "还没有正文，本轮只依据项目简报与作者意图规划。"}
         </p>
         {directory.error && (
           <p role="alert">
@@ -170,9 +186,7 @@ function PlanningInstance(props: {
           className="space-y-2"
           disabled={!directory.data || Boolean(directory.error)}
         >
-          <legend className="font-medium">
-            明确选择规划范围（不会默认纳入正文）
-          </legend>
+          <legend className="font-medium">规划参考范围</legend>
           <label className="block">
             <input
               type="radio"

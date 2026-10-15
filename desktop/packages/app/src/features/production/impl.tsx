@@ -29,6 +29,7 @@ import {
 import { readLegacyEpisodeAnalysis } from "../../legacy-quality-history";
 import { PluginResourceWorkspace, recordPayload } from "../studio-widgets";
 import { StoryBibleSidecar } from "../workspace/impl";
+import { AdaptationPipeline } from "./AdaptationPipeline";
 import { LegacyEpisodeCompatibility } from "./LegacyEpisodeCompatibility";
 import {
   ProductionContextBoundary,
@@ -56,7 +57,7 @@ function ScriptContextControls(props: {
           <p className="mt-1 text-sm text-muted">
             {props.context.episodeTitle} · {props.context.scriptTitle}
             {props.awaitingOriginalScript
-              ? "；先从故事构思创作本集候选，审阅采用后再检查与拆分。"
+              ? "；先从故事构思创作本集 AI 草稿，审阅采用后再检查与拆分。"
               : "；先核对剧本与连续性，再按需拆分场景和分镜。"}
           </p>
         </div>
@@ -544,59 +545,31 @@ function AdaptationWorkspaceInstance(props: {
           </section>
         </ScriptContextControls>
       </WorkspaceObjectControls>
-      {projectId && !originalScriptProject && (
-        <Link
-          className="inline-flex rounded border border-line px-4 py-2 text-sm text-link"
-          to={`/projects/${projectId}/tools/adaptation-diagnosis`}
-        >
-          先确认来源并进行改编诊断 →
-        </Link>
-      )}
       {projectId && (
         <>
-          <section
-            aria-label="独立创作主流程"
-            className="rounded-lg border border-line bg-surface p-5"
+          {selectedProject && <AdaptationPipeline project={selectedProject} />}
+          <div
+            className={
+              originalScriptProject
+                ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,480px)]"
+                : "grid gap-4"
+            }
           >
-            <h2 className="font-semibold">按正式版本逐步开发</h2>
-            <p className="mt-2 text-sm text-muted">
-              原著改编：诊断 → 独立策略 → 整季方案 → 单集大纲 → 标准剧本 →
-              可选分镜。已有剧本或直接创意可进入单集开发，不必先写小说或做改编诊断。旧目录保留在下方。
-            </p>
-            <div className="mt-3 flex flex-wrap gap-4 text-sm text-brand">
-              <Link to={`/projects/${projectId}/tools/cockpit`}>
-                查看当前正式进度与推荐下一步 →
-              </Link>
-              <Link to={`/projects/${projectId}/tools/episode-development`}>
-                打开独立单集开发 →
-              </Link>
-            </div>
-          </section>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,480px)]">
-            <div className="rounded-lg border border-line p-5 text-sm leading-7">
-              <h2 className="mb-2 font-semibold">已有内容与兼容创作</h2>
-              {originalScriptProject ? (
-                <>
-                  <p>
-                    {selectedProject.synopsis.trim() ||
-                      "还没有填写故事构思。请在右侧补充本集目标，再生成剧本候选。"}
-                  </p>
-                  <p className="mt-3 text-muted">
-                    {awaitingOriginalScript
-                      ? "待创作剧本：目前只有分集目录和空草稿，不是已采用的剧本或季纲。"
-                      : "正式正文来自你保存或明确采用的内容。"}{" "}
-                    创作要求、候选和检查可恢复；采用前不会写入正式剧本。
-                  </p>
-                </>
-              ) : (
+            {originalScriptProject && (
+              <div className="rounded-lg border border-line bg-surface p-4 text-sm leading-6">
+                <h2 className="mb-1 font-semibold">故事构思</h2>
                 <p>
-                  旧兼容生成仍根据已采用正文与创作方向生成一集，明确采用时一起写入剧本、场景和分镜，不创建新主流程的独立正式版本。媒体提交在制作页另行预检与确认。
+                  {selectedProject.synopsis.trim() ||
+                    "还没有填写故事构思。请在右侧补充本集目标，再生成剧本草稿。"}
                 </p>
-              )}
-              <p className="mt-3 text-muted">
-                已有内容可从下方目录查看，或选择剧本提出修订要求。
-              </p>
-            </div>
+                <p className="mt-2 text-muted">
+                  {awaitingOriginalScript
+                    ? "本集剧本尚未创作：目前只有分集目录和空草稿。"
+                    : "正式正文来自你保存或明确采用的内容。"}
+                  生成结果在你采用前不会写入正式剧本。
+                </p>
+              </div>
+            )}
             {legacyWorkflowId ? (
               <LegacyEpisodeCompatibility explicit>
                 {legacyRun.error ? (
@@ -606,8 +579,8 @@ function AdaptationWorkspaceInstance(props: {
                 ) : legacyRun.data.input.projectId !== projectId ||
                   legacyRun.data.input.operation !== "episode" ? (
                   <p role="alert">
-                    指定工作流不属于当前项目的旧 episode
-                    路径；未替换为最新候选。
+                    指定工作流不属于当前项目的旧 episode 路径；未替换为最新 AI
+                    草稿。
                   </p>
                 ) : (
                   <CreationRunCard
@@ -661,6 +634,7 @@ function AdaptationWorkspaceInstance(props: {
       )}
       <StageNavigation
         label="改编阶段"
+        numbered
         items={stageItems}
         active={stage}
         onChange={(value) => {
@@ -951,12 +925,6 @@ export function EpisodePacingPanel(props: {
     }
   };
   const restoreCheckpoint = async (checkpoint: DomainEntity) => {
-    if (
-      !(await confirmDialog(
-        "恢复此修订前检查点吗？当前剧本会先自动保存为新的检查点。",
-      ))
-    )
-      return;
     try {
       await client.contentVersions.restore(checkpoint.id);
       setNotice("已恢复修订前版本；当前版本也已保存为新的检查点。");
@@ -1625,7 +1593,8 @@ function ScreenplayReader(props: { scriptId: string }) {
       {error && <p className="text-sm text-danger">{message(error)}</p>}
       {data && !data.blocks.length && (
         <p className="text-sm text-muted">
-          剧本正文尚未创作。补充本集目标，生成、审阅并采用候选，或在资料管理中保存你自己的剧本。
+          剧本正文尚未创作。补充本集目标，生成、审阅并采用 AI
+          草稿，或在资料管理中保存你自己的剧本。
         </p>
       )}
       {data?.blocks.map((block) => (

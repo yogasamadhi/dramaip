@@ -105,7 +105,8 @@ export function NarrativeStorySources(props: Props) {
     >
       <h4 className="font-semibold">人物／事件、因果关系与认知声明</h4>
       <p className="text-muted">
-        这是来源锚定的作者解释目录，不是模型语义认证。候选、过期与撤回历史保留；旧手工图仍单独维护，不自动升级。章节／卷／故事弧归属沿当前目录核对，不把声明数量当作全书质量或阅读覆盖。
+        这是来源锚定的作者解释目录，不是模型语义认证。AI
+        草稿、过期与撤回历史保留；旧手工图仍单独维护，不自动升级。章节／卷／故事弧归属沿当前目录核对，不把声明数量当作全书质量或阅读覆盖。
       </p>
       {props.onChange && (
         <p className="text-muted">
@@ -242,7 +243,7 @@ export function NarrativeStorySources(props: Props) {
                     {entry.status === "adopted"
                       ? "已明确采用"
                       : entry.status === "pending"
-                        ? "候选，未采用"
+                        ? "AI 草稿，未采用"
                         : "已放弃"}{" "}
                     · 原来源
                     {entry.sourceState === "current"

@@ -78,7 +78,7 @@ const status = (
   value: Pick<NarrativeLocalQualityReview, "status" | "isCurrent">,
 ) =>
   value.status === "awaiting-review"
-    ? "候选，等待明确采用"
+    ? "AI 草稿，等待明确采用"
     : value.status === "discarded"
       ? "已放弃"
       : value.isCurrent
@@ -459,11 +459,11 @@ export function NarrativeLocalQualityPanel({
         !(await confirmDialog({
           title:
             origin === "human-declared"
-              ? "保存人工评议声明候选"
+              ? "保存人工评议声明草稿"
               : "运行本地逐字重复规则",
           description:
             origin === "human-declared"
-              ? "你声明已评议所确认的维度和实际表达。保存只是候选，需另行采用；无问题不保证语义正确，不改原文、不调用模型。"
+              ? "你声明已评议所确认的维度和实际表达。保存只是 AI 草稿，需另行采用；无问题不保证语义正确，不改原文、不调用模型。"
               : "只检查目标原文字段中 40–2000 字的逐字重复段落，最多100项／每项12证据，不读隐式外部来源，不提供语义维度覆盖或质量评分。",
           confirmLabel:
             origin === "human-declared"
@@ -481,11 +481,11 @@ export function NarrativeLocalQualityPanel({
     if (!value || busy || changed || draft.pending) return;
     if (
       !(await confirmDialog({
-        title: action === "adopt" ? "明确采用本地评议" : "放弃本地候选",
+        title: action === "adopt" ? "明确采用本地评议" : "放弃本地 AI 草稿",
         description:
-          "只决定这份实际候选，不修改正文。采用人工或规则记录不等于质量认证；源变或竞争采用位置会拒绝。",
+          "只决定这份实际 AI 草稿，不修改正文。采用人工或规则记录不等于质量认证；源变或竞争采用位置会拒绝。",
         confirmLabel:
-          action === "adopt" ? "确认采用本地记录" : "确认放弃本地候选",
+          action === "adopt" ? "确认采用本地记录" : "确认放弃本地 AI 草稿",
       }))
     )
       return;
@@ -517,7 +517,8 @@ export function NarrativeLocalQualityPanel({
     >
       <h2 className="font-semibold">人工／本地规则评议（不需要模型）</h2>
       <p className="text-sm text-muted">
-        人工意见和处理是作者声明，始终未认证；程序只核逐字重复，不提供因果／人物／节奏等语义覆盖。候选、明确采用与原复检记录分开，均不改作者正文。
+        人工意见和处理是作者声明，始终未认证；程序只核逐字重复，不提供因果／人物／节奏等语义覆盖。AI
+        草稿、明确采用与原复检记录分开，均不改作者正文。
       </p>
       <Button
         size="sm"
@@ -874,7 +875,7 @@ export function NarrativeLocalQualityPanel({
                 disabled={locked || changed}
                 onClick={() => void adopt("discard")}
               >
-                放弃本地候选
+                放弃本地 AI 草稿
               </Button>
             </div>
           )}

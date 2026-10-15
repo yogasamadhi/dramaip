@@ -385,7 +385,7 @@ export function TaskPage() {
             <p role={selectedContext.error ? "alert" : "status"}>
               {selectedContext.error
                 ? message(selectedContext.error)
-                : "正在核对实际项目、任务及候选绑定…"}
+                : "正在核对实际项目、任务及 AI 草稿绑定…"}
             </p>
           ) : selectedContext.data.revision ? (
             <AgentRevisionPreviewCard

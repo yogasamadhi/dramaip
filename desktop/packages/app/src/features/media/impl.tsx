@@ -546,36 +546,38 @@ function ProductionWorkspaceInstance(props: {
             </label>
           </section>
         </WorkspaceObjectControls>
-        <nav
-          aria-label="制作工作分组"
-          className="grid grid-cols-2 gap-1 rounded-lg bg-canvas p-1 lg:grid-cols-4"
-        >
-          {stageGroups.map((group) => (
-            <BareButton
-              key={group.id}
-              className={`rounded-md px-3 py-2 text-sm font-medium ${activeStageGroup.id === group.id ? "bg-surface-raised text-ink shadow-control" : "text-muted hover:text-ink"}`}
-              onClick={() => {
-                const nextStage = group.stages[0] as typeof stage;
-                setStage(nextStage);
-                syncRoute({ stage: nextStage });
-              }}
-            >
-              {group.label}
-            </BareButton>
-          ))}
-        </nav>
-        <StageNavigation
-          label={`${activeStageGroup.label}功能`}
-          items={stageItems.filter((item) =>
-            activeStageGroup.stages.includes(item.id as never),
-          )}
-          active={stage}
-          onChange={(value) => {
-            const nextStage = value as typeof stage;
-            setStage(nextStage);
-            syncRoute({ stage: nextStage });
-          }}
-        />
+        <div className="flex flex-wrap items-start gap-2 border-b border-line pb-3">
+          <nav
+            aria-label="制作工作分组"
+            className="flex flex-wrap gap-1 rounded-lg border border-line bg-surface p-1"
+          >
+            {stageGroups.map((group) => (
+              <BareButton
+                key={group.id}
+                className={`rounded-md px-3 py-2 text-sm font-medium ${activeStageGroup.id === group.id ? "bg-surface-raised text-ink shadow-control" : "text-muted hover:text-ink"}`}
+                onClick={() => {
+                  const nextStage = group.stages[0] as typeof stage;
+                  setStage(nextStage);
+                  syncRoute({ stage: nextStage });
+                }}
+              >
+                {group.label}
+              </BareButton>
+            ))}
+          </nav>
+          <StageNavigation
+            label={`${activeStageGroup.label}功能`}
+            items={stageItems.filter((item) =>
+              activeStageGroup.stages.includes(item.id as never),
+            )}
+            active={stage}
+            onChange={(value) => {
+              const nextStage = value as typeof stage;
+              setStage(nextStage);
+              syncRoute({ stage: nextStage });
+            }}
+          />
+        </div>
         {projectId ? (
           <details className="rounded-lg border border-line bg-surface px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium text-muted">
@@ -1165,7 +1167,7 @@ export function assetStatusLabel(asset: AssetCenterAsset): string {
   if (asset.costStatus === "unknown") return "费用未知";
   if (asset.providerStatus === "unavailable") return "服务不可用";
   if (asset.preview.status === "unattached") return "尚未附加媒体";
-  return asset.adopted ? "已采用" : "候选版本";
+  return asset.adopted ? "已采用" : "AI 草稿版本";
 }
 
 export function AssetCenterPanel(props: {
@@ -1255,7 +1257,7 @@ export function AssetCenterPanel(props: {
     setCompareIds((current) => {
       if (current.includes(id)) return current.filter((item) => item !== id);
       if (current.length >= 4) {
-        setNotice("最多并排比较 4 个候选版本。");
+        setNotice("最多并排比较 4 个 AI 草稿版本。");
         return current;
       }
       return [...current, id];
@@ -1268,14 +1270,15 @@ export function AssetCenterPanel(props: {
           <p className="text-sm text-muted">导演资产工作台</p>
           <h2 className="mt-1 text-2xl font-semibold">统一资产中心</h2>
           <p className="mt-2 max-w-3xl text-sm text-muted">
-            角色、场景、道具和音色的候选版本共用同一份本地实体记录；媒体只保留受控归档引用，不在此复制二进制或暴露路径。
+            角色、场景、道具和音色的 AI
+            草稿版本共用同一份本地实体记录；媒体只保留受控归档引用，不在此复制二进制或暴露路径。
           </p>
         </div>
         <BareButton
           className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white"
           onClick={props.onOpenCatalog}
         >
-          新建资产候选
+          新建资产草稿
         </BareButton>
       </div>
       <div className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-[1fr_auto]">
@@ -1338,7 +1341,7 @@ export function AssetCenterPanel(props: {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold">候选版本比较</h3>
+              <h3 className="font-semibold">AI 草稿版本比较</h3>
               <p className="mt-1 text-sm text-muted">
                 比较不会改变采用、锁定或镜头引用。
               </p>
@@ -1464,7 +1467,7 @@ export function AssetCenterPanel(props: {
         ))}
         {!filtered.length && (
           <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
-            当前筛选下没有资产候选。可先新建角色、场景、道具或音色版本。
+            当前筛选下没有资产草稿。可先新建角色、场景、道具或音色版本。
           </p>
         )}
       </div>
@@ -1533,7 +1536,7 @@ export function ImageGenerationPanel(props: {
         crypto.randomUUID(),
       );
       setNotice(
-        `已归档 ${result.candidates.length} 张候选图片，请人工采用后进入动态分镜。`,
+        `已归档 ${result.candidates.length} 张 AI 草稿图片，请人工采用后进入动态分镜。`,
       );
       await Promise.all([
         queryClient.invalidateQueries({
@@ -1553,7 +1556,7 @@ export function ImageGenerationPanel(props: {
   const adopt = async (id: string) => {
     try {
       await client.visuals.adoptStill(id);
-      setNotice("已采用该静帧候选。后续动态分镜会优先引用它。");
+      setNotice("已采用该静帧 AI 草稿。后续动态分镜会优先引用它。");
       await queryClient.invalidateQueries({
         queryKey: ["resource", "shot-stills", props.projectId, props.shotId],
       });
@@ -1578,7 +1581,7 @@ export function ImageGenerationPanel(props: {
         <h2 className="font-semibold">图片生成与静帧采用</h2>
         <p className="mt-1 text-sm text-muted">
           服务端只会请求已配置的厂商图片 API 或 Stable Diffusion WebUI
-          服务；结果先归档为候选静帧，不会自动替换已采用版本。
+          服务；结果先归档为 AI 草稿静帧，不会自动替换已采用版本。
         </p>
       </div>
       <div className="grid gap-3 rounded-xl border border-line p-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1598,7 +1601,7 @@ export function ImageGenerationPanel(props: {
           </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm">
-          候选类型
+          草稿类型
           <NativeSelect
             className="w-auto"
             value={kind}
@@ -1641,14 +1644,14 @@ export function ImageGenerationPanel(props: {
           disabled={running}
           onClick={() => void run()}
         >
-          {running ? "正在生成并归档…" : "生成候选图片"}
+          {running ? "正在生成并归档…" : "生成 AI 草稿图片"}
         </BareButton>
       </div>
       <section className="rounded-xl border border-line p-3">
-        <h3 className="font-medium">当前分镜候选</h3>
+        <h3 className="font-medium">当前分镜 AI 草稿</h3>
         <div className="mt-3 space-y-2">
           {!candidates.length && (
-            <p className="text-sm text-muted">尚无候选图片。</p>
+            <p className="text-sm text-muted">尚无 AI 草稿图片。</p>
           )}
           {candidates.map((candidate) => {
             const payload = recordPayload(candidate.payload);
@@ -1818,7 +1821,9 @@ export function VideoGenerationPanel(props: {
   const adopt = async (id: string) => {
     try {
       await client.visuals.adoptVideo(id);
-      setNotice("已采用视频候选。分镜将引用此版本，其他候选仍会保留以供比较。");
+      setNotice(
+        "已采用视频 AI 草稿。分镜将引用此版本，其他 AI 草稿仍会保留以供比较。",
+      );
       await refresh();
     } catch (cause) {
       setNotice(message(cause));
@@ -1961,7 +1966,7 @@ export function VideoGenerationPanel(props: {
                 <span>
                   {videoJobStatusLabel(job.status)} ·{" "}
                   {job.results.length
-                    ? `已归档 ${job.results.length} 个候选`
+                    ? `已归档 ${job.results.length} 个 AI 草稿`
                     : "暂无可采用结果"}
                 </span>
                 <div className="flex gap-2">
@@ -1997,7 +2002,7 @@ export function VideoGenerationPanel(props: {
               )}
               {job.results.length > 0 && (
                 <div className="mt-3 space-y-2 border-t border-line pt-3">
-                  <p className="text-xs font-medium text-muted">视频候选</p>
+                  <p className="text-xs font-medium text-muted">视频 AI 草稿</p>
                   {job.results.map((candidate) => {
                     const adopted =
                       recordPayload(candidate.payload)["采用状态"] === "已采用";
@@ -2050,7 +2055,7 @@ export function videoJobNotice(
   return {
     queued: "视频任务已提交，正在等待服务商开始执行。",
     running: "视频正在生成，系统会定期查询状态。",
-    succeeded: "视频已完成并归档为分镜候选。",
+    succeeded: "视频已完成并归档为分镜 AI 草稿。",
     failed: "视频服务商报告任务失败。",
     canceled: "视频任务已停止。",
   }[status];
@@ -3150,7 +3155,7 @@ export function TimelineEditorPanel(props: {
             <h3 className="font-medium">NLE 交付与媒体核验</h3>
             <p className="mt-1 text-xs text-muted">
               从当前 canonical timeline 生成 FCPXML、OTIO、CMX 3600
-              EDL、字幕和重链接清单；核对冻结来源及 owner
+              EDL、字幕和重链接清单；核对参考内容及 owner
               存档元数据。相对路径不是已复制文件，存档 SHA-256
               不等于字节／权利核验。
             </p>
@@ -3191,7 +3196,7 @@ export function TimelineEditorPanel(props: {
             </p>
             <p>
               NLE 交付不包含 MP4 成片。独立本地实验渲染须校验签名
-              sidecar；本地混音按冻结来源与控制值编码，仍不等于正式发行或字幕烧录。
+              sidecar；本地混音按参考内容与控制值编码，仍不等于正式发行或字幕烧录。
             </p>
             {deliveryManifest.unsupportedFeatures.length > 0 && (
               <p className="rounded-md bg-warning-soft p-2 text-warning-strong">

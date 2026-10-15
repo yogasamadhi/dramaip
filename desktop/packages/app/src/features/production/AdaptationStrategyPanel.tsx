@@ -204,17 +204,18 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
     if (!value || busy || readBusy) return;
     const optionId = choice?.id === value.id ? choice.optionId : undefined;
     if (kind === "adopt" && !optionId) {
-      setError("请明确选择这个候选中的一个策略，没有默认选项。");
+      setError("请明确选择这个 AI 草稿中的一个策略，没有默认选项。");
       return;
     }
     if (
       !(await confirmDialog({
-        title: kind === "adopt" ? "采用独立改编策略" : "放弃独立策略候选",
+        title: kind === "adopt" ? "采用独立改编策略" : "放弃独立策略 AI 草稿",
         description:
           kind === "adopt"
-            ? "采用一个明确选项，保留旧版本；不自动生成季纲、改写原稿或采用其他候选。"
-            : "只放弃这个候选，当前方向与原稿不变。",
-        confirmLabel: kind === "adopt" ? "确认采用此策略" : "确认放弃此候选",
+            ? "采用一个明确选项，保留旧版本；不自动生成季纲、改写原稿或采用其他 AI 草稿。"
+            : "只放弃这个 AI 草稿，当前方向与原稿不变。",
+        confirmLabel:
+          kind === "adopt" ? "确认采用此策略" : "确认放弃此 AI 草稿",
         tone: kind === "discard" ? "danger" : "default",
       }))
     )
@@ -498,7 +499,7 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
               disabled={busy || readBusy}
               onClick={() => void action("discard")}
             >
-              放弃此策略候选
+              放弃此策略 AI 草稿
             </Button>
           )}
         </article>
@@ -513,7 +514,7 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
           !candidate.error &&
           candidate.data &&
           !value &&
-          "指定候选归属或工作流不符，不展示其他对象。",
+          "指定 AI 草稿归属或工作流不符，不展示其他对象。",
       ]
         .filter(Boolean)
         .map((text, index) => (

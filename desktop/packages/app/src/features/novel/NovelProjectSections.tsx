@@ -439,7 +439,7 @@ export function NovelLongformToolsSection(props: {
         projectId={props.projectId}
         taskType={configuration.taskType}
         title={`智能${configuration.title}`}
-        description={`${configuration.description} 生成结果只作为候选，点击“保存到项目”后才会进入正式资料。`}
+        description={`${configuration.description} 生成结果只作为 AI 草稿，点击“保存到项目”后才会进入正式资料。`}
         domain={configuration.domain}
         itemName={configuration.itemName}
         resultField={configuration.resultField}
@@ -810,7 +810,7 @@ function NovelInsightRunner(props: {
         setOutput(text);
         setNotice(
           text.trim()
-            ? "候选结果已经生成；核对后可以保存到项目。"
+            ? "AI 草稿结果已经生成；核对后可以保存到项目。"
             : "模型本次没有返回内容，可使用相同设置重试。",
         );
       }),
@@ -1278,7 +1278,7 @@ export function NovelArtifactGenerator(props: {
                     >
                       <p className="text-sm font-medium">
                         {displayValue(
-                          value.title ?? value.name ?? `候选 ${index + 1}`,
+                          value.title ?? value.name ?? `AI 草稿 ${index + 1}`,
                         )}
                       </p>
                       <dl className="mt-2 space-y-1">

@@ -171,7 +171,7 @@ export function TimelinePlaybackPanel(props: {
       );
       if (!current()) return;
       if (JSON.stringify(after) !== JSON.stringify(plan))
-        throw new Error("时间线或冻结来源在完整读取期间变化，未启用播放。");
+        throw new Error("时间线或参考内容在完整读取期间变化，未启用播放。");
       setLoaded({ plan, files });
     } catch (cause) {
       if (current()) failure(cause);

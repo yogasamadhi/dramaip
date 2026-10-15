@@ -536,7 +536,7 @@ export function StudioSessionProvider(props: { children: ReactNode }) {
     if (routeInvalid)
       setActiveProjectNotice(
         hasExactWorkspaceReference(location)
-          ? "指定对象的项目暂未核验，保留原深链接；不会改读最近项目或候选。"
+          ? "指定对象的项目暂未核验，保留原深链接；不会改读最近项目或 AI 草稿。"
           : "链接中的项目已不可用，已切换到最近更新的有效项目。",
       );
     else if (routeProjectId) setActiveProjectNotice(undefined);

@@ -36,7 +36,7 @@ const statusLabel = (
   value: Pick<StoryboardAttribution, "status" | "isCurrent">,
 ) =>
   value.status === "pending"
-    ? "候选，尚未采用"
+    ? "AI 草稿，尚未采用"
     : value.status === "discarded"
       ? "已放弃"
       : value.isCurrent
@@ -293,7 +293,7 @@ export function StoryboardAttributionPanel({
       )
         setRejectedStatus(status);
       setError(
-        `${message(cause)}；原 key／完整正文保留。回复未知时只能明确重发原请求，不自动另建候选。`,
+        `${message(cause)}；原 key／完整正文保留。回复未知时只能明确重发原请求，不自动另建 AI 草稿。`,
       );
     } finally {
       setBusy(false);
@@ -403,7 +403,7 @@ export function StoryboardAttributionPanel({
     if (
       !(await confirmDialog({
         title: "保存明确镜头关联候选",
-        description: `${input.selections.length} 条明确位置选择；只保存人工候选，另行审阅采用。不改变正式稿、未选镜头，不调用模型。`,
+        description: `${input.selections.length} 条明确位置选择；只保存人工草稿，另行审阅采用。不改变正式稿、未选镜头，不调用模型。`,
         confirmLabel: "保存原关联候选",
       }))
     )
@@ -423,9 +423,10 @@ export function StoryboardAttributionPanel({
     const original = candidate;
     if (
       !(await confirmDialog({
-        title: action === "adopt" ? "明确采用原逐镜头关联" : "放弃原关联候选",
+        title:
+          action === "adopt" ? "明确采用原逐镜头关联" : "放弃原关联 AI 草稿",
         description: `${original.id} v${original.version}，${original.coverage.associatedShots}/${original.coverage.totalShots} 镜头关联。未关联范围保持未关联；位置规则不认证语义，正式稿与节点正文不改。`,
-        confirmLabel: action === "adopt" ? "采用此原关联" : "放弃此原候选",
+        confirmLabel: action === "adopt" ? "采用此原关联" : "放弃此原 AI 草稿",
       }))
     )
       return;
@@ -530,7 +531,7 @@ export function StoryboardAttributionPanel({
             <p className="text-danger-strong">
               {source &&
               draft.source.sourceFingerprint === source.sourceFingerprint
-                ? "关联采用头已变化，旧草稿不能直接用于新候选；已采用记录的来源状态单独核对，原选择保留。"
+                ? "关联采用头已变化，旧草稿不能直接用于新 AI 草稿；已采用记录的来源状态单独核对，原选择保留。"
                 : source
                   ? "原正式来源或实际记录已变化；原草稿保留，不自动重绑。"
                   : "本次实际来源尚未核对；原草稿保留，不使用缓存确认。"}
@@ -918,7 +919,7 @@ export function StoryboardAttributionPanel({
                       }
                       onClick={() => void decide("discard")}
                     >
-                      放弃此原镜头关联候选
+                      放弃此原镜头关联 AI 草稿
                     </Button>
                   </div>
                 </>

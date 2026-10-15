@@ -161,7 +161,7 @@ export function EpisodeCandidate({ workflow }: { workflow: CreationWorkflow }) {
           <NarrativeSourceCoverage
             basis={workflow.episodeDevelopmentBasis.sourceBasis}
             chapters={workflow.episodeDevelopmentBasis.contextChapters}
-            label="候选冻结实际表达"
+            label="AI 草稿冻结实际表达"
           />
         )}
       {outline.success && (
@@ -339,7 +339,8 @@ export function EpisodeCandidate({ workflow }: { workflow: CreationWorkflow }) {
                 }
               />
               <p>
-                原实际选择、版本和祖先指纹已冻结。这里只展示候选，不证明语义、安全、权利、收费或媒体已完成。
+                原实际选择、版本和祖先指纹已冻结。这里只展示 AI
+                草稿，不证明语义、安全、权利、收费或媒体已完成。
               </p>
             </section>
           )}
@@ -425,7 +426,7 @@ export function EpisodeCandidate({ workflow }: { workflow: CreationWorkflow }) {
         !storyboard.success &&
         !patch.success && (
           <p className="text-danger-strong">
-            候选结构尚未通过，保留原输出供修复；不显示为正式结果。
+            AI 草稿结构尚未通过，保留原输出供修复；不显示为正式结果。
           </p>
         )}
     </article>
@@ -1264,7 +1265,8 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
         >
           <h2 className="font-semibold">指定正式结果来源复核</h2>
           <p className="text-sm text-muted">
-            只读取此正式版本，不改成最近候选、不修复生成基准或自动重做。来源变化不撤销原采用事实。
+            只读取此正式版本，不改成最近 AI
+            草稿、不修复生成基准或自动重做。来源变化不撤销原采用事实。
           </p>
           {requestedResult.error ? (
             <p role="alert">{message(requestedResult.error)}</p>
@@ -1843,11 +1845,11 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
               {confirmed.request.redoSourceReview &&
                 ` · 原关联 ${confirmed.request.redoSourceReview.attribution.id} v${confirmed.request.redoSourceReview.attribution.version} · 全部 ${confirmed.request.redoSourceReview.shots.length} 镜头与五项来源审阅已保存（语义未认证）`}
               {confirmed.request.redoMode === "scene-topology-plan"
-                ? " · 明确冻结双正式场景拓扑、新旧实际身份和逐项退役（不自动升级旧候选，不迁移媒体）"
+                ? " · 明确冻结双正式场景拓扑、新旧实际身份和逐项退役（不自动升级旧 AI 草稿，不迁移媒体）"
                 : confirmed.request.redoMode === "scene-shot-plan"
-                  ? " · 明确冻结作者新镜头计划（旧身份、版本与退役范围同时保留，不自动升级旧候选）"
+                  ? " · 明确冻结作者新镜头计划（旧身份、版本与退役范围同时保留，不自动升级旧 AI 草稿）"
                   : confirmed.request.redoMode &&
-                    " · 明确使用已确认块结构协议（不自动升级旧候选）"}
+                    " · 明确使用已确认块结构协议（不自动升级旧 AI 草稿）"}
             </p>
           )}
           {(error ||
@@ -1864,8 +1866,8 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
       {!requestedResultId && catalog.data?.storyBibleCount === 0 && (
         <div className="space-y-3">
           <p className="text-sm text-muted">
-            尚无明确采用的 Story
-            Bible。先核对设定候选；生成成功或待确认设定不等于正式采用。
+            尚无明确采用的 Story Bible。先核对设定 AI
+            草稿；生成成功或待确认设定不等于正式采用。
           </p>
           <CreationWorkbench
             projectId={projectId}
@@ -1912,7 +1914,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
                     ? confirmed.request.redoShots
                       ? `${confirmed.request.redoMode === "scene-topology-plan" ? "核对双正式人工确认链和完整作者场景拓扑：明确新增、同场复用、原实际身份／版本、顺序／秒数和逐项退役。原退役记录与媒体历史只保留，不自动迁移。" : confirmed.request.redoMode === "scene-shot-plan" ? "核对完整作者场景镜头计划，新旧身份、排序、秒数和资产引用都已明确冻结；不在新计划中的原镜头采用后退役但保留实际历史。" : confirmed.request.redoMode ? "核对明确冻结的原／新块映射，原场景和镜头身份、数量、顺序、时长与资产不变。" : ""}核对冻结选择、局部镜头、字幕及风险。仅更新选中范围与其场景汇总，未选身份、内容和版本保留；对应旧媒体须复核，旧正式快照保留。不调用媒体服务商或授权费用。`
                       : "核对完整镜头、稳定块覆盖和风险。采用将建立正式场景与分镜，保留旧版本；不生成媒体或授权费用。"
-                    : "核对冻结来源和完整内容。保留旧版本，不自动写入场景、分镜或媒体。",
+                    : "核对参考内容和完整内容。保留旧版本，不自动写入场景、分镜或媒体。",
                 confirmLabel: "明确采用",
               }))
             )

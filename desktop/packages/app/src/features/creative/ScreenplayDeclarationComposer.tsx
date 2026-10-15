@@ -141,7 +141,7 @@ export function ScreenplayDeclarationComposer({
     >
       <p className="text-xs text-muted">
         直接剧本是独立来源，不要求小说。只读已保存块；原稿缺失、重复 ID
-        或损坏时不自动初始化或重解析。每个页内候选明确选择一个实际剧本。
+        或损坏时不自动初始化或重解析。每个页内 AI 草稿明确选择一个实际剧本。
       </p>
       {(catalog.isError || detail.isError) && (
         <p role="alert">

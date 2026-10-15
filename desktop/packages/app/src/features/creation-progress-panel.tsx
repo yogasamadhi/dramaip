@@ -17,7 +17,7 @@ const stages: Record<string, { title: string; waiting: string; step: number }> =
       step: 1,
     },
     checking: {
-      title: "检查候选",
+      title: "检查 AI 草稿",
       waiting: "正在核对创作要求、情节与资料一致性，等待检查结果",
       step: 2,
     },
@@ -27,7 +27,7 @@ const stages: Record<string, { title: string; waiting: string; step: number }> =
       step: 2,
     },
     rechecking: {
-      title: "复检候选",
+      title: "复检 AI 草稿",
       waiting: "正在检查修订结果，等待复检结论",
       step: 2,
     },
@@ -123,7 +123,7 @@ export function CreationProgress({ value }: { value: CreationWorkflow }) {
           aria-label="创作步骤"
           className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted"
         >
-          {["准备资料", "生成候选", "检查与修订", "等待审阅"].map(
+          {["准备资料", "生成 AI 草稿", "检查与修订", "等待审阅"].map(
             (label, index) => (
               <li
                 key={label}
@@ -181,7 +181,7 @@ export function CreationProgress({ value }: { value: CreationWorkflow }) {
           </div>
           <p className="text-xs text-muted">
             {active
-              ? "完成检查后会生成候选，供你审阅采用。"
+              ? "完成检查后会生成 AI 草稿，供你审阅采用。"
               : "本次未完成，已返回的片段保留供查看。"}
           </p>
         </>

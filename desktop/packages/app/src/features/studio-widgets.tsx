@@ -487,7 +487,8 @@ export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
           原记录与旧人工声明仅供只读查阅，不是当前质量、修复完成、受众判断或文学认证。
         </p>
         <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
-          需要新的评议时，请明确选择独立人工声明、程序规则或模型候选；不会自动运行、采用或修改作品。
+          需要新的评议时，请明确选择独立人工声明、程序规则或模型 AI
+          草稿；不会自动运行、采用或修改作品。
         </p>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1759,8 +1760,8 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     ],
   },
   "shot-stills": {
-    description: "为一个分镜维护静帧候选，并在人工确认后采用其中一个版本。",
-    titleLabel: "静帧候选名称",
+    description: "为一个分镜维护静帧 AI 草稿，并在人工确认后采用其中一个版本。",
+    titleLabel: "静帧 AI 草稿名称",
     fields: [
       shortText("关联分镜", "关联分镜"),
       longText("生成提示", "生成提示"),

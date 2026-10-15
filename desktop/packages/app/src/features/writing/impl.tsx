@@ -56,7 +56,7 @@ export function NovelWritingHome() {
           <div>
             <h2 className="text-xl font-semibold">继续写作</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
-              选择项目，继续 AI 生成、修订或审阅上次的候选。
+              选择项目，继续 AI 生成、修订或审阅上次的 AI 草稿。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

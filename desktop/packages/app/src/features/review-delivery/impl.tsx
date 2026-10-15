@@ -290,6 +290,7 @@ function ReviewDeliveryWorkspaceInstance(props: {
         </WorkspaceObjectControls>
         <StageNavigation
           label="审核交付阶段"
+          numbered
           items={stageItems}
           active={stage}
           onChange={(value) => {
@@ -470,7 +471,7 @@ function PlatformDeliveryPanelInstance(props: {
     remember(undefined);
     resetPreflight();
     setNotice(
-      "原拒绝请求已保留在本机；请重新读取候选并明确核对，不沿用旧预检或同意。",
+      "原拒绝请求已保留在本机；请重新读取 AI 草稿并明确核对，不沿用旧预检或同意。",
     );
     void queryClient.invalidateQueries({ queryKey: ["platform-delivery"] });
   };
@@ -620,7 +621,7 @@ function PlatformDeliveryPanelInstance(props: {
       !description.trim() ||
       !tagList.length
     ) {
-      setNotice("候选必须填写标签、标题、简介和至少一个标签词。");
+      setNotice("发布草稿必须填写标签、标题、简介和至少一个标签词。");
       return;
     }
     const t = start();
@@ -744,7 +745,7 @@ function PlatformDeliveryPanelInstance(props: {
       return;
     }
     if (!profileId || !variantId) {
-      setNotice("请先选择平台档案和创意候选。");
+      setNotice("请先选择平台档案和创意 AI 草稿。");
       return;
     }
     const t = start();
@@ -934,7 +935,7 @@ function PlatformDeliveryPanelInstance(props: {
               resetPreflight();
             }}
           >
-            <option value="">选择创意候选</option>
+            <option value="">选择创意 AI 草稿</option>
             {variants.map((variant) => (
               <option key={variant.id} value={variant.id}>
                 {variant.label} · v{variant.versionNumber} · {variant.title}
@@ -973,7 +974,7 @@ function PlatformDeliveryPanelInstance(props: {
       )}
       <section className="grid gap-3 rounded-xl border border-line bg-page p-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
-          候选标签
+          草稿标签
           <input
             className="rounded-lg border border-line bg-surface px-3 py-2"
             value={label}
@@ -1034,10 +1035,10 @@ function PlatformDeliveryPanelInstance(props: {
         </div>
       </section>
       <section className="space-y-2 rounded-xl border border-line p-3">
-        <h3 className="font-medium">创意候选与采用历史</h3>
+        <h3 className="font-medium">创意 AI 草稿与采用历史</h3>
         {!variants.length && (
           <p className="text-sm text-muted">
-            尚无候选。请先保存一个完整的标题、简介、标签词和封面组合。
+            尚无 AI 草稿。请先保存一个完整的标题、简介、标签词和封面组合。
           </p>
         )}
         {variants.map((variant: DeliveryCreativeVariant) => (

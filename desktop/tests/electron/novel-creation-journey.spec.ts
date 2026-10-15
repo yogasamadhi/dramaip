@@ -3968,21 +3968,20 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
         .getByRole("button", { name: tab, exact: true })
         .click();
       const workbench = running.page.getByLabel(`AI ${label}`, { exact: true });
-      await expect(
-        workbench.getByRole("button", {
-          name: `生成并检查${label}`,
-          exact: true,
-        }),
-      ).toBeDisabled();
       const planning = running.page.getByLabel("本轮规划来源确认", {
         exact: true,
       });
-      await planning
-        .getByRole("radio", {
+      // With no saved chapter text, the only possible scope is preselected
+      // and confirmed; the explicit choice remains available and idempotent.
+      await expect(
+        planning.locator('[data-planning-confirmed="true"]'),
+      ).toBeVisible();
+      await expect(
+        planning.getByRole("radio", {
           name: "明确不使用正文，仅依据简报与正式作者意图规划",
           exact: true,
-        })
-        .check();
+        }),
+      ).toBeChecked();
       await planning
         .getByRole("button", { name: "确认本轮规划范围与表达", exact: true })
         .click();
@@ -10874,7 +10873,7 @@ test("制作明确来源在普通后台界面确认真实原文与段落，首�
       if ((await compatibility().getAttribute("open")) === null)
         await compatibility()
           .locator("summary")
-          .filter({ hasText: "打开旧 episode 兼容路径" })
+          .filter({ hasText: "旧版流程：一次生成本集剧本与分镜" })
           .click();
     };
     await navigate(route);
@@ -11161,7 +11160,7 @@ test("旧 episode 默认折叠，后台重启精确恢复原候选并按兼容�
     expect(fixture.calls).toHaveLength(0);
     await compatibility()
       .locator("summary")
-      .filter({ hasText: "打开旧 episode 兼容路径" })
+      .filter({ hasText: "旧版流程：一次生成本集剧本与分镜" })
       .click();
     await expect(generate).toBeEnabled();
     await generate.click();

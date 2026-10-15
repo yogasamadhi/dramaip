@@ -38,7 +38,8 @@ export function NarrativeEventTimelineView({
       className="min-w-0 rounded border border-line"
     >
       <p className="p-2 text-muted">
-        仅按原事件声明的故事时间标注排列，不从章节／剧本块目录、人物认知顺序或因果边推断时间。相同顺序只并列；未标注事件保留，不补时间，不代表全书完整事件覆盖。候选／失效／撤回历史不作为当前正式输入。
+        仅按原事件声明的故事时间标注排列，不从章节／剧本块目录、人物认知顺序或因果边推断时间。相同顺序只并列；未标注事件保留，不补时间，不代表全书完整事件覆盖。AI
+        草稿／失效／撤回历史不作为当前正式输入。
       </p>
       <div role="row" className="sr-only">
         <span role="columnheader">原事件与状态</span>
@@ -58,7 +59,7 @@ export function NarrativeEventTimelineView({
               {entry.selection.version} ·{" "}
               {entry.eligibility.state === "eligible"
                 ? "当前正式采用（不是语义认证）"
-                : "候选／失效／历史，不作当前正式输入"}
+                : "AI 草稿／失效／历史，不作当前正式输入"}
             </div>
             <div role="cell">
               {entry.eventTimeline ? (
@@ -85,7 +86,7 @@ export function NarrativeStoryHierarchyView({
   if (!directory.available)
     return (
       <p role="alert">
-        当前章节／卷／故事弧归属未完整核对，不沿旧缓存分组，不认定为空范围；原声明与原冻结来源保留。
+        当前章节／卷／故事弧归属未完整核对，不沿旧缓存分组，不认定为空范围；原声明与原参考内容保留。
       </p>
     );
   const hierarchy = directory.available;
@@ -222,7 +223,7 @@ export function NarrativeStoryStructureView({
               <br />
               {entry.eligibility.state === "eligible"
                 ? "当前正式采用（不是语义认证）"
-                : "候选／失效／历史，不作当前正式输入"}
+                : "AI 草稿／失效／历史，不作当前正式输入"}
             </div>
             <div
               role="cell"

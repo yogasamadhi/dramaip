@@ -174,7 +174,7 @@ export function UiShowcase() {
               保留生成期间新增的线索。
             </div>
             <div className="rounded-md bg-brand-soft p-3 text-sm">
-              <p className="mb-2 font-medium text-brand-strong">AI 候选稿</p>
+              <p className="mb-2 font-medium text-brand-strong">AI 草稿</p>
               逐段选择后建立新的待确认预览。
             </div>
           </div>

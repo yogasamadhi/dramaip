@@ -520,7 +520,7 @@ export function AudioResolutionPanel({
                         <ClipSnapshot clip={change.before} />
                         {original && (
                           <>
-                            <p>原音轨冻结来源（不是当前有效性声明）</p>
+                            <p>原音轨参考内容（不是当前有效性声明）</p>
                             <AudioRevisionClipView
                               clip={original}
                               projectId={timeline.projectId}

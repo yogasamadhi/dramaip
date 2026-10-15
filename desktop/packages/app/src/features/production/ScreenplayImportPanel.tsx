@@ -224,8 +224,8 @@ export function ScreenplayImportPanel(props: {
       <h3 className="font-medium">导入本集原稿 · 原生剧本文件</h3>
       <p className="text-muted">
         仅支持
-        Fountain／FDX。预览和明确提交分开；不会覆盖原稿、自动选择故事来源、生成候选或创建小说／诊断／季纲。PDF／OCR
-        尚不支持。
+        Fountain／FDX。预览和明确提交分开；不会覆盖原稿、自动选择故事来源、生成
+        AI 草稿或创建小说／诊断／季纲。PDF／OCR 尚不支持。
       </p>
       {!binding && !unknown && (
         <Button disabled={busy} onClick={() => void choose()}>
