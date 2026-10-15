@@ -6,8 +6,15 @@ import {
   type CreativeOutcomeFact,
 } from "@dramaip/contracts/insights";
 
-/** Controlled owner-shaped receipts, never real participants, model quality or authorization. */
-export function creativeDeliveryLedgerFixture(projectId: string) {
+/**
+ * Controlled owner-shaped receipts, never real participants, model quality or authorization.
+ * Record N occurs N seconds after `anchor`; unit tests rely on the fixed default,
+ * while rolling-window E2E callers pass an anchor relative to the read's `asOf`.
+ */
+export function creativeDeliveryLedgerFixture(
+  projectId: string,
+  anchor: Date = new Date("2026-10-07T00:00:00.000Z"),
+) {
   const ids = Array.from({ length: 6 }, () => crypto.randomUUID()),
     records: ReturnType<typeof CreativeOutcomeRecordSchema.parse>[] = [];
   const add = (
@@ -16,7 +23,7 @@ export function creativeDeliveryLedgerFixture(projectId: string) {
   ) => {
     const saved = kind.endsWith("exported"),
       cursor = records.length + 1,
-      occurredAt = `2026-10-07T00:00:${String(cursor).padStart(2, "0")}.000Z`,
+      occurredAt = new Date(anchor.getTime() + cursor * 1000).toISOString(),
       fact = CreativeOutcomeFactSchema.parse({
         eventVersion: 1,
         kind,

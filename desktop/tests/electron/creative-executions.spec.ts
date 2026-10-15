@@ -230,7 +230,11 @@ test("A07 后台只读原请求台账：实际空记录、受控四阶段界面�
       });
     await deliveryButton.click();
     await expect(deliveryResult).toContainText("覆盖率未建立，不补零");
-    const coverageFixture = creativeDeliveryLedgerFixture(project.id);
+    // The rolling window ends at the summary's asOf; keep every record a minute before it.
+    const coverageFixture = creativeDeliveryLedgerFixture(
+      project.id,
+      new Date(Date.parse(actualSummary.asOf) - 60_000),
+    );
     let coverageMode: "normal" | "fail" | "delayed" = "normal",
       coverageStarted = false;
     await page.route(

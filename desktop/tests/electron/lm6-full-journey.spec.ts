@@ -152,7 +152,7 @@ test("剧本入口直达本地规则检查，示例时间线与内部审片反�
   await page.getByRole("button", { name: "保存审阅意见" }).click();
   await expect(page.getByText("请给反应镜头多留一秒。")).toBeVisible();
   await page
-    .getByRole("combobox", { name: "决定", exact: true })
+    .getByRole("combobox", { name: "审片决定", exact: true })
     .selectOption("request_changes");
   await page.getByLabel("决定说明（可选）").fill("补充反应镜头。");
   await page.getByRole("button", { name: "保存审片决定" }).click();
