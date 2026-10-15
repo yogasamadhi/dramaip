@@ -329,7 +329,7 @@ export function AudioResolutionPanel({
                 </legend>
                 <ClipSnapshot clip={item.clip} />
                 {item.reasons.map((reason) => (
-                  <p key={reason} className="text-amber-700">
+                  <p key={reason} className="text-warning-strong">
                     {reason}
                   </p>
                 ))}
@@ -376,7 +376,7 @@ export function AudioResolutionPanel({
                       </select>
                     </label>
                     {!item.replacements.length && (
-                      <p className="text-amber-700">
+                      <p className="text-warning-strong">
                         没有满足来源、类型、对应谱系及源偏移＋时长的有效采用片段。请先明确修订并采用音轨，或裁切后重新审查；不会自动缩短或猜映射。
                       </p>
                     )}
@@ -492,7 +492,7 @@ export function AudioResolutionPanel({
                 </p>
               ))}
               {value.reasons.map((reason) => (
-                <p key={reason} className="text-amber-700">
+                <p key={reason} className="text-warning-strong">
                   {reason}
                 </p>
               ))}
@@ -559,7 +559,7 @@ export function AudioResolutionPanel({
                             </p>
                           </>
                         ) : (
-                          <p className="whitespace-pre-wrap break-words text-amber-700">
+                          <p className="whitespace-pre-wrap break-words text-warning-strong">
                             仅移除此时间线引用：
                             {change.input.action === "remove"
                               ? change.input.reason

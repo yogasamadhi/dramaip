@@ -345,10 +345,8 @@ export function TaskPage() {
   return (
     <section className="space-y-5">
       <WorkspaceIntro
-        eyebrow="执行与恢复"
         title="任务中心"
         description="先处理待确认结果和异常任务；运行配置仅在新建任务时展开。"
-        badge={projectId ? "当前项目" : "全部项目"}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">

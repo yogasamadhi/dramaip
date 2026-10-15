@@ -69,7 +69,7 @@ export function AudioRevisionClipView({
         />
       )}
       {clip.assetId && !available && (
-        <p className="text-amber-700">
+        <p className="text-warning-strong">
           没有与项目归属及冻结版本一致的实际音频；不能用当前素材冒充原音频。请另行审阅实际文件，未审阅时不要确认。
         </p>
       )}
@@ -289,7 +289,7 @@ export function AudioRevisionPanel({
         </p>
       )}
       {track.supersededBy && (
-        <p className="break-words text-amber-700">
+        <p className="break-words text-warning-strong">
           另行采用的新轨：{track.supersededBy}
           。旧轨保留，旧时间线引用仍须单独处理。
         </p>
@@ -547,7 +547,7 @@ export function AudioRevisionPanel({
                   : "来源或竞争头已变，禁止确认"}
               </p>
               {value.reasons.map((reason) => (
-                <p key={reason} className="text-amber-700">
+                <p key={reason} className="text-warning-strong">
                   {reason}
                 </p>
               ))}

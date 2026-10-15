@@ -235,7 +235,7 @@ export function MediaByteReceipts({
       {working && <p role="status">正在核对原字节凭证…</p>}
       {items && <MediaByteReceiptView items={items} />}
       {notice && (
-        <p role="alert" className="text-amber-800">
+        <p role="alert" className="text-warning-strong">
           {notice}
         </p>
       )}

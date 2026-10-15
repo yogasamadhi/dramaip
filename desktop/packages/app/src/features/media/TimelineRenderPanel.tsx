@@ -450,7 +450,7 @@ function RenderPanelBody({
       </div>
       {pending && (
         <div
-          className="space-y-2 rounded border border-amber-300 p-3 text-xs"
+          className="space-y-2 rounded border border-warning/40 p-3 text-xs"
           data-testid="timeline-render-pending-request"
         >
           <p>
@@ -591,7 +591,7 @@ function RenderPanelBody({
         </p>
       )}
       {error && (
-        <p className="break-words text-xs text-amber-700" role="alert">
+        <p className="break-words text-xs text-warning-strong" role="alert">
           {error}
         </p>
       )}

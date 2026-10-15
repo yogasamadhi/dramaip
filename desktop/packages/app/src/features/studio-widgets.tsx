@@ -303,7 +303,7 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
         </p>
       )}
       {staleMarks.length > 0 && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="mt-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-strong">
           <p className="font-medium">待重新核对</p>
           <p className="mt-1">
             {staleMarks
@@ -346,7 +346,10 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
                   </p>
                   {(item.sourceState === "stale" ||
                     item.sourceState === "missing") && (
-                    <p role="alert" className="mt-1 text-xs text-amber-800">
+                    <p
+                      role="alert"
+                      className="mt-1 text-xs text-warning-strong"
+                    >
                       {item.sourceState === "missing"
                         ? "来源章节不可用，不能采用此建议。"
                         : "来源版本已变化，不能采用此建议；历史草案仍保留，请核对当前章节后重新生成。"}
@@ -406,7 +409,7 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
                 </div>
               </div>
               {item.conflictNotes.length > 0 && (
-                <p className="mt-2 text-xs text-amber-800">
+                <p className="mt-2 text-xs text-warning-strong">
                   冲突：{item.conflictNotes.join("；")}
                 </p>
               )}
@@ -851,13 +854,13 @@ export function CreativeCaseStudyCard(props: { item: CreativeCaseStudy }) {
           </BareButton>
         )}
         <BareButton
-          className="rounded-md border border-line px-2 py-1 text-xs text-red-600"
+          className="rounded-md border border-line px-2 py-1 text-xs text-danger-strong"
           onClick={() => void remove()}
         >
           删除
         </BareButton>
       </div>
-      {notice && <p className="mt-2 text-xs text-red-600">{notice}</p>}
+      {notice && <p className="mt-2 text-xs text-danger-strong">{notice}</p>}
     </article>
   );
 }
@@ -1085,7 +1088,7 @@ export function AgentChangePreviewCard(props: {
         </div>
       )}
       {status === "conflicted" && (
-        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="mt-3 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-strong">
           <p>
             正式内容已有更新，本预览不会覆盖新版本。请重新读取最新内容，再从原任务生成新的差异预览。
           </p>
@@ -1180,7 +1183,7 @@ export function AgentProviderActionPreviewCard(props: {
     return (
       <p
         role={actual.error ? "alert" : "status"}
-        className="mt-3 text-sm text-amber-800"
+        className="mt-3 text-sm text-warning-strong"
       >
         {actual.error
           ? message(actual.error)
@@ -1305,7 +1308,7 @@ function ReviewedProviderActionCard(props: {
   return (
     <section
       aria-label="实际厂商调用预览"
-      className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3"
+      className="mt-3 rounded-lg border border-warning/40 bg-warning-soft p-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -1314,7 +1317,7 @@ function ReviewedProviderActionCard(props: {
             读取实际记录后另行确认才会调用远程服务；生成建议或内容采用不构成费用与权利授权。
           </p>
         </div>
-        <span className="rounded-full bg-surface-raised px-2 py-1 text-xs text-amber-800">
+        <span className="rounded-full bg-surface-raised px-2 py-1 text-xs text-warning-strong">
           {providerReviewStatusLabel(props.preview.status)}
         </span>
       </div>
@@ -1338,7 +1341,7 @@ function ReviewedProviderActionCard(props: {
         估值（包括零）不等于真实报价或实际账单；实际费用与合法授权仍须相应证据。
       </p>
       <details className="mt-3 rounded-md bg-surface-raised/80 p-3">
-        <summary className="cursor-pointer text-sm font-medium text-amber-800">
+        <summary className="cursor-pointer text-sm font-medium text-warning-strong">
           查看实际记录参数
         </summary>
         <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6 text-ink">
@@ -1348,7 +1351,7 @@ function ReviewedProviderActionCard(props: {
       {props.preview.status === "pending" && (
         <div className="mt-3 flex flex-wrap gap-2">
           <BareButton
-            className="rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-lg bg-warning px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             disabled={!estimate.known || execute.isPending || discard.isPending}
             onClick={() => void confirmExecution()}
           >
@@ -1364,12 +1367,12 @@ function ReviewedProviderActionCard(props: {
         </div>
       )}
       {props.preview.status === "pending" && !estimate.known && (
-        <p className="mt-3 text-xs leading-5 text-amber-800">
+        <p className="mt-3 text-xs leading-5 text-warning-strong">
           预估费用或币种未知，远程任务已禁用。须重新取得明确记录并另行确认；此状态不推断实际账单为零。
         </p>
       )}
       {notice && (
-        <p role="alert" className="mt-3 text-xs leading-5 text-amber-800">
+        <p role="alert" className="mt-3 text-xs leading-5 text-warning-strong">
           {notice}
         </p>
       )}
@@ -2468,7 +2471,7 @@ export function PluginResourceWorkspace(props: {
               </div>
             )}
           {actionError && (
-            <p className="mt-3 text-sm text-red-600">{actionError}</p>
+            <p className="mt-3 text-sm text-danger-strong">{actionError}</p>
           )}
           <div className="mt-4 flex justify-end">
             <BareButton
@@ -2523,7 +2526,7 @@ export function PluginResourceWorkspace(props: {
             </p>
           )}
           {templateMissing.length > 0 && (
-            <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-800">
+            <p className="mt-3 rounded-lg bg-warning-soft p-2 text-sm text-warning-strong">
               尚未填写：{templateMissing.join("、")}。对应位置会以空文本渲染。
             </p>
           )}
@@ -2545,9 +2548,11 @@ export function PluginResourceWorkspace(props: {
           </div>
         </section>
       )}
-      {error && <p className="mt-4 text-sm text-red-600">{message(error)}</p>}
+      {error && (
+        <p className="mt-4 text-sm text-danger-strong">{message(error)}</p>
+      )}
       {actionError && !editor && (
-        <p className="mt-4 text-sm text-red-600">{actionError}</p>
+        <p className="mt-4 text-sm text-danger-strong">{actionError}</p>
       )}
       {actionNotice && (
         <p className="mt-4 text-sm text-brand">{actionNotice}</p>
@@ -2592,7 +2597,7 @@ export function PluginResourceWorkspace(props: {
                     编辑
                   </BareButton>
                   <BareButton
-                    className="rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                    className="rounded-md px-2 py-1 text-xs text-danger-strong hover:bg-danger-soft"
                     onClick={() => void remove(item)}
                   >
                     删除

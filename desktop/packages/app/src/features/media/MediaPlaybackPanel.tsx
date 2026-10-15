@@ -204,7 +204,7 @@ export function MediaPlaybackPanel(props: {
       )}
       {notice && <p role="status">{notice}</p>}
       {error && (
-        <p role="alert" className="text-amber-700">
+        <p role="alert" className="text-warning-strong">
           {error}
         </p>
       )}

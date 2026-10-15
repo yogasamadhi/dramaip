@@ -42,6 +42,24 @@ describe("LM7 desktop UI architecture", () => {
     expect(read("./styles.css")).not.toContain('class*="');
   });
 
+  test("renderer UI uses semantic color tokens and a 12px minimum text size", () => {
+    const glob = new Bun.Glob("**/*.tsx");
+    const offenders: string[] = [];
+    for (const file of glob.scanSync({
+      cwd: new URL(".", import.meta.url).pathname,
+    })) {
+      const source = read(`./${file}`);
+      if (
+        /(?<![\w-])(?:bg|text|border|ring|from|to)-(?:amber|red|orange|yellow|emerald|green|rose)-\d+/.test(
+          source,
+        ) ||
+        /text-\[(?:[0-9]|1[01])px\]/.test(source)
+      )
+        offenders.push(file);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   test("navigation and design-token limits remain stable", () => {
     const shell = read("./app-shell.tsx");
     const studio = read("./studio-shell.tsx");

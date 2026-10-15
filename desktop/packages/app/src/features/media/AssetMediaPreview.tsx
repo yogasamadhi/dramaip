@@ -100,7 +100,7 @@ export function AssetMediaPreview(props: {
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-1 text-xs text-amber-700">
+        <p role="alert" className="mt-1 text-xs text-warning-strong">
           {error}
         </p>
       )}

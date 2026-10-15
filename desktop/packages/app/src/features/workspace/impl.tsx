@@ -117,6 +117,7 @@ import {
   type SourceImportAttempt,
 } from "../../source-import-binding";
 import { NovelChapterWorkspace } from "../novel/NovelChapterWorkspace";
+import { PipelineStepper } from "../../pipeline-stepper";
 import { NovelStoryPresetPicker } from "../novel/NovelStoryPresetPicker";
 import {
   NovelArtifactGenerator,
@@ -172,10 +173,8 @@ export function SearchPage() {
   return (
     <section className="mx-auto max-w-5xl">
       <WorkspaceIntro
-        eyebrow="全局搜索"
         title="查找项目资料"
-        description="搜索项目、章节与全部创作、制作、审核资料，快速回到正在推进的内容。"
-        badge="统一资料库"
+        description="搜索项目、章节与创作、制作、审核资料。"
       />
       <div className="mt-5 flex gap-3 rounded-xl border border-line bg-surface p-4">
         <input
@@ -195,7 +194,7 @@ export function SearchPage() {
           {loading ? "搜索中…" : "搜索"}
         </BareButton>
       </div>
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-danger-strong">{error}</p>}
       {searchedQuery && (
         <p className="mt-5 text-sm text-muted">
           “{searchedQuery}” 共找到 {results.length} 条结果
@@ -332,7 +331,7 @@ export function ProjectPackageImportPanel(props: {
             />
           </label>
           {preview.warnings.map((warning) => (
-            <p key={warning} className="mt-2 text-xs text-amber-800">
+            <p key={warning} className="mt-2 text-xs text-warning-strong">
               注意：{warning}
             </p>
           ))}
@@ -889,7 +888,7 @@ function ProjectHomeContinueCard(props: { project: Project }) {
         </span>
       </div>
       {cockpit.blockers.length > 0 && (
-        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="mt-3 rounded-lg bg-warning-soft p-3 text-sm text-warning-strong">
           {cockpit.blockers.join("；")}
         </p>
       )}
@@ -1524,10 +1523,8 @@ export function ProjectHome() {
   return (
     <div className="space-y-6">
       <WorkspaceIntro
-        eyebrow="尽意 DramaIP · 本地创作"
         title="项目工作台"
         description="提供创意或导入来源，由 AI 规划、生成与修订，你来审阅和决定。"
-        badge="项目管理"
       />
       {projects.length ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2099,7 +2096,7 @@ export function ProjectHome() {
                           }
                         />
                         {!positiveInteger(brief.targetChapterCount) && (
-                          <span className="text-xs text-red-600">
+                          <span className="text-xs text-danger-strong">
                             请输入正整数
                           </span>
                         )}
@@ -2114,7 +2111,7 @@ export function ProjectHome() {
                           }
                         />
                         {!positiveInteger(brief.targetSeasonCount) && (
-                          <span className="text-xs text-red-600">
+                          <span className="text-xs text-danger-strong">
                             请输入正整数
                           </span>
                         )}
@@ -2132,7 +2129,7 @@ export function ProjectHome() {
                           }
                         />
                         {!positiveInteger(brief.targetEpisodesPerSeason) && (
-                          <span className="text-xs text-red-600">
+                          <span className="text-xs text-danger-strong">
                             请输入正整数
                           </span>
                         )}
@@ -2154,7 +2151,7 @@ export function ProjectHome() {
                           !/^\s*[1-9]\d*(?:\s*分钟)?\s*$/u.test(
                             brief.episodeDuration,
                           ) && (
-                            <span className="text-xs text-red-600">
+                            <span className="text-xs text-danger-strong">
                               请输入正整数分钟数
                             </span>
                           )}
@@ -2172,7 +2169,7 @@ export function ProjectHome() {
                           }
                         />
                         {!positiveInteger(brief.targetEpisodeCount) && (
-                          <span className="text-xs text-red-600">
+                          <span className="text-xs text-danger-strong">
                             请输入正整数
                           </span>
                         )}
@@ -2396,7 +2393,7 @@ export function ProjectHome() {
                       {projectModeLabel(project.mode)}
                     </span>
                     {project.id === session.activeProjectId && (
-                      <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+                      <span className="inline-flex rounded-full bg-success-soft px-3 py-1 text-xs font-medium text-success-strong">
                         当前项目
                       </span>
                     )}
@@ -2416,7 +2413,7 @@ export function ProjectHome() {
                   </p>
                 </Link>
                 <BareButton
-                  className="mt-5 text-xs text-muted hover:text-red-600"
+                  className="mt-5 text-xs text-muted hover:text-danger-strong"
                   onClick={() => void trashProject(project)}
                 >
                   移入回收站
@@ -3611,7 +3608,7 @@ export function ProjectWorkspace() {
           <h1 className="max-w-40 truncate text-sm font-semibold lg:max-w-56">
             {project.title}
           </h1>
-          <p className="text-[11px] text-muted">{chapters.length} 章</p>
+          <p className="text-xs text-muted">{chapters.length} 章</p>
         </div>
         <nav
           className="studio-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
@@ -3966,7 +3963,7 @@ export function ProjectCockpitPanel(props: {
   });
   if (graphError || taskError)
     return (
-      <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+      <p className="rounded-xl bg-danger-soft p-4 text-sm text-danger-strong">
         项目驾驶舱暂时无法读取真实状态：{message(graphError ?? taskError)}
       </p>
     );
@@ -4062,43 +4059,20 @@ export function ProjectCockpitPanel(props: {
         </p>
       )}
       {cockpit.gates && (
-        <div
-          aria-label={
+        <PipelineStepper
+          className="mt-4"
+          label={
             novelOnly
               ? "小说结果 Gate"
               : directOnly
                 ? "直写结果 Gate"
                 : "改编结果 Gate"
           }
-          className={
-            directOnly
-              ? "mt-4 grid gap-3 md:grid-cols-2"
-              : adaptationOnly
-                ? "mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
-                : "mt-4 grid gap-3 md:grid-cols-3"
+          steps={cockpit.gates}
+          linkLabel={
+            novelOnly ? "返回相关稿件与资料" : "返回本阶段正式来源与成果"
           }
-        >
-          {cockpit.gates.map((gate) => (
-            <article
-              key={gate.id}
-              aria-label={gate.label}
-              data-gate-status={gate.status}
-              className="rounded-xl border border-line bg-surface-raised p-4"
-            >
-              <h3 className="text-sm font-semibold">{gate.label}</h3>
-              <p className="mt-2 text-sm font-medium text-brand">
-                {gate.statusLabel}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-muted">{gate.detail}</p>
-              <Link
-                to={gate.to}
-                className="mt-3 inline-block text-xs font-medium text-brand underline"
-              >
-                {novelOnly ? "返回相关稿件与资料" : "返回本阶段正式来源与成果"}
-              </Link>
-            </article>
-          ))}
-        </div>
+        />
       )}
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
         <article
@@ -4150,7 +4124,7 @@ export function ProjectCockpitPanel(props: {
             ))}
           </dl>
           {cockpit.blockers.length > 0 && (
-            <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="mt-3 rounded-lg bg-warning-soft p-3 text-sm text-warning-strong">
               <p className="font-medium">当前阻断项</p>
               <ul className="mt-1 list-disc space-y-1 pl-5">
                 {cockpit.blockers.map((blocker) => (
@@ -4734,7 +4708,7 @@ export function ProjectPilotPanel(props: {
               </label>
             ))}
             {!props.chapters.length && (
-              <p className="text-sm text-amber-800">
+              <p className="text-sm text-warning-strong">
                 请先导入或写入至少一个章节。
               </p>
             )}
@@ -4778,7 +4752,9 @@ export function ProjectPilotPanel(props: {
                 {active.sourceConfirmed ? "来源已确认" : "尚未确认来源"}
               </p>
               {active.blocker && (
-                <p className="mt-2 text-sm text-amber-800">{active.blocker}</p>
+                <p className="mt-2 text-sm text-warning-strong">
+                  {active.blocker}
+                </p>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -4829,7 +4805,7 @@ export function ProjectPilotPanel(props: {
               )}
               {active.status !== "canceled" && (
                 <BareButton
-                  className="rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-600"
+                  className="rounded-md border border-danger/25 px-3 py-1.5 text-xs text-danger-strong"
                   disabled={working}
                   onClick={() => void act(active, "cancel")}
                 >
@@ -5554,14 +5530,14 @@ export function SourceImportPanel(props: {
               {preview.warnings.map((warning) => (
                 <p
                   key={warning}
-                  className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800"
+                  className="rounded-lg bg-warning-soft p-2 text-xs text-warning-strong"
                 >
                   {importWarning(warning)}
                 </p>
               ))}
               {(duplicates.chapters.length > 0 ||
                 duplicates.episodes.length > 0) && (
-                <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+                <p className="rounded-lg bg-warning-soft p-2 text-xs text-warning-strong">
                   发现重复内容：
                   {duplicates.chapters.length
                     ? `${duplicates.chapters.length} 个同名章节`
@@ -5628,7 +5604,7 @@ export function SourceImportPanel(props: {
                           }
                         />
                         <BareButton
-                          className="rounded-lg border border-red-200 px-2 text-xs text-red-600 disabled:opacity-50"
+                          className="rounded-lg border border-danger/25 px-2 text-xs text-danger-strong disabled:opacity-50"
                           disabled={
                             preview.chapters.length <= 1 ||
                             Boolean(attempt) ||
@@ -5978,7 +5954,7 @@ export function ImportExtractionReviewPanel(props: {
                   </div>
                 </div>
                 {changeSet.errorMessage && (
-                  <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+                  <p className="mt-3 rounded-lg bg-warning-soft p-2 text-xs text-warning-strong">
                     {changeSet.errorMessage}
                   </p>
                 )}
@@ -6059,7 +6035,7 @@ export function ImportExtractionReviewPanel(props: {
                               </blockquote>
                             ))}
                             {candidate.conflictNote && (
-                              <p className="mt-2 text-xs text-amber-800">
+                              <p className="mt-2 text-xs text-warning-strong">
                                 {candidate.conflictNote}
                               </p>
                             )}
@@ -6221,7 +6197,9 @@ export function ContentVersionPanel(props: {
           导入或恢复前自动保存的版本；恢复时会再保存当前内容，方便回退。
         </p>
       </div>
-      {error && <p className="mt-3 text-sm text-red-600">{message(error)}</p>}
+      {error && (
+        <p className="mt-3 text-sm text-danger-strong">{message(error)}</p>
+      )}
       {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
       <div className="mt-3 space-y-2">
         {versions.slice(0, 8).map((item) => {
@@ -6558,14 +6536,14 @@ export function StoryBibleSidecar(props: {
           )}
           {recordsError && (
             <p
-              className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-amber-900"
+              className="mt-3 rounded-md bg-warning-soft p-2 text-xs text-warning-strong"
               role="alert"
             >
               本地 Story Bible 暂不可读取；正文编辑与保存不受影响。
             </p>
           )}
           {model.staleMarks.length > 0 && (
-            <p className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+            <p className="mt-3 rounded-md bg-warning-soft p-2 text-xs text-warning-strong">
               待复核：{model.staleMarks.map((mark) => mark.reason).join("；")}
             </p>
           )}
@@ -6635,7 +6613,7 @@ export function StoryBibleSidecar(props: {
                     )}
                   </p>
                   {item.conflictNotes.length > 0 && (
-                    <p className="mt-1 text-amber-800">
+                    <p className="mt-1 text-warning-strong">
                       冲突：{item.conflictNotes.join("；")}
                     </p>
                   )}

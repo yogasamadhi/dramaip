@@ -24,10 +24,8 @@ export function CreativeWorkspace() {
   return (
     <div className="space-y-5">
       <WorkspaceIntro
-        eyebrow="小说与故事开发"
-        title="创作工作区"
-        description="把故事圣经、章节分析、人物关系和创意诊断集中在同一个上下文中。"
-        badge="智能创作"
+        title="创作分析"
+        description="故事圣经、章节分析、人物关系和创意诊断集中在一处。"
       />
       {projectId && (
         <NarrativePlanningWorkbench

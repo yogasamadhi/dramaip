@@ -576,7 +576,7 @@ export function TimelinePlaybackPanel(props: {
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-2 text-amber-700">
+        <p role="alert" className="mt-2 text-warning-strong">
           {error}
         </p>
       )}

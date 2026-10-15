@@ -77,7 +77,7 @@ export function BackupPanel() {
         </BareButton>
       </div>
       {(error || create.error || restore.error) && (
-        <p className="mt-3 text-sm text-red-600">
+        <p className="mt-3 text-sm text-danger-strong">
           {message(error ?? create.error ?? restore.error)}
         </p>
       )}
@@ -269,7 +269,9 @@ export function GenerationLedgerPanel() {
           </select>
         </label>
       </div>
-      {error && <p className="mt-3 text-sm text-red-600">{message(error)}</p>}
+      {error && (
+        <p className="mt-3 text-sm text-danger-strong">{message(error)}</p>
+      )}
       <div className="mt-4 space-y-2">
         {!error &&
           records
@@ -739,7 +741,7 @@ export function ProviderSettingsPanel(props: {
         </div>
 
         {credentialStorage?.available === false && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-amber-700">
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-warning-strong">
             <span>
               {credentialStorage.message ??
                 "本地凭据库不可用，当前不能新增或更换接口密钥，也不会降级保存明文。"}
@@ -747,7 +749,7 @@ export function ProviderSettingsPanel(props: {
             {credentialStorage.locked &&
               credentialStorage.storage === "master_password" && (
                 <BareButton
-                  className="rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                  className="rounded-lg border border-warning/50 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                   disabled={unlockCredentialVault.isPending}
                   onClick={() => unlockCredentialVault.mutate()}
                 >
@@ -759,7 +761,7 @@ export function ProviderSettingsPanel(props: {
           </div>
         )}
         {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-danger-strong">{error}</p>}
 
         <div className="mt-5 grid gap-3 lg:grid-cols-2">
           {providers.map((provider) => {
@@ -804,7 +806,7 @@ export function ProviderSettingsPanel(props: {
                       </BareButton>
                     )}
                     <BareButton
-                      className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600"
+                      className="rounded-md border border-danger/25 px-2 py-1 text-xs text-danger-strong"
                       onClick={() => void removeProvider(provider)}
                     >
                       删除服务商
@@ -881,7 +883,7 @@ function SmartCreationPreparation(props: { testedProviderId?: string }) {
         </div>
       )}
       {runnableEngine ? (
-        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+        <div className="mt-4 rounded-lg border border-success/25 bg-success-soft p-3 text-sm text-success-strong">
           <p>
             已刷新确认 {runnableEngine.name}{" "}
             可以运行。正式内容仍未修改，可以安全返回。
@@ -895,7 +897,7 @@ function SmartCreationPreparation(props: { testedProviderId?: string }) {
           </Button>
         </div>
       ) : (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="mt-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-strong">
           <p>
             {isFetching
               ? "正在刷新智能引擎状态…"
@@ -948,10 +950,8 @@ export function SettingsPage() {
   return (
     <div className="space-y-5">
       <WorkspaceIntro
-        eyebrow="应用与智能能力"
         title="设置中心"
         description="先配置模型服务商，再管理智能引擎、备份、诊断和外部连接。"
-        badge="安全配置"
       />
       <nav
         className="sticky top-2 z-10 flex flex-wrap gap-1 rounded-lg border border-line bg-surface/95 p-1.5 shadow-control backdrop-blur"
@@ -1212,7 +1212,7 @@ export function AgentEngineSettingsPanel() {
             </div>
             <p className="mt-1 text-xs text-muted">版本 {engine.version}</p>
             <p
-              className={`mt-2 text-sm ${engine.status === "available" ? "text-emerald-700" : "text-amber-700"}`}
+              className={`mt-2 text-sm ${engine.status === "available" ? "text-success-strong" : "text-warning-strong"}`}
             >
               {engine.status === "available"
                 ? "运行正常"
@@ -1436,7 +1436,7 @@ export function AgentEngineSettingsPanel() {
           </div>
         )}
         {credentialStorage?.available === false && (
-          <p className="mt-3 text-xs text-amber-700">
+          <p className="mt-3 text-xs text-warning-strong">
             本地凭据库不可用，Codex 登录已禁用；应用不会降级保存明文凭据。
           </p>
         )}

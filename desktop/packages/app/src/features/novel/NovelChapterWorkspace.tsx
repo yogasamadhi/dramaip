@@ -829,7 +829,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                           >
                             {chapter.title}
                           </span>
-                          <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+                          <span className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                             <span>
                               {status?.words ??
                                 countCharacters(chapter.content)}{" "}
@@ -2104,7 +2104,7 @@ function NovelEditor(
             }}
           />
           <span
-            className={`text-xs ${saveState === "error" ? "text-red-600" : "text-muted"}`}
+            className={`text-xs ${saveState === "error" ? "text-danger-strong" : "text-muted"}`}
           >
             {saveStateLabel(saveState)}
           </span>
@@ -2173,7 +2173,7 @@ function NovelEditor(
         </header>
 
         {recovery && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+          <div className="flex flex-wrap items-center gap-3 border-b border-warning/25 bg-warning-soft px-5 py-3 text-sm text-warning-strong">
             <span className="min-w-0 flex-1">
               发现 {new Date(recovery.updatedAt).toLocaleString("zh-CN")}{" "}
               的未保存草稿。
@@ -2190,7 +2190,7 @@ function NovelEditor(
           </div>
         )}
         {saveError && (
-          <div className="border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">
+          <div className="border-b border-danger/20 bg-danger-soft px-5 py-2 text-sm text-danger-strong">
             {saveError}　
             <BareButton
               className="font-medium underline"
@@ -3230,7 +3230,7 @@ function WritingPanel(props: {
                 归档
               </BareButton>
               <BareButton
-                className="rounded px-2 py-1 text-left text-red-600 hover:bg-surface-muted"
+                className="rounded px-2 py-1 text-left text-danger-strong hover:bg-surface-muted"
                 onClick={props.onDeleteConversation}
               >
                 删除
@@ -3311,7 +3311,7 @@ function WritingPanel(props: {
       )}
       <div ref={assistantScroll.endRef} aria-hidden="true" />
       {!runnable && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="rounded-xl border border-warning/25 bg-warning-soft p-3 text-sm text-warning-strong">
           <p>
             {props.selectedEngine?.statusMessage ?? "当前引擎尚不能启动任务"}
           </p>
@@ -3372,7 +3372,7 @@ function WritingPanel(props: {
               "committing",
             ].includes(props.activeRun.status) && (
               <BareButton
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600"
+                className="rounded-lg border border-danger/25 px-3 py-1.5 text-xs text-danger-strong"
                 onClick={props.onInterrupt}
               >
                 中断生成
@@ -3429,7 +3429,7 @@ function WritingPanel(props: {
           placeholder="直接聊天或交代任务。Enter 发送，Shift+Enter 换行。"
         />
         <div className="flex items-center justify-between gap-2 border-t border-line px-2 pt-2">
-          <span className="text-[11px] text-muted">
+          <span className="text-xs text-muted">
             本轮会带入当前章节{props.selectedText ? "和选区" : ""}
           </span>
           <Button
@@ -3469,7 +3469,7 @@ function AssistantConversationTimeline(props: {
           <article key={turn.id} className="space-y-2">
             <div className="ml-7 rounded-xl rounded-tr-sm bg-studio-dark px-3 py-2 text-sm leading-6 text-white">
               <p className="whitespace-pre-wrap">{turn.userMessage}</p>
-              <p className="mt-1 text-[10px] text-white/60">
+              <p className="mt-1 text-xs text-white/60">
                 {turn.chapterId
                   ? `章节 ${turn.chapterId.slice(0, 8)}`
                   : "通用上下文"}
@@ -3568,11 +3568,11 @@ function DiffDialog(props: {
   }, [mode, selectedContent]);
   const blockClass = (block: SegmentedDiffBlock) =>
     block.kind === "add"
-      ? "border-emerald-200 bg-emerald-50"
+      ? "border-success/25 bg-success-soft"
       : block.kind === "remove"
-        ? "border-red-200 bg-red-50"
+        ? "border-danger/25 bg-danger-soft"
         : block.kind === "replace"
-          ? "border-amber-200 bg-amber-50"
+          ? "border-warning/25 bg-warning-soft"
           : "border-transparent";
   return (
     <Dialog
@@ -3666,7 +3666,7 @@ function DiffDialog(props: {
                       </label>
                     )}
                     {block.before && changed && (
-                      <p className="mb-2 whitespace-pre-wrap font-editor text-sm leading-7 text-red-700 line-through">
+                      <p className="mb-2 whitespace-pre-wrap font-editor text-sm leading-7 text-danger-strong line-through">
                         {block.before}
                       </p>
                     )}

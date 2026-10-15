@@ -351,14 +351,12 @@ function AdaptationWorkspaceInstance(props: {
   return (
     <section className="space-y-5">
       <WorkspaceIntro
-        eyebrow={originalScriptProject ? "原创剧本开发" : "改编生产链路"}
         title={originalScriptProject ? "从创意到分集剧本" : "从故事到单集开发"}
         description={
           originalScriptProject
-            ? "从保存的故事构思与创作方向开始，生成本集剧本候选；由你审阅采用，不要求先写小说或生成媒体。"
-            : "按诊断、独立策略、季纲与单集开发逐步审阅采用；分镜和媒体按需选择，历史记录与旧生成入口保留在兼容路径。"
+            ? "从故事构思直接生成分集剧本，不必先写小说。"
+            : "按诊断、策略、季纲、单集剧本逐步推进，每一步由你确认。"
         }
-        badge={originalScriptProject ? "不经过小说阶段" : "结构化改编"}
       />
       <WorkspaceObjectControls
         projectTitle={directScriptContext ? undefined : selectedProject?.title}
@@ -1025,7 +1023,7 @@ export function EpisodePacingPanel(props: {
                         key={point.id}
                         className={
                           point.stale
-                            ? "rounded-md bg-amber-50 p-2 text-amber-800"
+                            ? "rounded-md bg-warning-soft p-2 text-warning-strong"
                             : "rounded-md bg-canvas p-2"
                         }
                       >

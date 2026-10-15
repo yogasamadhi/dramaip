@@ -93,10 +93,8 @@ export function PendingConfirmationPage() {
   return (
     <section className="space-y-5">
       <WorkspaceIntro
-        eyebrow="审阅与恢复"
         title="待确认中心"
-        description="统一查看真实候选、独立人工／规则评议、来源声明、记忆变更、稿件／内部试制包权利确认、厂商费用预览和任务异常。列表只读元数据并返回原对象独立审阅；人工与规则不认证文学质量，打开本页不会采用内容、保存文件或授权费用。"
-        badge={projectId ? "当前项目" : "全部项目"}
+        description={`${projectId ? "当前项目" : "全部项目"}中等待你决定的 AI 草稿、声明、费用预览和异常任务；打开本页不会采用内容或授权费用。`}
       />
       {invalidProjectScope && (
         <p role="alert">指定项目引用重复／为空，未忽略或替换项目范围。</p>

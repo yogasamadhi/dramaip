@@ -637,7 +637,7 @@ function NovelResourceSection(props: {
                     编辑
                   </BareButton>
                   <BareButton
-                    className="text-red-600"
+                    className="text-danger-strong"
                     onClick={() => void remove(item)}
                   >
                     删除
@@ -1203,7 +1203,7 @@ export function NovelArtifactGenerator(props: {
             </BareButton>
           </div>
           {!canRun && (
-            <p className="text-sm text-amber-800">
+            <p className="text-sm text-warning-strong">
               {selectedEngine?.statusMessage ?? "请先完成模型服务商配置。"}{" "}
               <AiSettingsLink
                 actionId={actionId}

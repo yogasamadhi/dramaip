@@ -198,7 +198,9 @@ export function MediaSourceReviewPanel(props: {
     >
       <p
         className={
-          source.data?.state === "current" ? "text-muted" : "text-amber-700"
+          source.data?.state === "current"
+            ? "text-muted"
+            : "text-warning-strong"
         }
       >
         {label}
@@ -207,7 +209,7 @@ export function MediaSourceReviewPanel(props: {
           : ""}
       </p>
       {source.data?.reasons.map((reason, index) => (
-        <p key={index} className="text-amber-700">
+        <p key={index} className="text-warning-strong">
           {reason}
         </p>
       ))}
@@ -262,7 +264,7 @@ export function MediaSourceReviewPanel(props: {
               version={value?.recordVersion ?? record.data.version}
             />
           ) : (
-            <p className="text-amber-700">
+            <p className="text-warning-strong">
               实际身份或冻结版本尚未核对，不能读取其他对象替代原媒体；元数据不代替实际素材审阅。
             </p>
           )}
@@ -330,14 +332,14 @@ export function MediaSourceReviewPanel(props: {
                     : "已放弃"}
               </p>
               {value.staleReasons.map((reason, index) => (
-                <p key={index} className="text-amber-700">
+                <p key={index} className="text-warning-strong">
                   {reason}
                 </p>
               ))}
               {value.state === "pending" && (
                 <>
                   {!exact && (
-                    <p className="text-amber-700">
+                    <p className="text-warning-strong">
                       当前内容与冻结版本不一致，不能确认这份旧预览。
                     </p>
                   )}
@@ -391,7 +393,7 @@ export function MediaSourceReviewPanel(props: {
             shot.error ||
             history.error ||
             selected.error) && (
-            <p role="alert" className="text-red-600">
+            <p role="alert" className="text-danger-strong">
               {error ??
                 message(
                   record.error ?? shot.error ?? history.error ?? selected.error,

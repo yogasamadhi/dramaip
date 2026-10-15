@@ -8,6 +8,7 @@ import type {
   RevisionPreview,
 } from "@dramaip/contracts/product";
 import { BareButton, PageHeader } from "@dramaip/ui-shared";
+import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useStudioClient } from "./runtime-connection";
@@ -212,21 +213,15 @@ export function useStudio(): StudioClient {
 }
 
 export function WorkspaceIntro(props: {
-  eyebrow: string;
   title: string;
-  description: string;
-  badge?: string;
+  description?: string;
+  actions?: ReactNode;
 }) {
   return (
     <PageHeader
-      eyebrow={props.eyebrow}
       title={props.title}
       description={props.description}
-      actions={
-        <span className="text-xs font-medium tracking-[0.06em] text-muted">
-          {props.badge ?? "本地工作区"}
-        </span>
-      }
+      actions={props.actions}
     />
   );
 }
@@ -256,6 +251,7 @@ export function StageNavigation(props: {
       >
         {items.map((item) => {
           const active = props.active === item.id;
+          const blocked = item.availability === "blocked";
           return (
             <BareButton
               key={item.id}
@@ -269,8 +265,9 @@ export function StageNavigation(props: {
               <span className="block">{item.label}</span>
               <span
                 id={`${props.label}-${item.id}-state`}
-                className={`mt-0.5 block text-[10px] font-normal ${item.availability === "blocked" ? "text-amber-700" : item.recommended ? "text-brand" : "text-muted"}`}
+                className={`mt-0.5 flex items-center gap-1 text-xs font-normal ${item.recommended && !blocked ? "text-brand" : "text-muted"}`}
               >
+                {blocked && <Lock aria-hidden="true" className="size-3" />}
                 {workspaceStageStateLabel(item)}
               </span>
             </BareButton>
@@ -278,11 +275,11 @@ export function StageNavigation(props: {
         })}
       </nav>
       {activeItem?.availability === "blocked" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-warning-strong">
           <p>{activeItem.reason ?? "当前阶段需要先补齐上游资料。"}</p>
           {activeItem.recoveryTarget && activeItem.recoveryLabel && (
             <Link
-              className="font-medium text-brand underline underline-offset-2"
+              className="font-medium text-link underline underline-offset-2"
               to={activeItem.recoveryTarget}
             >
               {activeItem.recoveryLabel}
@@ -348,7 +345,7 @@ export function RecoveryNotice(props: {
   return (
     <section
       role="alert"
-      className={`rounded-xl border p-4 text-sm ${props.tone === "danger" ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+      className={`rounded-xl border p-4 text-sm ${props.tone === "danger" ? "border-danger/25 bg-danger-soft text-danger-strong" : "border-warning/25 bg-warning-soft text-warning-strong"}`}
     >
       <p className="font-medium">发生了什么：{props.happened}</p>
       <p className="mt-2">已有内容：{props.contentSafety}</p>

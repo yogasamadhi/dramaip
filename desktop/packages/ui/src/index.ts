@@ -5,9 +5,11 @@ export {
   Button,
   BareButton,
   Card,
+  Disclosure,
   Field,
   IconButton,
   Input,
+  NativeSelect,
   PageHeader,
   Panel,
   Select,
@@ -30,8 +32,11 @@ export {
   InlineNotice,
   LoadingState,
   ScrollArea,
+  ToastProvider,
   confirmDialog,
+  showToast,
   type ConfirmDialogOptions,
+  type ToastOptions,
 } from "./overlays";
 export {
   THEME_STORAGE_KEY,

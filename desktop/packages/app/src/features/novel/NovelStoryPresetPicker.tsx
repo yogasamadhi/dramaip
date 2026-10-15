@@ -58,7 +58,7 @@ export function NovelStoryPresetPicker(props: {
               <span className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{preset.label}</span>
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                     active
                       ? "bg-brand text-white"
                       : "bg-surface-muted text-muted"

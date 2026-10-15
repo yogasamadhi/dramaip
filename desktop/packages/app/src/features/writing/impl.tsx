@@ -48,10 +48,8 @@ export function NovelWritingHome() {
   return (
     <div className="space-y-5">
       <WorkspaceIntro
-        eyebrow="核心工作区"
-        title="小说写作"
-        description="集中完成项目设定、人物塑造、全书大纲和章节正文，并在同一上下文中使用智能写作。"
-        badge="主要创作入口"
+        title="故事"
+        description="项目设定、人物、全书大纲和章节正文，在同一处由 AI 协助完成。"
       />
       <section className="rounded-xl border border-line bg-surface p-5 shadow-card">
         <div className="flex flex-wrap items-start justify-between gap-4">

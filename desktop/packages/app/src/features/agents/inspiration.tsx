@@ -744,7 +744,7 @@ export function InspirationSpace() {
               <span className="block truncate">
                 {item.title ?? "未命名灵感"}
               </span>
-              <span className="block text-[11px] text-muted">
+              <span className="block text-xs text-muted">
                 {MODES.find((entry) => entry.id === item.creativeMode)?.name ??
                   "自由漫游"}
               </span>
@@ -929,7 +929,7 @@ export function InspirationSpace() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <strong>{item.title}</strong>
-                  <span className="text-[10px] text-muted">
+                  <span className="text-xs text-muted">
                     {item.visibility === "public" ? "公共" : "私人"} ·{" "}
                     {item.freshness}
                   </span>
@@ -959,7 +959,7 @@ export function InspirationSpace() {
               </p>
             )}
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[11px] text-muted">
+          <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-xs text-muted">
             <span>本地私人收藏</span>
             <strong className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-ink">
               {collections.length} 条
@@ -1091,7 +1091,7 @@ export function InspirationSpace() {
                 className="rounded-xl border border-line/80 bg-surface-muted/60 p-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[11px] text-muted">
+                  <span className="truncate text-xs text-muted">
                     {FINGERPRINT_DIMENSION_LABELS[dimension.key]}
                   </span>
                   <strong className="text-sm tabular-nums">
@@ -1104,7 +1104,7 @@ export function InspirationSpace() {
                     style={{ width: `${Math.round(dimension.score * 100)}%` }}
                   />
                 </div>
-                <p className="mt-1.5 text-[10px] text-muted">
+                <p className="mt-1.5 text-xs text-muted">
                   可信度 {Math.round(dimension.confidence * 100)}%
                 </p>
               </div>
@@ -1285,7 +1285,7 @@ export function InspirationSpace() {
                       ? ` · 使用${novelStoryPreset(conversionPresetId)?.label ?? "所选"}预设`
                       : ""}
                   </p>
-                  <p className="mt-1 text-emerald-800">
+                  <p className="mt-1 text-success-strong">
                     确认前不会创建项目或修改正式资料。
                   </p>
                   <div className="mt-3 flex gap-2">
@@ -1372,7 +1372,7 @@ export function InspirationSpace() {
                 className={`rounded-xl border border-line p-3 text-xs ${memory.status === "disabled" ? "opacity-50" : ""}`}
               >
                 <p className="whitespace-pre-wrap">{memory.content}</p>
-                <div className="mt-2 flex justify-between text-[11px] text-muted">
+                <div className="mt-2 flex justify-between text-xs text-muted">
                   <span>
                     {memory.kind} · 可信度 {Math.round(memory.confidence * 100)}
                     %
@@ -1442,7 +1442,7 @@ export function InspirationSpace() {
             </Button>
           </div>
           {memoryJobs[0] ? (
-            <div className="mt-3 rounded-xl bg-subtle px-3 py-2 text-[11px] leading-5 text-muted">
+            <div className="mt-3 rounded-xl bg-subtle px-3 py-2 text-xs leading-5 text-muted">
               <p>
                 最近整理：
                 {inspirationMemoryStatus(memoryJobs[0])}

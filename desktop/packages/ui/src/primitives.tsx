@@ -389,31 +389,82 @@ export function PageHeader(props: {
   return (
     <header
       className={cn(
-        "flex min-h-20 flex-wrap items-center justify-between gap-4 border-b border-line px-1 pb-4",
+        "flex flex-wrap items-center justify-between gap-3 px-1 pb-1",
         props.className,
       )}
     >
-      <div className="max-w-3xl">
+      <div className="min-w-0 max-w-3xl">
         {props.eyebrow ? (
-          <p className="text-xs font-semibold tracking-[0.14em] text-brand-strong">
-            {props.eyebrow}
-          </p>
+          <p className="text-xs font-medium text-muted">{props.eyebrow}</p>
         ) : null}
-        <h1 className="mt-1 text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+        <h1 className="text-xl font-semibold tracking-tight text-ink">
           {props.title}
         </h1>
         {props.description ? (
-          <p className="mt-1 text-sm leading-5 text-muted">
+          <p className="mt-0.5 text-sm leading-5 text-muted">
             {props.description}
           </p>
         ) : null}
       </div>
       {props.actions ? (
-        <div className="flex items-center gap-2">{props.actions}</div>
+        <div className="flex flex-wrap items-center gap-2">{props.actions}</div>
       ) : null}
     </header>
   );
 }
+
+/**
+ * Styled native disclosure. It keeps `<details>/<summary>` semantics so
+ * keyboard behavior, `open` state and existing selectors stay unchanged; the
+ * chevron marker comes from the shared base styles.
+ */
+export function Disclosure({
+  summary,
+  summaryClassName,
+  className,
+  children,
+  ...props
+}: Omit<HTMLAttributes<HTMLDetailsElement>, "title"> & {
+  summary: ReactNode;
+  summaryClassName?: string;
+  open?: boolean;
+}) {
+  return (
+    <details
+      className={cn("ui-disclosure group text-sm text-ink", className)}
+      {...props}
+    >
+      <summary
+        className={cn(
+          "cursor-pointer select-none rounded-md py-1 font-medium text-ink hover:text-ink/80",
+          summaryClassName,
+        )}
+      >
+        {summary}
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
+/**
+ * Styled native select for forms that rely on platform select semantics
+ * (combobox role, keyboard type-ahead and `selectOption` automation).
+ */
+export const NativeSelect = forwardRef<
+  HTMLSelectElement,
+  SelectHTMLAttributes<HTMLSelectElement>
+>(({ className, ...props }, ref) => (
+  <select
+    ref={ref}
+    className={cn(
+      "ui-field h-10 w-full rounded-md border border-line-strong bg-field px-3 text-[15px] text-ink shadow-control outline-none focus:border-focus focus:ring-2 focus:ring-focus/15 disabled:cursor-not-allowed disabled:opacity-55",
+      className,
+    )}
+    {...props}
+  />
+));
+NativeSelect.displayName = "NativeSelect";
 
 const statusVariants = cva(
   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",

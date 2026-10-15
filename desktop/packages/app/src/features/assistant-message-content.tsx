@@ -353,11 +353,11 @@ export function AssistantWebSourceCards(props: {
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 transition hover:bg-surface-muted [&::-webkit-details-marker]:hidden">
         <span className="flex min-w-0 items-center gap-2">
           <span className="text-xs font-medium text-ink">来源</span>
-          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-[10px] text-muted">
+          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-muted">
             {sources.length} 条
           </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
           展开查看
           <span
             aria-hidden="true"
@@ -375,7 +375,7 @@ export function AssistantWebSourceCards(props: {
             className="min-w-0 rounded-xl border border-line bg-surface-raised p-3 text-left transition hover:border-brand/50 hover:shadow-control"
             onClick={() => props.onOpen(source.url)}
           >
-            <span className="block truncate text-[11px] font-medium text-brand-strong">
+            <span className="block truncate text-xs font-medium text-brand-strong">
               {sourceDomain(source.url)}
               {source.provider ? ` · ${source.provider}` : ""}
             </span>
@@ -387,7 +387,7 @@ export function AssistantWebSourceCards(props: {
                 {source.excerpt}
               </span>
             )}
-            <span className="mt-2 block text-[10px] text-muted">
+            <span className="mt-2 block text-xs text-muted">
               {props.verifiedUrls?.has(source.url)
                 ? "已读取正文 · "
                 : "仅搜索摘要 · "}
@@ -415,7 +415,7 @@ export function AssistantWebAccessControl(props: {
       role="switch"
       aria-checked={automatic}
       disabled={props.disabled}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${automatic ? "border-brand/25 bg-brand-soft text-brand-strong" : "border-line bg-surface-muted text-muted"} disabled:cursor-not-allowed disabled:opacity-60`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${automatic ? "border-brand/25 bg-brand-soft text-brand-strong" : "border-line bg-surface-muted text-muted"} disabled:cursor-not-allowed disabled:opacity-60`}
       onClick={() => props.onChange(automatic ? "off" : "auto")}
       title={
         props.disabled
@@ -442,7 +442,7 @@ function ActivityValue(props: { label: string; value: unknown }) {
   return (
     <div>
       <p className="font-medium text-ink">{props.label}：</p>
-      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-canvas p-2 font-mono text-[11px] leading-5 text-muted">
+      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-canvas p-2 font-mono text-xs leading-5 text-muted">
         {content}
       </pre>
     </div>

@@ -10,6 +10,7 @@ import {
   InlineNotice,
   LoadingState,
   ThemeProvider,
+  ToastProvider,
   type ResolvedTheme,
 } from "@dramaip/ui-shared";
 import { AppShell, type ShellNavigationItem } from "./app-shell";
@@ -168,22 +169,24 @@ function AppBootstrap() {
       onResolvedThemeChange={(theme) => syncNativeWindowTheme(client, theme)}
     >
       <ConfirmProvider>
-        <QueryClientProvider client={queryClient}>
-          <HashRouter>
-            <StudioSessionProvider>
-              <Suspense
-                fallback={
-                  <LoadingState
-                    label="正在加载工作区…"
-                    className="min-h-screen bg-canvas"
-                  />
-                }
-              >
-                <Studio uiContributions={runtime.uiContributions} />
-              </Suspense>
-            </StudioSessionProvider>
-          </HashRouter>
-        </QueryClientProvider>
+        <ToastProvider>
+          <QueryClientProvider client={queryClient}>
+            <HashRouter>
+              <StudioSessionProvider>
+                <Suspense
+                  fallback={
+                    <LoadingState
+                      label="正在加载工作区…"
+                      className="min-h-screen bg-canvas"
+                    />
+                  }
+                >
+                  <Studio uiContributions={runtime.uiContributions} />
+                </Suspense>
+              </StudioSessionProvider>
+            </HashRouter>
+          </QueryClientProvider>
+        </ToastProvider>
       </ConfirmProvider>
     </ThemeProvider>
   );

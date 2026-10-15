@@ -4,6 +4,7 @@ import {
   Card,
   Dialog,
   Drawer,
+  Disclosure,
   DropdownMenu,
   EmptyState,
   Field,
@@ -11,6 +12,7 @@ import {
   InlineNotice,
   Input,
   LoadingState,
+  NativeSelect,
   PageHeader,
   Panel,
   ScrollArea,
@@ -19,8 +21,10 @@ import {
   Tabs,
   Textarea,
   Toolbar,
+  showToast,
 } from "@dramaip/ui-shared";
 import { MoreHorizontal, Sparkles } from "lucide-react";
+import { PipelineStepper } from "./pipeline-stepper";
 
 /** Development-only component gallery for LM7 visual and interaction review. */
 export function UiShowcase() {
@@ -188,6 +192,61 @@ export function UiShowcase() {
           结果已应用，并建立版本检查点。
         </InlineNotice>
       </div>
+
+      <Panel className="space-y-4">
+        <PipelineStepper
+          label="流水线进度示例"
+          linkLabel="打开本步骤"
+          steps={[
+            {
+              id: "s1",
+              label: "确认来源",
+              status: "ready",
+              statusLabel: "已完成",
+              detail: "来源与作者意图已确认。",
+              to: "/__ui",
+            },
+            {
+              id: "s2",
+              label: "改编诊断",
+              status: "needs-human",
+              statusLabel: "等你确认",
+              detail: "AI 草稿已生成，等待你审阅。",
+              to: "/__ui",
+            },
+            {
+              id: "s3",
+              label: "整季方案",
+              status: "pending",
+              statusLabel: "尚未开始",
+              detail: "完成诊断后可以开始。",
+              to: "/__ui",
+            },
+          ]}
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Disclosure summary="折叠说明示例">
+            <p className="text-muted">次要说明和统计口径放在折叠区里。</p>
+          </Disclosure>
+          <NativeSelect aria-label="原生选择示例" defaultValue="a">
+            <option value="a">选项一</option>
+            <option value="b">选项二</option>
+          </NativeSelect>
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            showToast({
+              message: "已移入回收站。",
+              actionLabel: "撤销",
+              onAction: () =>
+                showToast({ message: "已恢复。", tone: "success" }),
+            })
+          }
+        >
+          显示提示示例
+        </Button>
+      </Panel>
 
       <EmptyState
         title="空状态示例"

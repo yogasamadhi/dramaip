@@ -207,10 +207,8 @@ function ReviewDeliveryWorkspaceInstance(props: {
   return (
     <section className="space-y-5">
       <WorkspaceIntro
-        eyebrow="审核交付工作区"
-        title="质量、审片与交付"
-        description="质量、合规、本地化、审片和平台交付记录统一归属到具体分集。"
-        badge="人工审核与交付"
+        title="审核交付"
+        description="按分集完成质量检查、审片和交付导出。"
       />
       <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
         <WorkspaceObjectControls
@@ -1097,7 +1095,7 @@ function PlatformDeliveryPanelInstance(props: {
       {pending && (
         <section
           data-testid="platform-metadata-pending"
-          className="rounded-xl border border-amber-400 p-3 text-sm"
+          className="rounded-xl border border-warning/50 p-3 text-sm"
         >
           <p>
             原{pending.operation === "adopt" ? "采用" : "归档"}请求待核：
@@ -1169,7 +1167,7 @@ export function PlatformDeliveryPreflightView(props: {
 }) {
   return (
     <section
-      className={`rounded-xl border p-3 text-sm ${props.preflight.ok ? "border-emerald-300 bg-emerald-50" : "border-red-300 bg-red-50"}`}
+      className={`rounded-xl border p-3 text-sm ${props.preflight.ok ? "border-success/40 bg-success-soft" : "border-danger/40 bg-danger-soft"}`}
     >
       <p className="font-medium">
         {props.preflight.ok ? "预检通过：可创建提交资料归档" : "预检未通过"}
@@ -1191,14 +1189,14 @@ export function PlatformDeliveryPreflightView(props: {
         </p>
       )}
       {props.preflight.blockers.length > 0 && (
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-red-700">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-danger-strong">
           {props.preflight.blockers.map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ul>
       )}
       {props.preflight.warnings.length > 0 && (
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-800">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-warning-strong">
           {props.preflight.warnings.map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -1413,7 +1411,7 @@ export function CompliancePreflightPanel(props: {
       </section>
       {result && (
         <section
-          className={`rounded-xl border p-3 text-sm ${result.ok ? "border-emerald-300 bg-emerald-50" : "border-red-300 bg-red-50"}`}
+          className={`rounded-xl border p-3 text-sm ${result.ok ? "border-success/40 bg-success-soft" : "border-danger/40 bg-danger-soft"}`}
         >
           <p className="font-medium">
             {result.ok ? "合规预检通过" : "合规预检未通过"}
@@ -1422,14 +1420,14 @@ export function CompliancePreflightPanel(props: {
               : ""}
           </p>
           {result.blockers.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-red-700">
+            <ul className="mt-2 list-disc pl-5 text-danger-strong">
               {result.blockers.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
           )}
           {result.warnings.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-amber-800">
+            <ul className="mt-2 list-disc pl-5 text-warning-strong">
               {result.warnings.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -1945,7 +1943,7 @@ export function ReviewEditorPanel(props: {
         />
       )}
       {timelineError && (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger-strong">
           {message(timelineError)}
         </p>
       )}
@@ -1987,7 +1985,7 @@ export function ReviewEditorPanel(props: {
                 {preflight.relinkRequiredCount} 个
               </p>
               {preflight.blockers.length > 0 && (
-                <p className="mt-1 text-red-700">
+                <p className="mt-1 text-danger-strong">
                   {preflight.blockers.join("；")}
                 </p>
               )}
@@ -2175,7 +2173,7 @@ export function ReviewEditorPanel(props: {
             {working === "同步云端意见" ? "正在同步…" : "按游标同步意见"}
           </BareButton>
           <BareButton
-            className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 disabled:opacity-50"
+            className="rounded-md border border-danger/40 px-3 py-2 text-sm text-danger-strong disabled:opacity-50"
             disabled={Boolean(working) || !cloudBinding}
             onClick={() => void deleteCloudReview()}
           >
@@ -2183,7 +2181,7 @@ export function ReviewEditorPanel(props: {
           </BareButton>
         </div>
         {credentialStorage?.available === false && (
-          <p className="mt-2 text-xs text-red-700">
+          <p className="mt-2 text-xs text-danger-strong">
             {credentialStorage.message ?? "本机加密凭据库不可用。"}
           </p>
         )}
@@ -2255,7 +2253,7 @@ export function ReviewEditorPanel(props: {
           </div>
         )}
         {cloudPublishPreview && !currentCloudPublishPreview && (
-          <p className="mt-3 text-xs text-amber-800">
+          <p className="mt-3 text-xs text-warning-strong">
             上传清单已变化，请重新计算发布预览后再确认发布。
           </p>
         )}

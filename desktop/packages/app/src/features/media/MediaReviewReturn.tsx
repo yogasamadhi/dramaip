@@ -115,7 +115,7 @@ export function MediaReviewReturn() {
               </BareButton>
               {(!value.review.isCurrent ||
                 value.review.sourceState !== "current") && (
-                <p className="text-amber-700">
+                <p className="text-warning-strong">
                   实际确认头或来源已变化，不能沿用旧确认采用这个草稿。
                 </p>
               )}

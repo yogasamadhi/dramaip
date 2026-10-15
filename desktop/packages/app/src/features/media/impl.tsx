@@ -381,10 +381,8 @@ function ProductionWorkspaceInstance(props: {
   return (
     <section className="space-y-5">
       <WorkspaceIntro
-        eyebrow="制作工作区"
-        title="素材与视听制作"
-        description="素材、版权和视觉资产归属项目；静帧与视频归属分镜；音频、动态分镜与渲染预检归属分集。"
-        badge="远程媒体生成"
+        title="制作"
+        description="分镜、素材、音视频与成片输出。"
       />
       <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
         <WorkspaceObjectControls
@@ -1072,24 +1070,24 @@ export function StoryboardBoard(props: {
                         ),
                       )}
                       <span
-                        className={`rounded-full px-2 py-1 text-xs ${shot.lockedAssetCount ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}
+                        className={`rounded-full px-2 py-1 text-xs ${shot.lockedAssetCount ? "bg-success-soft text-success-strong" : "bg-warning-soft text-warning-strong"}`}
                       >
                         {shot.lockedAssetCount
                           ? `已锁 ${shot.lockedAssetCount}`
                           : "暂无锁定资产"}
                       </span>
                       {shot.missingAssetReference && (
-                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                        <span className="rounded-full bg-warning-soft px-2 py-1 text-xs text-warning-strong">
                           缺资产引用
                         </span>
                       )}
                       {shot.rightsBlocked && (
-                        <span className="rounded-full bg-red-50 px-2 py-1 text-xs text-red-700">
+                        <span className="rounded-full bg-danger-soft px-2 py-1 text-xs text-danger-strong">
                           权利 / stale 阻断
                         </span>
                       )}
                       {shot.costRisk && (
-                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                        <span className="rounded-full bg-warning-soft px-2 py-1 text-xs text-warning-strong">
                           费用或服务风险
                         </span>
                       )}
@@ -1329,7 +1327,7 @@ export function AssetCenterPanel(props: {
         </p>
       )}
       {error && (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger-strong">
           {message(error)}
         </p>
       )}
@@ -1454,7 +1452,7 @@ export function AssetCenterPanel(props: {
               )}
               {asset.usages.some((usage) => usage.shotId === shotId) && (
                 <BareButton
-                  className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 disabled:opacity-50"
+                  className="rounded-md border border-danger/25 px-2 py-1 text-xs text-danger-strong disabled:opacity-50"
                   disabled={workingId === asset.id}
                   onClick={() => void action(asset, "remove-shot")}
                 >
@@ -1907,7 +1905,7 @@ export function VideoGenerationPanel(props: {
           必须已采用未过期静帧，且当前镜头分配的视觉资产均已采用、锁定且来源有效；明确受限、撤回或过期的权利声明会阻断，未知权利仍未核验。参数须在服务商声明能力内；提示、时长或资产版本变化后需重新检查。
         </p>
         {preflight?.costStatus === "unknown" && (
-          <label className="mt-3 flex items-start gap-2 text-xs text-amber-700">
+          <label className="mt-3 flex items-start gap-2 text-xs text-warning-strong">
             <input
               type="checkbox"
               checked={confirmUnknownCost}
@@ -1927,7 +1925,7 @@ export function VideoGenerationPanel(props: {
             {preflight.blockers.map((blocker) => (
               <p
                 key={blocker}
-                className="rounded-md bg-red-50 px-2 py-1 text-red-700"
+                className="rounded-md bg-danger-soft px-2 py-1 text-danger-strong"
               >
                 阻断：{blocker}
               </p>
@@ -1935,13 +1933,13 @@ export function VideoGenerationPanel(props: {
             {preflight.warnings.map((warning) => (
               <p
                 key={warning}
-                className="rounded-md bg-amber-50 px-2 py-1 text-amber-700"
+                className="rounded-md bg-warning-soft px-2 py-1 text-warning-strong"
               >
                 注意：{warning}
               </p>
             ))}
             {preflight.ready && (
-              <p className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
+              <p className="rounded-md bg-success-soft px-2 py-1 text-success-strong">
                 已通过：提交按钮会携带此快照；服务端会再次校验，避免静默继承变化。
               </p>
             )}
@@ -1995,7 +1993,7 @@ export function VideoGenerationPanel(props: {
               </div>
               <p className="mt-1 text-xs text-muted">{job.prompt}</p>
               {job.error && (
-                <p className="mt-1 text-xs text-red-600">{job.error}</p>
+                <p className="mt-1 text-xs text-danger-strong">{job.error}</p>
               )}
               {job.results.length > 0 && (
                 <div className="mt-3 space-y-2 border-t border-line pt-3">
@@ -2613,7 +2611,9 @@ export function AnimaticProductionPanel(props: {
         </p>
       </div>
       {initializationError && (
-        <p className="text-sm text-red-600">{message(initializationError)}</p>
+        <p className="text-sm text-danger-strong">
+          {message(initializationError)}
+        </p>
       )}
       {initialization && (
         <section className="rounded-xl border border-line p-3">
@@ -2992,7 +2992,7 @@ export function TimelineEditorPanel(props: {
 
   if (error)
     return (
-      <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+      <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger-strong">
         {message(error)}
       </p>
     );
@@ -3122,7 +3122,7 @@ export function TimelineEditorPanel(props: {
               {audioAssembly.warnings.map((warning) => (
                 <p
                   key={warning}
-                  className="rounded-md bg-amber-50 p-2 text-amber-900"
+                  className="rounded-md bg-warning-soft p-2 text-warning-strong"
                 >
                   {warning}
                 </p>
@@ -3194,14 +3194,14 @@ export function TimelineEditorPanel(props: {
               sidecar；本地混音按冻结来源与控制值编码，仍不等于正式发行或字幕烧录。
             </p>
             {deliveryManifest.unsupportedFeatures.length > 0 && (
-              <p className="rounded-md bg-amber-50 p-2 text-amber-900">
+              <p className="rounded-md bg-warning-soft p-2 text-warning-strong">
                 兼容性报告：{deliveryManifest.unsupportedFeatures.join("；")}
               </p>
             )}
             {deliveryManifest.warnings.map((warning) => (
               <p
                 key={warning}
-                className="rounded-md bg-amber-50 p-2 text-amber-900"
+                className="rounded-md bg-warning-soft p-2 text-warning-strong"
               >
                 {warning}
               </p>
@@ -3218,7 +3218,7 @@ export function TimelineEditorPanel(props: {
           />
         )}
         {deliveryError && (
-          <p className="mt-3 rounded-md bg-red-50 p-2 text-xs text-red-700">
+          <p className="mt-3 rounded-md bg-danger-soft p-2 text-xs text-danger-strong">
             {message(deliveryError)}
           </p>
         )}
@@ -3294,7 +3294,7 @@ export function TimelineEditorPanel(props: {
         aria-label="时间线轨道"
       >
         <div className="min-w-max" style={{ width: pixels }}>
-          <div className="relative mb-2 h-5 border-b border-line text-[10px] text-muted">
+          <div className="relative mb-2 h-5 border-b border-line text-xs text-muted">
             {Array.from(
               { length: Math.ceil(timelineDurationSeconds) + 1 },
               (_, second) => (
@@ -3308,7 +3308,7 @@ export function TimelineEditorPanel(props: {
               ),
             )}
             <span
-              className="absolute -bottom-1 top-0 w-0.5 bg-red-500"
+              className="absolute -bottom-1 top-0 w-0.5 bg-danger"
               style={{ left: playhead * zoom }}
             />
           </div>
@@ -3322,7 +3322,7 @@ export function TimelineEditorPanel(props: {
                   <div className="mt-1 flex gap-1">
                     <BareButton
                       aria-label={`${timelineTrackLabel(track.kind)}静音`}
-                      className={`rounded-md px-1.5 py-0.5 ${track.muted ? "bg-red-100 text-red-700" : "bg-page text-muted"}`}
+                      className={`rounded-md px-1.5 py-0.5 ${track.muted ? "bg-danger-soft text-danger-strong" : "bg-page text-muted"}`}
                       onClick={() =>
                         void apply({
                           type: "set-track-audio",
@@ -3353,14 +3353,14 @@ export function TimelineEditorPanel(props: {
                   style={{ width: pixels - 120 }}
                 >
                   <span
-                    className="absolute bottom-0 top-0 z-10 w-0.5 bg-red-500"
+                    className="absolute bottom-0 top-0 z-10 w-0.5 bg-danger"
                     style={{ left: playhead * zoom }}
                   />
                   {track.clips.map((clip) => (
                     <BareButton
                       key={clip.id}
                       aria-label={`选择片段：${clip.name}`}
-                      className={`absolute top-2 h-10 overflow-hidden rounded-md border px-2 text-left text-xs ${selectedClipId === clip.id ? "border-brand bg-brand-soft text-brand" : clip.mediaStatus === "linked" ? "border-line bg-surface" : "border-amber-300 bg-amber-50 text-amber-900"}`}
+                      className={`absolute top-2 h-10 overflow-hidden rounded-md border px-2 text-left text-xs ${selectedClipId === clip.id ? "border-brand bg-brand-soft text-brand" : clip.mediaStatus === "linked" ? "border-line bg-surface" : "border-warning/40 bg-warning-soft text-warning-strong"}`}
                       style={{
                         left: frameToSeconds(clip.startFrame) * zoom,
                         width: Math.max(
@@ -3590,11 +3590,13 @@ export function EpisodeRenderPreflightPanel(props: { episodeId: string }) {
           {isFetching ? "正在预检…" : "重新执行预检"}
         </BareButton>
       </div>
-      {error && <p className="mt-3 text-sm text-red-600">{message(error)}</p>}
+      {error && (
+        <p className="mt-3 text-sm text-danger-strong">{message(error)}</p>
+      )}
       {preflight && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <section
-            className={`rounded-xl p-3 text-sm ${preflight.ok ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-950"}`}
+            className={`rounded-xl p-3 text-sm ${preflight.ok ? "bg-success-soft text-success-strong" : "bg-warning-soft text-warning-strong"}`}
           >
             <h3 className="font-medium">
               {preflight.ok ? "制作输入完整" : "尚不能提交渲染"}
@@ -3663,7 +3665,7 @@ export function ProductionGraphPanel(props: { projectId: string }) {
   });
   if (error)
     return (
-      <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+      <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger-strong">
         {message(error)}
       </p>
     );
@@ -3724,7 +3726,7 @@ export function ProductionGraphPanel(props: { projectId: string }) {
         <p className="mt-3 text-sm text-muted">正在评估变更影响…</p>
       )}
       {impactPreview.error && (
-        <p className="mt-3 text-sm text-red-600">
+        <p className="mt-3 text-sm text-danger-strong">
           {message(impactPreview.error)}
         </p>
       )}

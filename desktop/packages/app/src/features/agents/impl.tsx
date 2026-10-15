@@ -784,7 +784,7 @@ export function AgentSidePanel() {
           )}
         </div>
         <p
-          className={`mt-2 text-[11px] leading-4 ${selectedEngineCanRun ? "text-muted" : "text-amber-700"}`}
+          className={`mt-2 text-xs leading-4 ${selectedEngineCanRun ? "text-muted" : "text-warning-strong"}`}
         >
           {conversationId ? "当前对话使用" : "新对话将使用"}「
           {selectedEngine?.name ?? AGENT_ENGINE_LABELS[engineKind]}」
@@ -934,7 +934,7 @@ export function AgentSidePanel() {
               disabled={Boolean(activeRun)}
               onChange={(next) => void changeWebAccessMode(next)}
             />
-            <span className="truncate text-[11px] text-muted">
+            <span className="truncate text-xs text-muted">
               {projectId ? "使用项目只读上下文" : "通用聊天"}
             </span>
           </div>
@@ -1032,7 +1032,7 @@ export function GlobalAssistantTimeline(props: {
           <article key={turn.id} className="space-y-2">
             <div className="ml-8 rounded-xl rounded-tr-sm bg-studio-dark px-3 py-2 text-sm leading-6 text-white">
               <p className="whitespace-pre-wrap">{turn.userMessage}</p>
-              <p className="mt-1 text-[10px] text-white/60">
+              <p className="mt-1 text-xs text-white/60">
                 {props.surface === "inspiration"
                   ? "灵感对话"
                   : turn.projectId
@@ -1520,7 +1520,7 @@ export function AgentTaskConfigPanel() {
                   {costLabel}
                 </p>
                 {!preflight.ready && (
-                  <div className="mt-2 text-xs leading-5 text-amber-700">
+                  <div className="mt-2 text-xs leading-5 text-warning-strong">
                     {preflight.fixes.map((fix) => (
                       <p key={fix}>{fix}</p>
                     ))}
@@ -1558,7 +1558,7 @@ export function AgentTaskConfigPanel() {
             </p>
           )}
           {!!missingTaskTypes.length && (
-            <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+            <p className="rounded-lg border border-warning/40 bg-warning-soft p-3 text-xs leading-5 text-warning-strong">
               当前安装的任务目录缺少推荐动作，请更新本地服务后重试。
             </p>
           )}
@@ -1640,7 +1640,7 @@ export function AgentTaskConfigPanel() {
             </select>
           </label>
           {requiresChapter && !chapterId && (
-            <p className="mt-2 text-xs leading-5 text-amber-700">
+            <p className="mt-2 text-xs leading-5 text-warning-strong">
               此任务需要先选择章节。生成结果只会创建待确认预览，不会直接改写正式内容。
             </p>
           )}

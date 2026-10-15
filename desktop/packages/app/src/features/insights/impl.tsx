@@ -156,10 +156,8 @@ export function FeedbackPage() {
         </section>
       )}
       <WorkspaceIntro
-        eyebrow="反馈闭环"
         title="运营数据与用户反馈"
-        description="先预览再导入指标与评论；数据只保存在本地项目数据库，关联原文与目标，由 AI 分析反馈并提出修订候选。"
-        badge="数据洞察"
+        description="导入指标与评论，由 AI 分析反馈并提出修订建议。"
       />
       <section className="rounded-xl border border-line bg-surface p-4">
         <label className="grid max-w-md gap-1 text-sm">
@@ -225,7 +223,7 @@ export function FeedbackPage() {
           {preview.warnings.map((warning) => (
             <p
               key={warning}
-              className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800"
+              className="mt-2 rounded-lg bg-warning-soft p-2 text-xs text-warning-strong"
             >
               {importWarning(warning)}
             </p>

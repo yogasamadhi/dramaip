@@ -183,6 +183,93 @@ export function ConfirmProvider(props: { children: ReactNode }) {
   );
 }
 
+export type ToastOptions = {
+  message: ReactNode;
+  tone?: "neutral" | "success" | "warning" | "danger";
+  actionLabel?: string;
+  onAction?(): void | Promise<void>;
+  durationMs?: number;
+};
+
+type ToastEntry = ToastOptions & { id: number };
+
+let presentToast: ((toast: ToastOptions) => void) | undefined;
+let nextToastId = 1;
+
+/**
+ * Shows a transient status message, optionally with one recovery action such
+ * as "撤销". Used for reversible operations instead of a blocking confirm.
+ */
+export function showToast(toast: ToastOptions): void {
+  presentToast?.(toast);
+}
+
+export function ToastProvider(props: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<ToastEntry[]>([]);
+
+  useEffect(() => {
+    presentToast = (toast) => {
+      const id = nextToastId++;
+      setToasts((current) => [...current.slice(-2), { ...toast, id }]);
+      window.setTimeout(
+        () => setToasts((current) => current.filter((t) => t.id !== id)),
+        toast.durationMs ?? 6000,
+      );
+    };
+    return () => {
+      presentToast = undefined;
+    };
+  }, []);
+
+  const dismiss = (id: number): void =>
+    setToasts((current) => current.filter((t) => t.id !== id));
+
+  return (
+    <>
+      {props.children}
+      <div
+        aria-live="polite"
+        className="pointer-events-none fixed bottom-4 left-1/2 z-[90] grid w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 gap-2"
+      >
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={cn(
+              "pointer-events-auto flex items-center gap-3 rounded-lg border bg-surface-raised px-4 py-3 text-sm text-ink shadow-float",
+              toast.tone === "success" && "border-success/30",
+              toast.tone === "warning" && "border-warning/30",
+              toast.tone === "danger" && "border-danger/30",
+              (!toast.tone || toast.tone === "neutral") && "border-line",
+            )}
+          >
+            <div className="min-w-0 flex-1">{toast.message}</div>
+            {toast.actionLabel && toast.onAction ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  dismiss(toast.id);
+                  void toast.onAction?.();
+                }}
+              >
+                {toast.actionLabel}
+              </Button>
+            ) : null}
+            <IconButton
+              size="sm"
+              variant="ghost"
+              aria-label="关闭提示"
+              onClick={() => dismiss(toast.id)}
+            >
+              <X aria-hidden="true" className="size-4" />
+            </IconButton>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 const DrawerContent = forwardRef<
   ElementRef<typeof DialogPrimitive.Content>,
   ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {

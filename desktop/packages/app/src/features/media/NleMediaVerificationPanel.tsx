@@ -25,7 +25,7 @@ export function NleMediaVerificationPanel(props: {
     manifest.timeline.version !== props.timelineVersion
   )
     return (
-      <p className="text-amber-800">
+      <p className="text-warning-strong">
         交付清单尚未对应当前时间线；不能沿旧清单核验。
       </p>
     );
@@ -134,7 +134,9 @@ function Verification({ manifest }: { manifest: TimelineDeliveryManifest }) {
             <p
               key={item.assetId}
               className={
-                item.status === "verified" ? "text-muted" : "text-amber-800"
+                item.status === "verified"
+                  ? "text-muted"
+                  : "text-warning-strong"
               }
             >
               {item.assetId}：{item.message}
@@ -143,7 +145,7 @@ function Verification({ manifest }: { manifest: TimelineDeliveryManifest }) {
         </div>
       )}
       {notice && (
-        <p role="alert" className="text-amber-800">
+        <p role="alert" className="text-warning-strong">
           {notice}
         </p>
       )}

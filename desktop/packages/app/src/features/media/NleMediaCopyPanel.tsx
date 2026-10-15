@@ -109,7 +109,7 @@ export function NleMediaCopyPanel({
         完整字节核对；不截取超限素材。
       </p>
       {reasons.length > 0 && (
-        <div role="note" className="text-amber-800">
+        <div role="note" className="text-warning-strong">
           {reasons.map((reason) => (
             <p key={reason}>{reason}</p>
           ))}
@@ -278,7 +278,7 @@ export function NleMediaCopyPanel({
         </BareButton>
       )}
       {state.notice && (
-        <p role="alert" className="break-words text-amber-800">
+        <p role="alert" className="break-words text-warning-strong">
           {state.notice}
         </p>
       )}
