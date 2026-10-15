@@ -416,7 +416,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
               }}
             >
               方案 v{item.version} ·{" "}
-              {item.origin === "human-reorder" ? "人工重排" : "模型草稿"} ·{" "}
+              {item.origin === "human-reorder" ? "人工重排" : "AI 草稿"} ·{" "}
               {item.status === "adopted"
                 ? "已采用"
                 : item.status === "discarded"

@@ -211,9 +211,7 @@ async function assertLocalResultLedger(
     });
     await expect(strategyFunnel).toBeVisible();
     if (expected["独立改编策略明确单选版本"]) {
-      await expect(strategyFunnel).toContainText(
-        "原首候选内明确选项采用 1 / 1",
-      );
+      await expect(strategyFunnel).toContainText("原首稿内明确选项采用 1 / 1");
       await expect(strategyFunnel).toContainText(
         "明确选项 independent-reorder（非整包采用）",
       );
@@ -247,23 +245,23 @@ async function assertLocalResultLedger(
     if (expected["正式章节采用版本"]) {
       await expect(
         funnel.getByLabel("小说章节首候选", { exact: true }),
-      ).toContainText("原首候选直接采用 2 / 2");
+      ).toContainText("原首稿直接采用 2 / 2");
       await expect(
         funnel.getByLabel("小说章节首候选", { exact: true }),
       ).toContainText("请求至采用");
     } else {
       await expect(
         funnel.getByLabel("改编诊断首候选", { exact: true }),
-      ).toContainText("原首候选直接采用 1 / 1");
+      ).toContainText("原首稿直接采用 1 / 1");
       await expect(
         funnel.getByLabel("整季方案首候选", { exact: true }),
-      ).toContainText("原首候选直接采用 0 / 1");
+      ).toContainText("原首稿直接采用 0 / 1");
       await expect(
         funnel.getByLabel("整季方案首候选", { exact: true }),
       ).toContainText("改写后采用 1");
       await expect(
         funnel.getByLabel("标准分集剧本首候选", { exact: true }),
-      ).toContainText("原首候选直接采用 1 / 1");
+      ).toContainText("原首稿直接采用 1 / 1");
     }
     await ledger
       .locator("summary")
@@ -12888,7 +12886,7 @@ for (const independentStrategy of [false, true]) {
       await openProjectTool(running.page, "整季方案");
       await seasonPanel()
         .getByRole("button", {
-          name: "方案 v1 · 模型候选 · 待采用",
+          name: "方案 v1 · AI 草稿 · 待采用",
           exact: true,
         })
         .click();
@@ -13578,7 +13576,7 @@ test("独立小说质量报告经真实证据、精确待确认、人工风险�
     const pending = running.page.locator(
       `[data-confirmation-key="narrative-report:${old.id}"]`,
     );
-    await expect(pending).toContainText("质量报告 AI 草稿");
+    await expect(pending).toContainText("质量报告候选");
     await expect(pending).not.toContainText(FIRST_FACT);
     await pending
       .getByRole("link", { name: "返回对应对象", exact: true })

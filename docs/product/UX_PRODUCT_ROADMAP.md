@@ -1,6 +1,6 @@
 # Desktop UI/UX 与产品落地路线
 
-> 文档状态：in-progress / UX Execution Record
+> 文档状态：done on darwin（win32 视觉基线待在 Windows 上重新生成）/ UX Execution Record
 >
 > 日期：2026-10-15；分支 `ux/full-refresh`（本地，未推送）
 >
@@ -28,7 +28,7 @@
 | 3 页面模板   | `9879ba377` | 约 45 处链接改用 `text-link`；审核交付和制作页去掉最外层卡片；项目卡片的"移入回收站"收进 ⋯ 菜单，并改为 Toast 撤销；92 处 `<select>` 迁到 `NativeSelect`                                                                                                                                                                                                                                                                      |
 | 4 关键流程   | `4b791d338` | 改编页顶部改为 `AdaptationPipeline`（与驾驶舱同一套 gate，唯一主按钮，原创剧本走直写 gate）；旧版流程改名并折叠；小说 AI 面板只在有改编目标时显示短剧化操作，强化操作改为小号标签，章节勾选框只在"批量整理"模式出现；创作分析页没有正文时自动确认"不使用正文"；项目库页头直接给出导入／新建，或"先看看示例"；系列长篇说明横幅可关闭；制作页把分组与阶段合成一行；改编和审核交付阶段编号；数据洞察的统计口径收进"统计口径说明" |
 | 5 文案与确认 | `4b791d338` | 应用术语表（第 3 节）；可恢复操作（项目回收站、未完成项目移除、两处检查点恢复）去掉确认弹窗，改为 Toast 撤销或结果说明                                                                                                                                                                                                                                                                                                        |
-| 6 遗留补齐   | 续做提交    | 创作分析页有正文时预选全部有正文的章节（12 章以内同时预选原文），仍须点击一次确认；制作页分组"导演看板"改名"分镜与资产"，不再与阶段同名；审核交付的六个工具改为按"检查 → 审片 → 交付预检"排序的编号清单，显示本次执行状态；剩余 52 处 `<select>` 全部迁到 `NativeSelect`，并打开禁用原生 `<select>` 的守卫；被测试固定的术语与对应断言同步替换（83 处界面文案、86 处测试字符串）                                              |
+| 6 遗留补齐   | `5d3b3c6f8` | 创作分析页有正文时预选全部有正文的章节（12 章以内同时预选原文），仍须点击一次确认；制作页分组"导演看板"改名"分镜与资产"，不再与阶段同名；审核交付的六个工具改为按"检查 → 审片 → 交付预检"排序的编号清单，显示本次执行状态；剩余 52 处 `<select>` 全部迁到 `NativeSelect`，并打开禁用原生 `<select>` 的守卫；被测试固定的术语与对应断言同步替换（83 处界面文案、86 处测试字符串）                                              |
 
 验证（每阶段提交前）：`typecheck`；App 单元测试 739 项全部通过；`lint`；`check:architecture`／`check:plugins`（第 2 阶段）；`build` 加 `check:renderer-chunks`（第 3 阶段）。受影响的 Electron 用例在后台串行运行，结果见第 7 节。
 
@@ -104,9 +104,16 @@
   - `lm6-02`、`creation-workbench`、`project-home-progress`、`lm6-p0-gate`、`production-context`、`lm6-04`、`lm6-14`、`pending-confirmation`、`story-pending-confirmation`、`narrative-local-quality` 均通过。
   - `novel-creation-journey` 中受影响的 4 项通过。其中一项首轮失败：术语替换误改了动态拼接的 `aria-label`（`…首候选`），已恢复并重跑通过。
 - `abc-smoke.spec.ts:676`（剧本 JSON 项目外预览）失败，原因早于本分支：单季短剧导入剧本时，页面显示"选择原生剧本文件"面板，而测试等待"选择文件"按钮。基线提交 `a1ba7e369` 中的条件渲染相同，本轮未修改。
-- `lm7-ui-visual`：darwin 基线已刷新（`0a3b780ce`），逐张检查后用 `--update-snapshots=none` 复跑，10 项通过。`lm7-ui-visual.spec.ts-snapshots/` 下 26 个 `*-win32.png` 需要在 Windows 上重新生成。
+- `lm7-ui-visual`：darwin 基线在 `0a3b780ce` 首次刷新；第 6 阶段后再次刷新 12 张（创作分析、制作、审核交付、项目库、AI 助手等），逐张检查后用 `--update-snapshots=none` 复跑，10 项通过。`lm7-ui-visual.spec.ts-snapshots/` 下 26 个 `*-win32.png` 需要在 Windows 上重新生成。
 - 完整 `bun run test:e2e`：共 144 项，单 worker 串行，大约需要 70 分钟，其中 `novel-creation-journey` 单个文件约占三分之二。
   - 结果：139 项通过，3 项失败，2 项跳过（1.0 小时）。3 项失败都与本分支无关：
     - 上面提到的 `abc-smoke:676`；
     - `lm6-full-journey`：测试按"决定"查找下拉框，但源代码在本分支之前就已是 `aria-label="审片决定"`；
     - `creative-executions` A07：测试固定的时间点已经不在"最近七天"窗口内，所以页面显示"本窗新增采用 0"，测试期望的是 3。
+- 第 6 阶段（`5d3b3c6f8`）后复跑完整 E2E：
+  - 除 `novel-creation-journey` 和视觉用例外：84 项通过，失败的仍是上面 3 项已知问题。
+  - `novel-creation-journey`：45 项中 41 项通过（38.7 分钟）。4 项失败都来自术语替换与测试字符串没有对齐：
+    - 动态拼接的"原首候选直接采用 N / M"断言没有随界面改成"首稿"；
+    - 季纲方案来源误写为"模型草稿"，界面改为"AI 草稿"，测试同步改；
+    - 待确认标题"质量报告候选"由 `pending-confirmations.ts` 生成且未改，测试误改为"AI 草稿"，已恢复。
+  - 修正后，这 4 项单独重跑全部通过。
