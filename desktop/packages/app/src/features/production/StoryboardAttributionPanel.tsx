@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   StoryboardAttributionCreateSchema,
   StoryboardAttributionSelectionSchema,
@@ -548,9 +548,9 @@ export function StoryboardAttributionPanel({
                 <div aria-label="逐镜头关联选择" className="space-y-3">
                   <label className="block">
                     明确镜头
-                    <select
+                    <NativeSelect
                       aria-label="明确关联镜头"
-                      className="block w-full rounded border border-line p-2"
+                      className="w-full"
                       value={shotId}
                       disabled={unavailable}
                       onChange={(event) => {
@@ -567,7 +567,7 @@ export function StoryboardAttributionPanel({
                           场景 {value.sceneId} · 镜头 {value.shotId}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   {shot && (
                     <>
@@ -608,9 +608,9 @@ export function StoryboardAttributionPanel({
                       </fieldset>
                       <label className="block">
                         明确引文
-                        <select
+                        <NativeSelect
                           aria-label="明确关联引文"
-                          className="block w-full rounded border border-line p-2"
+                          className="w-full"
                           value={evidenceId}
                           disabled={unavailable}
                           onChange={(event) => {
@@ -631,7 +631,7 @@ export function StoryboardAttributionPanel({
                                 处匹配
                               </option>
                             ))}
-                        </select>
+                        </NativeSelect>
                       </label>
                       {evidence && (
                         <>
@@ -651,9 +651,9 @@ export function StoryboardAttributionPanel({
                           </p>
                           <label className="block">
                             具体匹配位置（UTF-16，结束不含）
-                            <select
+                            <NativeSelect
                               aria-label="明确引文匹配位置"
-                              className="block w-full rounded border border-line p-2"
+                              className="w-full"
                               value={matchIndex}
                               disabled={unavailable}
                               onChange={(event) =>
@@ -672,15 +672,15 @@ export function StoryboardAttributionPanel({
                                     : ""}
                                 </option>
                               ))}
-                            </select>
+                            </NativeSelect>
                           </label>
                         </>
                       )}
                       <label className="block">
                         可选已采用故事节点
-                        <select
+                        <NativeSelect
                           aria-label="可选关联故事节点"
-                          className="block w-full rounded border border-line p-2"
+                          className="w-full"
                           value={nodeDeclarationId}
                           disabled={unavailable}
                           onChange={(event) =>
@@ -696,7 +696,7 @@ export function StoryboardAttributionPanel({
                               {value.adoptedNode!.version}
                             </option>
                           ))}
-                        </select>
+                        </NativeSelect>
                       </label>
                       {nodes.isError && (
                         <p role="alert">
@@ -941,7 +941,7 @@ export function StoryboardAttributionPanel({
               .map((value) => (
                 <p key={value.id} className="break-all">
                   <Link
-                    className="text-brand"
+                    className="text-link"
                     to={`/projects/${result.projectId}/tools/episode-development?episodeId=${result.episodeId}&operation=storyboard-package&resultId=${result.id}&shotAttributionId=${value.id}`}
                   >
                     {value.id} v{value.version} · {statusLabel(value)} ·{" "}

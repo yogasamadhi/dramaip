@@ -20,7 +20,7 @@ import type {
   VideoGenerationInput,
   VideoGenerationPreflight,
 } from "@dramaip/contracts/product";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -384,7 +384,7 @@ function ProductionWorkspaceInstance(props: {
         title="制作"
         description="分镜、素材、音视频与成片输出。"
       />
-      <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
+      <div className="workbench space-y-4 bg-canvas">
         <WorkspaceObjectControls
           projectTitle={
             projects.find((project) => project.id === projectId)?.title
@@ -1290,8 +1290,8 @@ export function AssetCenterPanel(props: {
         </label>
         <label className="grid gap-1 text-sm">
           镜头用途
-          <select
-            className="min-w-56 rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="min-w-56 w-auto"
             value={shotId}
             onChange={(event) => setShotId(event.target.value)}
           >
@@ -1301,7 +1301,7 @@ export function AssetCenterPanel(props: {
                 {shot.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       <div
@@ -1584,8 +1584,8 @@ export function ImageGenerationPanel(props: {
       <div className="grid gap-3 rounded-xl border border-line p-3 md:grid-cols-2 xl:grid-cols-3">
         <label className="grid gap-1 text-sm">
           图片服务商
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={providerId}
             onChange={(event) => setProviderId(event.target.value)}
           >
@@ -1595,12 +1595,12 @@ export function ImageGenerationPanel(props: {
                 {provider.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm">
           候选类型
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={kind}
             onChange={(event) => setKind(event.target.value as typeof kind)}
           >
@@ -1608,7 +1608,7 @@ export function ImageGenerationPanel(props: {
             <option value="first_frame">首帧</option>
             <option value="last_frame">尾帧</option>
             <option value="cover">封面</option>
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm">
           尺寸
@@ -1848,9 +1848,9 @@ export function VideoGenerationPanel(props: {
         </p>
       </div>
       <section className="grid gap-3 rounded-xl border border-line p-3 md:grid-cols-2 xl:grid-cols-3">
-        <select
+        <NativeSelect
           aria-label="视频生成服务商"
-          className="rounded-lg border border-line px-3 py-2 text-sm"
+          className="w-auto text-sm"
           value={providerId}
           onChange={(event) => setProviderId(event.target.value)}
         >
@@ -1860,7 +1860,7 @@ export function VideoGenerationPanel(props: {
               {provider.title}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <input
           aria-label="视频生成时长（秒）"
           className="rounded-lg border border-line px-3 py-2 text-sm"
@@ -2345,9 +2345,9 @@ export function AudioProductionPanel(props: {
         <h3 className="font-medium">生成对白或旁白</h3>
         <label className="mt-3 grid gap-2 text-sm">
           从本集剧本选取台词
-          <select
+          <NativeSelect
             aria-label="剧本台词"
-            className="rounded border border-line p-2"
+            className="w-auto"
             value=""
             onChange={(event) => useDialogue(event.target.value)}
           >
@@ -2357,16 +2357,16 @@ export function AudioProductionPanel(props: {
                 {line.speaker}：{line.text.slice(0, 100)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         <p className="mt-1 text-xs text-muted">
           语音结果会安全归档为素材，并自动选入下方音轨草案；不会自动采用。
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <select
+          <NativeSelect
             aria-label="音频服务商"
-            className="rounded-lg border border-line px-3 py-2 text-sm"
+            className="w-auto text-sm"
             value={ttsProviderId}
             onChange={(event) => setTtsProviderId(event.target.value)}
           >
@@ -2376,7 +2376,7 @@ export function AudioProductionPanel(props: {
                 {provider.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
           <input
             className="rounded-lg border border-line px-3 py-2 text-sm"
             placeholder="服务商音色标识"
@@ -2410,9 +2410,9 @@ export function AudioProductionPanel(props: {
             value={trackLabel}
             onChange={(event) => setTrackLabel(event.target.value)}
           />
-          <select
+          <NativeSelect
             aria-label="音轨类别"
-            className="rounded-lg border border-line px-3 py-2 text-sm"
+            className="w-auto text-sm"
             value={trackKind}
             onChange={(event) =>
               setTrackKind(event.target.value as typeof trackKind)
@@ -2422,10 +2422,10 @@ export function AudioProductionPanel(props: {
             <option value="narration">旁白</option>
             <option value="bgm">配乐</option>
             <option value="sfx">音效</option>
-          </select>
-          <select
+          </NativeSelect>
+          <NativeSelect
             aria-label="音轨素材"
-            className="rounded-lg border border-line px-3 py-2 text-sm"
+            className="w-auto text-sm"
             value={assetId}
             onChange={(event) => setAssetId(event.target.value)}
           >
@@ -2435,10 +2435,10 @@ export function AudioProductionPanel(props: {
                 {asset.title}
               </option>
             ))}
-          </select>
-          <select
+          </NativeSelect>
+          <NativeSelect
             aria-label="音轨音色"
-            className="rounded-lg border border-line px-3 py-2 text-sm"
+            className="w-auto text-sm"
             value={voiceProfileId}
             onChange={(event) => setVoiceProfileId(event.target.value)}
           >
@@ -2448,7 +2448,7 @@ export function AudioProductionPanel(props: {
                 {profile.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
           <input
             className="rounded-lg border border-line px-3 py-2 text-sm"
             type="number"
@@ -3523,8 +3523,8 @@ export function TimelineEditorPanel(props: {
           <div className="grid gap-2">
             <label className="grid gap-1 text-xs">
               重链接到项目媒体
-              <select
-                className="rounded-md border border-line px-2 py-1 text-sm"
+              <NativeSelect
+                className="w-auto h-8 text-sm"
                 value={relinkAssetId}
                 onChange={(event) => setRelinkAssetId(event.target.value)}
               >
@@ -3534,7 +3534,7 @@ export function TimelineEditorPanel(props: {
                     {asset.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <BareButton
               className="w-fit rounded-md border border-brand px-2 py-1 text-sm text-brand disabled:opacity-50"

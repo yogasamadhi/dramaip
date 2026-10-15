@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Textarea, confirmDialog } from "@dramaip/ui-shared";
+import {
+  Button,
+  Input,
+  Textarea,
+  confirmDialog,
+  NativeSelect,
+} from "@dramaip/ui-shared";
 import { StudioClientError } from "@dramaip/client";
 import {
   ChapterSchema,
@@ -302,12 +308,12 @@ export function WritingVolumesPanel({
         </Button>
         <label className="block">
           目标卷
-          <select
+          <NativeSelect
             aria-label="目标实际卷"
             value={target}
             disabled={disabled || !!data.error}
             onChange={(event) => setTarget(event.currentTarget.value)}
-            className="ml-2 rounded border border-line bg-surface p-2"
+            className="ml-2 w-auto"
           >
             <option value="">请明确选择目标</option>
             <option value="remove">明确移出卷（不删除章节）</option>
@@ -317,7 +323,7 @@ export function WritingVolumesPanel({
                   {item.title} · v{item.version}
                 </option>
               ))}
-          </select>
+          </NativeSelect>
         </label>
         {!data.error &&
           data.data?.chapters.map((item) => (

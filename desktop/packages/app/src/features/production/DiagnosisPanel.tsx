@@ -7,7 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   DiagnosisRequestSchema,
   type DiagnosisRequest,
@@ -298,7 +298,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
             : "尚未采用"}{" "}
           ·{" "}
           <Link
-            className="text-brand"
+            className="text-link"
             to={`/projects/${projectId}/tools/author-intent`}
           >
             核对作者意图
@@ -307,18 +307,20 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
         <div className="mt-3 flex flex-wrap gap-4 text-sm">
           <label>
             范围{" "}
-            <select
+            <NativeSelect
+              className="w-auto"
               aria-label="诊断范围"
               value={scope}
               onChange={(event) => setScope(event.target.value as typeof scope)}
             >
               <option value="selected-chapters">所选章节（局部诊断）</option>
               <option value="whole-book">全书非空章节</option>
-            </select>
+            </NativeSelect>
           </label>
           <label>
             目标形式{" "}
-            <select
+            <NativeSelect
+              className="w-auto"
               aria-label="诊断目标形式"
               value={target.format}
               onChange={(event) =>
@@ -330,7 +332,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
             >
               <option value="short-drama">短剧</option>
               <option value="motion-comic">漫剧</option>
-            </select>
+            </NativeSelect>
           </label>
           <label>
             目标集数{" "}
@@ -521,7 +523,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
             : "来源有效"}
           {accepted.sourceState === "current" && (
             <Link
-              className="ml-3 text-brand"
+              className="ml-3 text-link"
               to={`/projects/${projectId}/tools/adaptation-strategy`}
             >
               从已采用诊断比较独立策略 →
@@ -530,7 +532,7 @@ export function DiagnosisPanel({ projectId }: { projectId: string }) {
           {accepted.sourceState === "current" &&
             accepted.selectedStrategyId && (
               <Link
-                className="ml-3 text-brand"
+                className="ml-3 text-link"
                 to={`/projects/${projectId}/tools/season-plan`}
               >
                 兼容：从诊断内策略继续整季方案 →

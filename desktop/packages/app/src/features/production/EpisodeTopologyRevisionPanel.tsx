@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   EpisodeOutlineContentSchema,
   EpisodeScriptContentSchema,
@@ -647,7 +647,8 @@ export function EpisodeTopologyRevisionPanel({
             >
               <label className="block text-sm">
                 实际块组 {groupIndex + 1} 的场景映射
-                <select
+                <NativeSelect
+                  className="w-auto"
                   aria-label={`实际块组 ${groupIndex + 1} 场景`}
                   value={link.sceneId}
                   disabled={busy}
@@ -663,7 +664,7 @@ export function EpisodeTopologyRevisionPanel({
                       {scene.orderIndex + 1} · {scene.location} · {scene.id}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               {!link.sceneId && (
                 <Button

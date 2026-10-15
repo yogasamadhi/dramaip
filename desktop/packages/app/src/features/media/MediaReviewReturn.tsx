@@ -68,7 +68,7 @@ export function MediaReviewReturn() {
       <p className="text-sm text-muted">
         只返回指定身份的实际记录。打开不确认、不采用、不调用模型、不初始化时间线；审阅声明每次重新勾选。
       </p>
-      <Link className="text-brand underline" to="/pending">
+      <Link className="text-link underline" to="/pending">
         返回待确认中心
       </Link>
       {query.isLoading && <p>正在核对指定项目与对象……</p>}

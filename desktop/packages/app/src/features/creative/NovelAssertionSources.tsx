@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import {
   NarrativeIndexCatalogSchema,
   NarrativeIndexDetailSchema,
@@ -153,9 +153,9 @@ export function NovelAssertionSources({
       >
         <label className="block text-sm">
           关系认知原章节
-          <select
+          <NativeSelect
             aria-label="关系认知原章节"
-            className="mt-1 w-full rounded-lg border border-line bg-surface p-2"
+            className="mt-1 w-full"
             value={chapterId}
             onChange={(event) => {
               setChapterId(event.target.value);
@@ -169,7 +169,7 @@ export function NovelAssertionSources({
                 {chapter.title} · v{chapter.version}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {source && !detail.isFetching && (
           <div aria-label="关系认知实际小说来源" className="space-y-2">

@@ -9,7 +9,7 @@ import type {
   StoryBibleChangeSet,
   Task,
 } from "@dramaip/contracts/product";
-import { BareButton, confirmDialog } from "@dramaip/ui-shared";
+import { BareButton, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -252,8 +252,8 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
         {!props.projectId && (
           <label className="grid gap-1 text-sm">
             项目
-            <select
-              className="rounded-lg border border-line px-3 py-2"
+            <NativeSelect
+              className="w-auto"
               value={projectId}
               onChange={(event) => {
                 const nextProjectId = event.target.value;
@@ -268,13 +268,13 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
                   {project.title}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         )}
         <label className="grid gap-1 text-sm">
           章节
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             disabled={!projectId}
             value={chapterId}
             onChange={(event) => setChapterId(event.target.value)}
@@ -285,7 +285,7 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
                 {chapter.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="flex items-end">
           <BareButton
@@ -493,8 +493,8 @@ export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
           项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={projectId}
             disabled={Boolean(props.projectId)}
             onChange={(event) => {
@@ -508,12 +508,12 @@ export function CreativeDiagnosticsPanel(props: { projectId?: string } = {}) {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="flex items-end">
           {projectId ? (
             <Link
-              className="rounded-lg border border-line px-4 py-2 text-sm text-brand"
+              className="rounded-lg border border-line px-4 py-2 text-sm text-link"
               to={`/projects/${projectId}/tools/quality-review`}
             >
               打开独立质量评议
@@ -967,7 +967,7 @@ export function AgentRevisionPreviewCard(props: {
       {notice && <p className="mt-3 text-xs leading-5 text-muted">{notice}</p>}
       {status === "committed" && props.projectId && (
         <Link
-          className="mt-3 inline-block text-xs text-brand hover:underline"
+          className="mt-3 inline-block text-xs text-link hover:underline"
           to={`/projects/${props.projectId}`}
         >
           返回项目查看章节
@@ -2359,8 +2359,8 @@ export function PluginResourceWorkspace(props: {
         <div className="mt-5 rounded-xl border border-line bg-surface p-4">
           <label className="grid max-w-sm gap-1 text-sm">
             所属项目
-            <select
-              className="rounded-lg border border-line px-3 py-2"
+            <NativeSelect
+              className="w-auto"
               value={selectedProjectId}
               onChange={(event) => {
                 const nextProjectId = event.target.value;
@@ -2376,7 +2376,7 @@ export function PluginResourceWorkspace(props: {
                   {project.title}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
       )}

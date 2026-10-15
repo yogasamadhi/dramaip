@@ -1,3 +1,4 @@
+import { NativeSelect } from "@dramaip/ui-shared";
 import type { z } from "zod";
 import type {
   TimelineRendererFontDescriptorSchema,
@@ -34,9 +35,9 @@ export function TimelineRenderSubtitleControls(props: {
     >
       <label className="block">
         字幕输出策略
-        <select
+        <NativeSelect
           aria-label="字幕输出策略"
-          className="ml-2 rounded border border-line bg-surface p-2"
+          className="ml-2 w-auto"
           value={props.mode ?? ""}
           disabled={props.disabled}
           onChange={(event) =>
@@ -52,7 +53,7 @@ export function TimelineRenderSubtitleControls(props: {
           <option value="burn-in" disabled={!props.available}>
             烧录原字幕与指定字体
           </option>
-        </select>
+        </NativeSelect>
       </label>
       <p>
         {props.available === undefined
@@ -65,9 +66,9 @@ export function TimelineRenderSubtitleControls(props: {
         <>
           <label className="block">
             原字体身份
-            <select
+            <NativeSelect
               aria-label="烧录字幕字体"
-              className="ml-2 max-w-full rounded border border-line bg-surface p-2"
+              className="ml-2 max-w-full w-auto"
               value={selected}
               disabled={props.disabled}
               onChange={(event) =>
@@ -91,7 +92,7 @@ export function TimelineRenderSubtitleControls(props: {
                   {font.label} · {font.packVersion} · {font.sha256.slice(0, 12)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           {props.font && (
             <p className="break-all">

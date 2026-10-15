@@ -273,7 +273,7 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
             : "尚无来源有效的正式诊断"}{" "}
           ·{" "}
           <Link
-            className="text-brand"
+            className="text-link"
             to={`/projects/${projectId}/tools/adaptation-diagnosis`}
           >
             核对诊断
@@ -300,7 +300,7 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
             当前独立策略 v{accepted.version} · {accepted.selectedOptionId} ·{" "}
             {accepted.sourceState === "current" ? "来源有效" : "来源已变化"} ·{" "}
             <Link
-              className="text-brand"
+              className="text-link"
               to={`/projects/${projectId}/tools/season-plan`}
             >
               继续核对整季方案基准 →
@@ -387,7 +387,7 @@ export function AdaptationStrategyPanel({ projectId }: { projectId: string }) {
         >
           {!workflowId && requestedId && (
             <Link
-              className="text-brand text-sm"
+              className="text-link text-sm"
               to={`/projects/${projectId}/tools/adaptation-strategy?workflowId=${value.workflowId}&strategyId=${value.id}`}
             >
               打开此策略原运行（不切换最近运行）

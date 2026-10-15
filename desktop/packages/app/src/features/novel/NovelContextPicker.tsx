@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@dramaip/ui-shared";
+import { Button, NativeSelect } from "@dramaip/ui-shared";
 import { useStudio, message } from "../../studio-shared";
 import type { Chapter } from "@dramaip/contracts/writing";
 import type { NarrativeContextRequest } from "@dramaip/contracts/creation";
@@ -434,10 +434,10 @@ function ContextChapter(props: {
       <legend>
         {chapter.title} · 当前正文版本 {chapter.version}
       </legend>
-      <select
+      <NativeSelect
         aria-label={`前文表达 ${chapter.title}`}
         value={choice}
-        className="w-full rounded border border-line bg-surface p-1"
+        className="w-full h-8 text-sm"
         onChange={(event) => change(event.target.value)}
         disabled={!chapter.content.trim() || props.disabled}
       >
@@ -459,7 +459,7 @@ function ContextChapter(props: {
           !index?.summaries.some(
             (summary) => summary.id === selection.record.id,
           ) && <option value={choice}>先前所选摘要 · 当前未核验</option>}
-      </select>
+      </NativeSelect>
       <Button
         size="sm"
         variant="secondary"

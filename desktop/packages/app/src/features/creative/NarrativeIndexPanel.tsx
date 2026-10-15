@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   NarrativeArcScopeSchema,
   type NarrativeIndexDetail,
@@ -399,7 +399,7 @@ export function NarrativeIndexPanel({ projectId }: { projectId: string }) {
                   旧起止章号不会自动转换。明确选择当前章节后记录有序 ID
                   与版本；不改章节正文，也不把规划弧概括成正文事实。
                 </p>
-                <select
+                <NativeSelect
                   aria-label="索引故事弧"
                   value={arcId}
                   onChange={(event) => {
@@ -407,7 +407,7 @@ export function NarrativeIndexPanel({ projectId }: { projectId: string }) {
                     setSelection([]);
                     setError(undefined);
                   }}
-                  className="max-w-full rounded border border-line bg-surface p-2 text-sm"
+                  className="max-w-full w-auto text-sm"
                 >
                   <option value="">请选择实际故事弧</option>
                   {catalog.data.groups
@@ -417,7 +417,7 @@ export function NarrativeIndexPanel({ projectId }: { projectId: string }) {
                         {group.title} · v{group.version}
                       </option>
                     ))}
-                </select>
+                </NativeSelect>
                 {arcId && (
                   <>
                     <fieldset className="my-3 max-h-60 overflow-auto rounded border border-line p-3">

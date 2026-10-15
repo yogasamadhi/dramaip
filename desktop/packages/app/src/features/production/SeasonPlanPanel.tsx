@@ -305,7 +305,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
     <section aria-label="整季方案工作台" className="space-y-5">
       {accepted?.sourceState === "current" && (
         <Link
-          className="text-brand text-sm"
+          className="text-link text-sm"
           to={`/projects/${projectId}/tools/episode-development`}
         >
           从已采用季纲继续单集大纲与标准剧本 →
@@ -323,7 +323,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
             : "尚无来源有效的采用诊断"}{" "}
           ·{" "}
           <Link
-            className="text-brand"
+            className="text-link"
             to={`/projects/${projectId}/tools/adaptation-diagnosis`}
           >
             核对诊断与策略
@@ -334,7 +334,7 @@ export function SeasonPlanPanel({ projectId }: { projectId: string }) {
             ? "本轮须明确冻结独立策略版本；旧诊断内策略不代替它。"
             : "旧诊断内已选策略为兼容路径，不冒充独立策略。"}{" "}
           <Link
-            className="text-brand"
+            className="text-link"
             to={`/projects/${projectId}/tools/adaptation-strategy`}
           >
             核对独立改编策略

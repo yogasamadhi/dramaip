@@ -20,6 +20,7 @@ import {
   Input,
   Textarea,
   confirmDialog,
+  NativeSelect,
 } from "@dramaip/ui-shared";
 import { AiSettingsLink, useStudioSession } from "../../studio-session";
 import { CreativeIntentSummary } from "../../creative-intent";
@@ -897,8 +898,8 @@ function NovelInsightRunner(props: {
         </div>
         <label className="grid gap-1 text-xs text-muted">
           本次使用的智能引擎
-          <select
-            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+          <NativeSelect
+            className="w-auto text-sm"
             value={engineKind}
             disabled={busy}
             onChange={(event) =>
@@ -915,7 +916,7 @@ function NovelInsightRunner(props: {
                 {engine.canRun === false ? " · 不可运行" : ""}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       <textarea
@@ -935,8 +936,8 @@ function NovelInsightRunner(props: {
       )}
       <label className="mt-3 grid max-w-md gap-1 text-xs text-muted">
         分析范围
-        <select
-          className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+        <NativeSelect
+          className="w-auto text-sm"
           value={chapterId}
           disabled={busy}
           onChange={(event) => setChapterId(event.target.value)}
@@ -947,7 +948,7 @@ function NovelInsightRunner(props: {
               {chapter.title}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <div className="mt-3 flex flex-wrap gap-2">
         <BareButton
@@ -1170,8 +1171,8 @@ export function NovelArtifactGenerator(props: {
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid min-w-48 flex-1 gap-1 text-xs text-muted">
               本次使用的智能引擎
-              <select
-                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+              <NativeSelect
+                className="w-auto text-sm"
                 value={engineKind}
                 disabled={busy}
                 onChange={(event) =>
@@ -1188,7 +1189,7 @@ export function NovelArtifactGenerator(props: {
                     {engine.canRun === false ? "不可运行" : "可运行"}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <BareButton
               className={`rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50 ${returnedFromSettings ? "ring-2 ring-brand ring-offset-2" : ""}`}
@@ -1240,7 +1241,7 @@ export function NovelArtifactGenerator(props: {
               </div>
               {runId && (
                 <Link
-                  className="mt-2 inline-block text-xs text-brand underline"
+                  className="mt-2 inline-block text-xs text-link underline"
                   to="/tasks"
                 >
                   查看完整过程

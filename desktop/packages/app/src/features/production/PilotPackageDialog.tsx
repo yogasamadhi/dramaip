@@ -7,6 +7,7 @@ import {
   InlineNotice,
   Select,
   Textarea,
+  NativeSelect,
 } from "@dramaip/ui-shared";
 import type { PilotPackagePreview } from "@dramaip/contracts/delivery";
 import { message, useStudio } from "../../studio-shared";
@@ -322,9 +323,9 @@ export function PilotPackageDialog(props: {
               </label>
               <label className="block text-sm">
                 可选：明确已采用的逐镜头关联
-                <select
+                <NativeSelect
                   aria-label="试制包明确镜头关联"
-                  className="mt-1 block w-full rounded border border-line p-2"
+                  className="mt-1 w-full"
                   value={shotAttributionId}
                   disabled={working}
                   onChange={(event) => setShotAttributionId(event.target.value)}
@@ -345,7 +346,7 @@ export function PilotPackageDialog(props: {
                       {value.coverage.nodeAssociatedShots}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <p className="text-xs text-muted">
                 明确所选版本另行重读后才创建预览；关联文件仅含引用／hash／位置／实际覆盖，不导出私人理由、引文或节点正文，不证明语义和权利通过。
@@ -477,7 +478,7 @@ export function PilotPackageDialog(props: {
                     {value.reports.map((report) => (
                       <Link
                         key={report.id}
-                        className="mt-2 block break-all text-brand"
+                        className="mt-2 block break-all text-link"
                         to={`/projects/${props.projectId}/tools/quality-review?reportId=${report.id}`}
                         onClick={props.onClose}
                       >
@@ -504,7 +505,7 @@ export function PilotPackageDialog(props: {
                     {value.reviews.map((review) => (
                       <Link
                         key={review.id}
-                        className="mt-2 block break-all text-brand"
+                        className="mt-2 block break-all text-link"
                         to={`/projects/${props.projectId}/tools/quality-review?localReviewId=${review.id}`}
                         onClick={props.onClose}
                       >

@@ -1,7 +1,7 @@
 import { CreationWorkbench } from "../creation-workbench";
 import { NarrativePlanningWorkbench } from "../novel/NarrativePlanningWorkbench";
 import { StoryIntelligencePanel } from "./StoryIntelligencePanel";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -152,8 +152,8 @@ export function ChapterAnalysisPanel(props: { projectId?: string } = {}) {
       <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <label className="grid gap-1 text-sm">
           项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={projectId}
             onChange={(event) => {
               const nextProjectId = event.target.value;
@@ -168,12 +168,12 @@ export function ChapterAnalysisPanel(props: { projectId?: string } = {}) {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm">
           章节
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             disabled={!projectId}
             value={chapterId}
             onChange={(event) => setChapterId(event.target.value)}
@@ -184,7 +184,7 @@ export function ChapterAnalysisPanel(props: { projectId?: string } = {}) {
                 {chapter.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="flex items-end">
           <BareButton

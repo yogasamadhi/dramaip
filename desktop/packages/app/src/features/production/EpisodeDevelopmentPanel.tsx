@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   EpisodeDevelopmentRequestSchema,
   EpisodeOutlineContentSchema,
@@ -1286,7 +1286,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
             </p>
           )}
           <Link
-            className="text-sm text-brand"
+            className="text-sm text-link"
             to={`/projects/${encodeURIComponent(projectId)}/tools/episode-development`}
           >
             返回独立开发工作台（另行选择来源）
@@ -1330,7 +1330,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
             份
           </p>
           <Link
-            className="text-brand text-sm"
+            className="text-link text-sm"
             to={`/projects/${projectId}/tools/${direct ? "author-intent" : "season-plan"}`}
           >
             {direct ? "核对正式作者意图" : "核对整季方案"}
@@ -1458,9 +1458,9 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
               {operation === "episode-outline" && (
                 <label className="block text-sm">
                   本集实际输入方式
-                  <select
+                  <NativeSelect
                     aria-label="本集实际输入方式"
-                    className="ml-2 rounded border border-line bg-surface p-2"
+                    className="ml-2 w-auto"
                     value={narrativeMode}
                     onChange={(event) => {
                       setNarrativeMode(
@@ -1471,7 +1471,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
                   >
                     <option value="season">继承正式季纲的表达</option>
                     <option value="episode">本集独立重选实际表达</option>
-                  </select>
+                  </NativeSelect>
                 </label>
               )}
               <p className="text-sm">
@@ -2014,7 +2014,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
             )}
             {item.scriptId && (
               <Link
-                className="text-brand text-sm"
+                className="text-link text-sm"
                 to={`/adapt?projectId=${projectId}&stage=scripts&scriptId=${item.scriptId}`}
               >
                 打开实际剧本与导出
@@ -2045,7 +2045,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
               )}
             {item.content.kind === "storyboard-package" && item.scriptId && (
               <Link
-                className="text-brand text-sm"
+                className="text-link text-sm"
                 to={`/adapt?projectId=${projectId}&stage=shots&scriptId=${item.scriptId}`}
               >
                 打开实际场景与分镜

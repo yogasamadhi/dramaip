@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import { Link } from "react-router-dom";
 import type { CreationWorkflow } from "@dramaip/contracts/creation";
 import type { ProductionRecordMergeComparison } from "@dramaip/contracts/production";
@@ -222,7 +222,8 @@ export function ProductionRecordComparisonView({
               <label className="block">
                 {unit.field === "title" ? "记录标题" : unit.field}选择 ·{" "}
                 {records.get(unit.recordId)?.stableId}
-                <select
+                <NativeSelect
+                  className="w-auto"
                   aria-label={`${records.get(unit.recordId)?.stableId} ${unit.field}选择`}
                   value={choices?.[unit.id] ?? ""}
                   disabled={disabled}
@@ -239,7 +240,7 @@ export function ProductionRecordComparisonView({
                   </option>
                   <option value="main">保留当前人工值</option>
                   <option value="branch">使用冻结候选值</option>
-                </select>
+                </NativeSelect>
               </label>
             )}
           </div>

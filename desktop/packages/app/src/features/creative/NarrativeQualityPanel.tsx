@@ -7,7 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   NarrativeQualityDimensionSchema,
   NarrativeQualityRequestSchema,
@@ -173,11 +173,11 @@ function QualityIssue(props: {
           </label>
           <label className="block text-sm">
             真实复检报告
-            <select
+            <NativeSelect
               aria-label={`问题 ${issue.id} 的复检报告`}
               value={recheck}
               onChange={(event) => setRecheck(event.target.value)}
-              className="ml-2 max-w-full rounded border border-line bg-surface p-2"
+              className="ml-2 max-w-full w-auto"
             >
               <option value="">请选择当前已采用的同范围复检</option>
               {eligible.map((value) => (
@@ -185,7 +185,7 @@ function QualityIssue(props: {
                   {value.id} · v{value.version}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -566,11 +566,11 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
         </p>
         <label className="block text-sm">
           质量检查目标
-          <select
+          <NativeSelect
             aria-label="质量检查目标"
             value={target}
             onChange={(event) => setTarget(event.target.value)}
-            className="ml-2 max-w-full rounded border border-line bg-surface p-2"
+            className="ml-2 max-w-full w-auto"
           >
             <option value="">请选择当前正式内容</option>
             {!catalog.error &&
@@ -582,7 +582,7 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
                   {item.title} · v{item.target.version}
                 </option>
               ))}
-          </select>
+          </NativeSelect>
         </label>
         {target === `chapter-set:${projectId}` && catalog.data?.chapterSet && (
           <fieldset className="space-y-3 rounded border border-line p-3">
@@ -591,17 +591,17 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
             </legend>
             <label className="text-sm">
               检查范围{" "}
-              <select
+              <NativeSelect
                 aria-label="跨章检查范围"
                 value={chapterMode}
                 onChange={(event) =>
                   setChapterMode(event.target.value as "selection" | "full")
                 }
-                className="rounded border border-line bg-surface p-2"
+                className="w-auto"
               >
                 <option value="selection">所选章节（局部，不是全书）</option>
                 <option value="full">全书非空正文（须选择全部）</option>
-              </select>
+              </NativeSelect>
             </label>
             <p className="text-sm text-muted">
               实际目录 {catalog.data.chapterSet.chapters.length} 章，非空正文{" "}
@@ -781,7 +781,7 @@ export function NarrativeQualityPanel({ projectId }: { projectId: string }) {
           </p>
         ))}
         <Link
-          className="text-sm text-brand"
+          className="text-sm text-link"
           to={`/pending?projectId=${projectId}`}
         >
           查看本项目待确认与质量问题

@@ -341,7 +341,7 @@ export function AuthorIntentCreationPanel({ project }: { project: Project }) {
               <p>AI 建议仍是候选，结构与模型检查不是作者确认或真实质量证明。</p>
               {workflow.authorIntentId ? (
                 <Link
-                  className="text-brand underline"
+                  className="text-link underline"
                   to={`${location.pathname}?${new URLSearchParams({ intentId: workflow.authorIntentId, intentWorkflowId: workflow.id })}`}
                 >
                   比较并确认此 AI 意图候选

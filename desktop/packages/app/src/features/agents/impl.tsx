@@ -21,6 +21,7 @@ import {
   DropdownMenu,
   Input,
   confirmDialog,
+  NativeSelect,
 } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -685,9 +686,9 @@ export function AgentSidePanel() {
             </BareButton>
           </div>
         </div>
-        <select
+        <NativeSelect
           aria-label="全局助手对话历史"
-          className="mt-3 w-full rounded-lg border border-line bg-canvas px-2 py-2 text-xs"
+          className="mt-3 w-full h-8 text-sm"
           value={conversationId ?? ""}
           onChange={(event) => {
             if (event.target.value) setConversationId(event.target.value);
@@ -701,7 +702,7 @@ export function AgentSidePanel() {
               {AGENT_ENGINE_LABELS[conversation.engineKind]}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         {!!archivedConversations.length && (
           <details className="mt-2 text-xs text-muted">
             <summary className="cursor-pointer">
@@ -734,9 +735,9 @@ export function AgentSidePanel() {
           </details>
         )}
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <select
+          <NativeSelect
             aria-label="智能助手引擎"
-            className="min-w-0 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
+            className="min-w-0 w-auto h-8 text-sm"
             value={engineKind}
             onChange={(event) =>
               selectEngine(event.target.value as AgentEngineKind)
@@ -755,10 +756,10 @@ export function AgentSidePanel() {
                 </option>
               );
             })}
-          </select>
-          <select
+          </NativeSelect>
+          <NativeSelect
             aria-label="对话项目上下文"
-            className="min-w-0 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
+            className="min-w-0 w-auto h-8 text-sm"
             value={projectId}
             disabled={Boolean(detail?.conversation.projectId)}
             onChange={(event) => {
@@ -773,7 +774,7 @@ export function AgentSidePanel() {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
           {detail && !detail.conversation.projectId && projectId && (
             <BareButton
               className="rounded-lg border border-brand px-2 py-1.5 text-xs text-brand"
@@ -798,7 +799,7 @@ export function AgentSidePanel() {
             actionId="global-assistant:send"
             projectId={projectId || undefined}
             input={draft}
-            className="mt-1 inline-block text-xs font-medium text-brand underline"
+            className="mt-1 inline-block text-xs font-medium text-link underline"
           >
             前往设置并保留当前输入
           </AiSettingsLink>
@@ -868,8 +869,8 @@ export function AgentSidePanel() {
               placeholder="默认模型"
               onChange={(event) => setModelId(event.target.value)}
             />
-            <select
-              className="col-span-2 rounded-lg border border-line bg-canvas px-2 py-1.5"
+            <NativeSelect
+              className="col-span-2 w-auto h-8 text-sm"
               value={selectedTask}
               onChange={(event) =>
                 setSelectedTask(event.target.value as AgentTaskType)
@@ -880,14 +881,14 @@ export function AgentSidePanel() {
                   {task.category} · {task.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {operation &&
               ["chapter", "script-revision", "shot-prompt", "episode"].includes(
                 operation,
               ) && (
-                <select
+                <NativeSelect
                   aria-label="AI 内容目标"
-                  className="col-span-2 rounded-lg border border-line bg-canvas p-2"
+                  className="col-span-2 w-auto"
                   value={selectedContentTarget?.id ?? ""}
                   onChange={(event) => setContentTargetId(event.target.value)}
                 >
@@ -897,7 +898,7 @@ export function AgentSidePanel() {
                       {item.title}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               )}
             <BareButton
               className="col-span-2 rounded-lg border border-brand py-1.5 text-brand"
@@ -1439,8 +1440,8 @@ export function AgentTaskConfigPanel() {
           高级模式
         </BareButton>
       </div>
-      <select
-        className="mt-4 w-full rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm"
+      <NativeSelect
+        className="mt-4 w-full text-sm"
         value={projectId}
         onChange={(event) => {
           const nextProjectId = event.target.value;
@@ -1454,7 +1455,7 @@ export function AgentTaskConfigPanel() {
             {project.title}
           </option>
         ))}
-      </select>
+      </NativeSelect>
       {selectedShot && (
         <p
           className="mt-3 rounded-lg bg-brand-soft p-3 text-xs leading-5 text-brand"
@@ -1464,8 +1465,8 @@ export function AgentTaskConfigPanel() {
           。已从导演看板带入；新建任务会附带这段镜头上下文，不需要重复选择父级资料。
         </p>
       )}
-      <select
-        className="mt-3 w-full rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm"
+      <NativeSelect
+        className="mt-3 w-full text-sm"
         value={chapterId}
         onChange={(event) => setChapterId(event.target.value)}
         disabled={!projectId}
@@ -1476,7 +1477,7 @@ export function AgentTaskConfigPanel() {
             {chapter.title}（助手上下文）
           </option>
         ))}
-      </select>
+      </NativeSelect>
       {assistantMode === "simple" && (
         <section className="mt-4 space-y-3" aria-label="当前页面推荐动作">
           <div>
@@ -1568,8 +1569,8 @@ export function AgentTaskConfigPanel() {
         <>
           <label className="mt-3 grid gap-1 text-sm text-muted">
             智能引擎
-            <select
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+            <NativeSelect
+              className="w-auto text-sm"
               value={engineKind}
               onChange={(event) =>
                 setEngineKind(event.target.value as AgentEngineKind)
@@ -1589,12 +1590,12 @@ export function AgentTaskConfigPanel() {
                       : "不可用"}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="mt-3 grid gap-1 text-sm text-muted">
             智能任务
-            <select
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+            <NativeSelect
+              className="w-auto text-sm"
               value={taskType}
               onChange={(event) =>
                 setTaskType(event.target.value as AgentTaskType)
@@ -1613,7 +1614,7 @@ export function AgentTaskConfigPanel() {
                     ))}
                 </optgroup>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="mt-3 grid gap-1 text-sm text-muted">
             本次模型（可选）
@@ -1626,8 +1627,8 @@ export function AgentTaskConfigPanel() {
           </label>
           <label className="mt-3 grid gap-1 text-sm text-muted">
             盲测比较方式
-            <select
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+            <NativeSelect
+              className="w-auto text-sm"
               value={experimentMode}
               onChange={(event) =>
                 setExperimentMode(
@@ -1637,7 +1638,7 @@ export function AgentTaskConfigPanel() {
             >
               <option value="recommended">各引擎推荐配置</option>
               <option value="same_model">三个引擎使用同一模型</option>
-            </select>
+            </NativeSelect>
           </label>
           {requiresChapter && !chapterId && (
             <p className="mt-2 text-xs leading-5 text-warning-strong">

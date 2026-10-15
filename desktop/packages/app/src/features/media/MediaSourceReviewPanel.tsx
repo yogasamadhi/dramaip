@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MediaSourceReview } from "@dramaip/contracts/media";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { message, useStudio } from "../../studio-shared";
 import { MediaPlaybackPanel } from "./MediaPlaybackPanel";
 
@@ -295,8 +295,8 @@ export function MediaSourceReviewPanel(props: {
           {history.data?.length ? (
             <label className="grid gap-1">
               复核历史
-              <select
-                className="w-full rounded border border-line p-2"
+              <NativeSelect
+                className="w-full"
                 value={selectedId ?? ""}
                 onChange={(event) =>
                   setSelectedId(event.target.value || undefined)
@@ -314,7 +314,7 @@ export function MediaSourceReviewPanel(props: {
                     · 镜头版本 {item.shotVersion}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           ) : null}
           {value && (

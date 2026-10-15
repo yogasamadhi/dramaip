@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, StatusBadge } from "@dramaip/ui-shared";
+import { Button, StatusBadge, NativeSelect } from "@dramaip/ui-shared";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
 import { AgentProviderActionPreviewCard } from "../studio-widgets";
 import { readProjectProviderReview } from "../../provider-action-review";
@@ -114,9 +114,9 @@ export function PendingConfirmationPage() {
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm">
           项目范围
-          <select
+          <NativeSelect
             aria-label="待确认项目范围"
-            className="rounded-lg border border-line bg-surface px-3 py-2"
+            className="w-auto"
             value={projectId ?? ""}
             onChange={(event) =>
               update("projectId", event.target.value || undefined)
@@ -132,7 +132,7 @@ export function PendingConfirmationPage() {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <Button
           variant="secondary"

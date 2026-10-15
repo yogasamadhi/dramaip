@@ -61,7 +61,7 @@ function ScriptContextControls(props: {
           </p>
         </div>
         <Link
-          className="text-sm font-medium text-brand"
+          className="text-sm font-medium text-link"
           to={`/projects/${props.context.projectId}/tools`}
         >
           项目工具
@@ -546,7 +546,7 @@ function AdaptationWorkspaceInstance(props: {
       </WorkspaceObjectControls>
       {projectId && !originalScriptProject && (
         <Link
-          className="inline-flex rounded border border-line px-4 py-2 text-sm text-brand"
+          className="inline-flex rounded border border-line px-4 py-2 text-sm text-link"
           to={`/projects/${projectId}/tools/adaptation-diagnosis`}
         >
           先确认来源并进行改编诊断 →
@@ -1047,7 +1047,7 @@ export function EpisodePacingPanel(props: {
                           point.disposition === "active" && (
                             <div className="mt-2 flex flex-wrap gap-2">
                               <BareButton
-                                className="text-xs text-brand underline"
+                                className="text-xs text-link underline"
                                 onClick={() => void editManual(point)}
                               >
                                 调整
@@ -1064,7 +1064,7 @@ export function EpisodePacingPanel(props: {
                           point.disposition === "active" &&
                           point.scriptId && (
                             <BareButton
-                              className="mt-2 text-xs text-brand underline"
+                              className="mt-2 text-xs text-link underline"
                               onClick={() => void createAiRecommendation(point)}
                             >
                               创建上下文 AI 修订预览
@@ -1106,7 +1106,7 @@ export function EpisodePacingPanel(props: {
               >
                 <span>{checkpoint.title}</span>
                 <BareButton
-                  className="text-brand underline"
+                  className="text-link underline"
                   onClick={() => void restoreCheckpoint(checkpoint)}
                 >
                   恢复此版本

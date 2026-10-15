@@ -53,7 +53,7 @@ export function ProductionContextBoundary(props: {
             : "正在核对指定项目和制作对象的完整父级…"}
         </p>
         {(scope.error || malformedProject) && (
-          <Link className="mt-3 inline-block text-sm text-brand" to="/">
+          <Link className="mt-3 inline-block text-sm text-link" to="/">
             返回项目工作台，另行选择对象
           </Link>
         )}

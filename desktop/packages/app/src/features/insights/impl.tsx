@@ -3,7 +3,7 @@ import {
   CreationRecordWorkbench,
 } from "../creation-workbench";
 import type { FeedbackKind, FeedbackPreview } from "@dramaip/contracts/product";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { WorkspaceIntro, message, useStudio } from "../../studio-shared";
@@ -114,9 +114,9 @@ export function FeedbackPage() {
           <p className="text-sm text-muted">
             反馈没有可靠的内容定位，请选择本次要修订的章节或剧本。
           </p>
-          <select
+          <NativeSelect
             aria-label="反馈修订目标"
-            className="rounded border border-line p-2"
+            className="w-auto"
             value={revisionTargetId}
             onChange={(event) => setRevisionTargetId(event.target.value)}
           >
@@ -131,7 +131,7 @@ export function FeedbackPage() {
                 剧本 · {item.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
           {chapters.find((item) => item.id === revisionTargetId) ? (
             <CreationWorkbench
               projectId={projectId}
@@ -162,8 +162,8 @@ export function FeedbackPage() {
       <section className="rounded-xl border border-line bg-surface p-4">
         <label className="grid max-w-md gap-1 text-sm">
           所属项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={projectId}
             onChange={(event) => {
               const nextProjectId = event.target.value;
@@ -179,7 +179,7 @@ export function FeedbackPage() {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="mt-4 flex flex-wrap gap-2">
           <BareButton

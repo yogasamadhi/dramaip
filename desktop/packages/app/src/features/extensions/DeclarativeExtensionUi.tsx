@@ -1,5 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, InlineNotice, Input, Textarea } from "@dramaip/ui-shared";
+import {
+  Button,
+  InlineNotice,
+  Input,
+  Textarea,
+  NativeSelect,
+} from "@dramaip/ui-shared";
 import { useMemo, useState } from "react";
 import { useStudioClient } from "../../runtime-connection";
 
@@ -152,8 +158,8 @@ function DeclarativeContribution(props: { contribution: Contribution }) {
                 }
               />
             ) : field.type === "select" ? (
-              <select
-                className="rounded-md border border-line bg-surface px-3 py-2 text-ink"
+              <NativeSelect
+                className="w-auto"
                 value={String(values[field.id] ?? "")}
                 onChange={(event) =>
                   setValues((current) => ({
@@ -166,7 +172,7 @@ function DeclarativeContribution(props: { contribution: Contribution }) {
                 {(field.options ?? []).map((option) => (
                   <option key={option}>{option}</option>
                 ))}
-              </select>
+              </NativeSelect>
             ) : (
               <Input
                 type={field.type === "number" ? "number" : "text"}

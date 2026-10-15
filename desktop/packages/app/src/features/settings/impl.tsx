@@ -16,6 +16,7 @@ import {
   Button,
   LoadingState,
   confirmDialog,
+  NativeSelect,
 } from "@dramaip/ui-shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
@@ -255,8 +256,8 @@ export function GenerationLedgerPanel() {
         </div>
         <label className="grid gap-1 text-sm">
           项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={projectId}
             onChange={(event) => setProjectId(event.target.value)}
           >
@@ -266,7 +267,7 @@ export function GenerationLedgerPanel() {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       {error && (
@@ -588,9 +589,9 @@ export function ProviderSettingsPanel(props: {
         <div className="mt-4 grid gap-3 lg:grid-cols-3">
           <label className="grid gap-1 text-sm text-muted">
             服务商
-            <select
+            <NativeSelect
               ref={providerSelectRef}
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+              className="w-auto"
               value={choice}
               onChange={(event) =>
                 selectPreset(event.target.value as ProviderChoice)
@@ -602,14 +603,14 @@ export function ProviderSettingsPanel(props: {
                 </option>
               ))}
               <option value="other">其他（全部手动填写）</option>
-            </select>
+            </NativeSelect>
           </label>
 
           {preset ? (
             <label className="grid gap-1 text-sm text-muted">
               模型
-              <select
-                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+              <NativeSelect
+                className="w-auto"
                 value={modelId}
                 onChange={(event) => setModelId(event.target.value)}
               >
@@ -621,7 +622,7 @@ export function ProviderSettingsPanel(props: {
                       : ""}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           ) : (
             <label className="grid gap-1 text-sm text-muted">
@@ -655,8 +656,8 @@ export function ProviderSettingsPanel(props: {
           <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <label className="grid gap-1 text-sm text-muted">
               服务类型
-              <select
-                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+              <NativeSelect
+                className="w-auto"
                 value={customServiceType}
                 onChange={(event) => setCustomServiceType(event.target.value)}
               >
@@ -664,7 +665,7 @@ export function ProviderSettingsPanel(props: {
                 <option value="图片生成">图片生成</option>
                 <option value="语音生成">语音生成</option>
                 <option value="视频生成">视频生成</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="grid gap-1 text-sm text-muted">
               模型名称
@@ -686,8 +687,8 @@ export function ProviderSettingsPanel(props: {
             </label>
             <label className="grid gap-1 text-sm text-muted">
               调用协议
-              <select
-                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+              <NativeSelect
+                className="w-auto"
                 value={customProtocol}
                 onChange={(event) => setCustomProtocol(event.target.value)}
               >
@@ -700,7 +701,7 @@ export function ProviderSettingsPanel(props: {
                 <option value="Stable Diffusion WebUI">
                   Stable Diffusion WebUI
                 </option>
-              </select>
+              </NativeSelect>
             </label>
           </div>
         )}
@@ -917,7 +918,7 @@ function SmartCreationPreparation(props: { testedProviderId?: string }) {
       )}
       <div className="mt-3 flex flex-wrap gap-3 text-sm">
         <BareButton
-          className="font-medium text-brand underline"
+          className="font-medium text-link underline"
           onClick={() =>
             void queryClient.invalidateQueries({ queryKey: ["agent-engines"] })
           }
@@ -1229,8 +1230,8 @@ export function AgentEngineSettingsPanel() {
       <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
         <label className="grid gap-1 text-sm text-muted">
           全局默认引擎
-          <select
-            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+          <NativeSelect
+            className="w-auto"
             value={globalDefaultEngine}
             onChange={(event) =>
               setGlobalDefaultEngine(event.target.value as AgentEngineKind)
@@ -1241,7 +1242,7 @@ export function AgentEngineSettingsPanel() {
                 {engine.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm text-muted">
           全局默认模型（可选）
@@ -1263,8 +1264,8 @@ export function AgentEngineSettingsPanel() {
       <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
         <label className="grid gap-1 text-sm text-muted">
           项目
-          <select
-            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+          <NativeSelect
+            className="w-auto"
             value={projectId}
             onChange={(event) => setProjectId(event.target.value)}
           >
@@ -1274,7 +1275,7 @@ export function AgentEngineSettingsPanel() {
                 {project.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm text-muted">
           项目默认模型（可选）
@@ -1287,8 +1288,8 @@ export function AgentEngineSettingsPanel() {
         </label>
         <label className="grid gap-1 text-sm text-muted">
           项目默认引擎
-          <select
-            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
+          <NativeSelect
+            className="w-auto"
             value={defaultEngine}
             onChange={(event) =>
               setDefaultEngine(event.target.value as AgentEngineKind)
@@ -1299,7 +1300,7 @@ export function AgentEngineSettingsPanel() {
                 {engine.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <BareButton
           className="self-end rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
@@ -1334,9 +1335,9 @@ export function AgentEngineSettingsPanel() {
         {codexAuth?.mode !== "custom_provider" && (
           <div className="mt-3 space-y-3">
             <div className="flex flex-wrap gap-2">
-              <select
+              <NativeSelect
                 aria-label="Codex 模型服务商"
-                className="min-w-64 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
+                className="min-w-64 flex-1 text-sm"
                 value={codexProviderId}
                 onChange={(event) => {
                   const providerId = event.target.value;
@@ -1366,10 +1367,10 @@ export function AgentEngineSettingsPanel() {
                     </option>
                   );
                 })}
-              </select>
-              <select
+              </NativeSelect>
+              <NativeSelect
                 aria-label="Codex 连接协议"
-                className="min-w-56 rounded-lg border border-line px-3 py-2 text-sm"
+                className="min-w-56 w-auto text-sm"
                 value={codexProtocol}
                 onChange={(event) =>
                   setCodexProtocol(
@@ -1382,7 +1383,7 @@ export function AgentEngineSettingsPanel() {
                 <option value="chat_completions">
                   Chat Completions：本地转换
                 </option>
-              </select>
+              </NativeSelect>
               <BareButton
                 className="rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
                 disabled={

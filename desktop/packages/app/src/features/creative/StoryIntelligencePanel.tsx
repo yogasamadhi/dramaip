@@ -761,7 +761,7 @@ export function StoryIntelligencePanel(props: { projectId?: string }) {
               ；没有采用或提交入口。
             </p>
             <a
-              className="text-brand"
+              className="text-link"
               href={`#${location.pathname}?${new URLSearchParams({ projectId, storySnapshotId: simulation.snapshotId, storySimulationId: simulation.id })}`}
             >
               返回这次原推演

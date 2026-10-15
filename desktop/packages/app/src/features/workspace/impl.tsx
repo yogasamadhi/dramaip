@@ -21,13 +21,17 @@ import {
   Button,
   DropdownMenu,
   EmptyState,
+  IconButton,
   InlineNotice,
   Input,
   LoadingState,
   Select,
   Textarea,
   confirmDialog,
+  showToast,
+  NativeSelect,
 } from "@dramaip/ui-shared";
+import { MoreHorizontal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -1438,13 +1442,19 @@ export function ProjectHome() {
       setError(message(cause));
     }
   };
+  // Trash is recoverable, so it acts immediately and offers undo instead of
+  // asking for confirmation first.
   const trashProject = async (project: Project) => {
-    if (!(await confirmDialog(`将「${project.title}」移入回收站吗？`))) return;
     try {
       await client.projects.trash(project.id);
       setProjects((items) => items.filter((item) => item.id !== project.id));
       if (showTrash) loadTrash();
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast({
+        message: `「${project.title}」已移入回收站。`,
+        actionLabel: "撤销",
+        onAction: () => restoreProject(project),
+      });
     } catch (cause) {
       setError(message(cause));
     }
@@ -2412,12 +2422,25 @@ export function ProjectHome() {
                     {new Date(project.updatedAt).toLocaleString("zh-CN")}
                   </p>
                 </Link>
-                <BareButton
-                  className="mt-5 text-xs text-muted hover:text-danger-strong"
-                  onClick={() => void trashProject(project)}
-                >
-                  移入回收站
-                </BareButton>
+                <DropdownMenu>
+                  <DropdownMenu.Trigger asChild>
+                    <IconButton
+                      aria-label={`「${project.title}」更多操作`}
+                      variant="ghost"
+                      size="sm"
+                      className="absolute bottom-4 right-4"
+                    >
+                      <MoreHorizontal aria-hidden="true" className="size-4" />
+                    </IconButton>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content align="end">
+                    <DropdownMenu.Item
+                      onSelect={() => void trashProject(project)}
+                    >
+                      移入回收站
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu>
               </article>
             ))}
             {!projects.length && (
@@ -2985,8 +3008,8 @@ function PersonalTheaterToolPanel(props: { project: Project }) {
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
         />
-        <select
-          className="rounded-md border border-line bg-surface px-3 text-sm"
+        <NativeSelect
+          className="w-auto text-sm"
           value={relationship}
           onChange={(event) => {
             const next = event.target.value as typeof relationship;
@@ -2997,9 +3020,9 @@ function PersonalTheaterToolPanel(props: { project: Project }) {
           <option value="self">本人</option>
           <option value="adult_relative_or_friend">成年亲友</option>
           <option value="minor">未成年人</option>
-        </select>
-        <select
-          className="rounded-md border border-line bg-surface px-3 text-sm"
+        </NativeSelect>
+        <NativeSelect
+          className="w-auto text-sm"
           disabled={relationship !== "minor"}
           value={ageBand}
           onChange={(event) => setAgeBand(event.target.value as typeof ageBand)}
@@ -3007,7 +3030,7 @@ function PersonalTheaterToolPanel(props: { project: Project }) {
           <option value="adult">成年人</option>
           <option value="minor_14_to_17">14–17 岁</option>
           <option value="under_14">未满 14 岁</option>
-        </select>
+        </NativeSelect>
         <Button onClick={() => void create()}>添加人物</Button>
       </div>
       {notice && (
@@ -3535,7 +3558,7 @@ export function ProjectWorkspace() {
           指定项目或章节未能读取、身份或归属不符；未改读首章、最近项目或上次正文。
           {failedRead}
         </p>
-        <Link className="mt-3 inline-block text-sm text-brand" to="/write">
+        <Link className="mt-3 inline-block text-sm text-link" to="/write">
           返回小说项目库，另行选择
         </Link>
       </section>
@@ -3689,7 +3712,7 @@ export function ProjectWorkspace() {
             </p>
           </div>
           <Link
-            className="shrink-0 text-sm font-medium text-brand hover:text-brand-strong"
+            className="shrink-0 text-sm font-medium text-link hover:text-brand-strong"
             to={`/projects/${project.id}/tools`}
           >
             {modeGuide.action} →
@@ -4373,9 +4396,9 @@ export function SeriesLibraryPanel(props: {
             保持项目内独立；不会连接云端或复制媒体二进制。
           </p>
         </div>
-        <select
+        <NativeSelect
           aria-label="项目所属系列"
-          className="rounded-lg border border-line bg-canvas px-2 py-1.5 text-sm"
+          className="w-auto h-8 text-sm"
           value={library?.series?.id ?? ""}
           disabled={working}
           onChange={(event) => void joinSeries(event.target.value || undefined)}
@@ -4386,7 +4409,7 @@ export function SeriesLibraryPanel(props: {
               {item.title}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       {!library?.series ? (
         <div className="flex flex-wrap gap-2">
@@ -4470,9 +4493,9 @@ export function SeriesLibraryPanel(props: {
             </div>
             <div className="space-y-2 rounded-lg border border-line p-3">
               <p className="text-sm font-medium">从同系列项目导入锁定版本</p>
-              <select
+              <NativeSelect
                 aria-label="源项目"
-                className="w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-sm"
+                className="w-full h-8 text-sm"
                 value={sourceProjectId}
                 onChange={(event) => {
                   setSourceProjectId(event.target.value);
@@ -4487,10 +4510,10 @@ export function SeriesLibraryPanel(props: {
                       : "（非当前系列）"}
                   </option>
                 ))}
-              </select>
-              <select
+              </NativeSelect>
+              <NativeSelect
                 aria-label="源资产版本"
-                className="w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-sm"
+                className="w-full h-8 text-sm"
                 value={sourceAssetId}
                 onChange={(event) => setSourceAssetId(event.target.value)}
               >
@@ -4500,7 +4523,7 @@ export function SeriesLibraryPanel(props: {
                     {asset.title} · v{asset.version}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               <div className="flex flex-wrap gap-2">
                 <BareButton
                   className="rounded-md border border-line px-2 py-1 text-sm disabled:opacity-50"
@@ -4715,8 +4738,8 @@ export function ProjectPilotPanel(props: {
           </div>
           <label className="mt-3 grid max-w-xs gap-1 text-sm">
             试制集数
-            <select
-              className="rounded-lg border border-line bg-surface-raised px-3 py-2"
+            <NativeSelect
+              className="w-auto"
               value={episodeCount}
               onChange={(event) => setEpisodeCount(Number(event.target.value))}
             >
@@ -4729,7 +4752,7 @@ export function ProjectPilotPanel(props: {
                   {count} 集
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <BareButton
             className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
@@ -4788,7 +4811,7 @@ export function ProjectPilotPanel(props: {
               )}
               {nextTo(active) && (
                 <Link
-                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-link"
                   to={nextTo(active)!}
                 >
                   前往唯一待办
@@ -4819,7 +4842,8 @@ export function ProjectPilotPanel(props: {
               {active.episodeIds.length > 1 && (
                 <label className="mb-3 flex items-center gap-3 text-sm">
                   本次试制分集
-                  <select
+                  <NativeSelect
+                    className="w-auto"
                     value={
                       active.episodeIds.includes(pilotEpisodeId)
                         ? pilotEpisodeId
@@ -4832,7 +4856,7 @@ export function ProjectPilotPanel(props: {
                         第 {index + 1} 集
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                   <span className="text-muted">选择下一集后明确发起生成。</span>
                 </label>
               )}
@@ -6133,7 +6157,7 @@ export function ProjectActivityPanel(props: { projectId: string }) {
             导入、检查、智能任务和修订相关的最近处理记录。
           </p>
         </div>
-        <Link className="text-sm text-brand" to="/tasks">
+        <Link className="text-sm text-link" to="/tasks">
           查看全部任务
         </Link>
       </div>
@@ -6514,12 +6538,12 @@ export function StoryBibleSidecar(props: {
             aria-label="搜索 Story Bible"
           />
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link className="text-brand underline" to={storyBiblePath}>
+            <Link className="text-link underline" to={storyBiblePath}>
               打开完整 Story Bible
             </Link>
             {props.context.kind === "chapter" && (
               <BareButton
-                className="text-brand underline"
+                className="text-link underline"
                 onClick={() => void queue()}
               >
                 生成变更草案
@@ -6564,7 +6588,7 @@ export function StoryBibleSidecar(props: {
                     <p className="mt-1 font-medium">{item.title}</p>
                   </div>
                   <BareButton
-                    className="text-brand underline"
+                    className="text-link underline"
                     onClick={() => void togglePin(item.id)}
                   >
                     {pinned.includes(item.id) ? "取消固定" : "固定"}
@@ -6579,7 +6603,7 @@ export function StoryBibleSidecar(props: {
                     ? ` · v${item.sourceVersion}`
                     : ""}{" "}
                   ·{" "}
-                  <Link className="text-brand underline" to={storyBiblePath}>
+                  <Link className="text-link underline" to={storyBiblePath}>
                     查看来源
                   </Link>
                 </p>
@@ -6646,7 +6670,7 @@ export function StoryBibleSidecar(props: {
                   {item.status === "draft" && (
                     <div className="mt-2 flex gap-2">
                       <BareButton
-                        className="text-brand underline"
+                        className="text-link underline"
                         onClick={() => void apply(item)}
                       >
                         采用所选字段
@@ -6661,7 +6685,7 @@ export function StoryBibleSidecar(props: {
                   )}
                   {["applied", "stale"].includes(item.status) && (
                     <BareButton
-                      className="mt-2 text-brand underline"
+                      className="mt-2 text-link underline"
                       onClick={() => void undo(item)}
                     >
                       撤销采用

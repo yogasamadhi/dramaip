@@ -6,7 +6,7 @@ import type {
   EpisodeCompliancePreflight,
   EpisodeWorkflowKind,
 } from "@dramaip/contracts/product";
-import { BareButton } from "@dramaip/ui-shared";
+import { BareButton, NativeSelect } from "@dramaip/ui-shared";
 import { StudioClientError } from "@dramaip/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -210,7 +210,7 @@ function ReviewDeliveryWorkspaceInstance(props: {
         title="审核交付"
         description="按分集完成质量检查、审片和交付导出。"
       />
-      <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
+      <div className="workbench space-y-4 bg-canvas">
         <WorkspaceObjectControls
           projectTitle={
             projects.find((project) => project.id === projectId)?.title
@@ -906,9 +906,9 @@ function PlatformDeliveryPanelInstance(props: {
       <div className="grid gap-3 rounded-xl border border-line bg-page p-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
           平台交付档案
-          <select
+          <NativeSelect
             aria-label="平台交付档案"
-            className="rounded-lg border border-line bg-surface px-3 py-2"
+            className="w-auto"
             value={profileId}
             onChange={(event) => {
               setProfileId(event.target.value);
@@ -921,13 +921,13 @@ function PlatformDeliveryPanelInstance(props: {
                 {profile.title} · {profile.video.width}×{profile.video.height}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm">
           当前创意候选
-          <select
+          <NativeSelect
             aria-label="当前创意候选"
-            className="rounded-lg border border-line bg-surface px-3 py-2"
+            className="w-auto"
             value={variantId}
             onChange={(event) => {
               setVariantId(event.target.value);
@@ -940,7 +940,7 @@ function PlatformDeliveryPanelInstance(props: {
                 {variant.label} · v{variant.versionNumber} · {variant.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       {selectedProfile && (
@@ -983,8 +983,8 @@ function PlatformDeliveryPanelInstance(props: {
         </label>
         <label className="grid gap-1 text-sm">
           封面素材
-          <select
-            className="rounded-lg border border-line bg-surface px-3 py-2"
+          <NativeSelect
+            className="w-auto"
             value={coverAssetId}
             onChange={(event) => setCoverAssetId(event.target.value)}
           >
@@ -994,7 +994,7 @@ function PlatformDeliveryPanelInstance(props: {
                 {asset.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-sm">
           平台标题
@@ -2056,9 +2056,9 @@ export function ReviewEditorPanel(props: {
         </div>
         <label className="mt-3 grid gap-1 text-sm">
           当前审片包
-          <select
+          <NativeSelect
             aria-label="当前审片包"
-            className="rounded-lg border border-line bg-surface px-3 py-2"
+            className="w-auto"
             value={packageId}
             onChange={(event) => setPackageId(event.target.value)}
           >
@@ -2068,7 +2068,7 @@ export function ReviewEditorPanel(props: {
                 {item.title} · {item.createdAt}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </section>
       <section className="rounded-xl border border-line p-3">
@@ -2196,8 +2196,8 @@ export function ReviewEditorPanel(props: {
                 <span className="truncate" title={item.relativePath}>
                   {item.name} · {item.mimeType} · {item.relativePath}
                 </span>
-                <select
-                  className="rounded-md border border-line bg-surface px-2 py-1"
+                <NativeSelect
+                  className="w-auto h-8 text-sm"
                   value={item.shotId}
                   onChange={(event) =>
                     setCloudMedia((current) =>
@@ -2215,7 +2215,7 @@ export function ReviewEditorPanel(props: {
                       {clip.orderIndex + 1}. {clip.name}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             ))}
           </div>
@@ -2280,8 +2280,8 @@ export function ReviewEditorPanel(props: {
             <div className="mt-3 grid gap-2">
               <label className="grid gap-1 text-sm">
                 目标剧本
-                <select
-                  className="rounded-lg border border-line bg-surface px-3 py-2"
+                <NativeSelect
+                  className="w-auto"
                   value={reviewRevisionScriptId}
                   onChange={(event) =>
                     setReviewRevisionScriptId(event.target.value)
@@ -2293,7 +2293,7 @@ export function ReviewEditorPanel(props: {
                       {script.title} · 版本 {script.version}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               {selectedReviewPackage && reviewRevisionScriptId && (
                 <CreationRecordWorkbench
@@ -2348,8 +2348,8 @@ export function ReviewEditorPanel(props: {
             <div className="mt-3 grid gap-2">
               <label className="grid gap-1 text-sm">
                 关联分镜
-                <select
-                  className="rounded-lg border border-line px-3 py-2"
+                <NativeSelect
+                  className="w-auto"
                   value={shotId}
                   onChange={(event) => setShotId(event.target.value)}
                 >
@@ -2359,7 +2359,7 @@ export function ReviewEditorPanel(props: {
                       {clip.name}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="grid gap-1 text-sm">
                 时间码（秒）
@@ -2436,9 +2436,9 @@ export function ReviewEditorPanel(props: {
             <div className="mt-3 grid gap-2">
               <label className="grid gap-1 text-sm">
                 决定
-                <select
+                <NativeSelect
                   aria-label="审片决定"
-                  className="rounded-lg border border-line px-3 py-2"
+                  className="w-auto"
                   value={decision}
                   onChange={(event) =>
                     setDecision(event.target.value as typeof decision)
@@ -2448,7 +2448,7 @@ export function ReviewEditorPanel(props: {
                   <option value="approve">通过</option>
                   <option value="return">退回</option>
                   <option value="request_changes">需要修改</option>
-                </select>
+                </NativeSelect>
               </label>
               <label className="grid gap-1 text-sm">
                 决定说明（可选）
@@ -2562,7 +2562,7 @@ export function EpisodeWorkflowPanel(props: {
       <p className="mt-3 text-sm text-muted">
         旧数量评分已停止；已有质量记录未认证，不代表当前质量通过。
         <Link
-          className="ml-2 text-brand"
+          className="ml-2 text-link"
           to={`/projects/${props.projectId}/tools/quality-review`}
         >
           打开独立质量评议

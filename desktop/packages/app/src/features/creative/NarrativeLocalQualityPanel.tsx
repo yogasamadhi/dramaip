@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
-import { Button, confirmDialog } from "@dramaip/ui-shared";
+import { Button, confirmDialog, NativeSelect } from "@dramaip/ui-shared";
 import {
   NarrativeLocalQualitySourceSchema,
   NarrativeLocalQualityCreateSchema,
@@ -195,9 +195,9 @@ function LocalIssue({
           </label>
           <label className="block text-sm">
             实际同来源复检
-            <select
+            <NativeSelect
               aria-label={`本地问题 ${issue.id} 的复检`}
-              className="ml-2 max-w-full rounded border border-line bg-surface p-2"
+              className="ml-2 max-w-full w-auto"
               disabled={disabled}
               value={recheck}
               onChange={(event) => setRecheck(event.target.value)}
@@ -208,7 +208,7 @@ function LocalIssue({
                   {item.id} v{item.version}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -620,7 +620,8 @@ export function NarrativeLocalQualityPanel({
               <div className="flex flex-wrap gap-3">
                 <label>
                   维度
-                  <select
+                  <NativeSelect
+                    className="w-auto"
                     aria-label={`人工问题 ${index + 1} 维度`}
                     value={issue.category}
                     disabled={locked}
@@ -636,11 +637,12 @@ export function NarrativeLocalQualityPanel({
                         {QUALITY_DIMENSION_LABELS[dimension]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   程度
-                  <select
+                  <NativeSelect
+                    className="w-auto"
                     aria-label={`人工问题 ${index + 1} 程度`}
                     value={issue.severity}
                     disabled={locked}
@@ -656,7 +658,7 @@ export function NarrativeLocalQualityPanel({
                     </option>
                     <option value="warning">提醒</option>
                     <option value="suggestion">建议</option>
-                  </select>
+                  </NativeSelect>
                 </label>
               </div>
               <label className="block text-sm">
@@ -685,14 +687,14 @@ export function NarrativeLocalQualityPanel({
               </label>
               <label className="block text-sm">
                 实际目标证据字段
-                <select
+                <NativeSelect
                   aria-label={`人工问题 ${index + 1} 原字段`}
                   value={issue.field}
                   disabled={locked}
                   onChange={(event) =>
                     patchIssue(index, { field: event.target.value })
                   }
-                  className="mt-1 w-full rounded border border-line bg-surface p-2"
+                  className="mt-1 w-full"
                 >
                   <option value="">明确选择原字段</option>
                   {fields.map((field) => (
@@ -703,7 +705,7 @@ export function NarrativeLocalQualityPanel({
                       {field.sourceId} · {field.valuePath}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="block text-sm">
                 逐字引文

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@dramaip/ui-shared";
+import { Button, NativeSelect } from "@dramaip/ui-shared";
 import type { Chapter } from "@dramaip/contracts/writing";
 import {
   NarrativeStoryIndexSchema,
@@ -137,9 +137,9 @@ export function NarrativeStorySources(props: Props) {
           <div className="flex flex-wrap gap-2">
             <label>
               目录关联筛选（只改变展示）{" "}
-              <select
+              <NativeSelect
                 aria-label="叙事目录层级筛选"
-                className="max-w-full rounded border border-line bg-panel"
+                className="max-w-full w-auto"
                 value={currentFilter.groupKey}
                 onChange={(event) =>
                   setFilter({ ...currentFilter, groupKey: event.target.value })
@@ -164,13 +164,13 @@ export function NarrativeStorySources(props: Props) {
                       原筛选层级当前未核对，请明确切回全部
                     </option>
                   )}
-              </select>
+              </NativeSelect>
             </label>
             <label>
               结构展示{" "}
-              <select
+              <NativeSelect
                 aria-label="叙事索引结构展示"
-                className="rounded border border-line bg-panel"
+                className="w-auto"
                 value={currentFilter.view}
                 onChange={(event) =>
                   setFilter({
@@ -183,7 +183,7 @@ export function NarrativeStorySources(props: Props) {
                 <option value="nodes">人物／事件等节点</option>
                 <option value="relationship">关系与因果方向</option>
                 <option value="cognition">认知声明（按人工顺序）</option>
-              </select>
+              </NativeSelect>
             </label>
           </div>
           <p className="text-muted">

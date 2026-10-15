@@ -971,7 +971,7 @@ export function EpisodeSourceRevisionPanel({
                 <p>
                   已建立新的独立正式成果；原稿与原采用历史保留。
                   <Link
-                    className="text-brand"
+                    className="text-link"
                     to={`/projects/${encodeURIComponent(value.projectId)}/tools/episode-development?episodeId=${encodeURIComponent(value.episodeId)}&operation=episode-script&resultId=${encodeURIComponent(value.results.script.id)}`}
                   >
                     查看本次新正式剧本

@@ -2,7 +2,7 @@ import type { ChapterPreviewMerge } from "@dramaip/contracts/automation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog } from "@dramaip/ui-shared";
+import { Button, Dialog, NativeSelect } from "@dramaip/ui-shared";
 import type {
   CreationInput,
   CreationMerge,
@@ -1436,7 +1436,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 <p className="text-sm text-muted">
                   请在
                   <Link
-                    className="text-brand"
+                    className="text-link"
                     to={
                       props.operation === "author-intent"
                         ? `/projects/${props.projectId}/tools/author-intent?intentWorkflowId=${value!.id}${value?.authorIntentId ? `&intentId=${value.authorIntentId}` : ""}`
@@ -1742,7 +1742,8 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                   </div>
                   <label className="mt-3 flex gap-3 text-sm">
                     此处采用
-                    <select
+                    <NativeSelect
+                      className="w-auto"
                       aria-label="冲突段落选择"
                       value={mergeChoices[item.id] ?? ""}
                       onChange={(event) =>
@@ -1759,7 +1760,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                       <option value="current">保留当前正文</option>
                       <option value="candidate">采用 AI 候选</option>
                       <option value="both">依次保留两段</option>
-                    </select>
+                    </NativeSelect>
                   </label>
                 </section>
               ))}

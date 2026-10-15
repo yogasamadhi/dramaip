@@ -45,6 +45,7 @@ import {
   Dialog,
   Textarea,
   confirmDialog,
+  NativeSelect,
 } from "@dramaip/ui-shared";
 import { AiSettingsLink, useStudioSession } from "../../studio-session";
 import { CreativeIntentSummary } from "../../creative-intent";
@@ -2872,8 +2873,8 @@ function EditorToolbar(props: {
       <span className="mx-1 h-5 border-l border-line" />
       <label className="flex items-center gap-1 text-xs text-muted">
         字号
-        <select
-          className="rounded-md border border-line px-1 py-1"
+        <NativeSelect
+          className="w-auto h-8 text-sm"
           value={props.preferences.fontSize}
           onChange={(event) =>
             props.onPreferencesChange({
@@ -2887,12 +2888,12 @@ function EditorToolbar(props: {
           <option value="16">小</option>
           <option value="18">中</option>
           <option value="20">大</option>
-        </select>
+        </NativeSelect>
       </label>
       <label className="flex items-center gap-1 text-xs text-muted">
         行距
-        <select
-          className="rounded-md border border-line px-1 py-1"
+        <NativeSelect
+          className="w-auto h-8 text-sm"
           value={props.preferences.lineHeight}
           onChange={(event) =>
             props.onPreferencesChange({
@@ -2906,12 +2907,12 @@ function EditorToolbar(props: {
           <option value="1.65">紧凑</option>
           <option value="1.85">舒适</option>
           <option value="2.05">宽松</option>
-        </select>
+        </NativeSelect>
       </label>
       <label className="flex items-center gap-1 text-xs text-muted">
         正文宽度
-        <select
-          className="rounded-md border border-line px-1 py-1"
+        <NativeSelect
+          className="w-auto h-8 text-sm"
           value={props.preferences.contentWidth}
           onChange={(event) =>
             props.onPreferencesChange({
@@ -2925,7 +2926,7 @@ function EditorToolbar(props: {
           <option value="680">窄</option>
           <option value="760">标准</option>
           <option value="880">宽</option>
-        </select>
+        </NativeSelect>
       </label>
       <label className="ml-auto flex items-center gap-1 text-xs text-muted">
         <input
@@ -3052,8 +3053,8 @@ function WritingSettings(props: {
       <div className="mt-3 space-y-3">
         <label className="grid gap-1 text-xs text-muted">
           智能引擎
-          <select
-            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+          <NativeSelect
+            className="w-auto text-sm"
             value={props.engineKind}
             disabled={props.disabled}
             onChange={(event) =>
@@ -3069,12 +3070,12 @@ function WritingSettings(props: {
                 {engine.name} · {engineStatusLabel(engine)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="grid gap-1 text-xs text-muted">
           本次模型（留空使用项目默认模型）
-          <select
-            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
+          <NativeSelect
+            className="w-auto text-sm"
             value={props.modelId}
             disabled={props.disabled}
             onChange={(event) => props.onModelChange(event.target.value)}
@@ -3098,7 +3099,7 @@ function WritingSettings(props: {
                 ))}
               </optgroup>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {props.onWordGoalChange && (
           <label className="grid gap-1 text-xs text-muted">
@@ -3190,9 +3191,9 @@ function WritingPanel(props: {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <select
+        <NativeSelect
           aria-label="AI 写作对话"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-surface-raised px-2 py-2 text-xs text-ink"
+          className="min-w-0 flex-1 h-8 text-sm"
           value={props.conversationId ?? ""}
           disabled={props.busy}
           onChange={(event) => props.onConversationChange(event.target.value)}
@@ -3203,7 +3204,7 @@ function WritingPanel(props: {
               {conversation.title ?? "未命名对话"} · {conversation.engineKind}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <BareButton
           className="shrink-0 rounded-lg border border-line px-2 py-2 text-xs hover:border-brand hover:text-brand"
           disabled={props.busy}
@@ -3395,7 +3396,7 @@ function WritingPanel(props: {
               </BareButton>
             )}
             <Link
-              className="ml-auto self-center text-xs text-brand underline"
+              className="ml-auto self-center text-xs text-link underline"
               to="/tasks"
             >
               查看任务详情
