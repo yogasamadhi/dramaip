@@ -1,0 +1,8 @@
+# Standalone package, independent of desktop/ and platform/.
+# The @deepseek-ai peers come from the DSH install that loads this plugin,
+# never from a registry.
+autoInstallPeers: false
+# esbuild's postinstall only re-checks the binary that its platform package
+# already ships; nothing here needs install-time scripts.
+allowBuilds:
+  esbuild: false

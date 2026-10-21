@@ -1,0 +1,6 @@
+# Layer applied when a DSH profile lists this bundle. One row loads the Host
+# face ("." export); the same package's dsh.client declaration adds the
+# sidebar panel ("./client" export) to the Web Client.
+- insert:
+    - id: dramaip-dsh-plugin
+      name: dramaip-dsh-plugin
