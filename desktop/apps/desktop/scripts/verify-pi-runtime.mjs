@@ -14,7 +14,7 @@ const manifest = JSON.parse(
 );
 if (
   manifest.engine !== "pi" ||
-  manifest.version !== "0.84.2" ||
+  manifest.version !== "1.4.0" ||
   manifest.node !== ">=22.19.0" ||
   !/^[a-f0-9]{64}$/.test(manifest.runtimeSha256 ?? "")
 )
@@ -201,7 +201,7 @@ try {
   await Promise.all([close(mcpServer), close(llmServer)]);
 }
 
-process.stdout.write("Pi 0.84.2 Runtime 与只读工具边界验证通过\n");
+process.stdout.write("Pi 1.4.0 Runtime 与只读工具边界验证通过\n");
 
 function listen(server) {
   return new Promise((resolvePromise, reject) => {

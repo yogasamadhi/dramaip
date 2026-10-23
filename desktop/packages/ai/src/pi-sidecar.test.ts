@@ -89,7 +89,7 @@ export async function createPiSession(options) {
       },
     });
     const ready = await next((message) => message.type === "ready");
-    expect(ready.version).toBe("0.84.2");
+    expect(ready.version).toBe("1.4.0");
 
     send({
       type: "request",

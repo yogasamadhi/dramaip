@@ -1545,7 +1545,8 @@ async function fixture(
         const previous = entry.fiber;
         // Native HMR tears down the entry fiber and initializes its replacement.
         // Entry.update({}, ..., true) only reapplies context and is not a reload.
-        await entry._dispose();
+        entry.fiber = undefined;
+        await previous.dispose();
         await entry.init();
         if (!entry.fiber || entry.fiber === previous)
           throw new Error("native production fiber was not reactivated");

@@ -6,21 +6,21 @@ corresponding notice and license material under `third-party-notices/`.
 
 Bundled runtime components:
 
-- Pi 0.84.2 — MIT License. Source snapshot: `vendor/pi`; packaged notice:
+- Pi 1.4.0 — MIT License. Source snapshot: `vendor/pi`; packaged notice:
   `apps/desktop/pi-adapter/THIRD_PARTY_NOTICES.md`.
-- OpenAI Codex CLI 0.147.0 — Apache-2.0. The pinned package license is copied
+- OpenAI Codex CLI 0.163.0 — Apache-2.0. The pinned package license is copied
   to `apps/desktop/build/third-party-notices/` for packaging.
 - LangGraph.js 1.4.9 and its active AI SDK dependencies — their pinned notices
   are recorded in
   `apps/desktop/build/third-party-notices/LangGraph-and-AI-SDK-NOTICES.md`.
 
-- DSH 0.1.0-rc.5 supplies nine MIT-licensed framework packages from the pinned
+- DSH 0.2.1-rc.2 supplies nine MIT-licensed framework packages from the pinned
   `vendor/deepseek-harness/vendor` source tree:
-  `@deepseek-ai/cordis` 4.0.1, `@deepseek-ai/cosmokit` 1.8.2,
-  `@deepseek-ai/schemastery` 3.18.1, `@deepseek-ai/cordis-plugin-loader` 1.0.2,
-  `@deepseek-ai/cordis-plugin-include` 1.0.6, `@deepseek-ai/cordis-plugin-group` 1.0.1,
-  `@deepseek-ai/cordis-plugin-timer` 1.1.3, `@deepseek-ai/cordis-plugin-hmr` 1.0.16,
-  and `@deepseek-ai/cordis-plugin-logger-console` 1.0.1.
+  `@deepseek-ai/cordis` 4.0.5, `@deepseek-ai/cosmokit` 1.8.6,
+  `@deepseek-ai/schemastery` 3.18.5, `@deepseek-ai/cordis-plugin-loader` 1.0.6,
+  `@deepseek-ai/cordis-plugin-include` 1.0.10, `@deepseek-ai/cordis-plugin-group` 1.0.5,
+  `@deepseek-ai/cordis-plugin-timer` 1.1.7, `@deepseek-ai/cordis-plugin-hmr` 1.0.20,
+  and `@deepseek-ai/cordis-plugin-logger-console` 1.0.5.
   Each unmodified source license is included at `runtime/framework/<package>/LICENSE`
   in the packaged application resources. Desktop's build manifests are generated
   separately; the vendor snapshot is not modified.

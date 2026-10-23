@@ -1,6 +1,6 @@
 # DSH Cordis 源码与 Desktop 插件迁移
 
-Desktop 第一方插件使用当前锁定的 DSH `0.1.0-rc.5` 框架源码。Platform、第三方 Extension Host、公开 Plugin API 和 Agent Runtime 的隔离边界保持独立。
+Desktop 第一方插件使用当前锁定的 DSH `0.2.1-rc.2` 框架源码。Platform、第三方 Extension Host、公开 Plugin API 和 Agent Runtime 的隔离边界保持独立。
 
 框架迁移服务 [产品定位](../../../docs/product/POSITIONING.md) 下的独立小说与改编两路创作、连续性和版本资产，不将通用 Agent/扩展平台作为产品市场定位。本文的工程验收不证明真实模型文学质量、新主流程完成或正式跨平台发布。
 

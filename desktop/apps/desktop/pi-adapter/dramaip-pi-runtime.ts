@@ -9,9 +9,9 @@ import { streamSimple as streamGoogle } from "../../../vendor/pi/packages/ai/src
 import { streamSimple as streamOpenAI } from "../../../vendor/pi/packages/ai/src/api/openai-completions.ts";
 import type {
   AssistantMessage,
-  Context,
   Model,
   SimpleStreamOptions,
+  TranscriptContext,
 } from "../../../vendor/pi/packages/ai/src/types.ts";
 
 type PiModel =
@@ -172,7 +172,7 @@ function createStreamFunction(
 ): StreamFn {
   const stream: StreamFn = (
     model,
-    context: Context,
+    context: TranscriptContext,
     options?: SimpleStreamOptions,
   ) => {
     const requestOptions: SimpleStreamOptions = {
@@ -340,7 +340,7 @@ class DramaIpMcpClient {
     await this.request("initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},
-      clientInfo: { name: "dramaip-pi", version: "0.84.2" },
+      clientInfo: { name: "dramaip-pi", version: "1.4.0" },
     });
     await this.notify("notifications/initialized", {});
     const response = await this.request("tools/list", {});

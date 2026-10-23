@@ -5,7 +5,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const PI_VERSION = "0.84.2";
+const PI_VERSION = "1.4.0";
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopApp = resolve(here, "..");
 const desktop = resolve(desktopApp, "../..");

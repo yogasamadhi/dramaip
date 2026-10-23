@@ -20,7 +20,8 @@
     "@deepseek-ai/cordis-plugin-group": "workspace:*",
     "@deepseek-ai/cordis-plugin-timer": "workspace:*",
     "@deepseek-ai/cordis-plugin-hmr": "workspace:*",
-    "@deepseek-ai/cordis-plugin-logger-console": "workspace:*"
+    "@deepseek-ai/cordis-plugin-logger-console": "workspace:*",
+    "chokidar": "4.0.3"
   },
   "devDependencies": {
     "vitest": "4.1.9"

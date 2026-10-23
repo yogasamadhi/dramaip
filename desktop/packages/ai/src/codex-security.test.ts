@@ -88,7 +88,7 @@ test("Codex 固定版本覆盖六个平台并绑定协议快照", async () => {
 
   expect(binaryLock).toMatchObject({
     package: "@openai/codex",
-    version: "0.147.0",
+    version: "0.163.0",
   });
   expect(Object.keys(binaryLock.platforms)).toHaveLength(6);
   for (const target of Object.values(binaryLock.platforms)) {

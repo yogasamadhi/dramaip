@@ -129,7 +129,7 @@ async function start(command: StartCommand): Promise<void> {
     providerGeneration = provider ? 1 : 0;
     parentPort!.postMessage({
       type: "ready",
-      version: "0.84.2",
+      version: "1.4.0",
       configured: Boolean(provider),
     });
   } catch (error) {
@@ -155,7 +155,7 @@ async function configure(command: ConfigureCommand): Promise<void> {
       type: "configured",
       requestId: command.requestId,
       available: true,
-      version: "0.84.2",
+      version: "1.4.0",
     });
   } catch (error) {
     parentPort!.postMessage({
@@ -189,7 +189,7 @@ async function perform(
   payload: Record<string, unknown>,
 ): Promise<unknown> {
   if (operation === "health")
-    return { available: Boolean(provider), version: "0.84.2" };
+    return { available: Boolean(provider), version: "1.4.0" };
   if (operation === "createSession") {
     if (!provider) throw new Error("Pi 模型尚未配置");
     const id = randomUUID();

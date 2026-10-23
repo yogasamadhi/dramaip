@@ -1,10 +1,10 @@
 {
   "package": "@earendil-works/pi-agent-core",
-  "version": "0.84.2",
+  "version": "1.4.0",
   "license": "MIT",
   "node": ">=22.19.0",
   "lockfile": "package-lock.json",
-  "packageLockSha256": "5c1c06c9c578c436e6cb0599231a9299493f3d7ff6f8443aba76e2d7a204bf8f",
-  "sourceTreeFileCount": 1371,
-  "sourceTreeSha256": "1ea231dd2a73b645bd862c7d9f43800573be0238f45348e439874554ee3f0d26"
+  "packageLockSha256": "34fc1e9c534291db36d63ffb9dad6c962fdc5bc49afd6d802d381ae5844003a3",
+  "sourceTreeFileCount": 1985,
+  "sourceTreeSha256": "7816291ba65f6c9b7bc201a4ddb9affd42432760faa03ccb51c05d97113ca003"
 }

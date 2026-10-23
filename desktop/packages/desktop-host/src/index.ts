@@ -2460,7 +2460,7 @@ export const AGENT_RUNTIME_DESCRIPTORS = {
     kind: "pi",
     role: "embedded-default",
     name: "Pi",
-    version: "0.84.2",
+    version: "1.4.0",
     capabilities: {
       prompt: true,
       streaming: true,
@@ -2476,7 +2476,7 @@ export const AGENT_RUNTIME_DESCRIPTORS = {
     kind: "codex",
     role: "external-benchmark",
     name: "Codex",
-    version: "0.147.0",
+    version: "0.163.0",
     capabilities: {
       prompt: true,
       streaming: true,

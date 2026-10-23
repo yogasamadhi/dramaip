@@ -73,8 +73,8 @@ for (const name of Object.keys(langgraphPackages))
   if (!langgraphNotices.includes(name))
     throw new Error(`LangGraph 第三方许可证清单缺少：${name}`);
 
-if (codex.package !== "@openai/codex" || codex.version !== "0.147.0")
-  throw new Error("Codex 固定版本必须为 @openai/codex 0.147.0");
+if (codex.package !== "@openai/codex" || codex.version !== "0.163.0")
+  throw new Error("Codex 固定版本必须为 @openai/codex 0.163.0");
 if (protocol.package !== codex.package || protocol.version !== codex.version)
   throw new Error("Codex 协议快照与二进制固定版本不一致");
 const requiredTriples = [
@@ -95,12 +95,12 @@ for (const triple of requiredTriples) {
 }
 
 if (
-  dsh.version !== "0.1.0-rc.5" ||
+  dsh.version !== "0.2.1-rc.2" ||
   dsh.license !== "MIT" ||
-  dsh.packageManager !== "pnpm@11.7.0" ||
+  dsh.packageManager !== "pnpm@11.28.5" ||
   dsh.lockfile !== "pnpm-lock.yaml"
 )
-  throw new Error("DSH 固定版本必须为 0.1.0-rc.5（MIT，pnpm 11.7.0）");
+  throw new Error("DSH 固定版本必须为 0.2.1-rc.2（MIT，pnpm 11.28.5）");
 const dshRoot = join(root, "vendor/deepseek-harness");
 const dshManifest = await readJson(join(dshRoot, "package.json"));
 if (
@@ -211,12 +211,12 @@ const piRoot = join(root, "vendor/pi");
 const piManifest = await readJson(join(piRoot, "packages/agent/package.json"));
 if (
   pi.package !== "@earendil-works/pi-agent-core" ||
-  pi.version !== "0.84.2" ||
+  pi.version !== "1.4.0" ||
   pi.license !== "MIT" ||
   pi.node !== ">=22.19.0" ||
   pi.lockfile !== "package-lock.json"
 )
-  throw new Error("Pi 固定版本必须为 0.84.2（MIT，Node >=22.19.0）");
+  throw new Error("Pi 固定版本必须为 1.4.0（MIT，Node >=22.19.0）");
 if (
   piManifest.name !== pi.package ||
   piManifest.version !== pi.version ||

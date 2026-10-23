@@ -213,7 +213,7 @@ bun run build
 
 无 Electron 的 Runtime 可用 `bun run serve --profile server --database /absolute/path/dramaip.db --port 8787` 启动。支持的 Profile 是 `studio`、`server`、`safe`、`test`、`e2e`，运行时固定为 Node 24.18.0，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。`bun run dev:runtime` 启用开发 HMR 和 supervisor。
 
-`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。Pi 0.84.2、Codex 0.147.0 与 LangGraph.js 1.4.9 的版本与完整性记录位于 `vendor/*.lock.json`；桌面受管进程还校验 Electron 内嵌 Node 版本。Pi Runtime 由冻结源码直接打包，首次运行不下载依赖。LangGraph.js 依赖由 Bun 锁文件固定且不引入源码 submodule 或 `better-sqlite3`。DeepSeek Harness 的锁定快照提供九个框架包源码：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR 和 Logger Console。准备脚本只复制到忽略提交的 `build/dsh-framework/`，不修改 vendor。
+`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。Pi 1.4.0、Codex 0.163.0 与 LangGraph.js 1.4.9 的版本与完整性记录位于 `vendor/*.lock.json`；桌面受管进程还校验 Electron 内嵌 Node 版本。Pi Runtime 由冻结源码直接打包，首次运行不下载依赖。LangGraph.js 依赖由 Bun 锁文件固定且不引入源码 submodule 或 `better-sqlite3`。DeepSeek Harness 的锁定快照提供九个框架包源码：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR 和 Logger Console。准备脚本只复制到忽略提交的 `build/dsh-framework/`，不修改 vendor。
 
 第一方插件通过六个 Bundle 的 `cordis.patch.yml` 和五个 Profile patch 交给 DSH Loader/Include/Group 装配。开发时业务模块局部重载，框架、公共元数据和迁移变化重启 Runtime。重载期间业务请求返回结构化 `RUNTIME_RELOADING`，待生命周期与贡献校验成功后原子发布新图；失败图不会发布。
 

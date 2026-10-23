@@ -12,11 +12,12 @@ import ConsoleExporter from "@deepseek-ai/cordis-plugin-logger-console";
 import Hmr from "@deepseek-ai/cordis-plugin-hmr";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { serviceContracts } from "@dramaip/plugin-api/internal";
 import { createHash } from "node:crypto";
 import type { ServiceContract } from "@dramaip/contracts";
+import { watchConfigFile } from "./config-watch.js";
 import type {
   Cleanup,
   FirstPartyPlugin,
@@ -414,59 +415,69 @@ export async function bootKernel(
       );
       const include = ctx.loader.resolve(includeId);
       let lastConfig = appliedConfiguration;
+      const reportConfig = (filename: string, error: Error) => {
+        ctx.logger.warn("config reload at %C failed", filename);
+        ctx.logger.warn(error);
+      };
       for (const filename of options.profile.assembly?.files ?? []) {
         await ctx.effect(
           async () =>
-            ctx.hmr.registerConfig(filename, async () => {
-              let profile: PluginProfile | undefined;
-              try {
-                profile = development.recompose?.();
-              } catch (reason) {
-                const error =
-                  reason instanceof Error ? reason : new Error(String(reason));
-                await development.rejectConfig?.(error);
-                // Native config callbacks are serialized. A complete later edit
-                // may already exist after this older rejection waits on the
-                // business queue. Revalidate current bytes once; never restore
-                // files or retry a business write/model operation here.
+            watchConfigFile(
+              resolve(fileURLToPath(development.base), filename),
+              async () => {
+                let profile: PluginProfile | undefined;
                 try {
                   profile = development.recompose?.();
-                } catch {
-                  throw error;
+                } catch (reason) {
+                  const error =
+                    reason instanceof Error
+                      ? reason
+                      : new Error(String(reason));
+                  await development.rejectConfig?.(error);
+                  // Config callbacks are serialized. A complete later edit
+                  // may already exist after this older rejection waits on the
+                  // business queue. Revalidate current bytes once; never restore
+                  // files or retry a business write/model operation here.
+                  try {
+                    profile = development.recompose?.();
+                  } catch {
+                    throw error;
+                  }
                 }
-              }
-              if (!profile?.assembly) return;
-              validatePluginGraph(options.plugins, profile);
-              if (
-                JSON.stringify(profile.plugins.map((p) => p.id).sort()) !==
-                JSON.stringify([...order].sort())
-              ) {
-                development.restart(
-                  new Error(
-                    "Profile membership changed; migration preflight requires a full restart",
-                  ),
-                );
-                return;
-              }
-              const next = JSON.stringify(profile.assembly.patches);
+                if (!profile?.assembly) return;
+                validatePluginGraph(options.plugins, profile);
+                if (
+                  JSON.stringify(profile.plugins.map((p) => p.id).sort()) !==
+                  JSON.stringify([...order].sort())
+                ) {
+                  development.restart(
+                    new Error(
+                      "Profile membership changed; migration preflight requires a full restart",
+                    ),
+                  );
+                  return;
+                }
+                const next = JSON.stringify(profile.assembly.patches);
 
-              await development.run(
-                async () => {
-                  if (next === lastConfig) return false;
-                  await include.update({
-                    config: {
-                      path: profile.assembly!.root,
-                      patches: resolveNames(profile.assembly!.patches),
-                    },
-                  });
-                  lastConfig = next;
-                  appliedConfiguration = next;
-                  return true;
-                },
-                profile,
-                () => next === lastConfig,
-              );
-            }),
+                await development.run(
+                  async () => {
+                    if (next === lastConfig) return false;
+                    await include.update({
+                      config: {
+                        path: profile.assembly!.root,
+                        patches: resolveNames(profile.assembly!.patches),
+                      },
+                    });
+                    lastConfig = next;
+                    appliedConfiguration = next;
+                    return true;
+                  },
+                  profile,
+                  () => next === lastConfig,
+                );
+              },
+              reportConfig,
+            ),
           `hmr-config:${filename}`,
         );
       }

@@ -48,13 +48,13 @@ export interface CodexCustomProviderSettingRow {
 export const engineDefinitions = {
   pi: {
     name: "Pi",
-    version: "0.84.2",
+    version: "1.4.0",
     isBeta: false,
     role: "embedded-default",
   },
   codex: {
     name: "Codex",
-    version: "0.147.0",
+    version: "0.163.0",
     isBeta: false,
     role: "external-benchmark",
   },
