@@ -693,11 +693,36 @@ test("TXT、Markdown、DOCX、EPUB 和剧本 JSON 均可在项目外真实预览
       })
       .click();
     await page.getByRole("button", { name: /单季短剧/ }).click();
-    await page.getByRole("button", { name: "选择文件" }).click();
-    await expect(page.getByText(fixture.name, { exact: true })).toBeVisible();
-    const afterPreview =
-      await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
-    expect(afterPreview, fixture.name).toHaveLength(before.length);
+    if (fixture.script) {
+      // Single-season script intake uses the native screenplay preview, which
+      // must be explicitly discarded before the source can change.
+      const intake = page.getByRole("region", { name: "创建前原生剧本导入" });
+      await intake
+        .getByRole("button", { name: "选择原生剧本文件", exact: true })
+        .click();
+      await expect(intake.getByRole("status").first()).toContainText(
+        `创建前原稿预览 · 尚未创建项目 · ${fixture.name}`,
+      );
+      const afterPreview =
+        await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+      expect(afterPreview, fixture.name).toHaveLength(before.length);
+      await intake
+        .getByRole("button", { name: "取消创建前原生预览", exact: true })
+        .click();
+      await expect(intake.getByRole("status").first()).toContainText(
+        "创建前原稿预览已取消",
+      );
+      await intake
+        .getByRole("button", { name: "清除已取消的原生预览", exact: true })
+        .click();
+      await expect(intake).not.toContainText(fixture.name);
+    } else {
+      await page.getByRole("button", { name: "选择文件" }).click();
+      await expect(page.getByText(fixture.name, { exact: true })).toBeVisible();
+      const afterPreview =
+        await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
+      expect(afterPreview, fixture.name).toHaveLength(before.length);
+    }
 
     await page.getByRole("button", { name: "更换素材" }).click();
     await page.getByRole("button", { name: /从创意开始/ }).click();
