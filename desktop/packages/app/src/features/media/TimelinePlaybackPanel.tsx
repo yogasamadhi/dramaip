@@ -30,7 +30,7 @@ const MAX_PREVIEW_BYTES = 256 * 1024 * 1024;
 export function TimelinePlaybackPanel(props: {
   timeline: TimelineManifest;
   position: number;
-  controls: React.RefObject<TimelinePreviewControls | undefined>;
+  controls: React.MutableRefObject<TimelinePreviewControls | undefined>;
   onPosition(value: number): void;
   onPlaying(value: boolean): void;
   onReady(value: boolean): void;

@@ -37,8 +37,8 @@ export function useAssistantAutoScroll(
   contentVersion: unknown,
   resetKey?: unknown,
 ): {
-  scrollRef: RefObject<HTMLDivElement | null>;
-  endRef: RefObject<HTMLDivElement | null>;
+  scrollRef: RefObject<HTMLDivElement>;
+  endRef: RefObject<HTMLDivElement>;
   onScroll: UIEventHandler<HTMLDivElement>;
   followLatest(): void;
 } {

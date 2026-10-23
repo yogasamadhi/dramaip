@@ -924,7 +924,7 @@ function NovelEditor(
     onWorkspaceChanged(): void;
     directoryOpen: boolean;
     onToggleDirectory(): void;
-    directoryToggleRef: RefObject<HTMLButtonElement | null>;
+    directoryToggleRef: RefObject<HTMLButtonElement>;
   },
 ) {
   const studioSession = useStudioSession();
