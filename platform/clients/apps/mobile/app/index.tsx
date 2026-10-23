@@ -8,7 +8,7 @@ import { useMobileSession } from '@/src/mobile-session'
 import { Button, ButtonText } from '@/src/components/ui/button'
 
 const STACK = [
-  { icon: 'rocket', label: 'Expo SDK 54' },
+  { icon: 'rocket', label: 'Expo SDK 58' },
   { icon: 'random', label: 'Expo Router' },
   { icon: 'paint-brush', label: 'NativeWind v5' },
   { icon: 'cube', label: 'gluestack v5' },
@@ -104,7 +104,7 @@ export default function HomeScreen() {
               value={authenticated ? session.email : '匿名'}
               ok={authenticated}
             />
-            <StatusRow label="运行时" value="New Arch · RN 0.81" ok />
+            <StatusRow label="运行时" value="New Arch · RN 0.88" ok />
           </View>
         </Animated.View>
 
