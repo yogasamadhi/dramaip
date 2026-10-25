@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 const sourcePath = join(import.meta.dir, "codex-sidecar.ts");
 const serverSourcePath = join(import.meta.dir, "../../server/src/sidecar.ts");
-const repositoryRoot = join(import.meta.dir, "../../..");
+const repositoryRoot = join(import.meta.dir, "../../../..");
 
 test("Codex Host 只启动固定路径中的 App Server", async () => {
   const source = await readFile(sourcePath, "utf8");

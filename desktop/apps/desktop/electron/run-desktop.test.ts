@@ -37,11 +37,11 @@ describe("desktop launcher vendor sources", () => {
       (submodule) => submodule.path,
     );
 
-    expect(commonPaths).toContain("desktop/vendor/codex-rust");
-    expect(commonPaths).toContain("desktop/vendor/pi");
-    expect(commonPaths).toContain("desktop/vendor/deepseek-harness");
-    expect(commonPaths).not.toContain("desktop/vendor/opencode");
-    expect(commonPaths).not.toContain("desktop/vendor/grok-build");
+    expect(commonPaths).toContain("vendor/codex-rust");
+    expect(commonPaths).toContain("vendor/pi");
+    expect(commonPaths).toContain("vendor/deepseek-harness");
+    expect(commonPaths).not.toContain("vendor/opencode");
+    expect(commonPaths).not.toContain("vendor/grok-build");
   });
 
   test("keeps read-only reference sources outside the Bun workspace", () => {

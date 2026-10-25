@@ -4,12 +4,19 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot = join(root, "..");
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
-const codex = await readJson(join(root, "vendor/codex.lock.json"));
-const protocol = await readJson(join(root, "vendor/codex.protocol.lock.json"));
-const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
-const pi = await readJson(join(root, "vendor/pi.lock.json"));
-const langgraph = await readJson(join(root, "vendor/langgraph.lock.json"));
+const codex = await readJson(join(repositoryRoot, "vendor/codex.lock.json"));
+const protocol = await readJson(
+  join(repositoryRoot, "vendor/codex.protocol.lock.json"),
+);
+const dsh = await readJson(
+  join(repositoryRoot, "vendor/deepseek-harness.lock.json"),
+);
+const pi = await readJson(join(repositoryRoot, "vendor/pi.lock.json"));
+const langgraph = await readJson(
+  join(repositoryRoot, "vendor/langgraph.lock.json"),
+);
 
 const langgraphPackages = {
   "@langchain/langgraph": "1.4.9",
@@ -101,7 +108,7 @@ if (
   dsh.lockfile !== "pnpm-lock.yaml"
 )
   throw new Error("DSH 固定版本必须为 0.2.1-rc.2（MIT，pnpm 11.28.5）");
-const dshRoot = join(root, "vendor/deepseek-harness");
+const dshRoot = join(repositoryRoot, "vendor/deepseek-harness");
 const dshManifest = await readJson(join(dshRoot, "package.json"));
 if (
   dshManifest.version !== dsh.version ||
@@ -207,7 +214,7 @@ async function frozenTree(
   return { count: files.length, sha256: hash.digest("hex") };
 }
 
-const piRoot = join(root, "vendor/pi");
+const piRoot = join(repositoryRoot, "vendor/pi");
 const piManifest = await readJson(join(piRoot, "packages/agent/package.json"));
 if (
   pi.package !== "@earendil-works/pi-agent-core" ||

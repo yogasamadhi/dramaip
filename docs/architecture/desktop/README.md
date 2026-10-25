@@ -36,6 +36,6 @@ Level 1 仍是无需插件框架的通用选择；Level 2 定义第一方组合�
 - [DSH Cordis 迁移说明与验收记录](../../../desktop/docs/engineering/DSH_CORDIS_MIGRATION.md)：九包来源、安装顺序、原生生命周期、HMR 恢复和测试证据。
 - [Desktop 启动与构建说明](../../../desktop/README.md)：开发、独立 Runtime 和打包命令。
 - [Desktop 脚本清单](../../../desktop/package.json)：测试、生成和检查命令的权威入口。
-- [DSH 锁定快照](../../../desktop/vendor/deepseek-harness.lock.json)：来源版本、源码哈希与完整性约束。
+- [DSH 锁定快照](../../../vendor/deepseek-harness.lock.json)：来源版本、源码哈希与完整性约束。
 
 当前仍未完成正式跨平台 GA 验收：Windows/Linux 候选包验证、Apple 正式分发签名与公证等不能由本机 macOS 目录包测试替代。Isolated Interactive UI、远程发布者后台和多 Runtime 共享 SQLite 的 consumer lease 继续留在后续范围；本目录不为 Platform 增加构建或运行依赖。

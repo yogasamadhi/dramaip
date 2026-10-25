@@ -1,18 +1,18 @@
-import { Agent } from "../../../vendor/pi/packages/agent/src/agent.ts";
+import { Agent } from "../../../../vendor/pi/packages/agent/src/agent.ts";
 import type {
   AgentEvent,
   AgentTool,
   StreamFn,
-} from "../../../vendor/pi/packages/agent/src/types.ts";
-import { streamSimple as streamAnthropic } from "../../../vendor/pi/packages/ai/src/api/anthropic-messages.ts";
-import { streamSimple as streamGoogle } from "../../../vendor/pi/packages/ai/src/api/google-generative-ai.ts";
-import { streamSimple as streamOpenAI } from "../../../vendor/pi/packages/ai/src/api/openai-completions.ts";
+} from "../../../../vendor/pi/packages/agent/src/types.ts";
+import { streamSimple as streamAnthropic } from "../../../../vendor/pi/packages/ai/src/api/anthropic-messages.ts";
+import { streamSimple as streamGoogle } from "../../../../vendor/pi/packages/ai/src/api/google-generative-ai.ts";
+import { streamSimple as streamOpenAI } from "../../../../vendor/pi/packages/ai/src/api/openai-completions.ts";
 import type {
   AssistantMessage,
   Model,
   SimpleStreamOptions,
   TranscriptContext,
-} from "../../../vendor/pi/packages/ai/src/types.ts";
+} from "../../../../vendor/pi/packages/ai/src/types.ts";
 
 type PiModel =
   | Model<"openai-completions">

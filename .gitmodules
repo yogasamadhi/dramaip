@@ -1,11 +1,11 @@
-[submodule "desktop/vendor/codex-rust"]
-	path = desktop/vendor/codex-rust
+[submodule "vendor/codex-rust"]
+	path = vendor/codex-rust
 	url = https://github.com/openai/codex.git
 
-[submodule "desktop/vendor/deepseek-harness"]
-	path = desktop/vendor/deepseek-harness
+[submodule "vendor/deepseek-harness"]
+	path = vendor/deepseek-harness
 	url = https://github.com/deepseek-ai/deepseek-harness.git
 
-[submodule "desktop/vendor/pi"]
-	path = desktop/vendor/pi
+[submodule "vendor/pi"]
+	path = vendor/pi
 	url = https://github.com/earendil-works/pi.git

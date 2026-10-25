@@ -1,5 +1,5 @@
 {
-  "extends": "../../../vendor/pi/tsconfig.json",
+  "extends": "../../../../vendor/pi/tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
     "verbatimModuleSyntax": false,

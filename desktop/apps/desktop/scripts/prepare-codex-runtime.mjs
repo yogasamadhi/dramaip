@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, "..");
-const repository = join(desktop, "../..");
+const repository = join(desktop, "../../..");
 const lockPath = join(repository, "vendor/codex.lock.json");
 const protocolLockPath = join(repository, "vendor/codex.protocol.lock.json");
 const lock = JSON.parse(await readFile(lockPath, "utf8"));

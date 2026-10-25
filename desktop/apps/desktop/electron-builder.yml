@@ -43,7 +43,7 @@ extraResources:
     to: pi/runtime
     filter:
       - "**/*"
-  - from: ../../vendor/pi/LICENSE
+  - from: ../../../vendor/pi/LICENSE
     to: third-party-notices/pi/LICENSE
   - from: pi-adapter/THIRD_PARTY_NOTICES.md
     to: third-party-notices/pi/THIRD_PARTY_NOTICES.md

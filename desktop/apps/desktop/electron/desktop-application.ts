@@ -332,7 +332,7 @@ function codexModelCatalogPath(): string | undefined {
         join(desktopRuntimeRoot(), "build", "codex", "models.json"),
         join(
           desktopRuntimeRoot(),
-          "../../vendor/codex-rust/codex-rs/models-manager/models.json",
+          "../../../vendor/codex-rust/codex-rs/models-manager/models.json",
         ),
       ];
   return candidates.find((candidate) => existsSync(candidate));

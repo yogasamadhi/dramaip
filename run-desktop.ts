@@ -169,17 +169,17 @@ export function vendorSubmoduleSpecs(): readonly VendorSubmoduleSpec[] {
   return [
     {
       label: "DSH Cordis",
-      path: "desktop/vendor/deepseek-harness",
+      path: "vendor/deepseek-harness",
       marker: "vendor/cordis/src/index.ts",
     },
     {
       label: "Codex",
-      path: "desktop/vendor/codex-rust",
+      path: "vendor/codex-rust",
       marker: "codex-rs/Cargo.toml",
     },
     {
       label: "Pi",
-      path: "desktop/vendor/pi",
+      path: "vendor/pi",
       marker: "package-lock.json",
     },
   ];

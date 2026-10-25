@@ -15,7 +15,7 @@ DramaIP contains two independent products: `desktop/` (Apache-2.0 Electron/local
 - Both JS workspaces require Bun **1.4.0 exactly**. Both disable Bun auto-install; install explicitly or let the root launchers do so. Keep Desktop's `linker = "isolated"`; keep Platform clients' `linker = "hoisted"` because Metro/Babel requires hoisting.
 - Desktop uses Bun 1.4.0 for dependency management/builds and Node **24.18.0 exactly** for standalone Core Runtime, migration workers and Runtime tests; desktop Core uses Electron's embedded Node. Invoke standalone Node through `scripts/run-node.mjs`. Development HMR requires `--expose-internals`; Bun Core Runtime is unsupported. Platform clients separately require Node >=20 (CI pins 24.18.0), including the Expo toolchain.
 - Platform server requires JDK 21 only and Maven 3.9+; Spring Boot 4.0.6 is managed by `platform/server/pom.xml`, not child modules.
-- Fresh clones need `git submodule update --init` before `check:engine-locks`; `run-desktop.ts` initializes active Codex/Pi/DSH sources. Treat all `desktop/vendor/*` as read-only. `desktop/legacy/` and non-workspace `desktop/packages/schema/` are references/leftovers, never dependencies or implementation targets.
+- Fresh clones need `git submodule update --init` before `check:engine-locks`; `run-desktop.ts` initializes active Codex/Pi/DSH sources. Treat all `vendor/*` as read-only. `desktop/legacy/` and non-workspace `desktop/packages/schema/` are references/leftovers, never dependencies or implementation targets.
 
 ## Desktop
 

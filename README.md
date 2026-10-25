@@ -113,7 +113,7 @@ A07.6.6 已按 PLAN 22.120 的五类规划准确来源冲突范围 done：原已
 
 - `desktop/` 及其自有源码按 Apache License 2.0 发布，详见 [`desktop/LICENSE`](./desktop/LICENSE) 与 [`desktop/NOTICE`](./desktop/NOTICE)。
 - `platform/` 为专有闭源软件，不因与 Desktop 同仓而获得 Apache-2.0 授权。
-- `desktop/vendor/` 与按需安装的外部 sidecar 适用各自上游许可证和第三方声明。
+- `vendor/` 与按需安装的外部 sidecar 适用各自上游许可证和第三方声明。
 
 两个子项目分别管理依赖、构建、测试、数据和发布流程，不允许跨目录形成构建或运行时依赖。`desktop/legacy/` 仅保留为只读历史参考，不是第三个项目。
 

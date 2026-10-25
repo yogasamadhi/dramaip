@@ -72,9 +72,9 @@ desktop/
 
 ```text
 desktop/legacy/desktop2 = 只读架构模式参考
-desktop/vendor/deepseek-harness/vendor = 九个第一方框架包的锁定源码
-desktop/vendor/codex-rust = Codex Engine 锁定源码
-desktop/vendor/pi = Pi Engine 锁定源码
+vendor/deepseek-harness/vendor = 九个第一方框架包的锁定源码
+vendor/codex-rust = Codex Engine 锁定源码
+vendor/pi = Pi Engine 锁定源码
 ```
 
 所有 vendor 保持只读。DSH 的九个框架包经准备脚本生成本地 workspace 后参与构建；Pi/Codex 经各自构建流程成为受管 Engine 资源。发布包使用完整构建产物，不直接引用 vendor 或仓库外 workspace。归档实现和 DSH Agent 业务实现不进入正式运行依赖；Desktop 与 Platform 保持独立。
@@ -485,7 +485,7 @@ Kernel 不包含写作、Agents、媒体、制作、审片、交付或洞察业�
 
 ## 11.2 源码、workspace 与发布产物
 
-九个包为 Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。版本与源码树以 [DSH 锁文件](../../../desktop/vendor/deepseek-harness.lock.json)为准，当前快照为 `0.2.1-rc.2`；各框架包保留各自的 DSH 名称、版本和 MIT 许可证。
+九个包为 Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。版本与源码树以 [DSH 锁文件](../../../vendor/deepseek-harness.lock.json)为准，当前快照为 `0.2.1-rc.2`；各框架包保留各自的 DSH 名称、版本和 MIT 许可证。
 
 安装顺序固定为：
 

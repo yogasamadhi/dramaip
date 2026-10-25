@@ -7,7 +7,8 @@ export const desktopRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "..",
 );
-export const sourceRoot = join(desktopRoot, "vendor/deepseek-harness");
+export const repositoryRoot = resolve(desktopRoot, "..");
+export const sourceRoot = join(repositoryRoot, "vendor/deepseek-harness");
 export const frameworkRoot = join(desktopRoot, "build/dsh-framework");
 export const frameworkPackages = [
   "cosmokit",
@@ -50,7 +51,7 @@ export async function sourceFiles(root, excluded = new Set(), relative = "") {
 
 export async function verifyDshSource() {
   const lock = await readJson(
-    join(desktopRoot, "vendor/deepseek-harness.lock.json"),
+    join(repositoryRoot, "vendor/deepseek-harness.lock.json"),
   );
   const manifest = await readJson(join(sourceRoot, "package.json"));
   if (

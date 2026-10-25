@@ -6,7 +6,7 @@ Desktop 第一方插件使用当前锁定的 DSH `0.2.1-rc.2` 框架源码。Pla
 
 ## 源码与安装
 
-来源为 `vendor/deepseek-harness/vendor` 的九个包：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。锁文件记录的完整源码树 SHA-256 是 `95d51af3030846df809851673b021b34e52b8b32468dfb431acb7119ec512366`，包含 7,412 个文件。每个包保留 DSH 名称、版本和 MIT 许可证。
+来源为 `../vendor/deepseek-harness/vendor` 的九个包：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。锁文件记录的完整源码树 SHA-256 是 `95d51af3030846df809851673b021b34e52b8b32468dfb431acb7119ec512366`，包含 7,412 个文件。每个包保留 DSH 名称、版本和 MIT 许可证。
 
 ```bash
 git submodule update --init
