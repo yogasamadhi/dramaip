@@ -23,7 +23,7 @@ describe("desktop launcher engine runtimes", () => {
     const labels = runtimes.map((runtime) => runtime.label);
     const buildScripts = runtimes.map((runtime) => runtime.buildScript);
 
-    expect(labels).toContain("Codex 0.163.0");
+    expect(labels).toContain("Codex 0.164.0");
     expect(labels).toContain("Pi 1.4.0");
     expect(labels.some((label) => label.includes("Grok Build"))).toBe(false);
     expect(labels.some((label) => label.includes("DeepSeek"))).toBe(false);

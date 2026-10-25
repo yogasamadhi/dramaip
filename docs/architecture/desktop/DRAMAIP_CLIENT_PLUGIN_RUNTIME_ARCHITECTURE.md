@@ -485,7 +485,7 @@ Kernel 不包含写作、Agents、媒体、制作、审片、交付或洞察业�
 
 ## 11.2 源码、workspace 与发布产物
 
-九个包为 Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。版本与源码树以 [DSH 锁文件](../../../vendor/deepseek-harness.lock.json)为准，当前快照为 `0.2.1-rc.2`；各框架包保留各自的 DSH 名称、版本和 MIT 许可证。
+九个包为 Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR、Logger Console。版本与源码树以 [DSH 锁文件](../../../vendor/deepseek-harness.lock.json)为准，当前快照为 `0.2.1-rc.3`；各框架包保留各自的 DSH 名称、版本和 MIT 许可证。
 
 安装顺序固定为：
 
@@ -808,7 +808,7 @@ audit without secret
 
 ```text
 Pi 1.4.0
-Codex 0.163.0
+Codex 0.164.0
 LangGraph.js 1.4.9
 ```
 

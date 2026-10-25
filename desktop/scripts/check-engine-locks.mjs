@@ -80,8 +80,8 @@ for (const name of Object.keys(langgraphPackages))
   if (!langgraphNotices.includes(name))
     throw new Error(`LangGraph 第三方许可证清单缺少：${name}`);
 
-if (codex.package !== "@openai/codex" || codex.version !== "0.163.0")
-  throw new Error("Codex 固定版本必须为 @openai/codex 0.163.0");
+if (codex.package !== "@openai/codex" || codex.version !== "0.164.0")
+  throw new Error("Codex 固定版本必须为 @openai/codex 0.164.0");
 if (protocol.package !== codex.package || protocol.version !== codex.version)
   throw new Error("Codex 协议快照与二进制固定版本不一致");
 const requiredTriples = [
@@ -102,12 +102,12 @@ for (const triple of requiredTriples) {
 }
 
 if (
-  dsh.version !== "0.2.1-rc.2" ||
+  dsh.version !== "0.2.1-rc.3" ||
   dsh.license !== "MIT" ||
   dsh.packageManager !== "pnpm@11.28.5" ||
   dsh.lockfile !== "pnpm-lock.yaml"
 )
-  throw new Error("DSH 固定版本必须为 0.2.1-rc.2（MIT，pnpm 11.28.5）");
+  throw new Error("DSH 固定版本必须为 0.2.1-rc.3（MIT，pnpm 11.28.5）");
 const dshRoot = join(repositoryRoot, "vendor/deepseek-harness");
 const dshManifest = await readJson(join(dshRoot, "package.json"));
 if (

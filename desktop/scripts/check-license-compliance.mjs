@@ -54,7 +54,7 @@ for (const packagedNotice of [
   );
 
 const rootNotice = readFileSync(join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
-for (const component of ["Pi 1.4.0", "Codex CLI 0.163.0", "LangGraph.js 1.4.9"])
+for (const component of ["Pi 1.4.0", "Codex CLI 0.164.0", "LangGraph.js 1.4.9"])
   assert.ok(rootNotice.includes(component), `notice omits ${component}`);
 
 console.log(`Desktop Apache-2.0 metadata verified for ${packageFiles.length} manifests.`);

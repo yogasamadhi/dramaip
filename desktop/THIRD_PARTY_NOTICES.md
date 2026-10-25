@@ -8,13 +8,13 @@ Bundled runtime components:
 
 - Pi 1.4.0 — MIT License. Source snapshot: `../vendor/pi`; packaged notice:
   `apps/desktop/pi-adapter/THIRD_PARTY_NOTICES.md`.
-- OpenAI Codex CLI 0.163.0 — Apache-2.0. The pinned package license is copied
+- OpenAI Codex CLI 0.164.0 — Apache-2.0. The pinned package license is copied
   to `apps/desktop/build/third-party-notices/` for packaging.
 - LangGraph.js 1.4.9 and its active AI SDK dependencies — their pinned notices
   are recorded in
   `apps/desktop/build/third-party-notices/LangGraph-and-AI-SDK-NOTICES.md`.
 
-- DSH 0.2.1-rc.2 supplies nine MIT-licensed framework packages from the pinned
+- DSH 0.2.1-rc.3 supplies nine MIT-licensed framework packages from the pinned
   `../vendor/deepseek-harness/vendor` source tree:
   `@deepseek-ai/cordis` 4.0.5, `@deepseek-ai/cosmokit` 1.8.6,
   `@deepseek-ai/schemastery` 3.18.5, `@deepseek-ai/cordis-plugin-loader` 1.0.6,

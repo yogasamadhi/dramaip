@@ -7,7 +7,7 @@
 1. 运行 `bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run test:e2e`、`bun run check:generated`、`bun run check:architecture`、`bun run check:engine-locks`、`bun run check:provider-catalog` 和 `bun run build`。
 2. 设置真实 `DRAMAIP_UPDATE_URL`，分别在 macOS、Windows、Linux 运行 `bun run package`。
 3. 启动每个平台的安装包，验证 `/api/v2/runtime` 与 `/api/v2/system/diagnostics` 中的 Profile、Bundle、插件顺序、迁移、Host 和 Pi、Codex、LangGraph.js 三个引擎健康状态；确认 `dramaip.db` 可写，退出后没有残留进程。
-4. 校验 Pi 1.4.0、Codex 0.163.0 与 LangGraph.js 1.4.9 的打包资源、锁定摘要、协议快照及第三方许可证；校验 DSH 框架源码快照完整性及九个框架包的打包资源和许可证，DSH Agent 业务实现不得进入安装包。
+4. 校验 Pi 1.4.0、Codex 0.164.0 与 LangGraph.js 1.4.9 的打包资源、锁定摘要、协议快照及第三方许可证；校验 DSH 框架源码快照完整性及九个框架包的打包资源和许可证，DSH Agent 业务实现不得进入安装包。
 5. 验证 Renderer 不含业务 `fetch` 或 IPC 方法、preload 只含 Runtime bootstrap、Renderer 只使用生成的 `@dramaip/client`；确认 Core Runtime 未在 Electron Main 内启动，HTTP API 为 `/api/v2`，并验证 Node 24.18.0 Server Mode（Bun 只负责启动调度，不是 Core Runtime）。
 6. 发布前完成三平台代码签名；macOS 还必须完成公证。
 7. GitLab 的 `desktop_macos_release` 与 `desktop_windows_release` 只在标签流水线上运行；发布前必须确认项目已配置带 `macos`、`windows` 和 `private` 标签的对应 Runner。

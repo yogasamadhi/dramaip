@@ -136,7 +136,7 @@ async function start(command: StartCommand): Promise<void> {
     }
     parentPort!.postMessage({
       type: "ready",
-      version: "0.163.0",
+      version: "0.164.0",
       authenticated,
     });
   } catch (error) {
@@ -550,7 +550,7 @@ async function perform(
   payload: Record<string, unknown>,
 ): Promise<unknown> {
   if (operation === "health")
-    return { available: Boolean(appServer), version: "0.163.0" };
+    return { available: Boolean(appServer), version: "0.164.0" };
   if (operation === "authStatus") {
     return authStatus();
   }

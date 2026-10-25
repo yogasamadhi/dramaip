@@ -2476,7 +2476,7 @@ export const AGENT_RUNTIME_DESCRIPTORS = {
     kind: "codex",
     role: "external-benchmark",
     name: "Codex",
-    version: "0.163.0",
+    version: "0.164.0",
     capabilities: {
       prompt: true,
       streaming: true,

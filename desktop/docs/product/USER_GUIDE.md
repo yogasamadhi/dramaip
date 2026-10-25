@@ -848,7 +848,7 @@ AI 工作台和普通对话可点击“查看原运行用量报告”，只读�
 
 在“设置 → 智能引擎”中查看 Pi、Codex、LangGraph.js 的状态、版本与认证方式，并设置全局和项目默认引擎、模型。Pi 是默认内嵌 Agent Harness；Codex 可使用安全保存的 OpenAI API Key、ChatGPT 浏览器登录或设备码登录，也可以绑定“模型服务商”中已经保存的 OpenAI 兼容文本服务商，因此不要求用户拥有 ChatGPT 账号。LangGraph.js 复用当前已保存的 Provider 凭据，并支持 OpenAI、OpenAI-compatible、Anthropic 和 Google。
 
-Codex 0.163.0 的自定义服务商通道支持两种模式：Responses API 直连，或在本机把 Chat Completions 转换为 Responses。设置中心会列出已保存的 OpenAI 兼容文本服务商；仅支持 `/v1/chat/completions` 的厂商选择“Chat Completions：本地转换”即可。转换模式兼容范围更广，但 Codex 的部分 Responses 专属高级能力可能受限。
+Codex 0.164.0 的自定义服务商通道支持两种模式：Responses API 直连，或在本机把 Chat Completions 转换为 Responses。设置中心会列出已保存的 OpenAI 兼容文本服务商；仅支持 `/v1/chat/completions` 的厂商选择“Chat Completions：本地转换”即可。转换模式兼容范围更广，但 Codex 的部分 Responses 专属高级能力可能受限。
 
 智能助手默认使用“简洁模式”：它只显示当前页面最相关的 1–3 个动作、所需项目/章节输入、引擎能力和费用状态，不要求选择引擎、模型、任务或盲测参数。每个推荐动作仍使用同一份受控任务目录和不可变上下文快照；生成结果只会进入任务中心的预览或变更包，绝不会自动采用。
 

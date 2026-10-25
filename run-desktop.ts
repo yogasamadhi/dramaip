@@ -264,7 +264,7 @@ export function runtimeSpecs(): readonly RuntimeSpec[] {
   const executable = process.platform === "win32" ? "codex.exe" : "codex";
   const runtimes: RuntimeSpec[] = [
     {
-      label: "Codex 0.163.0",
+      label: "Codex 0.164.0",
       entry: join(
         studioDirectory,
         "build",

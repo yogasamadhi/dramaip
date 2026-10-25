@@ -54,7 +54,7 @@ export const engineDefinitions = {
   },
   codex: {
     name: "Codex",
-    version: "0.163.0",
+    version: "0.164.0",
     isBeta: false,
     role: "external-benchmark",
   },

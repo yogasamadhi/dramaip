@@ -1,7 +1,7 @@
 Codex CLI
 Copyright OpenAI
 
-Pinned package: @openai/codex 0.163.0
+Pinned package: @openai/codex 0.164.0
 Source: https://github.com/openai/codex
 
 DramaIP runs the pinned Codex App Server in an isolated process. It does not
