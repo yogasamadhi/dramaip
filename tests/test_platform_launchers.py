@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import py_compile
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,15 @@ development = load_launcher("run-platform-dev")
 
 
 class PlatformClientLauncherTests(unittest.TestCase):
+    def test_root_launchers_compile(self) -> None:
+        for name in ("run-desktop", "run-platform-clients", "run-platform-dev"):
+            with self.subTest(launcher=name):
+                py_compile.compile(
+                    str(ROOT / f"{name}.py"),
+                    doraise=True,
+                    cfile=str(Path(tempfile.gettempdir()) / f"{name}.pyc"),
+                )
+
     def test_preserves_client_option_semantics(self) -> None:
         options = clients.parse_client_arguments(
             [

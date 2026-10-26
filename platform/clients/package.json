@@ -10,8 +10,7 @@
     "build:admin": "pnpm --filter @dramaip/admin run build",
     "dev:mobile": "pnpm --filter @dramaip/mobile run start",
     "contracts:check": "node scripts/check-client-contracts.mjs",
-    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck && pnpm run check:launchers",
-    "check:launchers": "python3 -m py_compile ../../run-platform-clients.py ../../run-platform-dev.py ../../run-desktop.py",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "lint": "pnpm -r --workspace-concurrency=1 run lint",
     "test": "pnpm --filter @dramaip/sdk run test && pnpm --filter @dramaip/web run test && pnpm --filter @dramaip/admin run test && pnpm --filter @dramaip/mobile run test:security && pnpm run test:launchers",
     "test:launchers": "vitest run scripts/platform-launchers.test.ts"
