@@ -1,6 +1,6 @@
 # AGENTS.md
 
-DramaIP contains two independent products: `desktop/` (Apache-2.0 Electron/local Runtime) and `platform/` (proprietary Java cloud platform and clients). They own separate dependencies, data, builds, tests, and releases; never add a build or runtime dependency across them. Root files only coordinate launchers, tests, docs, and CI; there is no root JS workspace.
+DramaIP contains two independent products: `desktop/` (Apache-2.0 Electron/local Runtime) and `platform/` (proprietary Java cloud platform and clients). They own separate dependencies, data, builds, tests, and releases; never add a build or runtime dependency across them. Root files only coordinate launchers, tests, docs, and CI; there is no root JS workspace. The three root launchers (`run-desktop.py`, `run-platform-clients.py`, `run-platform-dev.py`) and the root `tests/` suite are the only Python in the repository; every other script stays in its existing language — Node (`.ts`/`.mts`/`.tsx`/`.mjs`/`.js`) inside the Desktop and Platform client workspaces, shell (`.sh`) for Platform release and recovery, and Java/Maven for Platform services. Do not port a workspace script to Python.
 
 ## Sources of truth
 
@@ -41,7 +41,7 @@ Desktop architecture red lines:
 ## Platform
 
 - From `platform/`, `make test` runs Maven verify, client typecheck/tests, contract checks, and web-route smoke; it does not install dependencies, run client lint, or build Web/Admin. Java-only: `mvn -B -ntp verify` in `platform/server/`. Focus Java with `mvn -B -ntp -pl services/<name> -am -Dtest=<Class> -Dsurefire.failIfNoSpecifiedTests=false test`; focus clients from `platform/clients/` with `pnpm exec vitest run <path>`.
-- Client CI parity from `platform/clients/`: `pnpm ci`, then `pnpm run lint`, `typecheck`, `contracts:check`, `test`, `build:web`, and `build:admin`; run `make web-route-smoke` from `platform/`. `typecheck`/`test` already include root launcher checks. Public schema changes require a contract-version bump when `origin/main` is available.
+- Client CI parity from `platform/clients/`: `pnpm ci`, then `pnpm run lint`, `typecheck`, `contracts:check`, `test`, `build:web`, and `build:admin`; run `make web-route-smoke` from `platform/`. `typecheck`/`test` already include the root launcher checks: `check:launchers` compiles the Python launchers and `test:launchers` drives them as black boxes from Vitest. Public schema changes require a contract-version bump when `origin/main` is available.
 - Local Compose E2E is ordered and stateful: `make platform-up`, then `make platform-e2e`, then `make platform-down`. E2E writes local data; normal down preserves bind-mounted data. CI-only `platform-ci-e2e` reuses packaged JARs/random ports and must be paired with `platform-ci-down`.
 - Root launchers are separate: `python3 run-platform-dev.py` runs migration, Gateway `8080`, and host JVM services `8081-8087` while infra stays in Docker; it stops Compose Java containers and may terminate occupants of those ports. `python3 run-platform-clients.py` may install dependencies and terminates occupants of `3009-3011` by default; use `--no-install`/`--no-kill-ports` when needed. Consult each `--help` before partial startup.
 

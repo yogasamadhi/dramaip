@@ -11,7 +11,7 @@ REQUIRED_PNPM_VERSION = "11.28.5"
 
 
 class PlatformLauncherTests(unittest.TestCase):
-    def test_typescript_launchers(self) -> None:
+    def test_root_launchers(self) -> None:
         pnpm = shutil.which("pnpm")
         self.assertIsNotNone(pnpm, "pnpm 11.28.5 is required")
         version = subprocess.run(

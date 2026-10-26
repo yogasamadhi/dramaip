@@ -1210,12 +1210,16 @@ def watch_java_processes(
 
 
 def main(arguments: list[str] | None = None) -> int:
-    options = parse_development_arguments(
-        sys.argv[1:] if arguments is None else arguments
-    )
-    if options is None:
-        return 0
-    selected = parse_services(options.services)
+    try:
+        options = parse_development_arguments(
+            sys.argv[1:] if arguments is None else arguments
+        )
+        if options is None:
+            return 0
+        selected = parse_services(options.services)
+    except RuntimeError as error:  # noqa: BLE001 - 参数错误转成干净退出码
+        sys.stderr.write(f"ERR {error}\n")
+        return 1
     processes: list[ManagedJavaProcess] = []
     try:
         check_layout()

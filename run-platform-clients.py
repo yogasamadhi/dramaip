@@ -735,9 +735,13 @@ def watch_clients(
 
 
 def main(arguments: list[str] | None = None) -> int:
-    options = parse_client_arguments(
-        sys.argv[1:] if arguments is None else arguments
-    )
+    try:
+        options = parse_client_arguments(
+            sys.argv[1:] if arguments is None else arguments
+        )
+    except RuntimeError as error:  # noqa: BLE001 - 参数错误转成干净退出码
+        sys.stderr.write(f"{color('31', 'ERR ')}{error}\n")
+        return 1
     if options is None:
         return 0
 
