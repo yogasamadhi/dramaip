@@ -1,4 +1,4 @@
-# Host-JVM development targets. run-platform-dev.ts writes only the services it
+# Host-JVM development targets. run-platform-dev.py writes only the services it
 # starts to file-SD JSON, so a selected subset never shows false TargetDown.
 global:
   scrape_interval: 15s

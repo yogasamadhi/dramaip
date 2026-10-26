@@ -7,7 +7,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LAUNCHER_TEST = ROOT / "platform" / "clients" / "scripts" / "platform-launchers.test.ts"
 REQUIRED_PNPM_VERSION = "11.28.5"
 
 
@@ -24,8 +23,17 @@ class PlatformLauncherTests(unittest.TestCase):
         ).stdout.strip()
         self.assertEqual(REQUIRED_PNPM_VERSION, version)
         subprocess.run(
-            [pnpm, "exec", "vitest", "run", str(LAUNCHER_TEST)],
-            cwd=ROOT / "platform" / "clients",
+            [
+                "python3",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                str(ROOT / "tests"),
+                "-p",
+                "test_platform_launchers.py",
+            ],
+            cwd=ROOT,
             check=True,
         )
 

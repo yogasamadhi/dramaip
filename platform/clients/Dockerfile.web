@@ -1,18 +1,19 @@
 # syntax=docker/dockerfile:1.7
-# Build JavaScript on the operator's native architecture. The final Bun image
+# Build JavaScript on the operator's native architecture. The final Node image
 # is still emitted for TARGETPLATFORM, allowing an arm64 workstation to create
 # the linux/amd64 artifact consumed by the Kubernetes workers without QEMU.
-ARG BUN_IMAGE=oven/bun:1.4.0-alpine
+ARG NODE_IMAGE=node:24.18.0-alpine
 
-FROM --platform=$BUILDPLATFORM ${BUN_IMAGE} AS dependencies
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
-COPY package.json bun.lock bunfig.toml tsconfig.base.json ./
+RUN corepack enable && corepack prepare pnpm@11.28.5 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
 COPY apps/admin/package.json apps/admin/package.json
 COPY apps/mobile/package.json apps/mobile/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
-RUN --mount=type=cache,id=dramaip-bun-cache,target=/root/.bun/install/cache,sharing=locked \
-    bun install --frozen-lockfile
+RUN --mount=type=cache,id=dramaip-pnpm-store,target=/pnpm/store,sharing=locked \
+    pnpm install --frozen-lockfile --store-dir=/pnpm/store
 
 FROM dependencies AS build
 COPY . .
@@ -20,9 +21,9 @@ ARG NEXT_PUBLIC_API_BASE_URL=
 ARG NEXT_PUBLIC_PAYMENT_MODE=simulated
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 ENV NEXT_PUBLIC_PAYMENT_MODE=${NEXT_PUBLIC_PAYMENT_MODE}
-RUN bun run --filter @dramaip/web build
+RUN pnpm --filter @dramaip/web build
 
-FROM --platform=$TARGETPLATFORM ${BUN_IMAGE} AS runtime
+FROM --platform=$TARGETPLATFORM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
@@ -32,4 +33,4 @@ COPY --from=build --chown=10001:10001 /app/apps/web/.next/standalone ./
 COPY --from=build --chown=10001:10001 /app/apps/web/.next/static ./apps/web/.next/static
 USER 10001:10001
 EXPOSE 3000
-CMD ["bun", "apps/web/server.js"]
+CMD ["node", "apps/web/server.js"]

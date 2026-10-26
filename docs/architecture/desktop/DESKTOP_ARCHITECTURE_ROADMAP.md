@@ -445,7 +445,7 @@ pnpm run test:e2e
 
 `test` 已包含 typecheck、unit/Runtime 与 conformance；聚焦 Core 可用 `test:runtime:node`，不要用包管理器直接运行 Core 测试。Loader/HMR 和构建变更额外执行 `test:runtime:watch`、`test:runtime:hmr`、`test:runtime:hmr:electron`，Linux Electron 需要 display 或 `xvfb-run`。
 
-从无依赖环境开始，先初始化子模块，再执行 `prepare:framework → pnpm ci → build:framework → check:framework`。根 `node run-desktop.ts` 协调准备、安装、框架与 Engine 构建；独立 Runtime 通过 `scripts/run-node.mjs` 校验 Node 24.18.0。
+从无依赖环境开始，先初始化子模块，再执行 `prepare:framework → pnpm ci → build:framework → check:framework`。根 `python3 run-desktop.py` 协调准备、安装、框架与 Engine 构建；独立 Runtime 通过 `scripts/run-node.mjs` 校验 Node 24.18.0。
 
 契约变更先运行 Client `generate`；插件声明和 ownership 变更运行 `plugins:generate` / `architecture:generate`；迁移证据运行 `migration:generate`。所有生成命令完成后运行相应检查，禁止手工编辑生成目录、OpenAPI 或迁移矩阵。
 

@@ -91,13 +91,13 @@ if helm template invalid-observability "$chart" --set devInfra.enabled=true --se
 fi
 (
   cd "$platform/clients"
-  [[ "$(bun --version)" == "1.4.0" ]] || { echo "Platform clients require Bun 1.4.0 exactly" >&2; exit 2; }
-  bun run lint
-  bun run typecheck
-  bun run contracts:check
-  bun run test
-  bun run build:web
-  bun run build:admin
+  [[ "$(pnpm --version)" == "11.28.5" ]] || { echo "Platform clients require pnpm 11.28.5 exactly" >&2; exit 2; }
+  pnpm run lint
+  pnpm run typecheck
+  pnpm run contracts:check
+  pnpm run test
+  pnpm run build:web
+  pnpm run build:admin
 )
 (
   cd "$platform/server"

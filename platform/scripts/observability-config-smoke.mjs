@@ -32,7 +32,7 @@ const [prometheus, hostPrometheus, alerts, compose, alloy, loki, tempo,
   read('deploy/docker-drama/grafana/provisioning/datasources/prometheus.yml'),
   read('deploy/docker-drama/grafana/provisioning/datasources/loki.yml'),
   read('deploy/docker-drama/grafana/provisioning/datasources/tempo.yml'),
-  read('../run-platform-dev.ts'),
+  read('../run-platform-dev.py'),
   read('deploy/helm/dramaip-platform/values.yaml'),
   read('deploy/helm/dramaip-platform/values-dev.yaml'),
   read('deploy/helm/dramaip-platform/values-staging.yaml'),
@@ -213,7 +213,7 @@ for (const value of [
 }
 
 for (const value of [
-  '--obs', 'requireObservabilityAgent', 'writeHostPrometheusTargets',
+  '--obs', 'require_observability_agent', 'write_host_prometheus_targets',
   'host.docker.internal:8080', 'DOCKER_OBSERVABILITY_SERVICES',
   'DRAMAIP_HOST_LOG_DIR',
 ]) {

@@ -37,6 +37,33 @@ static_checks:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+root_launchers:
+  stage: validate
+  image:
+    name: node:24.18.0-bookworm-slim
+    entrypoint: [""]
+  cache:
+    key:
+      files:
+        - platform/clients/pnpm-lock.yaml
+      prefix: root-launchers-${CI_PROJECT_ID}
+    paths:
+      - .cache/pnpm/
+  before_script:
+    - |
+      set -eu
+      apt-get update
+      apt-get install -y --no-install-recommends ca-certificates curl python3
+      corepack enable
+      corepack prepare pnpm@11.28.5 --activate
+      test "$(pnpm --version)" = "11.28.5"
+      test "$(node --version)" = "v24.18.0"
+  script:
+    - python3 -m unittest discover -s tests
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 java_server:
   stage: validate
   image:

@@ -37,8 +37,8 @@ The repository launcher wires the mobile app to the Java Gateway and the rest
 of the clients:
 
 ```bash
-pnpm run run-platform-clients.ts            # web + admin + mobile Metro
-pnpm run run-platform-clients.ts --mobile-target ios|android
+python3 run-platform-clients.py            # web + admin + mobile Metro
+python3 run-platform-clients.py --mobile-target ios|android
 ```
 
 Metro listens on **3011** (avoids the 8081 collision with the local Java

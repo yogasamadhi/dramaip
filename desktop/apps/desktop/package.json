@@ -8,7 +8,7 @@
   "license": "Apache-2.0",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "node ../../../run-desktop.ts",
+    "dev": "python3 ../../../run-desktop.py",
     "dev:raw": "node ../../scripts/dev-desktop.mjs",
     "build": "node ../../scripts/build-runtime.mjs && electron-vite build",
     "preview": "electron-vite preview",

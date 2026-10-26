@@ -38,8 +38,8 @@ scripts/                    E2E 和可观测性检查
 及所需基础设施，再启动 Web 客户端；浏览器 API 通过 Java Gateway 的 `http://localhost:8080/api/v1` 访问：
 
 ```bash
-pnpm run run-platform-dev.ts
-pnpm run run-platform-clients.ts
+python3 run-platform-dev.py
+python3 run-platform-clients.py
 
 # 或只管理后端 Compose 栈
 cd platform
@@ -50,7 +50,7 @@ make platform-down
 
 客户端依赖与 Web/Admin 工具链固定为 pnpm 11.28.5；Mobile 的 Expo 运行时仍需 Node.js。手动运行命令见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
 
-本地可观测性使用 Prometheus、OpenTelemetry Java Agent、Alloy、Loki、Tempo 和 Grafana：Compose Java 使用 `make platform-observability-up`，宿主机 Java 调试使用 `pnpm run run-platform-dev.ts --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)和[可观测性 runbook](docs/OBSERVABILITY.md)。
+本地可观测性使用 Prometheus、OpenTelemetry Java Agent、Alloy、Loki、Tempo 和 Grafana：Compose Java 使用 `make platform-observability-up`，宿主机 Java 调试使用 `python3 run-platform-dev.py --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)和[可观测性 runbook](docs/OBSERVABILITY.md)。
 
 CI/CD 验证、构建、扫描和发布九个 Java 镜像与一个 Web 镜像。发布前先运行 `deploy/release/preflight.sh`；经审批后使用 `deploy/release/helm-release.sh <staging|production> <apply|rollback>`。`deploy/release/check-manifest.sh` 是镜像清单的唯一校验入口。
 

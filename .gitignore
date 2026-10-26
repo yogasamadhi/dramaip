@@ -69,7 +69,6 @@ venv/
 # ---- Node.js / pnpm (monorepo-wide) ----
 node_modules/
 # Local package-manager stores (developer cache only).
-.bun/
 .pnpm-store/
 .npm/
 .yarn/cache/

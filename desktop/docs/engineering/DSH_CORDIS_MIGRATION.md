@@ -35,7 +35,7 @@ Profile JSON 只选择 Bundle。六个 Bundle 与五个 Profile 的 `cordis.patc
 
 ```bash
 # 仓库根目录：桌面开发启动器
-node run-desktop.ts
+python3 run-desktop.py
 # desktop/：独立 Node 开发 Runtime
 pnpm run dev:runtime --profile server --database /absolute/path/dramaip.db
 ```

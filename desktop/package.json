@@ -54,7 +54,7 @@
   "packageManager": "pnpm@11.28.5",
   "private": true,
   "scripts": {
-    "dev": "node ../run-desktop.ts",
+    "dev": "python3 ../run-desktop.py",
     "build": "pnpm run build:framework && pnpm run plugins:generate && pnpm --filter @dramaip/desktop run build",
     "preview": "pnpm --filter @dramaip/desktop run preview",
     "package": "pnpm --filter @dramaip/desktop run package",

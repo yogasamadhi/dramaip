@@ -4,7 +4,7 @@
 
 PLAN22.200新增`pnpm run release:inspect`与7项测试，通过只读实际文件区分当前／历史清单、旁置解包构建差异和ad-hoc签名。检查不安装／启动／更新应用、不批准发行；旧同版号alpha包不证明当前实现。详见[候选包检查](docs/product/USER_GUIDE.md#m5候选包只读检查)。
 
-PLAN22.201修复`release:metadata`混入历史文件和依赖门前输出，10项新测试通过；保留原Bun入口，全部检查后仅向新目录生成库存，不覆盖或删除旧产物。真实操作仍须先package及发布验收；命令成功不代表发行批准。详见[元数据生成](docs/product/USER_GUIDE.md#发布元数据生成)。
+PLAN22.201修复`release:metadata`混入历史文件和依赖门前输出，10项新测试通过；保留原发布元数据入口，全部检查后仅向新目录生成库存，不覆盖或删除旧产物。真实操作仍须先package及发布验收；命令成功不代表发行批准。详见[元数据生成](docs/product/USER_GUIDE.md#发布元数据生成)。
 
 PLAN22.203已补收当前M5工具47项与原整包审片／资料／渲染有限业务组：23命令和四后台旅程4/4终态通过，6345列举输入首末一致。本机字体夹具首次失败保留，修正后重跑；不是完整normal、完整Media Gate或真实M5验收，不为本组扩大媒体功能。
 
@@ -202,7 +202,7 @@ pnpm run prepare:framework
 pnpm ci
 pnpm run build:framework
 pnpm run check:framework
-node ../run-desktop.ts
+python3 ../run-desktop.py
 pnpm run typecheck
 pnpm run test
 pnpm run check:generated
@@ -211,7 +211,7 @@ pnpm run check:engine-locks
 pnpm run build
 ```
 
-维护者电脑上的代理调试必须保持后台、不抢焦点：开发启动使用 `DRAMAIP_DEBUG_BACKGROUND=1 node ../run-desktop.ts`。Electron E2E 的独立测试配置自动隐藏主窗口和凭据窗口，仍可通过 Playwright 操作与截图；后台模式阻止未受控的系统文件对话框、外部应用打开和通知，文件选择由测试显式控制。启动错误写入日志，不弹系统警告。未设置调试／隔离测试标志的正常用户启动保持原行为；新构建的打包应用在明确设置 `DRAMAIP_DEBUG_BACKGROUND=1` 或 `DRAMAIP_E2E_USER_DATA` 时也遵守后台策略。确需前台或原生交互时须先获得维护者同意，不操作维护者的普通应用实例。
+维护者电脑上的代理调试必须保持后台、不抢焦点：开发启动使用 `DRAMAIP_DEBUG_BACKGROUND=1 python3 ../run-desktop.py`。Electron E2E 的独立测试配置自动隐藏主窗口和凭据窗口，仍可通过 Playwright 操作与截图；后台模式阻止未受控的系统文件对话框、外部应用打开和通知，文件选择由测试显式控制。启动错误写入日志，不弹系统警告。未设置调试／隔离测试标志的正常用户启动保持原行为；新构建的打包应用在明确设置 `DRAMAIP_DEBUG_BACKGROUND=1` 或 `DRAMAIP_E2E_USER_DATA` 时也遵守后台策略。确需前台或原生交互时须先获得维护者同意，不操作维护者的普通应用实例。
 
 无 Electron 的 Runtime 可用 `pnpm run serve --profile server --database /absolute/path/dramaip.db --port 8787` 启动。支持的 Profile 是 `studio`、`server`、`safe`、`test`、`e2e`，运行时固定为 Node 24.18.0，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。`pnpm run dev:runtime` 启用开发 HMR 和 supervisor。
 
