@@ -1327,7 +1327,7 @@ async function main(args) {
   const [command, ...rest] = args;
   if (command === "--help" && rest.length === 0) {
     console.log(
-      "Offline only; no model/network/file writes. Optional prefix: --catalog <local-v2-catalog.json> (new corpus suite; old records are not rebound). Commands: catalog | template | study-template | user-template <novel|adaptation|script> | validate <local-record.json> | summarize <local-record.json> | compare <baseline-record.json> <result-record.json> | verify-evidence <local-record.json> <explicit-receipt-directory> | study-check <local-study.json>. verify-evidence reads only <raw-sha256>.receipt files (32 MiB each, 256 MiB total); exit 2 means missing/incomplete file evidence. Run through bun scripts/run-node.mjs scripts/product-evaluation.mjs. Consistency checks never independently certify corpus extent/scale, quality, participants, consent, bills or release readiness.",
+      "Offline only; no model/network/file writes. Optional prefix: --catalog <local-v2-catalog.json> (new corpus suite; old records are not rebound). Commands: catalog | template | study-template | user-template <novel|adaptation|script> | validate <local-record.json> | summarize <local-record.json> | compare <baseline-record.json> <result-record.json> | verify-evidence <local-record.json> <explicit-receipt-directory> | study-check <local-study.json>. verify-evidence reads only <raw-sha256>.receipt files (32 MiB each, 256 MiB total); exit 2 means missing/incomplete file evidence. Run through node scripts/run-node.mjs scripts/product-evaluation.mjs. Consistency checks never independently certify corpus extent/scale, quality, participants, consent, bills or release readiness.",
     );
     return;
   }

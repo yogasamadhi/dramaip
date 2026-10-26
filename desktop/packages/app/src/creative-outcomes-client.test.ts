@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import {
   CreativeOutcomeKindSchema,
@@ -831,9 +831,11 @@ test("local result SDK uses only scoped read routes, forwards cancellation and p
       .items,
   ).toHaveLength(1);
   expect(calls.map((request) => request.method)).toEqual(["GET", "GET"]);
-  expect(calls[1]!.url).toEndWith(
-    `/projects/${projectId}/creative-outcomes?cursor=11&limit=1`,
-  );
+  expect(
+    calls[1]!.url.endsWith(
+      `/projects/${projectId}/creative-outcomes?cursor=11&limit=1`,
+    ),
+  ).toBe(true);
   expect(calls.every((request) => request.body === null)).toBe(true);
   controller.abort();
   expect(calls.every((request) => request.signal.aborted)).toBe(true);
@@ -877,9 +879,11 @@ test("source conflict SDK preserves the original body-free candidate and observe
   ).toEqual(value);
   expect(requests).toHaveLength(1);
   expect(requests[0]!.method).toBe("GET");
-  expect(requests[0]!.url).toEndWith(
-    `/projects/${projectId}/creative-outcomes/summary`,
-  );
+  expect(
+    requests[0]!.url.endsWith(
+      `/projects/${projectId}/creative-outcomes/summary`,
+    ),
+  ).toBe(true);
   expect(requests[0]!.body).toBeNull();
   const last = value.funnel.measures[0]!.lastSourceConflict!;
   for (const lastSourceConflict of [
@@ -1049,7 +1053,9 @@ test("seven-day SDK reads the body-free all-local project cohort with cancellati
   expect(
     await sdk.creativeOutcomes.continuationSummary(controller.signal),
   ).toEqual(globalContinuation);
-  expect(requests[0]!.url).toEndWith("/api/v2/creative-continuations/summary");
+  expect(
+    requests[0]!.url.endsWith("/api/v2/creative-continuations/summary"),
+  ).toBe(true);
   expect(requests[0]!.method).toBe("GET");
   expect(requests[0]!.body).toBeNull();
   controller.abort();

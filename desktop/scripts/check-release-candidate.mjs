@@ -352,7 +352,7 @@ if (
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === "--help")
     process.stdout.write(
-      "Read-only local candidate inspection. Usage: bun scripts/run-node.mjs scripts/check-release-candidate.mjs [--artifacts <directory>]. Prints inventory only, never release approval.\n",
+      "Read-only local candidate inspection. Usage: node scripts/run-node.mjs scripts/check-release-candidate.mjs [--artifacts <directory>]. Prints inventory only, never release approval.\n",
     );
   else if (!(
     args.length === 0 ||

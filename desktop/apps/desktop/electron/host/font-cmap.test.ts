@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "bun:test";
+import { test } from "vitest";
 import { assertFontTextCoverage, readFontGlyphMap } from "./font-cmap";
 import { fontFixture } from "./renderer-font.fixture";
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { EpisodeDevelopmentRequestSchema } from "@dramaip/contracts/production";
 import { seasonNarrativeRequestMatches } from "./episode-narrative-inheritance";
 

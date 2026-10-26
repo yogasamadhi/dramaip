@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import {
   MODEL_PROVIDER_CATALOG,
   MODEL_PROVIDER_CATALOG_UPDATED_AT,

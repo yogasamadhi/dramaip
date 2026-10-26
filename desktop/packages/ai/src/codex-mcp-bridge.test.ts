@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import { createServer, type Server } from "node:http";
 import { startCodexMcpBridge, type CodexMcpBridge } from "./codex-mcp-bridge";
 

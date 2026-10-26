@@ -35,7 +35,7 @@ export async function generateEffectiveOpenApi(check: boolean): Promise<void> {
       const current = await readFile(outputUrl, "utf8").catch(() => "");
       if (current !== generated)
         throw new Error(
-          "Effective Runtime OpenAPI is stale; run bun run --filter @dramaip/client generate",
+          "Effective Runtime OpenAPI is stale; run pnpm --filter @dramaip/client run generate",
         );
     } else await writeFile(outputUrl, generated);
   } finally {

@@ -4,7 +4,7 @@ import { migrationWorkerEnvironment } from "./migration-worker.js";
 describe("migration worker protocol", () => {
   it("sets Electron Node mode only for desktop workers", () => {
     const source = { ELECTRON_RUN_AS_NODE: "stale", EXAMPLE: "kept" };
-    expect(migrationWorkerEnvironment("bun", source)).toEqual({
+    expect(migrationWorkerEnvironment("node", source)).toEqual({
       EXAMPLE: "kept",
     });
     expect(migrationWorkerEnvironment("electron-node", source)).toEqual({

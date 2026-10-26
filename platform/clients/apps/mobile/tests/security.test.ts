@@ -1,8 +1,8 @@
-import { test } from 'bun:test'
+import { test } from "vitest"
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const root = resolve(import.meta.dir, '..')
+const root = resolve(import.meta.dirname, '..')
 
 function read(rel: string): string {
   return readFileSync(resolve(root, rel), 'utf8')

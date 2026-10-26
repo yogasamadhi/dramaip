@@ -3,13 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "bun --bun run next dev -p 3009",
-    "build": "bun --bun run next build",
-    "start": "bun --bun run next start",
-    "lint": "bun --bun run eslint .",
-    "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test tests/*.test.ts",
-    "smoke:cases": "bun scripts/story-case-built-smoke.ts"
+    "dev": "next dev -p 3009",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run tests/*.test.ts",
+    "smoke:cases": "node scripts/story-case-built-smoke.ts"
   },
   "dependencies": {
     "@dramaip/sdk": "workspace:*",

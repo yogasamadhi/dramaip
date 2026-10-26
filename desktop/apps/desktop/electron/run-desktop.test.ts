@@ -1,19 +1,26 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 
 import {
-  assertBunVersion,
-  REQUIRED_BUN_VERSION,
+  assertNodeVersion,
+  assertPnpmVersion,
+  REQUIRED_NODE_VERSION,
+  REQUIRED_PNPM_VERSION,
   runtimeSpecs,
   vendorSubmoduleSpecs,
 } from "../../../../run-desktop";
 
 describe("desktop launcher toolchain", () => {
-  test("requires Bun 1.4.0 exactly for Desktop tooling", () => {
-    expect(assertBunVersion(REQUIRED_BUN_VERSION)).toBe("1.4.0");
-    expect(() => assertBunVersion("1.3.14")).toThrow(/恰好为 1\.4\.0/u);
-    expect(() => assertBunVersion("1.4.1")).toThrow(/恰好为 1\.4\.0/u);
-    expect(() => assertBunVersion(undefined)).toThrow(/非 Bun 运行时/u);
+  test("requires Node 24.18.0 and pnpm 11.28.5 exactly for Desktop tooling", () => {
+    expect(assertNodeVersion(REQUIRED_NODE_VERSION)).toBe("24.18.0");
+    expect(() => assertNodeVersion("24.17.0")).toThrow(/恰好为 24\.18\.0/u);
+    expect(() => assertNodeVersion("24.19.0")).toThrow(/恰好为 24\.18\.0/u);
+    expect(() => assertNodeVersion(undefined)).toThrow(/非 Node 运行时/u);
+
+    expect(assertPnpmVersion(REQUIRED_PNPM_VERSION)).toBe("11.28.5");
+    expect(() => assertPnpmVersion("11.22.0")).toThrow(/恰好为 11\.28\.5/u);
+    expect(() => assertPnpmVersion("11.28.6")).toThrow(/恰好为 11\.28\.5/u);
+    expect(() => assertPnpmVersion(undefined)).toThrow(/未安装 pnpm/u);
   });
 });
 
@@ -44,10 +51,11 @@ describe("desktop launcher vendor sources", () => {
     expect(commonPaths).not.toContain("vendor/grok-build");
   });
 
-  test("keeps read-only reference sources outside the Bun workspace", () => {
-    const desktopManifest = JSON.parse(
-      readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
-    ) as { workspaces: string[] };
+  test("keeps read-only reference sources outside the pnpm workspace", () => {
+    const workspace = readFileSync(
+      new URL("../../../pnpm-workspace.yaml", import.meta.url),
+      "utf8",
+    );
     const kernelManifest = JSON.parse(
       readFileSync(
         new URL("../../../packages/kernel/package.json", import.meta.url),
@@ -55,12 +63,8 @@ describe("desktop launcher vendor sources", () => {
       ),
     ) as { dependencies: Record<string, string> };
 
-    expect(
-      desktopManifest.workspaces.some((workspace) =>
-        workspace.startsWith("vendor/"),
-      ),
-    ).toBe(false);
-    expect(desktopManifest.workspaces).toContain("build/dsh-framework/*");
+    expect(workspace).not.toContain("vendor/");
+    expect(workspace).toContain("build/dsh-framework/*");
     expect(kernelManifest.dependencies["@deepseek-ai/cordis"]).toBe(
       "workspace:*",
     );

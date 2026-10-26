@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import { TIMELINE_RENDER_SUBTITLE_PROFILE_VERSION } from "@dramaip/contracts/timeline";
 const id = "10000000-0000-4000-8000-000000000001";

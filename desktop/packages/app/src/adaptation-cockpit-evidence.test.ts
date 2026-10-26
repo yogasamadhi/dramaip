@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { loadAdaptationCockpitEvidence } from "./adaptation-cockpit-evidence";
 
 type Client = Parameters<typeof loadAdaptationCockpitEvidence>[0];

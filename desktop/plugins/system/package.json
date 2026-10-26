@@ -9,7 +9,7 @@
     "./extension-platform": "./src/extensions/platform.ts"
   },
   "scripts": {
-    "typecheck": "bun --bun run tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

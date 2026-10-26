@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { StudioClientError, type StudioClient } from "@dramaip/client";
 import type { ScreenplayIntakePreview } from "@dramaip/contracts/production";
 import {

@@ -8,8 +8,8 @@ import {
   verifyDshSource,
 } from "./dsh-framework.mjs";
 
-if (process.versions.bun !== "1.4.0")
-  throw new Error("Framework preparation requires Bun 1.4.0 exactly");
+if (process.versions.node !== "24.18.0" || process.versions.bun)
+  throw new Error("Framework preparation requires Node 24.18.0 exactly");
 const digest = await verifyDshSource();
 const check = process.argv.includes("--check");
 for (const name of frameworkPackages) {
@@ -22,7 +22,7 @@ for (const name of frameworkPackages) {
       expected
     )
       throw new Error(
-        `Framework workspace ${name} is missing or stale; run bun run prepare:framework`,
+        `Framework workspace ${name} is missing or stale; run pnpm run prepare:framework`,
       );
   } else {
     await mkdir(target, { recursive: true });

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import type {
   StoryCausalNode,
@@ -74,10 +74,12 @@ test("story SDK restores exact original snapshot and simulation by scoped read r
   });
   expect(await sdk.getSimulation(projectId, runId)).toEqual(simulation);
   expect(calls.map((call) => call.method)).toEqual(["GET", "GET"]);
-  expect(calls[0]!.url).toEndWith(`/projects/${projectId}/ip-twins/${id}`);
-  expect(calls[1]!.url).toEndWith(
-    `/projects/${projectId}/story-simulations/${runId}`,
+  expect(calls[0]!.url.endsWith(`/projects/${projectId}/ip-twins/${id}`)).toBe(
+    true,
   );
+  expect(
+    calls[1]!.url.endsWith(`/projects/${projectId}/story-simulations/${runId}`),
+  ).toBe(true);
   expect(calls.every((call) => call.body === null)).toBe(true);
 });
 test("story SDK rejects foreign/other-id snapshots, candidates, dangling relations and foreign cognition", async () => {
@@ -168,9 +170,9 @@ test("story SDK does not auto-build a snapshot during simulation and preserves s
     ),
   ).toEqual(simulation);
   expect(calls).toHaveLength(1);
-  expect(calls[0]!.request.url).toEndWith(
-    `/projects/${projectId}/story-simulations`,
-  );
+  expect(
+    calls[0]!.request.url.endsWith(`/projects/${projectId}/story-simulations`),
+  ).toBe(true);
   expect(calls[0]!.request.headers.get("Idempotency-Key")).toBe("same-request");
   expect(calls[0]!.body).toEqual({
     snapshotId: id,

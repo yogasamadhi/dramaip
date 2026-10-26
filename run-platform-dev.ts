@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /**
  * Run DramaIP Java services on the host while keeping development
@@ -59,7 +59,7 @@ export const HOST_PROMETHEUS_TARGETS = join(
 );
 
 const CURRENT_PID = process.pid;
-const REQUIRED_BUN_VERSION = "1.4.0";
+const REQUIRED_PNPM_VERSION = "11.28.5";
 const GATEWAY_PORT = 8080;
 const DEFAULT_JAVA_OPTS =
   "-Xmx512m -Xms256m -XX:MaxRAMPercentage=50 -XX:+UseG1GC";
@@ -301,14 +301,22 @@ function requiresCommandShell(executable: string): boolean {
   return process.platform === "win32" && /\.(?:bat|cmd)$/iu.test(executable);
 }
 
-function checkBunRuntime(): void {
-  const version = (process.versions as Record<string, string | undefined>).bun;
-  if (version !== REQUIRED_BUN_VERSION) {
+function checkPnpmRuntime(): void {
+  const pnpm = resolveExecutable("pnpm");
+  // The version is read from the clients workspace so the package manager
+  // resolves the pinned `packageManager` field of that workspace.
+  const version = pnpm
+    ? commandOutput(
+        [pnpm, "--version"],
+        join(PLATFORM_DIRECTORY, "clients"),
+      )
+    : undefined;
+  if (!pnpm || version !== REQUIRED_PNPM_VERSION) {
     fail(
-      `Bun version mismatch: found ${version ?? "unknown"}, need ${REQUIRED_BUN_VERSION}.`,
+      `pnpm version mismatch: found ${version ?? "unknown"}, need ${REQUIRED_PNPM_VERSION}.`,
     );
   }
-  ok(`bun ${version}`);
+  ok(`pnpm ${version}`);
 }
 
 function resolveGlobalMavenCommand(): readonly string[] | undefined {
@@ -335,7 +343,7 @@ function help(): void {
 Run Java services locally and DramaIP infrastructure in Docker.
 
 Usage:
-  bun run run-platform-dev.ts [options]
+  node run-platform-dev.ts [options]
 
 Options:
   --skip-package       Use existing executable JARs without Maven packaging
@@ -1223,7 +1231,7 @@ async function watchJavaProcesses(
     .join(", ");
   process.stdout.write(`Java services: ${detail}\n`);
   process.stdout.write(
-    "Start clients separately: bun run run-platform-clients.ts\n",
+    "Start clients separately: node run-platform-clients.ts\n",
   );
   if (observability) {
     process.stdout.write(
@@ -1288,7 +1296,7 @@ export async function main(
   try {
     checkLayout();
     installShutdownHandlers();
-    checkBunRuntime();
+    checkPnpmRuntime();
     const maven = checkJavaAndMaven();
     const docker = checkDocker();
     await stopDockerJavaServices(docker);

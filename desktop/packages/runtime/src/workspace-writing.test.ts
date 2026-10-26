@@ -63011,7 +63011,7 @@ describe("persistent AI creation workflow", () => {
       await runtime.request(`${adoptionPath}?limit=1`)
     ).json();
     expect(firstPage.items).toHaveLength(1);
-    expect(firstPage.nextCursor).toBeTypeOf("string");
+    expect(typeof firstPage.nextCursor).toBe("string");
     const secondPage = await (
       await runtime.request(
         `${adoptionPath}?limit=1&cursor=${encodeURIComponent(firstPage.nextCursor)}`,

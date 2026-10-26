@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { parseCreationContent } from "./creation";
 
 test("模型用 null 表示可选字段时保留有效正文与业务数据", () => {

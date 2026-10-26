@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { extractGrantedDocument } from "./document-import";
 

@@ -250,7 +250,7 @@ if (process.argv.includes("--check")) {
   const existing = await readFile(outputPath, "utf8").catch(() => "");
   if (existing !== generated)
     throw new Error(
-      "Functional migration matrix is stale; run bun run migration:generate",
+      "Functional migration matrix is stale; run pnpm run migration:generate",
     );
   if (process.argv.includes("--complete") && summary.not_migrated > 0)
     throw new Error(

@@ -26,7 +26,7 @@ if (
   )
 )
   throw new Error(
-    "Framework build is stale or modified; run bun run build:framework",
+    "Framework build is stale or modified; run pnpm run build:framework",
   );
 const owners = [
   "packages/kernel",
@@ -35,7 +35,7 @@ const owners = [
   ...frameworkPackages.map((id) => `build/dsh-framework/${id}`),
   ...(await readdir(join(desktopRoot, "plugins"))).map((id) => `plugins/${id}`),
 ];
-const lock = await readFile(join(desktopRoot, "bun.lock"), "utf8");
+const lock = await readFile(join(desktopRoot, "pnpm-lock.yaml"), "utf8");
 for (const name of frameworkPackages) {
   const manifest = await frameworkManifest(name);
   const original = await sourceFiles(join(sourceRoot, "vendor", name, "src"));
@@ -49,7 +49,8 @@ for (const name of frameworkPackages) {
     throw new Error(`DSH ${name} license differs`);
   if (
     new RegExp(
-      `"${manifest.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@(?!workspace:)[^"]+"`,
+      `^\\s*'?${manifest.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@[^'\\s:]+'?:\\s*$`,
+      "mu",
     ).test(lock)
   )
     throw new Error(`Registry copy of ${manifest.name} is forbidden`);

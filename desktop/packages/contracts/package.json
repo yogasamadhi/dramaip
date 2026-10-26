@@ -26,7 +26,7 @@
     "./creation-project-lineage": "./src/creation-project-lineage.ts"
   },
   "scripts": {
-    "typecheck": "bun --bun run tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "effect": "catalog:",

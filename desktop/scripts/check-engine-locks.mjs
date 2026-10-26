@@ -6,6 +6,19 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = join(root, "..");
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
+// pnpm records one `packages:` entry per resolved registry dependency. The
+// entry key is `<name>@<version>` and the following `resolution:` line carries
+// the registry integrity digest.
+const lockedPackageResolution = (lock, name, version) => {
+  for (const key of [`'${name}@${version}':`, `${name}@${version}:`]) {
+    const start = lock.indexOf(`\n  ${key}`);
+    if (start < 0) continue;
+    const rest = lock.slice(start + 1);
+    const end = rest.search(/\n {2}'?[^\n]*@[^'\n]*':|\n {2}[a-zA-Z]/u);
+    return end < 0 ? rest : rest.slice(0, end);
+  }
+  return undefined;
+};
 const codex = await readJson(join(repositoryRoot, "vendor/codex.lock.json"));
 const protocol = await readJson(
   join(repositoryRoot, "vendor/codex.protocol.lock.json"),
@@ -52,22 +65,17 @@ for (const [name, version] of Object.entries(langgraph.modelRuntime ?? {}))
 const agentAdapterManifest = await readJson(
   join(root, "packages/ai/package.json"),
 );
-const bunLock = await readFile(join(root, "bun.lock"), "utf8");
+const pnpmLock = await readFile(join(root, "pnpm-lock.yaml"), "utf8");
 for (const [name, version] of Object.entries(langgraphPackages)) {
   if (agentAdapterManifest.dependencies?.[name] !== version)
     throw new Error(`LangGraph 依赖未精确固定：${name}@${version}`);
-  const resolution = bunLock
-    .split("\n")
-    .find(
-      (line) =>
-        line.includes(`"${name}": [`) && line.includes(`${name}@${version}`),
-    );
+  const resolution = lockedPackageResolution(pnpmLock, name, version);
   if (!resolution)
-    throw new Error(`bun.lock 缺少 LangGraph 依赖：${name}@${version}`);
+    throw new Error(`pnpm-lock.yaml 缺少 LangGraph 依赖：${name}@${version}`);
   if (!resolution.includes("sha512-"))
-    throw new Error(`bun.lock 缺少 LangGraph 依赖完整性摘要：${name}`);
+    throw new Error(`pnpm-lock.yaml 缺少 LangGraph 依赖完整性摘要：${name}`);
 }
-if (/better-sqlite3/iu.test(bunLock))
+if (/better-sqlite3/iu.test(pnpmLock))
   throw new Error("LangGraph 引擎不得引入 better-sqlite3 checkpointer");
 const langgraphNotices = await readFile(
   join(

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createStudioClient, StudioClientError } from "@dramaip/client";
 import {

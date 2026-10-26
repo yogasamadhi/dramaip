@@ -98,14 +98,14 @@
 
 以下均在 darwin、后台模式（`DRAMAIP_DEBUG_BACKGROUND=1`）下执行。
 
-- `bun run lint`、`format:check`、`check:architecture`、`check:plugins`、`check:renderer-chunks`：全部通过。
-- `bun run test`：通过，包括 typecheck、App 单元测试 739 项、Runtime 1121 项和 conformance。
+- `pnpm run lint`、`format:check`、`check:architecture`、`check:plugins`、`check:renderer-chunks`：全部通过。
+- `pnpm run test`：通过，包括 typecheck、App 单元测试 739 项、Runtime 1121 项和 conformance。
 - 第 4／5 阶段受影响的 Electron 用例：
   - `lm6-02`、`creation-workbench`、`project-home-progress`、`lm6-p0-gate`、`production-context`、`lm6-04`、`lm6-14`、`pending-confirmation`、`story-pending-confirmation`、`narrative-local-quality` 均通过。
   - `novel-creation-journey` 中受影响的 4 项通过。其中一项首轮失败：术语替换误改了动态拼接的 `aria-label`（`…首候选`），已恢复并重跑通过。
 - `abc-smoke.spec.ts:676`（剧本 JSON 项目外预览）失败，原因早于本分支：单季短剧导入剧本时，页面显示"选择原生剧本文件"面板，而测试等待"选择文件"按钮。基线提交 `a1ba7e369` 中的条件渲染相同，本轮未修改。
 - `lm7-ui-visual`：darwin 基线在 `0a3b780ce` 首次刷新；第 6 阶段后再次刷新 12 张（创作分析、制作、审核交付、项目库、AI 助手等），逐张检查后用 `--update-snapshots=none` 复跑，10 项通过。`lm7-ui-visual.spec.ts-snapshots/` 下 26 个 `*-win32.png` 需要在 Windows 上重新生成。
-- 完整 `bun run test:e2e`：共 144 项，单 worker 串行，大约需要 70 分钟，其中 `novel-creation-journey` 单个文件约占三分之二。
+- 完整 `pnpm run test:e2e`：共 144 项，单 worker 串行，大约需要 70 分钟，其中 `novel-creation-journey` 单个文件约占三分之二。
   - 结果：139 项通过，3 项失败，2 项跳过（1.0 小时）。3 项失败都与本分支无关：
     - 上面提到的 `abc-smoke:676`；
     - `lm6-full-journey`：测试按"决定"查找下拉框，但源代码在本分支之前就已是 `aria-label="审片决定"`；

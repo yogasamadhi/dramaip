@@ -130,7 +130,7 @@ v5 导入将原谱系存入 Workspace 唯一拥有的 `workspace_imported_lineag
 - 来源有效性通过只读派生计算，不改历史状态/时间。所选版本/正文/顺序、正式意图和竞争采用头改变使待确认候选过期；全书还核对新增/移除非空章节，局部不因未选正文变化而误失效。实际采用冲突才保存本域 conflicted 状态/回执/事件；待确认或冲突候选可明确放弃，作者新稿、已采用诊断及历史保持。完整 provenance 保留 sourceSnapshotId、runIds 和筛选后的模型 ID/Provider/协议，不返回凭据或任意模型配置。
 - Automation 通过 owner `review/reviewState` 与 `syncReview` 协调候选、工作流、Task 和 ChangePreview。先完成 Production 本域决定，再于 Automation 本域事务记录 applied/discarded 投影及事件，不嵌套 UnitOfWork。受 effect/supervisor 跟踪的恢复扫描能在跨事务中断后继续核对；幂等回执防止重复采用。仅有工作流成功或 Preview 存在不代表诊断已采用。
 - 待确认中心读取 `diagnoses.summaries` 的全部真实游标，摘要不含诊断正文、原文、basis、模型配置或 Prompt；用实际项目/候选/工作流三重关联判断来源变化及本域决定。过期候选进入 attention 并精确返回诊断 ID；已采用/放弃本域状态避免工作流投影滞后制造待办。读取失败/缺能力/循环显示未核全，列表读取不采用或触发模型；实际 Writing/Workspace/Automation/诊断事件合并刷新状态。
-- 诊断 owner 接入、季纲 owner 接入前的完整 `bun run test` 基线通过：Runtime 131 项（测试体 87.74 秒）、App 107 项（607 个断言）、Main 51 项及全部契约；加七项季纲纯领域测试后 Runtime 138 项通过（87.95 秒）。该阶段 OpenAPI SHA-256 `3f4cea28206acaf2e4ac1fe7764cb61ff5ae6d9d30d560f13bd09161efa1b7a8`，595 effective operations，build/chunks 与各检查通过。诊断实际桌面聚焦 26.8 秒；审核更新两张改编视觉基线、隔离未读目录 Prompt 后全量 65 项通过（10.5 分钟）。新季纲 owner 的最新证据见下一节，不混用两轮结果。
+- 诊断 owner 接入、季纲 owner 接入前的完整 `pnpm run test` 基线通过：Runtime 131 项（测试体 87.74 秒）、App 107 项（607 个断言）、Main 51 项及全部契约；加七项季纲纯领域测试后 Runtime 138 项通过（87.95 秒）。该阶段 OpenAPI SHA-256 `3f4cea28206acaf2e4ac1fe7764cb61ff5ae6d9d30d560f13bd09161efa1b7a8`，595 effective operations，build/chunks 与各检查通过。诊断实际桌面聚焦 26.8 秒；审核更新两张改编视觉基线、隔离未读目录 Prompt 后全量 65 项通过（10.5 分钟）。新季纲 owner 的最新证据见下一节，不混用两轮结果。
 
 本增量不代表 SeasonPlan、独立 adaptation-strategy 操作、全书分层索引、全部跨阶段继承、段落级影响、完整试制包或真实模型/用户评测完成。受控模型接口未提供 usage，不能据此声称真实 token、费用、采用率、文学质量或 GA。旧 `episode` 和原著导入初始化的季纲/分集占位仍保留为兼容事实，不能冒充正式采用整季方案。
 
@@ -568,7 +568,7 @@ GET及分页只核当前元数据，投影unchanged-metadata／changed-metadata�
 
 私有journal保护POSIX权限／owner、inode／单link／O_NOFOLLOW及严格记录绑定，写入fsync／重读、状态更新atomic rename；本Host同任务读写lease避免正常rename被错当损坏，没有跨Host锁或断电保证。只有completed回执成功持久化才返回成功；晚取消或日志失败保留retained-unpublished。重启未完成仅投影interrupted、不写原行或继续，完成历史GET不重读源／目的、不开过期grant、不公开路径／文档／mediaRef。quality／rights固定unverified，billing未知；复制证明只属于记录时间。
 
-第22.176节当时的两份正式`.integration.ts`由run-node/tsx的`test:nle-copy`接正常链，而非Bun；41实际文件／恢复例含loopback Host HTTP和真正隔离Node退出，类型／lint／格式／架构／生成／构建和原媒体后台1/1通过。当时仅Host底层；当前新增范围如下，不借该历史成功认证本版全Runtime。
+第22.176节当时的两份正式`.integration.ts`由run-node/tsx的`test:nle-copy`接正常链，而非包管理器；41实际文件／恢复例含loopback Host HTTP和真正隔离Node退出，类型／lint／格式／架构／生成／构建和原媒体后台1/1通过。当时仅Host底层；当前新增范围如下，不借该历史成功认证本版全Runtime。
 
 ### 原媒体包的Timeline业务链与SDK（第22.177–22.183节，A09.2有限组done）
 
@@ -634,7 +634,7 @@ SDK编排原只读GET，读取全部原修订／请求页及工作流回执，�
 
 `StudioClient.creativeOutcomes.configurationFunnel`只编排既有Core GET：顺序读取请求页及所有workflow事实页，传同一AbortSignal，检查点变化即拒绝，末尾原头复核；不POST、不盲重试或返回部分分母。普通Insights入口必须明确启用，等待／错误隐藏旧统计，可停止或项目keyed卸载取消；未启用无读取及暖缓存展示。没有新路由、响应协议、service、表／迁移或跨产品依赖。投影健康和相同检查点不认证跨owner事务快照，生成阶段配置字段不等于完整超参数／实际远端模型，原human／rule与modelEvidence unknown保持。
 
-自己的末版Runtime定向10、原漏斗／planning／路由整文件50、完整App679／120、33类型／构建／工程检查和后台原1旅程分别通过；实际取消后迟到结果不恢复分母，受控全项目统计卡片完整目视核对。原完整`bun run test`97000／75156／75185已真实close：exit0／signal=null，Runtime1059/57、App679/120、Main66/14、33类型／真实Migration Worker／全部conformance通过；1046列举输入首末SHA f6f11e1c…精确一致，2390.340秒。这是22.190正式音频改动前完成的基线，不认证后续新代码。完整可信模型分组及MET-01其余指标仍继续，详见PLAN22.187。
+自己的末版Runtime定向10、原漏斗／planning／路由整文件50、完整App679／120、33类型／构建／工程检查和后台原1旅程分别通过；实际取消后迟到结果不恢复分母，受控全项目统计卡片完整目视核对。原完整`pnpm run test`97000／75156／75185已真实close：exit0／signal=null，Runtime1059/57、App679/120、Main66/14、33类型／真实Migration Worker／全部conformance通过；1046列举输入首末SHA f6f11e1c…精确一致，2390.340秒。这是22.190正式音频改动前完成的基线，不认证后续新代码。完整可信模型分组及MET-01其余指标仍继续，详见PLAN22.187。
 
 ### 同正式版本的采用与保存关联（第22.215节，A07限定观测）
 
@@ -786,7 +786,7 @@ Review新增不可变`review.0003.media-packages`和独占`review_media_packages
 
 候选检查与生成共享readReleaseArtifacts及全字节hash。generate-release-metadata仅收顶层当前product／version安装文件、update清单与对应blockmap，不递归旧包／解包／debug；未被update引用的本版ZIP／DEB仍纳入。原最低20唯一组件门和坏manifest检查在任何输出前，SBOM只定位本Desktop已安装依赖，不认证完整打包依赖或法律许可。暂存文档后再核原字节，exclusive mkdir／无覆盖link生成到新目录；已有输出拒绝，并发失败者不删除成功者文件。最后release-inventory绑定所选文件size／SHA256／SHA512及三份文档摘要，releaseReady=false，不是源码构建来源或发行批准。
 
-原Bun入口与CI package→metadata顺序保留，新10项Node测试接正常unit／显式format；真实Node／Bun CLI仅向临时惰性fixture输出。只修改Desktop发布脚本，不改Runtime业务、Platform、依赖或现有候选；无新完整normal／package／E2E。范围与实际失败／修正见PLAN22.201。
+原包管理器入口与CI package→metadata顺序保留，新10项Node测试接正常unit／显式format；真实Node／包管理器CLI仅向临时惰性fixture输出。只修改Desktop发布脚本，不改Runtime业务、Platform、依赖或现有候选；无新完整normal／package／E2E。范围与实际失败／修正见PLAN22.201。
 
 ### 创作推进的共享单工作流租约（第 22.46 节增量）
 
@@ -937,7 +937,7 @@ Renderer 正式流程与旧一体化 episode 工作台分离，旧生成默认�
 
 多分集已有剧本的裸项目入口恢复按 Production owner 返回的实际分集顺序核对连接，不用跨父级 script 列表第一项猜第一集。当前方案／项目归属／真实父级仍核对；不把本修复说成所有阶段或最后选中对象的上下文恢复已完成。
 
-离线研究准备另有 `scripts/product-evaluation.mjs` 和十份固定内部情境包，实际 Node wrapper 测试为 `bun scripts/run-node.mjs --test scripts/tests/product-evaluation.test.mjs`，不属于 App／Runtime 运行依赖。工具只读明确的本地 JSON并向stdout输出模板／一致性摘要，不联网／调用模型／写业务；评测／研究记录保持1MiB无正文白名单，显式新版来源目录另为16MiB，可读取允许使用的本机正文但不回显。来源unknown、缺用量／确实零、原回执／模型版本和人工评议分开。来源、授权、真实模型／费用或文学质量不由自填元数据和摘要证明，quality／release Gate始终not-established。默认长篇项是明确片段，不是完整长篇语料；真实完整中／长篇、模型及用户仍未验证。研究协议和当前边界见根PLAN第14、22.52、22.207节。
+离线研究准备另有 `scripts/product-evaluation.mjs` 和十份固定内部情境包，实际 Node wrapper 测试为 `node scripts/run-node.mjs --test scripts/tests/product-evaluation.test.mjs`，不属于 App／Runtime 运行依赖。工具只读明确的本地 JSON并向stdout输出模板／一致性摘要，不联网／调用模型／写业务；评测／研究记录保持1MiB无正文白名单，显式新版来源目录另为16MiB，可读取允许使用的本机正文但不回显。来源unknown、缺用量／确实零、原回执／模型版本和人工评议分开。来源、授权、真实模型／费用或文学质量不由自填元数据和摘要证明，quality／release Gate始终not-established。默认长篇项是明确片段，不是完整长篇语料；真实完整中／长篇、模型及用户仍未验证。研究协议和当前边界见根PLAN第14、22.52、22.207节。
 
 ## 安全和诊断
 

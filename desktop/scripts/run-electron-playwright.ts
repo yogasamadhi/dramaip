@@ -1,9 +1,10 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-if (process.versions.bun !== "1.4.0")
-  throw new Error("Electron E2E requires Bun 1.4.0");
+if (process.versions.node !== "24.18.0")
+  throw new Error("Electron E2E requires Node 24.18.0");
 
 const taskRequire = createRequire(import.meta.url);
 const desktopRequire = createRequire(
@@ -14,12 +15,11 @@ const playwrightCli = taskRequire.resolve("@playwright/test/cli");
 const bootstrap = fileURLToPath(
   new URL("./run-playwright-electron-node.cjs", import.meta.url),
 );
-const child = Bun.spawn(
-  [electronExecutable, bootstrap, playwrightCli, ...process.argv.slice(2)],
+const child = spawn(
+  electronExecutable,
+  [bootstrap, playwrightCli, ...process.argv.slice(2)],
   {
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
+    stdio: "inherit",
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
@@ -27,5 +27,10 @@ const child = Bun.spawn(
     },
   },
 );
-
-process.exitCode = await child.exited;
+child.once("error", (error) => {
+  process.stderr.write(`${error.message}\n`);
+  process.exitCode = 1;
+});
+child.once("exit", (code, signal) => {
+  process.exitCode = code ?? (signal ? 1 : 0);
+});

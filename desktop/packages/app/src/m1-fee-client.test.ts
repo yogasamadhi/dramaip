@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 const projectId = "10000000-0000-4000-8000-000000000001";
 const id = "20000000-0000-4000-8000-000000000001";

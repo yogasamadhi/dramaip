@@ -1,10 +1,13 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const sourcePath = join(import.meta.dir, "codex-sidecar.ts");
-const serverSourcePath = join(import.meta.dir, "../../server/src/sidecar.ts");
-const repositoryRoot = join(import.meta.dir, "../../../..");
+const sourcePath = join(import.meta.dirname, "codex-sidecar.ts");
+const serverSourcePath = join(
+  import.meta.dirname,
+  "../../server/src/sidecar.ts",
+);
+const repositoryRoot = join(import.meta.dirname, "../../../..");
 
 test("Codex Host 只启动固定路径中的 App Server", async () => {
   const source = await readFile(sourcePath, "utf8");

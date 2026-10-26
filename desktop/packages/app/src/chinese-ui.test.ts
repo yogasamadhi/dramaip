@@ -1,10 +1,10 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import ts from "typescript";
 
 async function visibleSourcePaths(): Promise<string[]> {
-  const entries = await readdir(import.meta.dir, {
+  const entries = await readdir(import.meta.dirname, {
     recursive: true,
     withFileTypes: true,
   });

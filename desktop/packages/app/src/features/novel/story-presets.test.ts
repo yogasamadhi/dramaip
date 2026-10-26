@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { StudioClient } from "@dramaip/client";
 import { defaultProductionBrief } from "../../project-intake";
 import {
@@ -86,10 +86,10 @@ test("四套首章和资源载荷符合现有章节及写作资料结构", () =>
     );
     expect(
       resources.every((resource) => resource.input.projectId === "project-1"),
-    ).toBeTrue();
-    expect(
-      resources.every((resource) => resource.input.title.trim()),
-    ).toBeTrue();
+    ).toBe(true);
+    expect(resources.every((resource) => resource.input.title.trim())).toBe(
+      true,
+    );
     const outline = resources.find(
       (resource) => resource.domain === "outlines",
     );

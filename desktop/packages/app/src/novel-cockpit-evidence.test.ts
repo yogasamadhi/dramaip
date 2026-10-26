@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { StudioClient } from "@dramaip/client";
 import { loadNovelCockpitEvidence } from "./novel-cockpit-evidence";
 

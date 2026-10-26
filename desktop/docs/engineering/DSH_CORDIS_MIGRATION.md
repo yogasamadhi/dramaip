@@ -11,15 +11,15 @@ Desktop 第一方插件使用当前锁定的 DSH `0.2.1-rc.3` 框架源码。Pla
 ```bash
 git submodule update --init
 cd desktop
-bun run prepare:framework
-bun ci
-bun run build:framework
-bun run check:framework
+pnpm run prepare:framework
+pnpm ci
+pnpm run build:framework
+pnpm run check:framework
 ```
 
-准备脚本先校验 Bun 1.4.0 和锁定源码，复制源码及元数据到忽略提交的 `build/dsh-framework/`，生成本地 workspace 清单。TypeScript 生成声明，esbuild 生成 DSH 包导出所需的 ESM/CJS 入口。检查脚本验证源码、许可证、构建哈希，以及所有引用者的真实解析路径，拒绝 registry 副本。vendor 不参与构建写入，也不维护另一份手写源码。
+准备脚本先校验 pnpm 11.28.5 和锁定源码，复制源码及元数据到忽略提交的 `build/dsh-framework/`，生成本地 workspace 清单。TypeScript 生成声明，esbuild 生成 DSH 包导出所需的 ESM/CJS 入口。检查脚本验证源码、许可证、构建哈希，以及所有引用者的真实解析路径，拒绝 registry 副本。vendor 不参与构建写入，也不维护另一份手写源码。
 
-独立 Runtime 和迁移 Worker 使用 Node 24.18.0；桌面端使用 Electron 内嵌 Node。`scripts/run-node.mjs` 校验独立 Node 版本，支持 `DRAMAIP_NODE_PATH`。Bun 只承担依赖管理、构建和不依赖 Core 的测试。`runtimeKind` 的新实例只报告 `node` 或 `electron-node`；`bun` 仅保留旧响应解析兼容。
+独立 Runtime 和迁移 Worker 使用 Node 24.18.0；桌面端使用 Electron 内嵌 Node。`scripts/run-node.mjs` 校验独立 Node 版本，支持 `DRAMAIP_NODE_PATH`。pnpm 只承担依赖管理、构建和不依赖 Core 的测试。`runtimeKind` 只报告 `node` 或 `electron-node`；`bun` 已从契约移除。
 
 ## 插件与装配
 
@@ -35,9 +35,9 @@ Profile JSON 只选择 Bundle。六个 Bundle 与五个 Profile 的 `cordis.patc
 
 ```bash
 # 仓库根目录：桌面开发启动器
-bun run-desktop.ts
+node run-desktop.ts
 # desktop/：独立 Node 开发 Runtime
-bun run dev:runtime --profile server --database /absolute/path/dramaip.db
+pnpm run dev:runtime --profile server --database /absolute/path/dramaip.db
 ```
 
 开发启动器构建并监听 ESM 模块。DSH Loader 使用 `--expose-internals`，启动时无法取得内部 Loader 则报错。框架、公共元数据、启动入口和迁移变化走完整重启；业务插件变更由 DSH HMR 局部重载，并按原生注入关系重建依赖。
@@ -48,23 +48,23 @@ DSH 没有异步 before-reload hook，因此 Kernel 在锁定版本的 HMR 实�
 
 ## 构建与验收
 
-`bun run build` 生成 `build/runtime/`，包含保留模块边界的 ESM、配置、九个框架包与依赖闭包。发布依赖集中放置，仅版本冲突保留局部链接，避免签名工具遍历 peer 依赖环。所有链接均为目录内部的相对链接，可复制到仓库外启动；Windows 构建机需要启用开发者模式或具备创建目录符号链接的权限。TypeScript 类型导入必须被擦除，不能在 ESM 中留下 `AgentRouteDraft` 等不存在的值导出。Electron 发布包携带整个 Runtime 目录和许可证，排除恢复日志，关闭文件监听。
+`pnpm run build` 生成 `build/runtime/`，包含保留模块边界的 ESM、配置、九个框架包与依赖闭包。发布依赖集中放置，仅版本冲突保留局部链接，避免签名工具遍历 peer 依赖环。所有链接均为目录内部的相对链接，可复制到仓库外启动；Windows 构建机需要启用开发者模式或具备创建目录符号链接的权限。TypeScript 类型导入必须被擦除，不能在 ESM 中留下 `AgentRouteDraft` 等不存在的值导出。Electron 发布包携带整个 Runtime 目录和许可证，排除恢复日志，关闭文件监听。
 
 ```bash
-bun run check:framework
-bun run test:runtime:node
-bun run test:conformance
-bun run test:runtime:watch
-bun run test:runtime:hmr
-bun run test:runtime:hmr:electron
-bun run architecture:generate
-bun run check:architecture
-bun run --filter @dramaip/client generate
-bun run check:generated
-bun run migration:generate
-bun run check:migration:complete
-bun run build
-bun run check:renderer-chunks
+pnpm run check:framework
+pnpm run test:runtime:node
+pnpm run test:conformance
+pnpm run test:runtime:watch
+pnpm run test:runtime:hmr
+pnpm run test:runtime:hmr:electron
+pnpm run architecture:generate
+pnpm run check:architecture
+pnpm --filter @dramaip/client run generate
+pnpm run check:generated
+pnpm run migration:generate
+pnpm run check:migration:complete
+pnpm run build
+pnpm run check:renderer-chunks
 ```
 
 HMR 集成测试将发布目录复制到临时目录，逐一启动五个 Profile，再检查模块与配置重载、依赖插件重建、重复事件、资源数量、导入/配置失败以及异步失败后的新进程恢复。Node 与真实 Electron utility process 执行同一组测试。业务测试覆盖 SQLite、迁移硬超时恢复、SSE、幂等写入、ETag 和运行任务恢复；桌面 E2E 与打包门禁补充验证完整应用链路。

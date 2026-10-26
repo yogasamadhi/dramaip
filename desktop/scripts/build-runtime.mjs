@@ -197,7 +197,11 @@ await writeFile(
 await import("./check-dsh-framework.mjs");
 const metadataBuild = spawnSync(
   process.execPath,
-  [join(desktopRoot, "scripts/generate-plugin-manifests.ts")],
+  [
+    "--import",
+    "tsx",
+    join(desktopRoot, "scripts/generate-plugin-manifests.ts"),
+  ],
   { cwd: desktopRoot, stdio: "inherit" },
 );
 if (metadataBuild.status !== 0) process.exit(metadataBuild.status ?? 1);
@@ -227,7 +231,7 @@ async function linkDependency(owner, name, target) {
   await rm(link, { recursive: true, force: true });
   await symlink(relative(dirname(link), target), link, "dir");
 }
-// Hoist the release closure, independently of Bun's isolated development linker.
+// Hoist the release closure, independently of the isolated development linker.
 // Only version conflicts need local links. This preserves singleton modules and
 // avoids directory cycles through Cordis's optional Loader/Include peer metadata.
 for (const [name, target] of packagesByName)
@@ -268,7 +272,11 @@ if (watch) {
             builder.onStart(() => {
               const generated = spawnSync(
                 process.execPath,
-                [join(desktopRoot, "scripts/generate-plugin-manifests.ts")],
+                [
+                  "--import",
+                  "tsx",
+                  join(desktopRoot, "scripts/generate-plugin-manifests.ts"),
+                ],
                 { cwd: desktopRoot, encoding: "utf8" },
               );
               if (generated.status !== 0)

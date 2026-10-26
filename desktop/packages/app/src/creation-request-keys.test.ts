@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { StudioClientError } from "@dramaip/client";
 import { isDefiniteCreationStartRejection } from "./creation-request-keys";
 

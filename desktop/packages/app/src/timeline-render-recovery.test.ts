@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { StudioClient } from "@dramaip/client";
 import type { TimelineRenderJob } from "@dramaip/contracts/timeline";
 import { TIMELINE_RENDER_SUBTITLE_PROFILE_VERSION } from "@dramaip/contracts/timeline";

@@ -16,7 +16,7 @@
 
 2026-10-07 PLAN22.202补齐当前作者展示成果：案例首页分独立小说、改编和历史制作；`/cases/story`两章原文与记忆可独立下载TXT，不是完整小说。改编展示含三诊断、两策略、三集季纲、完整首集三场剧本与六镜头，明确来源／作者新增／未读后续，四文件固定在`/cases/story/files/`（manuscript.txt、pilot.fountain、storyboard.csv、adaptation-demo.json）。页面与下载共用本Platform展示内容，不读取Desktop或私人数据；JSON不是DramaIP项目包，作者展示标签不认证真人身份、实际模型／采用、公开许可、质量或发行。尚未部署，没有改变Java契约、价格、支付或权益。
 
-本版Web15测试及完整客户端lint／类型／契约／测试、Web构建通过；自身后台临时standalone的真实HTTP检查通过四个附件字节与头、页面链接及未知文件404。可在`platform/clients/`先`bun run build:web`，再`bun run --filter @dramaip/web smoke:cases`复验；后者只起自己的127.0.0.1临时Web进程并在退出时清理，不启动Java／浏览器、不抢焦点、不杀占用端口。Node24.18的`make web-route-smoke`另核15源码身份；不是浏览器布局／原生下载交互、外部Fountain／CSV导入、真实用户评测或生产部署验收。
+本版Web15测试及完整客户端lint／类型／契约／测试、Web构建通过；自身后台临时standalone的真实HTTP检查通过四个附件字节与头、页面链接及未知文件404。可在`platform/clients/`先`pnpm run build:web`，再`pnpm --filter @dramaip/web run smoke:cases`复验；后者只起自己的127.0.0.1临时Web进程并在退出时清理，不启动Java／浏览器、不抢焦点、不杀占用端口。Node24.18的`make web-route-smoke`另核15源码身份；不是浏览器布局／原生下载交互、外部Fountain／CSV导入、真实用户评测或生产部署验收。
 
 - [后端技术架构](../docs/后端技术架构.md)
 - [本地开发手册](docs/LOCAL_DEVELOPMENT.md)
@@ -38,8 +38,8 @@ scripts/                    E2E 和可观测性检查
 及所需基础设施，再启动 Web 客户端；浏览器 API 通过 Java Gateway 的 `http://localhost:8080/api/v1` 访问：
 
 ```bash
-bun run run-platform-dev.ts
-bun run run-platform-clients.ts
+pnpm run run-platform-dev.ts
+pnpm run run-platform-clients.ts
 
 # 或只管理后端 Compose 栈
 cd platform
@@ -48,9 +48,9 @@ make platform-e2e
 make platform-down
 ```
 
-客户端依赖与 Web/Admin 工具链固定为 Bun 1.4.0；Mobile 的 Expo 运行时仍需 Node.js。手动运行命令见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
+客户端依赖与 Web/Admin 工具链固定为 pnpm 11.28.5；Mobile 的 Expo 运行时仍需 Node.js。手动运行命令见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
 
-本地可观测性使用 Prometheus、OpenTelemetry Java Agent、Alloy、Loki、Tempo 和 Grafana：Compose Java 使用 `make platform-observability-up`，宿主机 Java 调试使用 `bun run run-platform-dev.ts --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)和[可观测性 runbook](docs/OBSERVABILITY.md)。
+本地可观测性使用 Prometheus、OpenTelemetry Java Agent、Alloy、Loki、Tempo 和 Grafana：Compose Java 使用 `make platform-observability-up`，宿主机 Java 调试使用 `pnpm run run-platform-dev.ts --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)和[可观测性 runbook](docs/OBSERVABILITY.md)。
 
 CI/CD 验证、构建、扫描和发布九个 Java 镜像与一个 Web 镜像。发布前先运行 `deploy/release/preflight.sh`；经审批后使用 `deploy/release/helm-release.sh <staging|production> <apply|rollback>`。`deploy/release/check-manifest.sh` 是镜像清单的唯一校验入口。
 

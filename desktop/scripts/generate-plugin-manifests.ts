@@ -19,7 +19,7 @@ const content = await format(JSON.stringify(data), { parser: "json" });
 if (process.argv.includes("--check")) {
   if ((await readFile(target, "utf8")) !== content)
     throw new Error(
-      "First-party manifests are stale; run bun run plugins:generate",
+      "First-party manifests are stale; run pnpm run plugins:generate",
     );
 } else await writeFile(target, content);
 console.log(

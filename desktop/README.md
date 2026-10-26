@@ -2,7 +2,7 @@
 
 当前优先推进M5（PLAN22.199）：统一研究记录／三路用户任务模板与六项缺证据检查已可执行，30项Node离线测试通过。模板全部未运行，不能替代真实模型或6–8位真人任务；协议阈值须事前确认。Platform本地套餐展示另按自己的真实权益字段修正并通过客户端／Web检查，不新增Desktop依赖，不改价格、支付或开通权益。M5原0/6、总34/40＝85%不虚增，完整目标继续；使用见[研究记录说明](docs/product/USER_GUIDE.md#m5评测与用户研究记录)。
 
-PLAN22.200新增`bun run release:inspect`与7项测试，通过只读实际文件区分当前／历史清单、旁置解包构建差异和ad-hoc签名。检查不安装／启动／更新应用、不批准发行；旧同版号alpha包不证明当前实现。详见[候选包检查](docs/product/USER_GUIDE.md#m5候选包只读检查)。
+PLAN22.200新增`pnpm run release:inspect`与7项测试，通过只读实际文件区分当前／历史清单、旁置解包构建差异和ad-hoc签名。检查不安装／启动／更新应用、不批准发行；旧同版号alpha包不证明当前实现。详见[候选包检查](docs/product/USER_GUIDE.md#m5候选包只读检查)。
 
 PLAN22.201修复`release:metadata`混入历史文件和依赖门前输出，10项新测试通过；保留原Bun入口，全部检查后仅向新目录生成库存，不覆盖或删除旧产物。真实操作仍须先package及发布验收；命令成功不代表发行批准。详见[元数据生成](docs/product/USER_GUIDE.md#发布元数据生成)。
 
@@ -137,16 +137,16 @@ PLAN 22.104 的 A07.6.2 专用正式采用拒绝按限定范围 done：Productio
 可复跑的最小 Gate 命令为：
 
 ```bash
-bun run check:timeline-exports
-bun scripts/run-electron-playwright.ts test tests/electron/lm6-full-journey.spec.ts --reporter=list
-bun run test:runtime
+pnpm run check:timeline-exports
+node scripts/run-electron-playwright.ts test tests/electron/lm6-full-journey.spec.ts --reporter=list
+pnpm run test:runtime
 ```
 
 第 22.48–22.50 节接通本地正式创作结果台账。在“数据洞察”选择项目，分别查看小说章节／规划／稿件与剧本诊断／季纲／标准剧本／内部包的权威结果；相同正式版本集合跨格式、重试或重复保存只计一次，回执仍逐次保留。只读累计与最近七天滚动窗，不补算旧生成记录或点击，不发送外部分析；四类真实首请求／首候选／正式内容身份已建立本地分母、待决定／改写后采用及请求—候选—采用耗时。重试不重置首轮，未知不补零，含 pending 的本地截至当前占比不是公开采用率。下一章／第二集已接实际正式来源与真实会话启动、每项目每路固定七天窗及仅满窗项目的继续率；未满窗即使已续接仍待观察，历史／异常时钟不补零。当前项目与全本地分母分别显示，不是公开留存／质量证明。真实模型用量费用／质量仍未建立。限定验证与剩余项见根 PLAN 第 22.50 节，MET-01／M4 继续推进。
 
 当前维护顺序按根 [执行计划](../docs/PLAN.md)第 16 节的 A01–A10 本地队列优先，B01–B05 外部证据后置，不把本地缺口称为外部阻塞。第 22.51 节的兼容操作不再隐式发送前三章；手工作者意图编辑草稿按项目仅存本机，恢复原来源基准，不自动采用／换头；多分集裸项目入口按实际分集顺序核对真实父级。第 22.52 节的十份内部评测情境和离线 `scripts/product-evaluation.mjs` 只提供未执行模板与记录一致性，不联网／运行模型，不证明真实质量、全书覆盖、费用或授权。独立 Node 工具测试、正常工程与后台验收分别留证，原验收清单及剩余项保留。
 
-PLAN 22.172 的本地评测准备增加 `bun scripts/run-node.mjs scripts/product-evaluation.mjs summarize /absolute/path/to/local-record.json`：先严格校验，再按小说／改编、声明的运行来源及固定模型配置分别汇总已决定采用比例、修订与运行耗时、人工三维等级／逐项检查及reported usage／结算观察。待决定、未知和真实零分开，报告语义／币种不混算，共用摘要不证明独立运行或收费，不推断总token／总费用、首候选率或文学质量通过；来源标签和回执文件仍未经独立验证。锁定Node24.18.0的 `bun run test:product-evaluation` 已接入正常测试链，工具本版20项离线回归通过，不代替M5真实模型／真人或全仓验收，无外部发送或模型调用。
+PLAN 22.172 的本地评测准备增加 `node scripts/run-node.mjs scripts/product-evaluation.mjs summarize /absolute/path/to/local-record.json`：先严格校验，再按小说／改编、声明的运行来源及固定模型配置分别汇总已决定采用比例、修订与运行耗时、人工三维等级／逐项检查及reported usage／结算观察。待决定、未知和真实零分开，报告语义／币种不混算，共用摘要不证明独立运行或收费，不推断总token／总费用、首候选率或文学质量通过；来源标签和回执文件仍未经独立验证。锁定Node24.18.0的 `pnpm run test:product-evaluation` 已接入正常测试链，工具本版20项离线回归通过，不代替M5真实模型／真人或全仓验收，无外部发送或模型调用。
 
 第 22.54 节接入独立 AI 作者意图候选：明确确认项目简报、当时的正式意图头和可选章节／实际剧本来源，经冻结、结构／模型检查及至多一轮修订后进入八字段差异预览。候选不代表作者确认，只能在意图工作台明确采用或放弃；不改原稿、不强制小说改编，不以通用提交代替确认。失败重试和重启沿用原快照；已有剧本支持真实文本及保存的 Fountain／FDX AST，读取不初始化缺失文档。来源版本变化拒绝旧候选覆盖，运行／候选精确返回；实际费用和真实模型文学质量仍另需证据。该节逐项记录当前验证终态，不把 A03 的独立策略或其他本地余项提前完成。
 
@@ -192,28 +192,30 @@ A07.10 已按 PLAN 22.119 的完整规划批次／原请求范围 done：五类�
 
 A07.6.6 已按 PLAN 22.120 的五类规划准确来源冲突范围 done：原已选章／章摘要版本和高层 adopted head 由公共 owner 在重编译前核对，绑定原请求／候选及真实拒绝事务；缺失／同版本不合资格和旧无绑定不补造。normal-full1 全命令终态 0（Runtime 704／44、App 475／84、Main 66／14、真实 Worker／全部 conformance），同业务 build1 十三文件 fixed1 48/48，skip／flaky／全局错误为零；先行 225 ESM HMR、相关工程门及类型通过，四旧基线未改。自己的原冲突图完整，focus1 恢复冲突图及 fixed1 两恢复图空白，仅据各自 DOM／API 证明恢复；红测／类型失败和图像限制保留。OpenAPI 为本版 eccca3f638fff333cc43918ea755e3e57484066abc46f666d57f6f84dc7945f9；接续 22.121 场景拓扑整组，可信分类／质量与其余父范围未完成，原 22/40＝55% 不变。
 
-桌面工作区只接受 Bun 1.4.0，用于依赖管理和构建。独立 Core Runtime、迁移 Worker 与 Runtime 测试使用 Node 24.18.0；Electron 桌面模式使用 Electron 内嵌 Node。开发期 Cordis HMR 由启动器显式传入 `--expose-internals`，启动时检查内部 Loader。
+桌面工作区只接受 pnpm 11.28.5，用于依赖管理和构建。独立 Core Runtime、迁移 Worker 与 Runtime 测试使用 Node 24.18.0；Electron 桌面模式使用 Electron 内嵌 Node。开发期 Cordis HMR 由启动器显式传入 `--expose-internals`，启动时检查内部 Loader。
+
+workspace 成员、catalog、overrides 与构建白名单统一写在 `pnpm-workspace.yaml`（`package.json` 不再保留 `workspaces` 字段）。pnpm 11 从该文件读取 `nodeLinker`、`publicHoistPattern` 和 `allowBuilds`，不读 `.npmrc`。桌面固定 `nodeLinker: isolated`；Platform 客户端保留 isolated 加 `publicHoistPattern: ["*"]`，既满足 Metro／Babel 按名字向上查找插件，又让每个包只保留一份物理副本。仓库唯一的测试运行器是 Vitest：所有 `bun test` 已改为 `pnpm exec vitest run`，`bun:test` 断言已改写为 Vitest 断言。
 
 ```bash
 git submodule update --init
-bun run prepare:framework
-bun ci
-bun run build:framework
-bun run check:framework
-bun ../run-desktop.ts
-bun run typecheck
-bun run test
-bun run check:generated
-bun run check:architecture
-bun run check:engine-locks
-bun run build
+pnpm run prepare:framework
+pnpm ci
+pnpm run build:framework
+pnpm run check:framework
+node ../run-desktop.ts
+pnpm run typecheck
+pnpm run test
+pnpm run check:generated
+pnpm run check:architecture
+pnpm run check:engine-locks
+pnpm run build
 ```
 
-维护者电脑上的代理调试必须保持后台、不抢焦点：开发启动使用 `DRAMAIP_DEBUG_BACKGROUND=1 bun ../run-desktop.ts`。Electron E2E 的独立测试配置自动隐藏主窗口和凭据窗口，仍可通过 Playwright 操作与截图；后台模式阻止未受控的系统文件对话框、外部应用打开和通知，文件选择由测试显式控制。启动错误写入日志，不弹系统警告。未设置调试／隔离测试标志的正常用户启动保持原行为；新构建的打包应用在明确设置 `DRAMAIP_DEBUG_BACKGROUND=1` 或 `DRAMAIP_E2E_USER_DATA` 时也遵守后台策略。确需前台或原生交互时须先获得维护者同意，不操作维护者的普通应用实例。
+维护者电脑上的代理调试必须保持后台、不抢焦点：开发启动使用 `DRAMAIP_DEBUG_BACKGROUND=1 node ../run-desktop.ts`。Electron E2E 的独立测试配置自动隐藏主窗口和凭据窗口，仍可通过 Playwright 操作与截图；后台模式阻止未受控的系统文件对话框、外部应用打开和通知，文件选择由测试显式控制。启动错误写入日志，不弹系统警告。未设置调试／隔离测试标志的正常用户启动保持原行为；新构建的打包应用在明确设置 `DRAMAIP_DEBUG_BACKGROUND=1` 或 `DRAMAIP_E2E_USER_DATA` 时也遵守后台策略。确需前台或原生交互时须先获得维护者同意，不操作维护者的普通应用实例。
 
-无 Electron 的 Runtime 可用 `bun run serve --profile server --database /absolute/path/dramaip.db --port 8787` 启动。支持的 Profile 是 `studio`、`server`、`safe`、`test`、`e2e`，运行时固定为 Node 24.18.0，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。`bun run dev:runtime` 启用开发 HMR 和 supervisor。
+无 Electron 的 Runtime 可用 `pnpm run serve --profile server --database /absolute/path/dramaip.db --port 8787` 启动。支持的 Profile 是 `studio`、`server`、`safe`、`test`、`e2e`，运行时固定为 Node 24.18.0，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。`pnpm run dev:runtime` 启用开发 HMR 和 supervisor。
 
-`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。Pi 1.4.0、Codex 0.164.0 与 LangGraph.js 1.4.9 的版本与完整性记录位于 `../vendor/*.lock.json`；桌面受管进程还校验 Electron 内嵌 Node 版本。Pi Runtime 由冻结源码直接打包，首次运行不下载依赖。LangGraph.js 依赖由 Bun 锁文件固定且不引入源码 submodule 或 `better-sqlite3`。DeepSeek Harness 的锁定快照提供九个框架包源码：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR 和 Logger Console。准备脚本只复制到忽略提交的 `build/dsh-framework/`，不修改 vendor。
+`pnpm run package` 需要提供 `DRAMAIP_UPDATE_URL`。Pi 1.4.0、Codex 0.164.0 与 LangGraph.js 1.4.9 的版本与完整性记录位于 `../vendor/*.lock.json`；桌面受管进程还校验 Electron 内嵌 Node 版本。Pi Runtime 由冻结源码直接打包，首次运行不下载依赖。LangGraph.js 依赖由 pnpm 锁文件固定且不引入源码 submodule 或 `better-sqlite3`。DeepSeek Harness 的锁定快照提供九个框架包源码：Cordis、Cosmokit、Schemastery、Loader、Include、Group、Timer、HMR 和 Logger Console。准备脚本只复制到忽略提交的 `build/dsh-framework/`，不修改 vendor。
 
 第一方插件通过六个 Bundle 的 `cordis.patch.yml` 和五个 Profile patch 交给 DSH Loader/Include/Group 装配。开发时业务模块局部重载，框架、公共元数据和迁移变化重启 Runtime。重载期间业务请求返回结构化 `RUNTIME_RELOADING`，待生命周期与贡献校验成功后原子发布新图；失败图不会发布。
 
@@ -257,9 +259,9 @@ bun run build
 
 第22.216节补七天首次交付及采用后保存耗时，沿用同一原完整GET与首次summary时钟，不多跑分页。重复导出不刷新首存时间，未来／倒退／不匹配回执时钟保持未知，真实零与待保存分开；采用和交付跨期计数不相除。普通入口明确只读、失败／取消／换项目清旧值，不代表模型速度、质量、投稿或M5完成；操作见[用户指南](docs/product/USER_GUIDE.md#七天首次交付与采用后保存耗时)。
 
-已有本地FFmpeg及明确供本机隔离测试的字体时，可设置`DRAMAIP_TEST_FFMPEG_PATH`／`DRAMAIP_TEST_SUBTITLE_FONT_PATH`，使用Node24.18.0运行`bun run test:render-subtitles:media`。另同时提供`DRAMAIP_TEST_FFPROBE_PATH`可运行`bun run test:render-subtitles:host`，经真实私有Host HTTP和完整主监督验证烧录／省略、原任务冲突、缺字／越界、坏原生字体、等长私有篡改、取消及能力进程回收。只复制到随机测试目录并使用隔离测试key，不下载、安装、分发字体或打开GUI；不证明字体发行权、复杂语言排版或普通UI字幕交付。
+已有本地FFmpeg及明确供本机隔离测试的字体时，可设置`DRAMAIP_TEST_FFMPEG_PATH`／`DRAMAIP_TEST_SUBTITLE_FONT_PATH`，使用Node24.18.0运行`pnpm run test:render-subtitles:media`。另同时提供`DRAMAIP_TEST_FFPROBE_PATH`可运行`pnpm run test:render-subtitles:host`，经真实私有Host HTTP和完整主监督验证烧录／省略、原任务冲突、缺字／越界、坏原生字体、等长私有篡改、取消及能力进程回收。只复制到随机测试目录并使用隔离测试key，不下载、安装、分发字体或打开GUI；不证明字体发行权、复杂语言排版或普通UI字幕交付。
 
-已有本地FFmpeg／FFprobe时，可明确设置`DRAMAIP_TEST_FFMPEG_PATH`／`DRAMAIP_TEST_FFPROBE_PATH`并使用Node24.18.0运行`bun run test:render-audio:media`。该独立opt-in测试已包括实际视频逐帧解码、名义25帧／25fps却不规则时钟的负例、视频包损坏／编码后篡改拒绝与解码进程取消回收，不下载安装、调用Provider或播放媒体；隔离测试签名不代表发行签名。普通`bun run test`已包含纯Main单元及公共音频／字幕来源Runtime测试，实际工具集成与后台旅程分别留证，不混为一次全量。
+已有本地FFmpeg／FFprobe时，可明确设置`DRAMAIP_TEST_FFMPEG_PATH`／`DRAMAIP_TEST_FFPROBE_PATH`并使用Node24.18.0运行`pnpm run test:render-audio:media`。该独立opt-in测试已包括实际视频逐帧解码、名义25帧／25fps却不规则时钟的负例、视频包损坏／编码后篡改拒绝与解码进程取消回收，不下载安装、调用Provider或播放媒体；隔离测试签名不代表发行签名。普通`pnpm run test`已包含纯Main单元及公共音频／字幕来源Runtime测试，实际工具集成与后台旅程分别留证，不混为一次全量。
 
 第 22.46 节修复 Automation 的直接 launch 与 500 ms worker 并发推进：同一 workflow 共用在异步派发前建立的 Promise lease，直接启动、显式复检／合并及定时器都走同一保护，停用先阻止新推进并等待全部在途工作。真实延迟 createSession 的续章／本章入口先稳定复现相同中断错误，修复后及已有失败保留／取消／助手路径定向通过；不忽略真正缺失的持久 run，不增加自动重发或付费调用。完整默认、实际混合续章及固定后台结果分别见 PLAN，整体任务仍未退出。
 
@@ -269,9 +271,9 @@ PLAN22.173／22.175 增加并收口每个精确存档素材的独立持久字节
 
 PLAN22.176–22.177继续A09.2：实际复制内核、独立写目录grant与严格私有journal在正式Host；Timeline通过公共Media owner编译冻结原清单和七文档，原请求先持久化，源变化不发布成功，回执／事件／动作结果同本域事务。严格SDK支持明确选目录／创建／原键GET恢复／历史／刷新／取消／精确展示，构造不自动复制；Host可跨重启核原artifactRef和目录inode，只在明确展示时读取文件系统。46原生、9真实Core、10 SDK及后台真实复制／重启链限定通过；原M4两个固定长篇再通过，App643、Main66、33类型和生成／静态／构建门通过。普通界面和本版完整normal仍待，不是已上线整包功能；A09.2保持in-progress，不证明当前字节、NLE实际导入、正式混音／字幕、授权／费用或内容质量。
 
-`build/runtime/` 是可独立复制的 ESM 发布目录，包含模块、配置、框架许可证及内部相对依赖链接。发布包关闭监听。运行 `bun run test:runtime:hmr` 和 `bun run test:runtime:hmr:electron` 验证脱离仓库后的加载与恢复。实施细节见 [Cordis 迁移说明](docs/engineering/DSH_CORDIS_MIGRATION.md)。
+`build/runtime/` 是可独立复制的 ESM 发布目录，包含模块、配置、框架许可证及内部相对依赖链接。发布包关闭监听。运行 `pnpm run test:runtime:hmr` 和 `pnpm run test:runtime:hmr:electron` 验证脱离仓库后的加载与恢复。实施细节见 [Cordis 迁移说明](docs/engineering/DSH_CORDIS_MIGRATION.md)。
 
-`bun run test:runtime:hmr` 先重建 Runtime，再运行五 Profile 的隔离 Node HMR 和两入口的来源模块 HMR 回归。已有固定构建或正在进行冻结验证时，用 `bun run test:runtime:source-hmr` 单独运行后者；它不重建共享产物，只修改自己的临时编译副本。此回归使用 Node 24.18.0、e2e 的十四插件、真实 Runtime／Host loopback HTTP 和受控模型协议，覆盖来源模块导入恢复、在途请求排空、实际新代码分支、SQLite 与独立进程原回执恢复；不开 Electron 窗口，不等于 Electron utility 模式、全部来源表达或真实模型质量验收。
+`pnpm run test:runtime:hmr` 先重建 Runtime，再运行五 Profile 的隔离 Node HMR 和两入口的来源模块 HMR 回归。已有固定构建或正在进行冻结验证时，用 `pnpm run test:runtime:source-hmr` 单独运行后者；它不重建共享产物，只修改自己的临时编译副本。此回归使用 Node 24.18.0、e2e 的十四插件、真实 Runtime／Host loopback HTTP 和受控模型协议，覆盖来源模块导入恢复、在途请求排空、实际新代码分支、SQLite 与独立进程原回执恢复；不开 Electron 窗口，不等于 Electron utility 模式、全部来源表达或真实模型质量验收。
 
 PLAN 第 22.80 节 A06.2.1 按限定范围完成只读影响清单的精确 SDK／错误优先边界：原成果 ID、实际项目／分集／版本须匹配；失败／等待／改对象不显示热缓存，返回页面后的迟到回复不自动打开，须明确重读同一成果。历史 stale 和全包复核保留，不升级语义安全、不自动重做。五项契约／显示定向、普通 App 405、类型／构建／工程和原实际影响 Kernel 样本通过；三文件十三项后台与隔离 HMR 全部终态通过，实际 503／错域／原记录恢复和待决回复跨工具返回已核对，不当成全 Runtime 或完整 IMP-01 完成。
 

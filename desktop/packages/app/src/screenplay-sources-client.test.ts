@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import type { ScreenplaySource } from "@dramaip/contracts/production";
 
@@ -122,9 +122,9 @@ test("saved screenplay source catalog is metadata only and validates actual proj
       limit: 1,
     }),
   ).toEqual(page);
-  expect(calls[0]!.url).toEndWith(
-    `/screenplay-sources?cursor=${foreignId}&limit=1`,
-  );
+  expect(
+    calls[0]!.url.endsWith(`/screenplay-sources?cursor=${foreignId}&limit=1`),
+  ).toBe(true);
   for (const value of [
     { ...page, projectId: foreignId },
     { ...page, items: [summary, summary] },

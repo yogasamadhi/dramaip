@@ -54,7 +54,7 @@ Hailuo 的 API 不接受独立的 negative prompt，应用不会把它拼接进�
 在受控环境中运行：
 
 ```bash
-bun run test:hailuo:sandbox
+pnpm run test:hailuo:sandbox
 ```
 
 该命令要求受管环境同时提供 `HAILUO_SANDBOX_API_KEY` 与明确的

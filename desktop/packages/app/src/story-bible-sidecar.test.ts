@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { buildStoryBibleSidecar } from "./story-bible-sidecar";
 
 const entity = (

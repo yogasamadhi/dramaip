@@ -23,7 +23,7 @@ v2 候选阶段的发布规则是：源码版本保持 `2.0.0-rc.1`，直到全�
 
 ## v2 候选阶段的 GA 阻断项
 
-GA 判定必须运行 Bun 1.4.0 完整质量门、Electron E2E、`package` 和 `release:metadata`，并在受管发布环境中补齐正式 HTTPS 更新源、生产支付和对象存储配置、macOS/Windows 签名凭据及以下与当前 commit 绑定、已脱敏的证据：
+GA 判定必须运行 pnpm 11.28.5 完整质量门、Electron E2E、`package` 和 `release:metadata`，并在受管发布环境中补齐正式 HTTPS 更新源、生产支付和对象存储配置、macOS/Windows 签名凭据及以下与当前 commit 绑定、已脱敏的证据：
 
 - OpenAI Image Edit、OpenAI TTS、Hailuo、Wan 真实 sandbox；
 - FCPXML 1.10 在 Final Cut Pro 12.2 导入、EDL relink；

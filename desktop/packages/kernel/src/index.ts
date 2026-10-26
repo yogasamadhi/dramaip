@@ -318,6 +318,13 @@ export async function bootKernel(
     );
     await ctx.plugin(RuntimeEnvironment, options.environment ?? {});
     await ctx.plugin(Loader);
+    // DSH resolves plugin modules through Node's internal module job when it
+    // is reachable. That path bypasses the active module pipeline, so a
+    // TypeScript plugin source could never be imported from the source tree.
+    // Without HMR the standard import path is used instead, which keeps the
+    // Runtime loadable from source and from the built artifact alike.
+    if (!options.hmr)
+      (ctx.loader as { internal?: unknown }).internal = undefined;
     if (options.hmr) await ctx.plugin(ConsoleExporter).await();
     Object.assign(ctx.loader.builtins, {
       include: Include,
@@ -331,6 +338,8 @@ export async function bootKernel(
       return { id, name: plugin.entry ?? `cordis:${id}`, config: config ?? {} };
     });
     // Resolve trusted package names without changing Include's patch semantics.
+    // A first-party plugin without its own entry is served from the
+    // authoritative registry builtin, exactly like the non-assembly path.
     const resolveNames = (value: unknown): unknown => {
       if (Array.isArray(value)) return value.map(resolveNames);
       if (!value || typeof value !== "object") return value;
@@ -340,7 +349,11 @@ export async function bootKernel(
           key === "name" &&
           typeof entry === "string" &&
           entry.startsWith("@dramaip/")
-            ? (options.plugins.get(entry.slice(9))?.entry ?? entry)
+            ? (() => {
+                const id = entry.slice(9);
+                const plugin = options.plugins.get(id);
+                return plugin?.entry ?? (plugin ? `cordis:${id}` : entry);
+              })()
             : resolveNames(entry),
         ]),
       );

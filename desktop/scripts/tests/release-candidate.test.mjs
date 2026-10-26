@@ -267,9 +267,9 @@ test("真实CLI错误不打印私有路径，格式检查与正常测试链保�
   );
   assert.equal(
     pkg.scripts["test:release-candidate"],
-    "bun scripts/run-node.mjs --test scripts/tests/release-candidate.test.mjs",
+    "node scripts/run-node.mjs --test scripts/tests/release-candidate.test.mjs",
   );
-  assert(pkg.scripts["test:unit"].includes("bun run test:release-candidate"));
+  assert(pkg.scripts["test:unit"].includes("pnpm run test:release-candidate"));
   for (const name of ["format", "format:check"])
     for (const path of [
       "scripts/check-release-candidate.mjs",

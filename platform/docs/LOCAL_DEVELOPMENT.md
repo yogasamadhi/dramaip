@@ -7,23 +7,23 @@
 ## 前置条件
 
 - Docker Desktop（Windows 和 macOS 均使用本机 Linux containers 模式）
-- JDK 21、全局 Apache Maven 3.9+、Bun 1.4.0（Web、Admin、SDK 工具链）和 Node.js 20+（Mobile Expo 运行时）
+- JDK 21、全局 Apache Maven 3.9+、pnpm 11.28.5（Web、Admin、SDK 工具链）和 Node.js 20+（Mobile Expo 运行时）
 
 不要强制 Docker 平台。Docker Desktop 会按当前主机选择 amd64 或 arm64 的多架构镜像。服务 JAR 由本机 JDK 21/全局 Maven 构建，Docker 仅使用 `amazoncorretto:21-alpine` 将其封装为运行时镜像。
 
 ## 启动
 
-在仓库根目录使用当前的 Bun 启动器。它只在本机 JDK 中运行 Java 服务，并把 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos MySQL、Nacos 和 Seata 留在 Docker：
+在仓库根目录使用当前的 Node 启动器。它只在本机 JDK 中运行 Java 服务，并把 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos MySQL、Nacos 和 Seata 留在 Docker：
 
 ```powershell
-bun run .\run-platform-dev.ts
+pnpm run .\run-platform-dev.ts
 ```
 
 该命令不会启动任何 Java 容器。它会停止已有的 Compose Java 应用容器、使用全局 Maven 在本地打包并执行 migration，然后启动本地 Gateway（`8080`）及七个服务（`8081`–`8087`）。Ctrl+C 只停止本地 Java 进程，Docker 基础设施继续运行。
 
 本地 migration 会续跑开发卷中尚未执行的历史 001–049 SQL，再建立 Flyway 49 基线；该兼容开关仅由本地启动器启用，生产环境仍要求迁移账本预先完整。启动器也会让 PostgreSQL、RabbitMQ、Nacos 等回环 TCP 连接绕过 JVM SOCKS 代理，HTTP/HTTPS 外部代理配置不受影响。
 
-Web、Admin 与 Mobile 由独立的 `bun run run-platform-clients.ts` 启动器管理，不由宿主机 Java 启动器自动启动。若选择 Compose 后端而非宿主机 Java 进程，可使用：
+Web、Admin 与 Mobile 由独立的 `pnpm run run-platform-clients.ts` 启动器管理，不由宿主机 Java 启动器自动启动。若选择 Compose 后端而非宿主机 Java 进程，可使用：
 
 ```bash
 cd platform
@@ -39,15 +39,15 @@ make platform-ci-e2e
 make platform-ci-down
 ```
 
-客户端 workspace 使用 Bun 1.4.0。Web、Admin 和 SDK 的开发、构建、检查和测试均由 Bun 执行；Mobile 由 Bun 调度，
+客户端 workspace 使用 pnpm 11.28.5。Web、Admin 和 SDK 的开发、构建、检查和测试均由 pnpm 执行；Mobile 由 pnpm 调度，
 但 Expo CLI 和安全 smoke 明确使用 Node 运行：
 
 ```bash
 cd platform/clients
-bun install
-bun run dev:web
-bun run dev:admin
-bun run dev:mobile
+pnpm install
+pnpm run dev:web
+pnpm run dev:admin
+pnpm run dev:mobile
 ```
 
 等价的直接 Compose 命令为：
@@ -78,9 +78,9 @@ make platform-observability-down
 本机 JDK 调试也可启用同一套栈：
 
 ```bash
-bun run run-platform-dev.ts --obs
-bun run run-platform-dev.ts --obs --services creation,quota
-bun run run-platform-dev.ts --obs --services creation --no-gateway --smoke
+pnpm run run-platform-dev.ts --obs
+pnpm run run-platform-dev.ts --obs --services creation,quota
+pnpm run run-platform-dev.ts --obs --services creation --no-gateway --smoke
 ```
 
 `--obs` 会先启动 Prometheus、Alloy、Loki、Tempo 与 Grafana，再以 `127.0.0.1:4318` 作为 OTLP 地址运行 migration 和选中的 Java 进程。Alloy 额外读取 `server/target/local-dev/*.log` 的 NDJSON；Prometheus 的 file-SD 文件只列出实际启动的 `host.docker.internal:8080–8087`，所以子集调试不会产生伪 Java `TargetDown`。`--skip-package --obs` 要求 `server/target/observability/opentelemetry-javaagent.jar` 已由一次 Maven package 生成。Ctrl+C 仍只停止本机 Java；使用 `make platform-observability-down` 停止观测容器。

@@ -3,7 +3,7 @@ import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// Bun 在包目录下执行 workspace 脚本，cwd 即 apps/desktop
+// pnpm 在包目录下执行 workspace 脚本，cwd 即 apps/desktop
 const root = process.cwd();
 const pkgSrc = (p: string) =>
   resolve(root, "../../packages", p, "src", p === "db" ? "v3.ts" : "index.ts");

@@ -1,8 +1,16 @@
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { describe, expect, test } from "vitest";
+import { globSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const read = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf8");
+
+const scanTsxSources = (): string[] =>
+  globSync("**/*.tsx", {
+    cwd: fileURLToPath(new URL(".", import.meta.url)),
+  })
+    .filter((file) => !file.includes("node_modules"))
+    .sort();
 
 const featureSources = [
   "./studio-shared.tsx",
@@ -43,11 +51,8 @@ describe("LM7 desktop UI architecture", () => {
   });
 
   test("renderer UI uses semantic color tokens and a 12px minimum text size", () => {
-    const glob = new Bun.Glob("**/*.tsx");
     const offenders: string[] = [];
-    for (const file of glob.scanSync({
-      cwd: new URL(".", import.meta.url).pathname,
-    })) {
+    for (const file of scanTsxSources()) {
       const source = read(`./${file}`);
       if (
         /(?<![\w-])(?:bg|text|border|ring|from|to)-(?:amber|red|orange|yellow|emerald|green|rose)-\d+/.test(
@@ -61,11 +66,8 @@ describe("LM7 desktop UI architecture", () => {
   });
 
   test("renderer selects use the shared NativeSelect primitive", () => {
-    const glob = new Bun.Glob("**/*.tsx");
     const offenders: string[] = [];
-    for (const file of glob.scanSync({
-      cwd: new URL(".", import.meta.url).pathname,
-    }))
+    for (const file of scanTsxSources())
       if (/<select[\s>]/.test(read(`./${file}`))) offenders.push(file);
     expect(offenders).toEqual([]);
   });

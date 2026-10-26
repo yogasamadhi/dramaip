@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { Project, Task } from "@dramaip/contracts/product";
 import type { PilotPackageRecord } from "@dramaip/contracts/delivery";
 import type { ProviderActionPreviewSummary } from "@dramaip/contracts/automation";

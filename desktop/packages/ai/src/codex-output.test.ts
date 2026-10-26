@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { normalizeCodexOutput } from "./codex-output";
 
 test("Codex 通用聊天保留自然文本", () => {

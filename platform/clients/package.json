@@ -2,45 +2,28 @@
   "name": "dramaip-platform-clients",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "bun@1.4.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "packageManager": "pnpm@11.28.5",
   "scripts": {
-    "dev:web": "bun run --filter @dramaip/web dev",
-    "build:web": "bun run --filter @dramaip/web build",
-    "dev:admin": "bun run --filter @dramaip/admin dev",
-    "build:admin": "bun run --filter @dramaip/admin build",
-    "dev:mobile": "bun run --filter @dramaip/mobile start",
-    "contracts:check": "bun run scripts/check-client-contracts.mjs",
-    "typecheck": "bun run --workspaces --sequential typecheck && bun run typecheck:launchers",
+    "dev:web": "pnpm --filter @dramaip/web run dev",
+    "build:web": "pnpm --filter @dramaip/web run build",
+    "dev:admin": "pnpm --filter @dramaip/admin run dev",
+    "build:admin": "pnpm --filter @dramaip/admin run build",
+    "dev:mobile": "pnpm --filter @dramaip/mobile run start",
+    "contracts:check": "node scripts/check-client-contracts.mjs",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck && pnpm run typecheck:launchers",
     "typecheck:launchers": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --types node ../../run-platform-clients.ts ../../run-platform-dev.ts",
-    "lint": "bun run --workspaces --sequential lint",
-    "test": "bun run --filter @dramaip/sdk test && bun run --filter @dramaip/web test && bun run --filter @dramaip/admin test && bun run --filter @dramaip/mobile test:security && bun run test:launchers",
-    "test:launchers": "bun test scripts/platform-launchers.test.ts"
+    "lint": "pnpm -r --workspace-concurrency=1 run lint",
+    "test": "pnpm --filter @dramaip/sdk run test && pnpm --filter @dramaip/web run test && pnpm --filter @dramaip/admin run test && pnpm --filter @dramaip/mobile run test:security && pnpm run test:launchers",
+    "test:launchers": "vitest run scripts/platform-launchers.test.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.7.4",
     "tsx": "^4.22.4",
-    "typescript": "^5.6.3"
-  },
-  "trustedDependencies": [
-    "esbuild",
-    "sharp"
-  ],
-  "resolutions": {
-    "expo": "~58.0.17",
-    "lightningcss": "1.30.1",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "react-native": "0.88.0",
-    "react-native-safe-area-context": "~5.10.1",
-    "react-native-screens": "~4.30.0",
-    "react-native-svg": "15.16.0",
-    "react-native-worklets": "0.13.0"
+    "typescript": "^5.6.3",
+    "vitest": "4.1.9"
   },
   "engines": {
-    "bun": "1.4.0",
-    "node": ">=20"
+    "node": ">=20",
+    "pnpm": "11.28.5"
   }
 }

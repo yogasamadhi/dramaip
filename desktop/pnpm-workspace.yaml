@@ -1,0 +1,51 @@
+# pnpm workspace definition for the DramaIP Desktop client.
+#
+# The DSH framework packages are generated into `build/dsh-framework/` by
+# `pnpm run prepare:framework`; that script must run before `pnpm install`
+# so the generated workspace members are linked to the local source snapshot
+# instead of a registry copy.
+# pnpm's isolated (symlinked) node_modules layout is the contract this
+# workspace is designed against; the setting is written out explicitly.
+nodeLinker: isolated
+
+packages:
+  - apps/desktop
+  - packages/ai
+  - packages/app
+  - packages/client
+  - packages/ui
+  - packages/contracts
+  - packages/bundles
+  - packages/server-connection
+  - packages/runtime-adapters
+  - packages/database
+  - packages/events
+  - packages/http
+  - packages/kernel
+  - packages/plugin-api
+  - packages/runtime
+  - packages/desktop-host
+  - packages/agent-runtime
+  - packages/ui-runtime
+  - packages/extension-host
+  - plugins/*
+  - build/dsh-framework/*
+
+catalog:
+  effect: 4.0.0-beta.83
+  drizzle-orm: 1.0.0-rc.2
+  "@tanstack/react-query": 5.101.4
+  tailwindcss: 4.1.17
+
+overrides:
+  "@electron/get@^3.0.0": 3.1.0
+  "@types/react": 18.3.31
+  "@types/react-dom": 18.3.7
+  react: 18.3.1
+  react-dom: 18.3.1
+
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  msgpackr-extract: true

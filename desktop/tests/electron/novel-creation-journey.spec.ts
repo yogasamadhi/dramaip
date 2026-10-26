@@ -134,7 +134,7 @@ async function assertCurrentOriginalOwnerRead(
 function nativeIntakeFault(databasePath: string, sql: string) {
   // Actual isolated database failure; do not forge business rows or responses.
   const child = spawnSync(
-    "bun",
+    "node",
     [
       "scripts/run-node.mjs",
       "--input-type=module",

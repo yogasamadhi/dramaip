@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { Dialog, Drawer } from "@dramaip/ui-shared";
 
 test("弹窗与抽屉不共享可变的组件对象，不能互相覆盖 Content", () => {

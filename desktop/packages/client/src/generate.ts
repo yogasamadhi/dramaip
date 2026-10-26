@@ -27,7 +27,7 @@ if (process.argv.includes("--check")) {
   await unlink(temporaryUrl);
   if (current !== generated) {
     process.stderr.write(
-      "v2 OpenAPI client is stale; run bun run --filter @dramaip/client generate\n",
+      "v2 OpenAPI client is stale; run pnpm --filter @dramaip/client run generate\n",
     );
     process.exitCode = 1;
   } else {

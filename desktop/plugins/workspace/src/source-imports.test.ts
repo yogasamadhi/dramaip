@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { Database } from "bun:sqlite";
+import { describe, expect, test } from "vitest";
+import { DatabaseSync } from "node:sqlite";
 import {
   parseImportedDocument,
   sourceImportMigrations,
@@ -73,43 +73,55 @@ describe("source import document parsing", () => {
   });
 
   test("forward migration preserves bound previews and permits projectless previews", () => {
-    const database = new Database(":memory:");
+    const database = new DatabaseSync(":memory:");
     try {
       database.exec("CREATE TABLE projects(id TEXT PRIMARY KEY)");
       database.exec(sourceImportMigrations[0].sql);
-      database.run("INSERT INTO projects(id) VALUES (?)", ["project-1"]);
-      database.run(
-        "INSERT INTO workspace_source_imports VALUES (?, ?, ?, ?, ?, ?)",
-        [
+      database.prepare("INSERT INTO projects(id) VALUES (?)").run("project-1");
+      database
+        .prepare(
+          "INSERT INTO workspace_source_imports VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .run(
           "import-1",
           "project-1",
           "story.txt",
           "{}",
           "2026-08-28T00:00:00.000Z",
           "2026-08-27T00:00:00.000Z",
-        ],
-      );
+        );
 
       database.exec(sourceImportMigrations[1].sql);
       expect(
-        database
-          .query("SELECT project_id FROM workspace_source_imports WHERE id = ?")
-          .get("import-1"),
+        Object.assign(
+          {},
+          database
+            .prepare(
+              "SELECT project_id FROM workspace_source_imports WHERE id = ?",
+            )
+            .get("import-1"),
+        ),
       ).toEqual({ project_id: "project-1" });
-      database.run(
-        "INSERT INTO workspace_source_imports VALUES (?, NULL, ?, ?, ?, ?)",
-        [
+      database
+        .prepare(
+          "INSERT INTO workspace_source_imports VALUES (?, NULL, ?, ?, ?, ?)",
+        )
+        .run(
           "import-2",
           "new.txt",
           "{}",
           "2026-08-28T00:00:00.000Z",
           "2026-08-27T00:00:00.000Z",
-        ],
-      );
+        );
       expect(
-        database
-          .query("SELECT project_id FROM workspace_source_imports WHERE id = ?")
-          .get("import-2"),
+        Object.assign(
+          {},
+          database
+            .prepare(
+              "SELECT project_id FROM workspace_source_imports WHERE id = ?",
+            )
+            .get("import-2"),
+        ),
       ).toEqual({ project_id: null });
     } finally {
       database.close();

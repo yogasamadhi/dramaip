@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { Project } from "@dramaip/contracts/product";
 import type { CreationWorkflow } from "@dramaip/contracts/creation";
 import type { DirectScriptCockpitEvidence } from "./direct-script-cockpit-evidence";

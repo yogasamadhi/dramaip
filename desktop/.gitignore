@@ -47,8 +47,8 @@ test-results/
 logs/
 **/logs/
 npm-debug.log*
-bun-debug.log*
-bun-error.log*
+pnpm-debug.log*
+pnpm-error.log*
 yarn-debug.log*
 yarn-error.log*
 _tmp_*

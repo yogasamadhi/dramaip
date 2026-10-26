@@ -46,7 +46,7 @@ deferred   = 有意延后，不进入当前主线
 | `/api/v2` 独立 Core Runtime              | done     | Renderer 经 Client SDK 使用 HTTP；Runtime 可 Headless                                                           |
 | `/host/v1` Desktop Host                  | done     | Runtime 与 Host token 独立；Renderer 无业务 IPC                                                                 |
 | Node / Electron Core Runtime             | done     | 独立 Core、迁移 Worker、Runtime 测试用 Node 24.18.0；桌面 Core 用 Electron 内嵌 Node                            |
-| DSH 框架源码与构建                       | done     | 九包取自锁定 vendor，生成 workspace，校验哈希、版本、许可证和本地解析；Bun 1.4.0 负责安装构建                   |
+| DSH 框架源码与构建                       | done     | 九包取自锁定 vendor，生成 workspace，校验哈希、版本、许可证和本地解析；pnpm 11.28.5 负责安装构建                   |
 | First-party Plugin Graph                 | done     | 14 个原生 Cordis 插件；元数据与实现分离，Loader 动态导入 ESM                                                    |
 | Bundle / Profile 配置                    | done     | 空根、六个 Bundle patch、五个 Profile patch，Include 原生解析与覆盖                                             |
 | Plugin migration/event ledger            | done     | checksum、同事务事件、checkpoint；Node/Electron Worker 硬超时与恢复                                             |
@@ -427,25 +427,25 @@ Runtime 提供离线 cache、搜索、preview/commit、update、rollback 与三�
 常规架构里程碑完成必须通过（从 `desktop/` 执行）：
 
 ```text
-bun run lint
-bun run format:check
-bun run test
-bun run check:framework
-bun run check:architecture
-bun run check:generated
-bun run check:migration:complete
-bun run check:engine-locks
-bun run check:provider-catalog
-bun run check:licenses
-bun run check:extension-packages
-bun run build
-bun run check:renderer-chunks
-bun run test:e2e
+pnpm run lint
+pnpm run format:check
+pnpm run test
+pnpm run check:framework
+pnpm run check:architecture
+pnpm run check:generated
+pnpm run check:migration:complete
+pnpm run check:engine-locks
+pnpm run check:provider-catalog
+pnpm run check:licenses
+pnpm run check:extension-packages
+pnpm run build
+pnpm run check:renderer-chunks
+pnpm run test:e2e
 ```
 
-`test` 已包含 typecheck、unit/Runtime 与 conformance；聚焦 Core 可用 `test:runtime:node`，不要用 Bun 直接运行 Core 测试。Loader/HMR 和构建变更额外执行 `test:runtime:watch`、`test:runtime:hmr`、`test:runtime:hmr:electron`，Linux Electron 需要 display 或 `xvfb-run`。
+`test` 已包含 typecheck、unit/Runtime 与 conformance；聚焦 Core 可用 `test:runtime:node`，不要用包管理器直接运行 Core 测试。Loader/HMR 和构建变更额外执行 `test:runtime:watch`、`test:runtime:hmr`、`test:runtime:hmr:electron`，Linux Electron 需要 display 或 `xvfb-run`。
 
-从无依赖环境开始，先初始化子模块，再执行 `prepare:framework → bun ci → build:framework → check:framework`。根 `bun run-desktop.ts` 协调准备、安装、框架与 Engine 构建；独立 Runtime 通过 `scripts/run-node.mjs` 校验 Node 24.18.0。
+从无依赖环境开始，先初始化子模块，再执行 `prepare:framework → pnpm ci → build:framework → check:framework`。根 `node run-desktop.ts` 协调准备、安装、框架与 Engine 构建；独立 Runtime 通过 `scripts/run-node.mjs` 校验 Node 24.18.0。
 
 契约变更先运行 Client `generate`；插件声明和 ownership 变更运行 `plugins:generate` / `architecture:generate`；迁移证据运行 `migration:generate`。所有生成命令完成后运行相应检查，禁止手工编辑生成目录、OpenAPI 或迁移矩阵。
 

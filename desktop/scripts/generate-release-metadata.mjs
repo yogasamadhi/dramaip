@@ -152,7 +152,7 @@ export async function generateReleaseMetadata({
     scope:
       "current-version-top-level-installers-update-metadata-and-present-blockmaps",
     dependencyInventoryScope:
-      "installed-desktop-bun-dependencies-not-packaged-byte-proof",
+      "installed-desktop-pnpm-dependencies-not-packaged-byte-proof",
     files,
     historicalUpdateFiles: inventory.historicalUpdateFiles,
     documents: [...documents].map(([file, bytes]) => ({
@@ -214,7 +214,7 @@ export async function generateReleaseMetadata({
 
 async function collectComponents(root) {
   const components = [];
-  const packageRoot = join(root, "node_modules/.bun");
+  const packageRoot = join(root, "node_modules/.pnpm");
   for (const directory of await safeReadDir(packageRoot)) {
     const packageJSON = await findPackageJSON(join(packageRoot, directory));
     if (!packageJSON) continue;
@@ -260,21 +260,26 @@ async function safeReadDir(path) {
   }
 }
 async function findPackageJSON(path) {
-  for (const dependency of await safeReadDir(join(path, "node_modules"))) {
-    const candidates = dependency.startsWith("@")
-      ? (await safeReadDir(join(path, "node_modules", dependency))).map(
-          (name) =>
-            join(path, "node_modules", dependency, name, "package.json"),
-        )
-      : [join(path, "node_modules", dependency, "package.json")];
-    for (const candidate of candidates) {
-      try {
-        if ((await stat(candidate)).isFile()) return candidate;
-      } catch (error) {
-        if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
-      }
-    }
+  // pnpm's virtual store names every directory after the package it holds
+  // (`<name>@<version>` with `/` encoded as `+` for scoped packages) and
+  // keeps the manifest under `node_modules/<name>/package.json`.
+  const directory = path.slice(path.lastIndexOf("/") + 1);
+  const separator = directory.lastIndexOf("@");
+  if (separator <= 0) return undefined;
+  const encoded = directory.slice(0, separator);
+  const name = encoded.startsWith("@") ? encoded.replace("+", "/") : encoded;
+  const candidate = join(
+    path,
+    "node_modules",
+    ...name.split("/"),
+    "package.json",
+  );
+  try {
+    if ((await stat(candidate)).isFile()) return candidate;
+  } catch (error) {
+    if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
   }
+  return undefined;
 }
 function normalizeLicenses(value) {
   const values = Array.isArray(value) ? value : value ? [value] : [];

@@ -8,8 +8,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

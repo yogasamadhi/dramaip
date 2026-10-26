@@ -1,11 +1,11 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 test("DramaIP Pi adapter exposes only authenticated read-only MCP tools", async () => {
   const source = await readFile(
     join(
-      import.meta.dir,
+      import.meta.dirname,
       "../../../apps/desktop/pi-adapter/dramaip-pi-runtime.ts",
     ),
     "utf8",

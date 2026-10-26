@@ -55,15 +55,10 @@ async function handle(
   }
 }
 
-function assertRuntime(runtimeKind: "node" | "bun" | "electron-node"): void {
+function assertRuntime(runtimeKind: "node" | "electron-node"): void {
   const versions = process.versions as Record<string, string | undefined>;
-  const isBun = Boolean(versions.bun);
-  const isElectronNode = Boolean(versions.electron) && !isBun;
-  if (
-    isBun ||
-    runtimeKind === "bun" ||
-    (runtimeKind === "electron-node" ? !isElectronNode : isElectronNode)
-  )
+  const isElectronNode = Boolean(versions.electron) && !versions.bun;
+  if (runtimeKind === "electron-node" ? !isElectronNode : isElectronNode)
     throw new Error(
       `Migration Worker runtime mismatch: expected ${runtimeKind}`,
     );

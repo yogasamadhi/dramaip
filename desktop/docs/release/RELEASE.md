@@ -4,11 +4,11 @@
 
 产品验收分别覆盖小说“连续写作 → 采用 → 记忆 → 稿件导出”和改编“剧本 → 分镜 → 试制交付”，不以媒体完成衡量小说成功。计划中的独立诊断、整季方案、新入口与指标必须有对应代码和真实证据才可进入发布文案；规则、模拟、真实模型和真人评估分开标注。旧 v2 RC/版本说明保留历史语境，当前版本以 `desktop/package.json` 和当次发布审批为准。
 
-1. 运行 `bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run test:e2e`、`bun run check:generated`、`bun run check:architecture`、`bun run check:engine-locks`、`bun run check:provider-catalog` 和 `bun run build`。
-2. 设置真实 `DRAMAIP_UPDATE_URL`，分别在 macOS、Windows、Linux 运行 `bun run package`。
+1. 运行 `pnpm run lint`、`pnpm run format:check`、`pnpm run typecheck`、`pnpm run test`、`pnpm run test:e2e`、`pnpm run check:generated`、`pnpm run check:architecture`、`pnpm run check:engine-locks`、`pnpm run check:provider-catalog` 和 `pnpm run build`。
+2. 设置真实 `DRAMAIP_UPDATE_URL`，分别在 macOS、Windows、Linux 运行 `pnpm run package`。
 3. 启动每个平台的安装包，验证 `/api/v2/runtime` 与 `/api/v2/system/diagnostics` 中的 Profile、Bundle、插件顺序、迁移、Host 和 Pi、Codex、LangGraph.js 三个引擎健康状态；确认 `dramaip.db` 可写，退出后没有残留进程。
 4. 校验 Pi 1.4.0、Codex 0.164.0 与 LangGraph.js 1.4.9 的打包资源、锁定摘要、协议快照及第三方许可证；校验 DSH 框架源码快照完整性及九个框架包的打包资源和许可证，DSH Agent 业务实现不得进入安装包。
-5. 验证 Renderer 不含业务 `fetch` 或 IPC 方法、preload 只含 Runtime bootstrap、Renderer 只使用生成的 `@dramaip/client`；确认 Core Runtime 未在 Electron Main 内启动，HTTP API 为 `/api/v2`，并验证 Node 24.18.0 Server Mode（Bun 只负责启动调度，不是 Core Runtime）。
+5. 验证 Renderer 不含业务 `fetch` 或 IPC 方法、preload 只含 Runtime bootstrap、Renderer 只使用生成的 `@dramaip/client`；确认 Core Runtime 未在 Electron Main 内启动，HTTP API 为 `/api/v2`，并验证 Node 24.18.0 Server Mode（pnpm 只负责启动调度，不是 Core Runtime）。
 6. 发布前完成三平台代码签名；macOS 还必须完成公证。
 7. GitLab 的 `desktop_macos_release` 与 `desktop_windows_release` 只在标签流水线上运行；发布前必须确认项目已配置带 `macos`、`windows` 和 `private` 标签的对应 Runner。
 8. 对每个平台产出的安装应用再运行 Electron 端到端测试；可通过 `DRAMAIP_E2E_EXECUTABLE` 指定已打包应用的可执行文件。使用本次源码生成的新候选和独立 `DRAMAIP_E2E_USER_DATA`；测试启动器自动设置 `DRAMAIP_DEBUG_BACKGROUND=1`，安装应用也必须保持后台。先运行 `tests/electron/background-debug.spec.ts` 核对隐藏／不聚焦及原生窗口保护，再执行相关业务测试。不要对维护者普通实例或不含后台修复的历史包执行本测试。
@@ -25,7 +25,7 @@ PLAN22.208另补当前Host的组合实测：两路偏移视频／5帧间隙／�
 
 PLAN22.206修复已打包应用忽略后台调试标志的问题，并让原后台窗口测试支持 `DRAMAIP_E2E_EXECUTABLE`。本次122项Main测试、33工作区类型检查、构建、正常lint和renderer-chunks通过；新开发构建的隔离后台测试1/1通过，无跳过／重试／快照更新。该测试实际核对窗口隐藏、不聚焦、不可聚焦，以及文件选择／保存／外部应用／文件揭示四项保护；没有运行打包应用。真实更新源未配置，未用占位地址绕过package；新安装包、签名／公证和目标设备验收仍未完成。
 
-维护者可先在`desktop/`使用锁定Node24.18.0运行`bun run release:inspect`。它只读当前版本update清单与安装文件全字节，分开历史清单，另比较旁置mac解包应用的Runtime及app.asar自有编译文件、只读检查codesign身份。检查不会安装、启动、更新或签名，也不验证安装文件与旁置app相同、源码构建来源或依赖库存；exit0只表示检查完成，`releaseReady`始终false。公证和macOS／Windows／Linux安装、升级、恢复保持未查／未运行，仍需上面实际验收及批准。
+维护者可先在`desktop/`使用锁定Node24.18.0运行`pnpm run release:inspect`。它只读当前版本update清单与安装文件全字节，分开历史清单，另比较旁置mac解包应用的Runtime及app.asar自有编译文件、只读检查codesign身份。检查不会安装、启动、更新或签名，也不验证安装文件与旁置app相同、源码构建来源或依赖库存；exit0只表示检查完成，`releaseReady`始终false。公证和macOS／Windows／Linux安装、升级、恢复保持未查／未运行，仍需上面实际验收及批准。
 
 PLAN22.200实际检查当前同版号旧alpha清单的ZIP／DMG，完整字节摘要与清单一致，但旁置解包Runtime有477/832自有文件不同、Main／Renderer有33/44不同，签名只是ad-hoc。原JSON在本地`desktop/build/m5-release-candidate-inspection.json`，不是已发行证据；修复清单生成器不会使这些旧文件变成当前版本。
 

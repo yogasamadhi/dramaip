@@ -10,8 +10,8 @@
     "./migration-worker-runtime": "./src/migration-worker-runtime.ts"
   },
   "scripts": {
-    "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src && bun ../../scripts/run-node.mjs --import tsx src/migration-worker.integration.ts"
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src && node ../../scripts/run-node.mjs --import tsx src/migration-worker.integration.ts"
   },
   "dependencies": {
     "@dramaip/contracts": "workspace:*",

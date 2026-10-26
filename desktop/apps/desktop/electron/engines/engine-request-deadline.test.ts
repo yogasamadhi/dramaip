@@ -1,55 +1,55 @@
-import { afterEach, expect, jest, test } from "bun:test";
+import { afterEach, expect, vi, test } from "vitest";
 import {
   EngineRequestDeadline,
   EngineRequestTimeoutError,
   publicEngineErrorMessage,
 } from "./engine-request-deadline";
 
-afterEach(() => jest.useRealTimers());
+afterEach(() => vi.useRealTimers());
 
 test("持续生成的长章不会在两分钟时失败，完成后清理所有期限", () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   const failures: Error[] = [];
   const deadline = new EngineRequestDeadline(true, (error) =>
     failures.push(error),
   );
   for (let i = 0; i < 8; i++) {
-    jest.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(90_000);
     deadline.touch();
   }
   expect(failures).toHaveLength(0);
   deadline.dispose();
-  jest.advanceTimersByTime(60 * 60_000);
+  vi.advanceTimersByTime(60 * 60_000);
   expect(failures).toHaveLength(0);
 });
 
 test("无输出的运行在空闲期限结束时失败一次，迟到事件不能复活它", () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   const failures: EngineRequestTimeoutError[] = [];
   const deadline = new EngineRequestDeadline(true, (error) =>
     failures.push(error),
   );
-  jest.advanceTimersByTime(120_000);
+  vi.advanceTimersByTime(120_000);
   expect(failures).toHaveLength(0);
-  jest.advanceTimersByTime(180_000);
+  vi.advanceTimersByTime(180_000);
   expect(failures.map((error) => error.reason)).toEqual(["idle"]);
   deadline.touch();
-  jest.advanceTimersByTime(60 * 60_000);
+  vi.advanceTimersByTime(60 * 60_000);
   expect(failures).toHaveLength(1);
 });
 
 test("健康与会话控制保持短期限，持续输出也有总运行上限", () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   const reasons: string[] = [];
   new EngineRequestDeadline(false, (error) => reasons.push(error.reason));
   const run = new EngineRequestDeadline(true, (error) =>
     reasons.push(error.reason),
   );
-  jest.advanceTimersByTime(20_000);
+  vi.advanceTimersByTime(20_000);
   expect(reasons).toEqual(["control"]);
   for (let i = 0; i < 30; i++) {
     run.touch();
-    jest.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(60_000);
   }
   expect(reasons).toEqual(["control", "duration"]);
 });

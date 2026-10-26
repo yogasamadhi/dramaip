@@ -167,7 +167,7 @@ test("后台实际渲染界面以原键恢复未知结果；冻结成片读播�
       payload: { mediaRef: crypto.randomUUID(), 预览类型: "video" },
     });
     const seeded = spawnSync(
-      "bun",
+      "node",
       [
         "scripts/run-node.mjs",
         "--input-type=module",

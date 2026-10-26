@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createHash } from "node:crypto";
 import { createStudioClient } from "@dramaip/client";
 import {

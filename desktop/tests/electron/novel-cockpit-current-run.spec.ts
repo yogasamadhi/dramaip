@@ -64,7 +64,7 @@ test("小说驾驶舱精确返回较早未决运行，后台重启不换候选�
   // Actual project/chapter creation, GETs, discard, attention and UI are live.
   const seed = (script: string, data: unknown) => {
     const result = spawnSync(
-      "bun",
+      "node",
       [
         "scripts/run-node.mjs",
         "--input-type=module",

@@ -78,10 +78,6 @@ function worker(
   execArgv: readonly string[] = [],
 ): MigrationWorkerProcess {
   const environment = migrationWorkerEnvironment(request.runtimeKind);
-  if (request.runtimeKind === "bun")
-    throw new Error(
-      "Bun Core Runtime is no longer supported; use Node 24.18.0",
-    );
   const child = electronNodeWorker(executable, entry, execArgv, environment);
   child.send(request);
   return child;

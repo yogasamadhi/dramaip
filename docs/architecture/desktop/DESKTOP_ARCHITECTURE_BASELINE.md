@@ -281,15 +281,15 @@ Engine supervision
 
 # 9. Runtime 兼容基线
 
-DramaIP 的执行基线如下：Bun 1.4.0 用于依赖管理和构建；Headless/Server Core Runtime、迁移 Worker 和 Runtime 测试使用 Node 24.18.0；Desktop Core Runtime 由 Electron `utilityProcess` 承载并使用 Electron 内嵌 Node。版本固定是 DramaIP 的工具链约束，不由 Level 数字决定。
+DramaIP 的执行基线如下：pnpm 11.28.5 用于依赖管理和构建；Headless/Server Core Runtime、迁移 Worker 和 Runtime 测试使用 Node 24.18.0；Desktop Core Runtime 由 Electron `utilityProcess` 承载并使用 Electron 内嵌 Node。版本固定是 DramaIP 的工具链约束，不由 Level 数字决定。
 
 ```text
 Headless / Server = Node 24.18.0
 Desktop Runtime   = Electron embedded Node
-Build / install   = Bun 1.4.0
+Build / install   = pnpm 11.28.5
 ```
 
-Runtime-specific API 必须收敛在 Adapter 中。DramaIP 独立 Node 经 `desktop/scripts/run-node.mjs` 校验版本，业务插件不自行判断执行环境。新实例仅报告 `node` 或 `electron-node`，启动请求不接受 `bun`；响应 schema 中的 `bun` 只用于解析旧实例。
+Runtime-specific API 必须收敛在 Adapter 中。DramaIP 独立 Node 经 `desktop/scripts/run-node.mjs` 校验版本，业务插件不自行判断执行环境。运行时种类只有 `node` 与 `electron-node`；`bun` 已从契约与启动请求中移除。
 
 插件框架不是三个 Level 的共同前置条件。Level 1 使用普通模块；DramaIP 的第一方插件采用锁定 DSH Cordis 源码，开发 HMR 必须显式传入 `--expose-internals` 并校验内部 Loader。生产关闭 HMR 文件监听，发布产物包含完整 Runtime 模块、配置和依赖，不依赖源码目录或外部 workspace 链接。
 

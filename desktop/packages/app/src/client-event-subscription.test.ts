@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
+import { setTimeout as delay } from "node:timers/promises";
 import { createStudioClient } from "@dramaip/client";
 import type { EventStreamEnvelope } from "@dramaip/contracts";
 
@@ -70,7 +71,7 @@ async function eventually(assertion: () => void) {
       return;
     } catch (error) {
       if (Date.now() >= deadline) throw error;
-      await Bun.sleep(5);
+      await delay(5);
     }
   }
 }
@@ -164,14 +165,14 @@ test("all-listener disposal cancels backoff; fresh subscriptions and distinct SD
   expect(a.streams).toHaveLength(1);
   expect(b.streams).toHaveLength(1);
   a.streams[0]!.controller.close();
-  await Bun.sleep(10);
+  await delay(10);
   stopA();
   expect(a.streams[0]!.signal.aborted).toBe(false);
   stopDuplicate();
   stopDuplicate();
   expect(a.streams[0]!.signal.aborted).toBe(true);
   expect(b.streams[0]!.signal.aborted).toBe(false);
-  await Bun.sleep(650);
+  await delay(650);
   expect(a.streams).toHaveLength(1);
   const stopFresh = a.sdk.events.subscribe(callback);
   expect(a.streams).toHaveLength(2);

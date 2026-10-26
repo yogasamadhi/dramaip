@@ -1,6 +1,42 @@
 import { spawn } from "node:child_process";
+import { accessSync, constants, statSync } from "node:fs";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 const desktop = fileURLToPath(new URL("../", import.meta.url));
+
+function resolveExecutable(name) {
+  const pathEntries = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
+  const extensions =
+    process.platform === "win32"
+      ? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+          .split(";")
+          .map((extension) => extension.toLowerCase())
+      : [""];
+  const hasWindowsExtension = extensions.some((extension) =>
+    name.toLowerCase().endsWith(extension),
+  );
+  for (const entry of pathEntries) {
+    const directory = entry.replace(/^"|"$/gu, "");
+    for (const extension of hasWindowsExtension ? [""] : extensions) {
+      const candidate = join(directory, `${name}${extension}`);
+      try {
+        accessSync(
+          candidate,
+          process.platform === "win32" ? constants.F_OK : constants.X_OK,
+        );
+        if (statSync(candidate).isFile()) return candidate;
+      } catch {
+        // Continue searching PATH.
+      }
+    }
+  }
+  return undefined;
+}
+
+// pnpm exposes workspace binaries through its own resolver, so the dev server
+// is started through the package manager instead of a raw binary path.
+const pnpm = resolveExecutable("pnpm") ?? "pnpm";
 const watcher = spawn(
   process.execPath,
   ["scripts/build-runtime.mjs", "--watch"],
@@ -29,8 +65,15 @@ const app = standalone
       { cwd: desktop, stdio: "inherit" },
     )
   : spawn(
-      process.execPath,
-      ["--bun", "run", "electron-vite", "dev", ...process.argv.slice(2)],
+      pnpm,
+      [
+        "--filter",
+        "@dramaip/desktop",
+        "exec",
+        "electron-vite",
+        "dev",
+        ...process.argv.slice(2),
+      ],
       {
         cwd: fileURLToPath(new URL("../apps/desktop/", import.meta.url)),
         stdio: "inherit",

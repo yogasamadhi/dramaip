@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { EngineEventChannel } from "../engines/engine-event-channel";
 import { ManagedComponentState, RestartBudget } from "./managed-component";
 
@@ -23,7 +23,7 @@ describe("desktop component supervision", () => {
   test("enforces the five-crash restart window", () => {
     const budget = new RestartBudget();
     for (let attempt = 0; attempt < 5; attempt += 1)
-      expect(budget.nextDelay()).toBeNumber();
+      expect(typeof budget.nextDelay()).toBe("number");
     expect(budget.nextDelay()).toBeUndefined();
     expect(budget.snapshot()).toEqual({
       attemptsInWindow: 5,

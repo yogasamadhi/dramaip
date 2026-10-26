@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { ProjectInputSchema } from "@dramaip/contracts/workspace";
 import { createCreationDraft, parseCreationDraft } from "./studio-session";
 import {

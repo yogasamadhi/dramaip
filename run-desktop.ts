@@ -1,28 +1,32 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /** DramaIP Studio（desktop）独立开发启动器。 */
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
+  accessSync,
+  constants,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  statSync,
   type Dirent,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-export const REQUIRED_BUN_VERSION = "1.4.0" as const;
+export const REQUIRED_NODE_VERSION = "24.18.0" as const;
+export const REQUIRED_PNPM_VERSION = "11.28.5" as const;
 
 const repositoryRoot = dirname(fileURLToPath(import.meta.url));
 const desktopDirectory = join(repositoryRoot, "desktop");
 const studioDirectory = join(desktopDirectory, "apps", "desktop");
-const installMarker = join(desktopDirectory, "node_modules", ".bun");
+const installMarker = join(desktopDirectory, "node_modules", ".modules.yaml");
 interface Options {
   readonly check: boolean;
   readonly forceInstall: boolean;
@@ -44,7 +48,37 @@ interface VendorSubmoduleSpec {
 }
 
 interface Toolchain {
-  readonly bun: string;
+  readonly node: string;
+  readonly pnpm: string;
+}
+
+function resolveExecutable(name: string): string | undefined {
+  const pathEntries = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
+  const extensions =
+    process.platform === "win32"
+      ? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+          .split(";")
+          .map((extension) => extension.toLowerCase())
+      : [""];
+  const hasWindowsExtension = extensions.some((extension) =>
+    name.toLowerCase().endsWith(extension),
+  );
+  for (const entry of pathEntries) {
+    const directory = entry.replace(/^"|"$/gu, "");
+    for (const extension of hasWindowsExtension ? [""] : extensions) {
+      const candidate = join(directory, `${name}${extension}`);
+      try {
+        accessSync(
+          candidate,
+          process.platform === "win32" ? constants.F_OK : constants.X_OK,
+        );
+        if (statSync(candidate).isFile()) return candidate;
+      } catch {
+        // Continue searching PATH.
+      }
+    }
+  }
+  return undefined;
 }
 
 function color(code: string, value: string): string {
@@ -72,18 +106,18 @@ function help(): void {
 DramaIP Studio 开发启动器
 
 用法:
-  bun run-desktop.ts [选项] [-- Electron/Vite 参数]
+  node run-desktop.ts [选项] [-- Electron/Vite 参数]
 
 选项:
-  --install           强制执行 bun install
+  --install           强制执行 pnpm install
   --rebuild-engines   强制重建所有当前平台支持的智能引擎 Runtime
   --check             只读检查启动环境，不修复、不构建、不启动
   -h, --help          显示帮助
 
 示例:
-  bun run-desktop.ts
-  bun run-desktop.ts --rebuild-engines
-  bun run-desktop.ts -- --host 127.0.0.1
+  node run-desktop.ts
+  node run-desktop.ts --rebuild-engines
+  node run-desktop.ts -- --host 127.0.0.1
 `);
 }
 
@@ -122,10 +156,19 @@ function parseOptions(arguments_: readonly string[]): Options | undefined {
   };
 }
 
-export function assertBunVersion(version: string | undefined): string {
-  if (version !== REQUIRED_BUN_VERSION) {
+export function assertNodeVersion(version: string | undefined): string {
+  if (version !== REQUIRED_NODE_VERSION) {
     fail(
-      `Bun 版本必须恰好为 ${REQUIRED_BUN_VERSION}，当前为 ${version ?? "非 Bun 运行时"}`,
+      `Node 版本必须恰好为 ${REQUIRED_NODE_VERSION}，当前为 ${version ?? "非 Node 运行时"}`,
+    );
+  }
+  return version;
+}
+
+export function assertPnpmVersion(version: string | undefined): string {
+  if (version !== REQUIRED_PNPM_VERSION) {
+    fail(
+      `pnpm 版本必须恰好为 ${REQUIRED_PNPM_VERSION}，当前为 ${version ?? "未安装 pnpm"}`,
     );
   }
   return version;
@@ -160,9 +203,20 @@ async function runCommand(
 }
 
 function checkToolchain(): Toolchain {
-  const bunVersion = assertBunVersion(process.versions.bun);
-  ok(`bun ${bunVersion}`);
-  return { bun: process.execPath };
+  const nodeVersion = assertNodeVersion(process.versions.node);
+  ok(`node ${nodeVersion}`);
+  const pnpm = resolveExecutable("pnpm");
+  if (!pnpm) fail("未找到 pnpm，请先安装 pnpm 11.28.5");
+  // The version is read from the workspace directory so the package manager
+  // resolves the pinned `packageManager` field of that workspace.
+  const pnpmVersion = assertPnpmVersion(
+    spawnSync(pnpm, ["--version"], {
+      cwd: desktopDirectory,
+      encoding: "utf8",
+    }).stdout?.trim(),
+  );
+  ok(`pnpm ${pnpmVersion}`);
+  return { node: process.execPath, pnpm };
 }
 
 export function vendorSubmoduleSpecs(): readonly VendorSubmoduleSpec[] {
@@ -198,11 +252,11 @@ async function ensureVendorSubmodules(check: boolean): Promise<void> {
   const paths = missing.map((submodule) => submodule.path);
   if (check) {
     fail(
-      `vendor 子模块未初始化：${paths.join(", ")}；请运行 bun run-desktop.ts 完成初始化`,
+      `vendor 子模块未初始化：${paths.join(", ")}；请运行 node run-desktop.ts 完成初始化`,
     );
   }
 
-  const git = Bun.which("git");
+  const git = resolveExecutable("git");
   if (!git) {
     fail(`未找到 Git，无法初始化 vendor 子模块：${paths.join(", ")}`);
   }
@@ -228,20 +282,20 @@ async function ensureVendorSubmodules(check: boolean): Promise<void> {
 }
 
 async function ensureDependencies(
-  bun: string,
+  pnpm: string,
   options: Options,
 ): Promise<void> {
   if (options.check) {
     if (!existsSync(installMarker)) {
-      fail("desktop 依赖未安装：请运行 bun run-desktop.ts --install");
+      fail("desktop 依赖未安装：请运行 node run-desktop.ts --install");
     }
     ok("desktop 依赖已安装");
     return;
   }
-  info("安装 desktop 依赖（bun install）……首次可能较慢。");
-  await runCommand(bun, ["install"]);
+  info("安装 desktop 依赖（pnpm install）……首次可能较慢。");
+  await runCommand(pnpm, ["install"]);
   if (!existsSync(installMarker)) {
-    fail("bun install 完成后仍未找到 node_modules/.bun");
+    fail("pnpm install 完成后仍未找到 node_modules/.modules.yaml");
   }
   ok("desktop 依赖就绪");
 }
@@ -285,7 +339,7 @@ export function runtimeSpecs(): readonly RuntimeSpec[] {
 }
 
 async function ensureAgentRuntimes(
-  bun: string,
+  pnpm: string,
   options: Options,
 ): Promise<void> {
   for (const runtime of runtimeSpecs()) {
@@ -301,17 +355,17 @@ async function ensureAgentRuntimes(
       continue;
     }
     info(`准备 ${runtime.label} Runtime……首次可能较慢。`);
-    await runCommand(bun, [
-      "run",
+    await runCommand(pnpm, [
       "--filter",
       "@dramaip/desktop",
+      "run",
       runtime.buildScript,
     ]);
     if (runtime.verifyScript) {
-      await runCommand(bun, [
-        "run",
+      await runCommand(pnpm, [
         "--filter",
         "@dramaip/desktop",
+        "run",
         runtime.verifyScript,
       ]);
     }
@@ -335,9 +389,13 @@ function readPackageVersion(packageFile: string): string | undefined {
 }
 
 function electronPackageDirectory(): string | undefined {
-  const workspacePackage = join(studioDirectory, "node_modules", "electron");
-  if (existsSync(workspacePackage)) return workspacePackage;
-  const store = join(desktopDirectory, "node_modules", ".bun");
+  for (const candidate of [
+    join(studioDirectory, "node_modules", "electron"),
+    join(desktopDirectory, "node_modules", "electron"),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  const store = join(desktopDirectory, "node_modules", ".pnpm");
   if (!existsSync(store)) return undefined;
   for (const entry of readdirSync(store).sort()) {
     if (!entry.startsWith("electron@")) continue;
@@ -453,10 +511,10 @@ async function extractElectronZip(
   await extract(archive, { dir: destination });
 }
 
-async function ensureElectron(bun: string, check: boolean): Promise<string> {
+async function ensureElectron(node: string, check: boolean): Promise<string> {
   const electronDirectory = electronPackageDirectory();
   if (!electronDirectory) {
-    fail("Electron 包未安装：请运行 bun run-desktop.ts --install");
+    fail("Electron 包未安装：请运行 node run-desktop.ts --install");
   }
   const version = readPackageVersion(join(electronDirectory, "package.json"));
   if (!version) fail("Electron 包版本无法识别");
@@ -465,7 +523,7 @@ async function ensureElectron(bun: string, check: boolean): Promise<string> {
     return electronDirectory;
   }
   if (check) {
-    fail("Electron 二进制未就绪：请运行 bun run-desktop.ts");
+    fail("Electron 二进制未就绪：请运行 node run-desktop.ts");
   }
 
   const { platform, arch } = electronPlatform();
@@ -507,7 +565,7 @@ async function ensureElectron(bun: string, check: boolean): Promise<string> {
       : {},
   );
   info("Electron 二进制缺失，正在运行 install.js……");
-  await runCommand(bun, ["run", installScript], electronDirectory, environment);
+  await runCommand(node, [installScript], electronDirectory, environment);
   if (!electronBinaryReady(electronDirectory)) {
     fail("Electron install.js 执行完成，但二进制仍未就绪");
   }
@@ -565,7 +623,7 @@ async function stopDevelopmentProcess(child: ChildProcess): Promise<void> {
 }
 
 async function runDevelopmentServer(
-  bun: string,
+  pnpm: string,
   devArguments: readonly string[],
 ): Promise<number> {
   if ("ELECTRON_RUN_AS_NODE" in process.env) {
@@ -575,11 +633,11 @@ async function runDevelopmentServer(
   }
   info("启动 desktop 开发模式（Ctrl-C 关闭）……");
   const child = spawn(
-    bun,
+    pnpm,
     [
-      "run",
       "--filter",
       "@dramaip/desktop",
+      "run",
       "dev:raw",
       ...(devArguments.length > 0 ? ["--", ...devArguments] : []),
     ],
@@ -651,19 +709,19 @@ async function main(): Promise<void> {
   process.stdout.write(`${color("1;36", "▶ desktop 一键启动")}\n`);
   const toolchain = checkToolchain();
   await ensureVendorSubmodules(options.check);
-  await runCommand(toolchain.bun, [
+  await runCommand(toolchain.node, [
     "scripts/prepare-dsh-framework.mjs",
     ...(options.check ? ["--check"] : []),
   ]);
-  await ensureDependencies(toolchain.bun, options);
+  await ensureDependencies(toolchain.pnpm, options);
   if (!options.check)
-    await runCommand(toolchain.bun, ["run", "build:framework"]);
-  await runCommand(toolchain.bun, ["scripts/check-dsh-framework.mjs"]);
-  await ensureAgentRuntimes(toolchain.bun, options);
-  await ensureElectron(toolchain.bun, options.check);
+    await runCommand(toolchain.pnpm, ["run", "build:framework"]);
+  await runCommand(toolchain.node, ["scripts/check-dsh-framework.mjs"]);
+  await ensureAgentRuntimes(toolchain.pnpm, options);
+  await ensureElectron(toolchain.node, options.check);
   if (!options.check) {
-    await runCommand(toolchain.bun, ["run", "plugins:generate"]);
-    await runCommand(toolchain.bun, ["run", "build:runtime"]);
+    await runCommand(toolchain.pnpm, ["run", "plugins:generate"]);
+    await runCommand(toolchain.pnpm, ["run", "build:runtime"]);
   }
 
   if (options.check) {
@@ -671,7 +729,7 @@ async function main(): Promise<void> {
     return;
   }
   process.exitCode = await runDevelopmentServer(
-    toolchain.bun,
+    toolchain.pnpm,
     options.devArguments,
   );
 }

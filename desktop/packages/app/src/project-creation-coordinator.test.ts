@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { DomainEntity, Project } from "@dramaip/contracts/product";
 import type { StudioClient } from "@dramaip/client";
 import {

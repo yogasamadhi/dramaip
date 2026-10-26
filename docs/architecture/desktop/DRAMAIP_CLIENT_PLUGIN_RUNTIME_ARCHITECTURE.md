@@ -244,12 +244,12 @@ Core Runtime 固定使用 Electron Node `utilityProcess`，并报告 `runtimeKin
 
 ```bash
 # 在 desktop/ 中使用已安装、已构建的框架依赖
-bun run serve serve --profile server --database /absolute/path/dramaip.db
+pnpm run serve serve --profile server --database /absolute/path/dramaip.db
 # 独立 Node 开发模式，启用模块与配置 HMR
-bun run dev:runtime serve --profile server --database /absolute/path/dramaip.db
+pnpm run dev:runtime serve --profile server --database /absolute/path/dramaip.db
 ```
 
-上述 Bun 命令负责构建或调度，Core 由 `scripts/run-node.mjs` 启动 Node 24.18.0，报告 `runtimeKind: node`。第一个命令的前一个 `serve` 是 package script，后一个是传给 Runtime CLI 的子命令；当前 CLI 在提供参数时需要显式指定该子命令。`--profile` 接受五个正式 Profile。缺少 Desktop Host 或本地 Engine 时，相应 capability 返回 `CapabilityUnavailable`，不阻止 Runtime 启动。`server` Profile 选择功能集合，并不表示远程身份认证和部署要求已完成。
+上述 pnpm 命令负责构建或调度，Core 由 `scripts/run-node.mjs` 启动 Node 24.18.0，报告 `runtimeKind: node`。第一个命令的前一个 `serve` 是 package script，后一个是传给 Runtime CLI 的子命令；当前 CLI 在提供参数时需要显式指定该子命令。`--profile` 接受五个正式 Profile。缺少 Desktop Host 或本地 Engine 时，相应 capability 返回 `CapabilityUnavailable`，不阻止 Runtime 启动。`server` Profile 选择功能集合，并不表示远程身份认证和部署要求已完成。
 
 ## 6.3 Remote Server Mode
 
@@ -365,17 +365,17 @@ Runtime token 改变时，近期安全方案是重建 BrowserWindow 并注入新
 
 # 9. Runtime 兼容基线
 
-Bun 1.4.0 用于安装和构建。Headless/Server Core Runtime、迁移 Worker 和相关测试使用 Node 24.18.0；Desktop 受管进程使用 Electron 内嵌 Node。开发 HMR 显式传入 `--expose-internals` 并检查 DSH 内部 Loader；Bun 不再作为 Core Runtime。
+pnpm 11.28.5 用于安装和构建。Headless/Server Core Runtime、迁移 Worker 和相关测试使用 Node 24.18.0；Desktop 受管进程使用 Electron 内嵌 Node。开发 HMR 显式传入 `--expose-internals` 并检查 DSH 内部 Loader；不再存在 Bun Core Runtime。
 
 ```text
 Headless / Server = node (24.18.0)
 Desktop           = electron-node
-Build / install   = bun (1.4.0)
+Build / install   = pnpm (11.28.5)
 ```
 
-Runtime-specific API 必须位于 `runtime-adapters`。业务插件不得自行判断 Node/Electron Node 或使用 Bun-only API。
+Runtime-specific API 必须位于 `runtime-adapters`。业务插件不得自行判断 Node/Electron Node 或使用 运行时专属 API。
 
-独立 Node 入口必须校验精确版本，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。桌面用户使用随 Electron 发布的 Node，无需额外安装系统 Node；迁移 Worker 使用对应的 Node 或 Electron-run-as-Node 子进程。新启动配置不接受 `bun`，`RuntimeKind` 响应 schema 保留该值仅用于旧响应解析，Client/OpenAPI 同步生成。
+独立 Node 入口必须校验精确版本，可用 `DRAMAIP_NODE_PATH` 指定可执行文件。桌面用户使用随 Electron 发布的 Node，无需额外安装系统 Node；迁移 Worker 使用对应的 Node 或 Electron-run-as-Node 子进程。`RuntimeKind` 响应 schema 只保留 `node` 与 `electron-node`，`bun` 已移除，Client/OpenAPI 同步生成。
 
 Extension Host supervisor 使用 Electron 内嵌 Node；第三方代码仍只在 QuickJS/WASM 沙箱中执行，不能据此获得 Node API。
 
@@ -490,9 +490,9 @@ Kernel 不包含写作、Agents、媒体、制作、审片、交付或洞察业�
 安装顺序固定为：
 
 ```text
-校验 Bun 1.4.0 与锁定 DSH 快照
+校验 pnpm 11.28.5 与锁定 DSH 快照
 → prepare:framework
-→ bun ci
+→ pnpm ci
 → build:framework
 → check:framework
 ```
@@ -1032,7 +1032,7 @@ cross-platform signed install / upgrade / uninstall and formal GA acceptance
 
 # 23. 质量与发布门槛
 
-在 `desktop/` 使用 `bun run <script>`。常规门禁为：
+在 `desktop/` 使用 `pnpm run <script>`。常规门禁为：
 
 ```text
 lint
@@ -1106,7 +1106,7 @@ alpha data upgrade and rollback
 19. MUST 维护 Engine lock 和 Provider Catalog release 一致性。
 20. MUST 让架构违规在 CI 和故障测试中失败。
 21. MUST 使用锁定 DSH 的九个框架源码包和原生 Cordis 插件架构，保持 vendor 只读及公开契约框架中立。
-22. MUST 使用 Node 24.18.0 / Electron 内嵌 Node 执行 Core，Bun 1.4.0 承担依赖管理和构建。
+22. MUST 使用 Node 24.18.0 / Electron 内嵌 Node 执行 Core，pnpm 11.28.5 承担依赖管理和构建。
 23. MUST 使用原生 Include patch 语义和开发 HMR，等待所有启用条目及子 Fiber 完整后发布；生产关闭文件监听。
 24. MUST 交付可脱离仓库启动的 Runtime 模块、配置、依赖和许可证，并验证失败恢复不会发布不完整业务图。
 

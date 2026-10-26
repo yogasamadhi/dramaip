@@ -17,7 +17,7 @@ export interface RuntimeAdapterStartOptions {
 }
 
 export interface RuntimeAdapter {
-  readonly kind: "bun";
+  readonly kind: "node";
   start(options: RuntimeAdapterStartOptions): Promise<RuntimeDescriptor>;
   attach(descriptor: RuntimeDescriptor): Promise<RuntimeConnection>;
   health(descriptor: RuntimeDescriptor): Promise<boolean>;
@@ -26,7 +26,7 @@ export interface RuntimeAdapter {
 
 abstract class ProcessRuntimeAdapter implements RuntimeAdapter {
   private child: ChildProcess | undefined;
-  abstract readonly kind: "bun";
+  abstract readonly kind: "node";
   protected abstract command(
     options: RuntimeAdapterStartOptions,
   ): readonly string[];
@@ -97,11 +97,11 @@ abstract class ProcessRuntimeAdapter implements RuntimeAdapter {
   }
 }
 
-export class BunRuntimeAdapter extends ProcessRuntimeAdapter {
-  readonly kind = "bun" as const;
+export class NodeRuntimeAdapter extends ProcessRuntimeAdapter {
+  readonly kind = "node" as const;
   protected command(options: RuntimeAdapterStartOptions): readonly string[] {
     return [
-      options.executable ?? "bun",
+      options.executable ?? process.execPath,
       options.runtimeEntry,
       "serve",
       "--database",
@@ -117,5 +117,5 @@ export class BunRuntimeAdapter extends ProcessRuntimeAdapter {
 }
 
 export function runtimeAdapter(): RuntimeAdapter {
-  return new BunRuntimeAdapter();
+  return new NodeRuntimeAdapter();
 }

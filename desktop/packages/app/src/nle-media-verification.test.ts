@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createHash } from "node:crypto";
 import type { StudioClient } from "@dramaip/client";
 import type { MediaPlaybackDescriptor } from "@dramaip/contracts/media";

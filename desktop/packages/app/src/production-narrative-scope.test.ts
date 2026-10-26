@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { ProductionNarrativeRequest } from "@dramaip/contracts/creation";
 import type { Chapter } from "@dramaip/contracts/writing";
 import {

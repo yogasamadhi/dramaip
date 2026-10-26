@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /** Start the DramaIP Web, Admin and Mobile clients in development mode. */
 
@@ -23,7 +23,7 @@ const MOBILE_APP_DIRECTORY = join(CLIENTS_DIRECTORY, "apps", "mobile");
 const SDK_DIRECTORY = join(CLIENTS_DIRECTORY, "packages", "sdk");
 
 const NODE_MINIMUM_MAJOR = 20;
-const REQUIRED_BUN_VERSION = "1.4.0";
+const REQUIRED_PNPM_VERSION = "11.28.5";
 const GATEWAY_PORT = 8080;
 const WEB_PORT = 3009;
 const ADMIN_PORT = 3010;
@@ -209,10 +209,10 @@ function help(): void {
 Start the DramaIP Web, Admin and Mobile development clients.
 
 Usage:
-  bun run run-platform-clients.ts [options]
+  node run-platform-clients.ts [options]
 
 Options:
-  --install                 Force bun install before startup
+  --install                 Force pnpm install before startup
   --no-install              Never install dependencies automatically
   --no-kill-ports           Fail instead of stopping processes on client ports
   --api-base-url <url>      Java Gateway origin (default: http://localhost:8080)
@@ -313,16 +313,20 @@ function checkNode(): string {
   return node;
 }
 
-function checkBun(): string {
-  const bun = resolveExecutable("bun") ?? process.execPath;
-  const version = commandOutput([bun, "--version"]);
-  if (version !== REQUIRED_BUN_VERSION) {
+function checkPnpm(): string {
+  const pnpm = resolveExecutable("pnpm");
+  // The version is read from the clients workspace so the package manager
+  // resolves the pinned `packageManager` field of that workspace.
+  const version = pnpm
+    ? commandOutput([pnpm, "--version"], CLIENTS_DIRECTORY)
+    : undefined;
+  if (!pnpm || version !== REQUIRED_PNPM_VERSION) {
     fail(
-      `Bun version mismatch: found ${version ?? "unknown"}, need ${REQUIRED_BUN_VERSION}.`,
+      `pnpm version mismatch: found ${version ?? "unknown"}, need ${REQUIRED_PNPM_VERSION}.`,
     );
   }
-  ok(`bun ${version}`);
-  return bun;
+  ok(`pnpm ${version}`);
+  return pnpm;
 }
 
 function clientModulesResolve(node: string): boolean {
@@ -351,7 +355,7 @@ function clientModulesResolve(node: string): boolean {
 }
 
 async function ensureClientDependencies(
-  bun: string,
+  pnpm: string,
   node: string,
   mode: InstallMode,
 ): Promise<void> {
@@ -363,10 +367,10 @@ async function ensureClientDependencies(
     ok("clients dependencies already installed");
     return;
   }
-  info("Installing clients dependencies with bun install...");
-  await runForeground([bun, "install"]);
+  info("Installing clients dependencies with pnpm install...");
+  await runForeground([pnpm, "install"]);
   if (!clientModulesResolve(node))
-    fail("Clients dependencies are still incomplete after bun install.");
+    fail("Clients dependencies are still incomplete after pnpm install.");
   ok("clients dependencies ready");
 }
 
@@ -643,7 +647,7 @@ async function lanIp(): Promise<string | undefined> {
 function qrCodeTerminalRoot(): string | undefined {
   const hoisted = join(CLIENTS_DIRECTORY, "node_modules", "qrcode-terminal");
   if (existsSync(hoisted) && statSync(hoisted).isDirectory()) return hoisted;
-  const store = join(CLIENTS_DIRECTORY, "node_modules", ".bun");
+  const store = join(CLIENTS_DIRECTORY, "node_modules", ".pnpm");
   if (!existsSync(store)) return undefined;
   for (const entry of readdirSync(store).sort()) {
     if (!entry.startsWith("qrcode-terminal@")) continue;
@@ -776,8 +780,8 @@ export async function main(
     checkLayout();
     installShutdownHandlers();
     const node = checkNode();
-    const bun = checkBun();
-    await ensureClientDependencies(bun, node, options.installMode);
+    const pnpm = checkPnpm();
+    await ensureClientDependencies(pnpm, node, options.installMode);
 
     for (const [label, port] of CLIENT_PORTS)
       await releasePort(port, label, options.killPorts);
@@ -797,10 +801,10 @@ export async function main(
       EXPO_PUBLIC_API_BASE_URL: options.apiBaseUrl,
     };
     const mobileCommand = [
-      bun,
-      "run",
+      pnpm,
       "--filter",
       "@dramaip/mobile",
+      "run",
       "start",
       "--",
       "--port",
@@ -812,14 +816,14 @@ export async function main(
         "clients:web",
         "Web",
         WEB_PORT,
-        [bun, "run", "--filter", "@dramaip/web", "dev"],
+        [pnpm, "--filter", "@dramaip/web", "run", "dev"],
         webEnvironment,
       ],
       [
         "clients:admin",
         "Admin",
         ADMIN_PORT,
-        [bun, "run", "--filter", "@dramaip/admin", "dev"],
+        [pnpm, "--filter", "@dramaip/admin", "run", "dev"],
         adminEnvironment,
       ],
       [

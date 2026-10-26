@@ -78,7 +78,7 @@ export interface RuntimeConfig {
   allowedOrigins?: readonly string[];
   engineMcpTokens?: readonly string[];
   host?: HostClientOptions;
-  runtimeKind: Exclude<RuntimeKind, "bun">;
+  runtimeKind: RuntimeKind;
   mode?: RuntimeMode;
   runtimeGeneration?: number;
   destructiveCutover?: Omit<DestructiveCutoverOptions, "databasePath">;
@@ -88,7 +88,7 @@ export interface RuntimeConfig {
   };
   backupDirectory?: string;
   migrationWorker?: {
-    runtimeKind: Exclude<RuntimeKind, "bun">;
+    runtimeKind: RuntimeKind;
     executable: string;
     entry: string;
     execArgv?: readonly string[];

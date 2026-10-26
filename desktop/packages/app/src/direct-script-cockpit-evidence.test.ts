@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { loadDirectScriptCockpitEvidence } from "./direct-script-cockpit-evidence";
 
 type Client = Parameters<typeof loadDirectScriptCockpitEvidence>[0];

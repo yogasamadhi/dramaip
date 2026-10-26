@@ -29,10 +29,10 @@
 复核命令：
 
 ```bash
-bun run migration:generate
-bun run check:migration:complete
-bun run check:generated
-bun run check:architecture
+pnpm run migration:generate
+pnpm run check:migration:complete
+pnpm run check:generated
+pnpm run check:architecture
 ```
 
 `check:architecture` 还会拒绝活动 `@sdns/*`、旧 workspace、`/api/v1`、中央 `{domain}` Router、Renderer fetch/IPC、`DomainWorkspace`、OpenAPI 重复/缺失操作以及账本漂移。

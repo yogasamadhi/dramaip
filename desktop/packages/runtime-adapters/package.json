@@ -9,8 +9,8 @@
     "./artifact-recovery": "./src/artifact-recovery.ts"
   },
   "scripts": {
-    "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dramaip/server-connection": "workspace:*"

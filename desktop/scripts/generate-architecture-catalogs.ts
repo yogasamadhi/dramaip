@@ -55,7 +55,7 @@ async function writeCatalog(name: string, value: unknown): Promise<void> {
     const current = await readFile(path, "utf8").catch(() => "");
     if (current !== next)
       throw new Error(
-        `Architecture catalog is stale: ${relative(root, path)} (run bun run architecture:generate)`,
+        `Architecture catalog is stale: ${relative(root, path)} (run pnpm run architecture:generate)`,
       );
     return;
   }
@@ -67,7 +67,7 @@ async function writeGeneratedFile(path: string, next: string): Promise<void> {
     const current = await readFile(path, "utf8").catch(() => "");
     if (current !== next)
       throw new Error(
-        `Generated architecture file is stale: ${relative(root, path)} (run bun run architecture:generate)`,
+        `Generated architecture file is stale: ${relative(root, path)} (run pnpm run architecture:generate)`,
       );
     return;
   }

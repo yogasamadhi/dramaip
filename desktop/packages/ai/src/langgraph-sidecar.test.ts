@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,7 +61,9 @@ test("LangGraph sidecar persists resumable state without credentials and exposes
   };
 
   try {
-    await import(`./langgraph-sidecar.ts?unit=${Date.now()}`);
+    // Re-evaluate the sidecar module so it observes the mocked parent port.
+    vi.resetModules();
+    await import("./langgraph-sidecar.ts");
     send({
       type: "start",
       sessionRoot,

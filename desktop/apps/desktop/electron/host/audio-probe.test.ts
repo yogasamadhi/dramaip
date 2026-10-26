@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "bun:test";
+import { test } from "vitest";
 import { interpretRenderAudioProbe } from "./audio-probe";
 import { renderMediaInputOptions } from "./render-media-input";
 

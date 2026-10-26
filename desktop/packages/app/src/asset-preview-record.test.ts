@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { StudioClient } from "@dramaip/client";
 import type { MediaRecord } from "@dramaip/contracts/media";
 import { readAssetPreviewRecord } from "./asset-preview-record";

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import { SourceImportCommitRecoverySchema } from "@dramaip/contracts/workspace";
 const projectId = "a47fa85e-0191-42fd-b89b-134cfbabbb09",

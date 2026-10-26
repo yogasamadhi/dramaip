@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
+import { createHash } from "node:crypto";
 import { createStudioClient } from "@dramaip/client";
 import {
   EpisodeSourceRevisionSchema,
@@ -221,7 +222,7 @@ test("source body SDK checks complete actual bytes and the exact original revisi
       selected: `实际表达 ${index}`,
       text: "契约夹具，不是实际文学质量证据",
     };
-    const contentHash = new Bun.CryptoHasher("sha256")
+    const contentHash = createHash("sha256")
       .update(JSON.stringify(body))
       .digest("hex");
     ref.contentHash = contentHash;

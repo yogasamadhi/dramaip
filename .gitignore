@@ -66,7 +66,7 @@ venv/
 
 # Do not ignore a bare `env/` directory: source trees may legitimately use it.
 
-# ---- Node.js / Bun (monorepo-wide) ----
+# ---- Node.js / pnpm (monorepo-wide) ----
 node_modules/
 # Local package-manager stores (developer cache only).
 .bun/

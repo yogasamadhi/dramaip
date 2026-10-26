@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { EpisodeUpstreamConstraints } from "@dramaip/contracts/production";
 import { EpisodeConstraintObservations } from "./EpisodeConstraintObservations";

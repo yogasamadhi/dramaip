@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { creationElapsed, creationStreamPreview } from "./creation-progress";
 
 describe("creation live preview", () => {

@@ -73,7 +73,7 @@ test("旧固定／数量质量只读未认证，实际读取故障不回填缓�
     page.getByLabel("旧兼容诊断历史（未认证）", { exact: true });
   const sql = (script: string, args: string[] = []) => {
     const result = spawnSync(
-      "bun",
+      "node",
       [
         "scripts/run-node.mjs",
         "--input-type=module",

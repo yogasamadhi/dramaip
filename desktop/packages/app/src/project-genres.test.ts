@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { PROJECT_GENRE_CHOICES, PROJECT_GENRE_GROUPS } from "./project-genres";
 
 describe("项目题材目录", () => {

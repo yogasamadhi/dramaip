@@ -1,0 +1,34 @@
+# pnpm workspace definition for the DramaIP Platform clients.
+#
+# Metro/Babel (Expo) resolve plugins by *name string* through Node's classic
+# upward module resolution, which requires transitive dependencies to be
+# hoisted to the project root. `node-linker=hoisted` in `.npmrc` keeps that
+# lookup working; see the comment in that file.
+# Metro/Babel (Expo) resolve plugins by *name string* via Node's classic
+# upward module resolution, which requires transitive dependencies to be
+# reachable from the project root. The isolated linker keeps one physical
+# copy of every package (so the TypeScript types stay identical) while the
+# public hoist pattern exposes the same flat lookup the Metro resolver needs.
+nodeLinker: isolated
+publicHoistPattern:
+  - "*"
+
+packages:
+  - apps/*
+  - packages/*
+
+overrides:
+  expo: "~58.0.17"
+  lightningcss: "1.30.1"
+  react: "19.3.0"
+  react-dom: "19.3.0"
+  react-native: "0.88.0"
+  react-native-safe-area-context: "~5.10.1"
+  react-native-screens: "~4.30.0"
+  react-native-svg: "15.16.0"
+  react-native-worklets: "0.13.0"
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

@@ -72,7 +72,7 @@ async function fixture({ count = 20, product = "TestProduct" } = {}) {
   for (let i = 0; i < count; i++) {
     const directory = join(
       root,
-      `node_modules/.bun/fixture-${i}@1.0.0/node_modules/fixture-${i}`,
+      `node_modules/.pnpm/fixture-${i}@1.0.0/node_modules/fixture-${i}`,
     );
     await mkdir(directory, { recursive: true });
     await writeFile(
@@ -122,7 +122,7 @@ test("元数据只选当前版本安装文件／更新清单／现有blockmap，
     assert.deepEqual(r.manifest.historicalUpdateFiles, ["latest-mac.yml"]);
     assert.equal(
       r.manifest.dependencyInventoryScope,
-      "installed-desktop-bun-dependencies-not-packaged-byte-proof",
+      "installed-desktop-pnpm-dependencies-not-packaged-byte-proof",
     );
     const sums = await readFile(join(f.output, "SHA256SUMS"), "utf8");
     assert.equal(sums.trim().split("\n").length, 7);
@@ -196,7 +196,10 @@ test("坏依赖manifest不靠其他组件数量掩盖；重复依赖不抬高最
   for (const invalid of [true, false]) {
     const f = await fixture({ count: 19 });
     try {
-      const extra = join(f.root, "node_modules/.bun/extra/node_modules/extra");
+      const extra = join(
+        f.root,
+        "node_modules/.pnpm/extra@1.0.0/node_modules/extra",
+      );
       await mkdir(extra, { recursive: true });
       await writeFile(
         join(extra, "package.json"),
@@ -329,17 +332,17 @@ test("真实Node CLI仅向新临时目录生成且不打印路径／文件正文
     assert.match(ok.stdout, /releaseReady=false/);
     assert(!ok.stdout.includes(f.root));
     assert(!ok.stdout.includes("private-installer-canary"));
-    const bunOutput = join(f.dist, "bun-release-metadata");
-    const bun = spawnSync("bun", ["run", "release:metadata"], {
+    const pnpmOutput = join(f.dist, "pnpm-release-metadata");
+    const pnpm = spawnSync("pnpm", ["run", "release:metadata"], {
       cwd: realRoot,
-      env: { ...env, DRAMAIP_RELEASE_METADATA_DIR: bunOutput },
+      env: { ...env, DRAMAIP_RELEASE_METADATA_DIR: pnpmOutput },
       encoding: "utf8",
       timeout: 20000,
     });
-    assert.equal(bun.status, 0, bun.stderr);
-    assert.match(bun.stdout, /releaseReady=false/);
+    assert.equal(pnpm.status, 0, pnpm.stderr);
+    assert.match(pnpm.stdout, /releaseReady=false/);
     assert.equal(
-      JSON.parse(await readFile(join(bunOutput, "release-inventory.json")))
+      JSON.parse(await readFile(join(pnpmOutput, "release-inventory.json")))
         .files.length,
       2,
     );
@@ -368,19 +371,19 @@ test("真实Node CLI仅向新临时目录生成且不打印路径／文件正文
   }
 });
 
-test("元数据回归接正常unit与显式format范围，现有检查不删且生成入口继续使用Bun", async () => {
+test("元数据回归接正常unit与显式format范围，现有检查不删且生成入口继续使用pnpm", async () => {
   const pkg = JSON.parse(
     await readFile(join(realRoot, "package.json"), "utf8"),
   );
   assert.equal(
     pkg.scripts["release:metadata"],
-    "bun run scripts/generate-release-metadata.mjs",
+    "node scripts/generate-release-metadata.mjs",
   );
   assert.equal(
     pkg.scripts["test:release-metadata"],
-    "bun scripts/run-node.mjs --test scripts/tests/release-metadata.test.mjs",
+    "node scripts/run-node.mjs --test scripts/tests/release-metadata.test.mjs",
   );
-  assert(pkg.scripts["test:unit"].includes("bun run test:release-metadata"));
+  assert(pkg.scripts["test:unit"].includes("pnpm run test:release-metadata"));
   for (const name of ["format", "format:check"])
     for (const path of [
       "scripts/generate-release-metadata.mjs",

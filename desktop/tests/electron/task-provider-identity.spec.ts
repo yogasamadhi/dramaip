@@ -40,7 +40,7 @@ test("任务实际归属、未知币种、旧参数和变更后的费用确认�
   // and UI. No provider, credential, model, engine or external executor is used.
   const fixtureWrite = (script: string, data: unknown) => {
     const result = spawnSync(
-      "bun",
+      "node",
       [
         "scripts/run-node.mjs",
         "--input-type=module",

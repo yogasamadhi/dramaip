@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -111,7 +111,9 @@ input.on("line", line => {
   };
 
   try {
-    await import(`./codex-sidecar.ts?unit=${Date.now()}`);
+    // Re-evaluate the sidecar module so it observes the mocked parent port.
+    vi.resetModules();
+    await import("./codex-sidecar.ts");
     expect(listener).toBeDefined();
     send({
       type: "start",

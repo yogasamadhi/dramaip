@@ -23,27 +23,28 @@ async function files(directory) {
 }
 
 const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-if (manifest.engines?.node)
-  throw new Error("Desktop workspace must not declare a system Node engine");
-if (manifest.engines?.bun !== "1.4.0")
-  throw new Error("Desktop workspace must pin Bun 1.4.0 exactly");
+const workspace = await readFile(join(root, "pnpm-workspace.yaml"), "utf8");
+if (manifest.engines?.node !== "24.18.0")
+  throw new Error("Desktop workspace must pin Node 24.18.0 exactly");
+if (manifest.engines?.pnpm !== "11.28.5")
+  throw new Error("Desktop workspace must pin pnpm 11.28.5 exactly");
+if (manifest.packageManager !== "pnpm@11.28.5")
+  throw new Error("Desktop workspace must declare pnpm 11.28.5 exactly");
+if (manifest.engines?.bun || manifest.dependencies?.bun)
+  throw new Error("Desktop workspace must not depend on Bun");
 const runtimeManifest = JSON.parse(
   await readFile(join(root, "packages/runtime/package.json"), "utf8"),
 );
 if (runtimeManifest.engines?.node !== "24.18.0")
   throw new Error("Standalone Core Runtime must pin Node 24.18.0");
-if (!(manifest.workspaces ?? []).includes("build/dsh-framework/*"))
+if (!/^\s*-\s+build\/dsh-framework\/\*\s*$/mu.test(workspace))
   throw new Error("DSH framework source workspace is required");
+const declaredWorkspaces = [...workspace.matchAll(/^\s*-\s+(\S+)\s*$/gmu)].map(
+  (match) => match[1],
+);
 for (const [name, script] of Object.entries(manifest.scripts ?? {})) {
-  if (
-    typeof script === "string" &&
-    /(?:^|&&\s*|\|\|\s*|;\s*)node(?:\s|$)/u.test(script)
-  )
-    throw new Error(`Desktop package script ${name} invokes system Node`);
-  if (typeof script === "string" && /\bbunx\b/u.test(script))
-    throw new Error(
-      `Desktop package script ${name} must use bun --bun run instead of bunx`,
-    );
+  if (typeof script === "string" && /\bbunx?\b/u.test(script))
+    throw new Error(`Desktop package script ${name} must not invoke Bun`);
 }
 const forbiddenWorkspaces = new Set([
   "packages/ai-legacy",
@@ -107,16 +108,9 @@ for (const directory of activeSourceRoots) {
       for (const [name, script] of Object.entries(
         packageManifest.scripts ?? {},
       )) {
-        if (
-          typeof script === "string" &&
-          /(?:^|&&\s*|\|\|\s*|;\s*)node(?:\s|$)/u.test(script)
-        )
+        if (typeof script === "string" && /\bbunx?\b/u.test(script))
           throw new Error(
-            `Package script ${name} invokes system Node: ${path.replace(root, "")}`,
-          );
-        if (typeof script === "string" && /\bbunx\b/u.test(script))
-          throw new Error(
-            `Package script ${name} must use bun --bun run instead of bunx: ${path.replace(root, "")}`,
+            `Package script ${name} must not invoke Bun: ${path.replace(root, "")}`,
           );
       }
     }
@@ -337,8 +331,8 @@ for (const path of activeAgentEngineFiles) {
   );
 }
 await assertAbsent(
-  join(root, "package.json"),
-  /packages\/(?:db|engine-runtime|mcp|protocol|schema|server|tasks)"(?:\s*,|\s*\])/u,
+  join(root, "pnpm-workspace.yaml"),
+  /packages\/(?:db|engine-runtime|mcp|protocol|schema|server|tasks)"/u,
   "Deleted Agent Runtime and legacy Server must not remain workspace packages",
 );
 

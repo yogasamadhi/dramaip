@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import {
   chmod,
   lstat,
@@ -9,6 +9,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -40,9 +41,7 @@ test("只把现有 Codex 登录缓存导入隔离目录", async () => {
       expect(
         (await lstat(join(destinationHome, "auth.json"))).mode & 0o777,
       ).toBe(0o600);
-    expect(await Bun.file(join(destinationHome, "config.toml")).exists()).toBe(
-      false,
-    );
+    expect(existsSync(join(destinationHome, "config.toml"))).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -84,9 +83,7 @@ test("主动退出后不会在下次启动重新导入", async () => {
     expect(
       await bootstrapCodexAuthentication({ sourceHome, destinationHome }),
     ).toBe("disabled");
-    expect(await Bun.file(join(destinationHome, "auth.json")).exists()).toBe(
-      false,
-    );
+    expect(existsSync(join(destinationHome, "auth.json"))).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

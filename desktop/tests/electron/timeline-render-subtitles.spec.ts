@@ -211,7 +211,7 @@ test("后台普通字幕界面冻结原字体与字面文字；真实烧录／�
         payload: { mediaRef, 预览类型: "video" },
       });
     const seeded = spawnSync(
-      "bun",
+      "node",
       [
         "scripts/run-node.mjs",
         "--input-type=module",

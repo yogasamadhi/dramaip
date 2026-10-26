@@ -46,7 +46,7 @@ function seedControlledArchive(
 ) {
   // Controlled owner fixture only; does not claim provider download/probe/import or production provenance.
   const child = spawnSync(
-    "bun",
+    "node",
     [
       "scripts/run-node.mjs",
       "--input-type=module",

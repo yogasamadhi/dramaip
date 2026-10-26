@@ -28,4 +28,4 @@
 
 ## 恢复与复盘
 
-修复候选必须重新生成并绑定当前 commit 的 Provider、剪辑器、安装、支付、云审片安全和备份恢复证据。再次运行 Bun 1.4.0 的完整质量门、跨版本升级测试、Electron E2E、`package` 与 `release:metadata`；只有受管发布审批确认全部证据后才能恢复 GA rollout。
+修复候选必须重新生成并绑定当前 commit 的 Provider、剪辑器、安装、支付、云审片安全和备份恢复证据。再次运行 pnpm 11.28.5 的完整质量门、跨版本升级测试、Electron E2E、`package` 与 `release:metadata`；只有受管发布审批确认全部证据后才能恢复 GA rollout。

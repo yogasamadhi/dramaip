@@ -29,11 +29,11 @@
 维护者可在`desktop/`使用离线命令快速准备统一研究记录；它不是应用里的自动评测按钮，也不会调用模型、招募用户或上传正文：
 
 ```bash
-bun scripts/run-node.mjs scripts/product-evaluation.mjs study-template
-bun scripts/run-node.mjs scripts/product-evaluation.mjs user-template novel
-bun scripts/run-node.mjs scripts/product-evaluation.mjs user-template adaptation
-bun scripts/run-node.mjs scripts/product-evaluation.mjs user-template script
-bun scripts/run-node.mjs scripts/product-evaluation.mjs study-check /absolute/path/to/local-study.json
+node scripts/run-node.mjs scripts/product-evaluation.mjs study-template
+node scripts/run-node.mjs scripts/product-evaluation.mjs user-template novel
+node scripts/run-node.mjs scripts/product-evaluation.mjs user-template adaptation
+node scripts/run-node.mjs scripts/product-evaluation.mjs user-template script
+node scripts/run-node.mjs scripts/product-evaluation.mjs study-check /absolute/path/to/local-study.json
 ```
 
 使用锁定Node24.18.0运行。模板只向stdout输出，保存为本机记录后再填写；用户任务表加入统一记录的`sessions`，修改不透明参与者标签及真实角色，不填写姓名、正文、Prompt、路径或凭据。开始前取得研究同意，按原设备／版本／模型／素材预算条件记录实际任务，小说终点是连续两章与稿件，改编是诊断至内部包，直写不补小说／诊断；不要求视频。失败、放弃、辅助、未知测量、来源修改与重启恢复不能省略为成功。
@@ -56,9 +56,9 @@ bun scripts/run-node.mjs scripts/product-evaluation.mjs study-check /absolute/pa
 本机只读命令可统一加前缀，例如：
 
 ```bash
-bun scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path/to/new-catalog.json catalog
-bun scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path/to/new-catalog.json study-template
-bun scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path/to/new-catalog.json study-check /absolute/path/to/new-study.json
+node scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path/to/new-catalog.json catalog
+node scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path/to/new-catalog.json study-template
+node scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path/to/new-catalog.json study-check /absolute/path/to/new-study.json
 ```
 
 `validate`／`summarize`／`compare`也使用同一前缀。新目录上限16MiB、每例正文最多200万UTF-16单位；评测／研究记录仍上限1MiB。本机来源文件允许正文，但研究记录继续只保存摘要／标签，不复制正文到结果或自动上传。命令只读且不打印来源、任务、作者意图或本机路径。
@@ -70,7 +70,7 @@ bun scripts/run-node.mjs scripts/product-evaluation.mjs --catalog /absolute/path
 准备两份来自同一固定目录／原输入的evaluation v1或v2文件（不是整个study文件），在`desktop/`使用锁定Node24.18.0执行：
 
 ```bash
-bun scripts/run-node.mjs scripts/product-evaluation.mjs compare /absolute/path/to/baseline-record.json /absolute/path/to/result-record.json
+node scripts/run-node.mjs scripts/product-evaluation.mjs compare /absolute/path/to/baseline-record.json /absolute/path/to/result-record.json
 ```
 
 命令只读文件并向stdout输出，不调用模型、修改记录或自动采用调优方案。每个样例前后各一条完成记录才配对；失败、缺失、多候选与未运行保持原状态，不挑最优结果。新执行的相同输出在独立有序回执声明齐备时保留零变化，缺原执行证据不能把复制结果当新观察。两路与原前后模型配置分别列组，采用只比较已决定配对，修订／耗时不补未知；人工等级和连续性检查须同一声明盲评者，换评议者或unknown不算质量变化。
@@ -82,7 +82,7 @@ bun scripts/run-node.mjs scripts/product-evaluation.mjs compare /absolute/path/t
 在`desktop/`用锁定Node24.18.0执行：
 
 ```bash
-bun scripts/run-node.mjs scripts/product-evaluation.mjs verify-evidence /absolute/path/to/evaluation.json /absolute/path/to/receipts
+node scripts/run-node.mjs scripts/product-evaluation.mjs verify-evidence /absolute/path/to/evaluation.json /absolute/path/to/receipts
 ```
 
 新全篇目录可在命令前加同一`--catalog /absolute/path/to/new-catalog.json`前缀。只读取指定评测记录引用的`<sha256>.receipt`文件，按原始文件字节核对候选、模型配置、执行、协议、用量、结算和人工评议的摘要；不枚举其他文件，不解析或输出附件内容，不修改记录或附件，不调用模型／网络。请提供与原声明对应的原始字节；规范化JSON摘要不会自动转换成文件摘要，不能通过改摘要或替换内容消除不符。
@@ -94,19 +94,19 @@ bun scripts/run-node.mjs scripts/product-evaluation.mjs verify-evidence /absolut
 维护者在`desktop/`使用锁定Node24.18.0运行：
 
 ```bash
-bun run release:inspect
-bun run test:release-candidate
+pnpm run release:inspect
+pnpm run test:release-candidate
 ```
 
-`release:inspect`默认只读`apps/desktop/dist`，可直接用`bun scripts/run-node.mjs scripts/check-release-candidate.mjs --artifacts /absolute/path/to/candidate-directory`检查另一目录。只核当前版本更新清单的安装文件size／SHA512与全字节SHA256；旧更新清单另列，调试文件不混入。旁置mac解包应用另行比较自有Runtime／Main／Renderer编译文件并只读查看签名，不能由此证明安装文件与旁置app相同或源码构建来源。
+`release:inspect`默认只读`apps/desktop/dist`，可直接用`node scripts/run-node.mjs scripts/check-release-candidate.mjs --artifacts /absolute/path/to/candidate-directory`检查另一目录。只核当前版本更新清单的安装文件size／SHA512与全字节SHA256；旧更新清单另列，调试文件不混入。旁置mac解包应用另行比较自有Runtime／Main／Renderer编译文件并只读查看签名，不能由此证明安装文件与旁置app相同或源码构建来源。
 
 命令只输出JSON，不保存或上传，不安装、启动、更新、公证或签名。exit0是检查完成，不是发布通过，`releaseReady`始终false；三平台安装／升级／恢复保留not-run。当前实际旧alpha文件摘要有效，但旁置解包构建与本地不同且只是ad-hoc签名。真实检查与后续发布条件见[发布检查](../release/RELEASE.md#当前本地准备证据2026-10-07非发布通过)和根PLAN22.200，不能拿旧同版号包替代当前版本验收。
 
 ### 发布元数据生成
 
-PLAN22.201修复了旧生成器把整个dist当本版的行为。`bun run release:metadata`不是只读命令：它在所有输入与最低20唯一依赖组件检查通过后，仅向新的metadata目录写四份文件。只选择当前版本安装文件、更新清单和存在的对应blockmap，不收历史包／解包app／debug，也不删除它们；已有输出目录明确拒绝，不覆盖。真实操作须先完成自己的package与发布验收，按需要指定DRAMAIP_RELEASE_ARTIFACT_DIR／DRAMAIP_RELEASE_METADATA_DIR为明确的新候选／新输出目录。
+PLAN22.201修复了旧生成器把整个dist当本版的行为。`pnpm run release:metadata`不是只读命令：它在所有输入与最低20唯一依赖组件检查通过后，仅向新的metadata目录写四份文件。只选择当前版本安装文件、更新清单和存在的对应blockmap，不收历史包／解包app／debug，也不删除它们；已有输出目录明确拒绝，不覆盖。真实操作须先完成自己的package与发布验收，按需要指定DRAMAIP_RELEASE_ARTIFACT_DIR／DRAMAIP_RELEASE_METADATA_DIR为明确的新候选／新输出目录。
 
-新增`bun run test:release-metadata`在临时惰性fixture验证生成、拒绝与并发保护，不安装或发行。release-inventory.json保留所选字节与三份文档摘要及releaseReady=false；SBOM只定位本Desktop已安装依赖，不证明打包依赖完整、许可、签名、公证或设备验收，不能用命令成功替代发布批准。
+新增`pnpm run test:release-metadata`在临时惰性fixture验证生成、拒绝与并发保护，不安装或发行。release-inventory.json保留所选字节与三份文档摘要及releaseReady=false；SBOM只定位本Desktop已安装依赖，不证明打包依赖完整、许可、签名、公证或设备验收，不能用命令成功替代发布批准。
 
 ## 正式成果驾驶舱
 

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import type { ProductionQualitySource } from "@dramaip/contracts/production";
 const projectId = "40000000-0000-4000-8000-000000000001",

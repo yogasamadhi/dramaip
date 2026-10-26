@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import test from 'node:test'
+import { test } from "vitest"
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { STORY_CASE, STORY_CASE_ARTIFACTS, storyCaseArtifact, storyCaseFileURL } from '../lib/story-case'

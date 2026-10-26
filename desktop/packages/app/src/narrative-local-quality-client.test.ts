@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import {
   NarrativeLocalQualitySourceSchema,
@@ -209,9 +209,11 @@ test("native summaries are strict metadata with exact project, identity and curs
   const { sdk, calls } = client(page);
   expect(await sdk.localSummaries(projectId, id, 1)).toEqual(page);
   expect(calls[0]!.method).toBe("GET");
-  expect(calls[0]!.url).toEndWith(
-    `/projects/${projectId}/narrative-local-review-summaries?cursor=${id}&limit=1`,
-  );
+  expect(
+    calls[0]!.url.endsWith(
+      `/projects/${projectId}/narrative-local-review-summaries?cursor=${id}&limit=1`,
+    ),
+  ).toBe(true);
   expect(calls[0]!.body).toBeNull();
   for (const field of [
     "source",
@@ -276,9 +278,11 @@ test("native create and decisions send explicit source head, CAS and original ke
     "adopt-key",
   );
   expect(decision.calls[0]!.headers.get("If-Match")).toBe('"0"');
-  expect(decision.calls[0]!.url).toEndWith(
-    `/narrative-local-reviews/${other}/decision`,
-  );
+  expect(
+    decision.calls[0]!.url.endsWith(
+      `/narrative-local-reviews/${other}/decision`,
+    ),
+  ).toBe(true);
 });
 test("human form exposes only real target text fields and produces literal human evidence without pretending to be a model", () => {
   const fields = localEvidenceFields(source);

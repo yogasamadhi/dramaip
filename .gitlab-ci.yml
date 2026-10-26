@@ -18,7 +18,9 @@ workflow:
 variables:
   GIT_DEPTH: "0"
   GIT_TERMINAL_PROMPT: "0"
-  BUN_INSTALL_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/bun"
+  PNPM_HOME: "${CI_PROJECT_DIR}/.cache/pnpm"
+  PNPM_STORE_DIR: "${CI_PROJECT_DIR}/.cache/pnpm/store"
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
   PLATFORM_CLIENTS_NODE_VERSION: "24.18.0"
   SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
 
@@ -55,52 +57,33 @@ java_server:
 platform_clients:
   stage: validate
   image:
-    name: oven/bun:1.4.0-debian
+    name: node:24.18.0-bookworm-slim
     entrypoint: [""]
   cache:
     key:
       files:
-        - platform/clients/bun.lock
+        - platform/clients/pnpm-lock.yaml
       prefix: platform-clients-${CI_PROJECT_ID}
     paths:
-      - .cache/bun/
+      - .cache/pnpm/
   before_script:
     - |
       set -eu
       apt-get update
       apt-get install -y --no-install-recommends ca-certificates curl xz-utils python3 build-essential
-      case "$(dpkg --print-architecture)" in
-        amd64)
-          node_arch=x64
-          node_sha256=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
-          ;;
-        arm64)
-          node_arch=arm64
-          node_sha256=58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6
-          ;;
-        *)
-          echo "Unsupported architecture: $(dpkg --print-architecture)" >&2
-          exit 1
-          ;;
-      esac
-      node_archive="node-v${PLATFORM_CLIENTS_NODE_VERSION}-linux-${node_arch}.tar.xz"
-      curl -fsSLO "https://nodejs.org/dist/v${PLATFORM_CLIENTS_NODE_VERSION}/${node_archive}"
-      printf '%s  %s\n' "${node_sha256}" "${node_archive}" | sha256sum -c -
-      mkdir -p /opt/dramaip-clients-node
-      tar -xJf "${node_archive}" -C /opt/dramaip-clients-node --strip-components=1
-      rm "${node_archive}"
-      export PATH="/opt/dramaip-clients-node/bin:${PATH}"
-      bun --version
+      corepack enable
+      corepack prepare pnpm@11.28.5 --activate
+      test "$(pnpm --version)" = "11.28.5"
       node --version
       cd platform/clients
-      bun ci
+      pnpm ci
   script:
-    - bun run lint
-    - bun run typecheck
-    - bun run contracts:check
-    - bun run test
-    - bun run build:web
-    - bun run build:admin
+    - pnpm run lint
+    - pnpm run typecheck
+    - pnpm run contracts:check
+    - pnpm run test
+    - pnpm run build:web
+    - pnpm run build:admin
     - cd ..
     - make web-route-smoke
     - make observability-config-smoke
@@ -150,15 +133,15 @@ platform_e2e:
 desktop_linux:
   stage: validate
   image:
-    name: oven/bun:1.4.0-debian
+    name: node:24.18.0-bookworm-slim
     entrypoint: [""]
   cache:
     key:
       files:
-        - desktop/bun.lock
+        - desktop/pnpm-lock.yaml
       prefix: desktop-linux-${CI_PROJECT_ID}
     paths:
-      - .cache/bun/
+      - .cache/pnpm/
       - .cache/electron/
       - .cache/electron-builder/
   before_script:
@@ -166,7 +149,9 @@ desktop_linux:
       set -eu
       apt-get update
       apt-get install -y --no-install-recommends ca-certificates curl git xz-utils python3 build-essential xvfb libgtk-3-0 libnss3 libasound2 libgbm1
-      test "$(bun --version)" = "1.4.0"
+      corepack enable
+      corepack prepare pnpm@11.28.5 --activate
+      test "$(pnpm --version)" = "11.28.5"
       DESKTOP_NODE_VERSION=24.18.0
       case "$(uname -m)" in x86_64) desktop_node_arch=x64 ;; aarch64) desktop_node_arch=arm64 ;; *) exit 1 ;; esac
       desktop_node_archive="node-v${DESKTOP_NODE_VERSION}-linux-${desktop_node_arch}.tar.xz"
@@ -178,31 +163,31 @@ desktop_linux:
       test "$(node --version)" = "v24.18.0"
       git submodule update --init
       cd desktop
-      bun run prepare:framework
-      bun ci
-      bun run build:framework
-      bun run check:framework
+      pnpm run prepare:framework
+      pnpm ci
+      pnpm run build:framework
+      pnpm run check:framework
       export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG:-${CI_COMMIT_SHA}}"
   script:
-    - bun run lint
-    - bun run format:check
-    - bun run typecheck
-    - bun run test
-    - bun run check:architecture
-    - bun run check:generated
-    - bun run check:migration:complete
-    - bun run check:engine-locks
-    - bun run check:provider-catalog
-    - bun run check:extension-packages
-    - bun run check:timeline-exports
-    - bun run build
-    - bun run check:renderer-chunks
-    - bun run test:runtime:watch
-    - bun run test:runtime:hmr
-    - xvfb-run -a bun run test:runtime:hmr:electron
-    - xvfb-run -a bun scripts/run-electron-playwright.ts test
-    - bun run package
-    - bun run release:metadata
+    - pnpm run lint
+    - pnpm run format:check
+    - pnpm run typecheck
+    - pnpm run test
+    - pnpm run check:architecture
+    - pnpm run check:generated
+    - pnpm run check:migration:complete
+    - pnpm run check:engine-locks
+    - pnpm run check:provider-catalog
+    - pnpm run check:extension-packages
+    - pnpm run check:timeline-exports
+    - pnpm run build
+    - pnpm run check:renderer-chunks
+    - pnpm run test:runtime:watch
+    - pnpm run test:runtime:hmr
+    - xvfb-run -a pnpm run test:runtime:hmr:electron
+    - xvfb-run -a node scripts/run-electron-playwright.ts test
+    - pnpm run package
+    - pnpm run release:metadata
   artifacts:
     when: always
     paths:
@@ -218,33 +203,35 @@ desktop_macos_release:
     - macos
     - private
   before_script:
+    - corepack enable
+    - corepack prepare pnpm@11.28.5 --activate
     - git submodule update --init
     - cd desktop
-    - test "$(bun --version)" = "1.4.0"
+    - test "$(pnpm --version)" = "11.28.5"
     - test "$(node --version)" = "v24.18.0"
-    - bun run prepare:framework
-    - bun ci
-    - bun run build:framework
-    - bun run check:framework
+    - pnpm run prepare:framework
+    - pnpm ci
+    - pnpm run build:framework
+    - pnpm run check:framework
     - export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG}"
   script:
-    - bun run lint
-    - bun run format:check
-    - bun run test
-    - bun run check:architecture
-    - bun run check:generated
-    - bun run check:migration:complete
-    - bun run check:engine-locks
-    - bun run check:provider-catalog
-    - bun run check:extension-packages
-    - bun run check:timeline-exports
-    - bun run test:e2e
-    - bun run check:renderer-chunks
-    - bun run test:runtime:watch
-    - bun run test:runtime:hmr
-    - bun run test:runtime:hmr:electron
-    - bun run package
-    - bun run release:metadata
+    - pnpm run lint
+    - pnpm run format:check
+    - pnpm run test
+    - pnpm run check:architecture
+    - pnpm run check:generated
+    - pnpm run check:migration:complete
+    - pnpm run check:engine-locks
+    - pnpm run check:provider-catalog
+    - pnpm run check:extension-packages
+    - pnpm run check:timeline-exports
+    - pnpm run test:e2e
+    - pnpm run check:renderer-chunks
+    - pnpm run test:runtime:watch
+    - pnpm run test:runtime:hmr
+    - pnpm run test:runtime:hmr:electron
+    - pnpm run package
+    - pnpm run release:metadata
   artifacts:
     when: always
     paths:
@@ -259,33 +246,35 @@ desktop_windows_release:
     - windows
     - private
   before_script:
+    - corepack enable
+    - corepack prepare pnpm@11.28.5 --activate
     - git submodule update --init
     - Set-Location desktop
-    - if ((bun --version) -ne "1.4.0") { throw "Desktop requires Bun 1.4.0 exactly" }
+    - if ((pnpm --version) -ne "11.28.5") { throw "Desktop requires pnpm 11.28.5 exactly" }
     - if ((node --version) -ne "v24.18.0") { throw "Core Runtime requires Node 24.18.0 exactly" }
-    - bun run prepare:framework
-    - bun ci
-    - bun run build:framework
-    - bun run check:framework
+    - pnpm run prepare:framework
+    - pnpm ci
+    - pnpm run build:framework
+    - pnpm run check:framework
     - $env:DRAMAIP_UPDATE_URL = "$env:CI_SERVER_URL/api/v4/projects/$env:CI_PROJECT_ID/packages/generic/dramaip-desktop/$env:CI_COMMIT_TAG"
   script:
-    - bun run lint
-    - bun run format:check
-    - bun run test
-    - bun run check:architecture
-    - bun run check:generated
-    - bun run check:migration:complete
-    - bun run check:engine-locks
-    - bun run check:provider-catalog
-    - bun run check:extension-packages
-    - bun run check:timeline-exports
-    - bun run test:e2e
-    - bun run check:renderer-chunks
-    - bun run test:runtime:watch
-    - bun run test:runtime:hmr
-    - bun run test:runtime:hmr:electron
-    - bun run package
-    - bun run release:metadata
+    - pnpm run lint
+    - pnpm run format:check
+    - pnpm run test
+    - pnpm run check:architecture
+    - pnpm run check:generated
+    - pnpm run check:migration:complete
+    - pnpm run check:engine-locks
+    - pnpm run check:provider-catalog
+    - pnpm run check:extension-packages
+    - pnpm run check:timeline-exports
+    - pnpm run test:e2e
+    - pnpm run check:renderer-chunks
+    - pnpm run test:runtime:watch
+    - pnpm run test:runtime:hmr
+    - pnpm run test:runtime:hmr:electron
+    - pnpm run package
+    - pnpm run release:metadata
   artifacts:
     when: always
     paths:

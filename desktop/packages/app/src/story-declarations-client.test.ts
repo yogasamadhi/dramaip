@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import type { StoryDeclaration } from "@dramaip/contracts/knowledge";
 
@@ -114,7 +114,9 @@ test("source lifecycle SDK writes exact original CAS and explicit reviews, keeps
   ).toEqual(withdrawn);
   expect(calls).toHaveLength(1);
   expect(calls[0]!.method).toBe("POST");
-  expect(calls[0]!.url).toEndWith(`/story-declarations/${id}/withdraw`);
+  expect(calls[0]!.url.endsWith(`/story-declarations/${id}/withdraw`)).toBe(
+    true,
+  );
   expect(calls[0]!.headers.get("If-Match")).toBe(active.etag);
   expect(await calls[0]!.json()).toEqual(retirement);
   const next: StoryDeclaration = {
@@ -345,9 +347,9 @@ test("declaration SDK restores exact original project/ID and rejects forged basi
   });
   expect(calls).toHaveLength(1);
   expect(calls[0]!.method).toBe("GET");
-  expect(calls[0]!.url).toEndWith(
-    `/projects/${projectId}/story-declarations/${id}`,
-  );
+  expect(
+    calls[0]!.url.endsWith(`/projects/${projectId}/story-declarations/${id}`),
+  ).toBe(true);
   for (const changed of [
     { ...original, id: other },
     { ...original, projectId: other },
@@ -390,7 +392,7 @@ test("declaration SDK writes one candidate then explicitly adopts exact original
   expect(calls.map((call) => call.method)).toEqual(["POST", "POST"]);
   expect(calls[0]!.headers.get("Idempotency-Key")).toBe("candidate-key");
   expect(await calls[0]!.json()).toEqual(original.input);
-  expect(calls[1]!.url).toEndWith(`/story-declarations/${id}/adopt`);
+  expect(calls[1]!.url.endsWith(`/story-declarations/${id}/adopt`)).toBe(true);
   expect(calls[1]!.headers.get("If-Match")).toBe(original.etag);
   expect(calls[1]!.headers.get("Idempotency-Key")).toBe("adoption-key");
   expect(await calls[1]!.json()).toEqual(adoption);

@@ -9,7 +9,7 @@ const runtime = {
   runtimeVersion: "3.0.0-alpha.3",
   apiVersion: "2",
   pluginApiVersion: "1",
-  runtimeKind: "bun",
+  runtimeKind: "node",
   mode: "headless",
   profile: "safe",
   bundles: ["core"],

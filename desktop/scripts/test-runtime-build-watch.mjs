@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { desktopRoot } from "./dsh-framework.mjs";
 
-if (process.versions.bun !== "1.4.0")
-  throw new Error("Build watcher tests require Bun 1.4.0");
+if (process.versions.node !== "24.18.0" || process.versions.bun)
+  throw new Error("Build watcher tests require Node 24.18.0");
 const output = await mkdtemp(join(tmpdir(), "dramaip-runtime-watch-"));
 const name = `cordis_watch_probe_${randomUUID().replaceAll("-", "")}`;
 const source = join(desktopRoot, "plugins/system/src", `${name}.ts`);

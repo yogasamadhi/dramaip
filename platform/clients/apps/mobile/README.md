@@ -37,8 +37,8 @@ The repository launcher wires the mobile app to the Java Gateway and the rest
 of the clients:
 
 ```bash
-bun run run-platform-clients.ts            # web + admin + mobile Metro
-bun run run-platform-clients.ts --mobile-target ios|android
+pnpm run run-platform-clients.ts            # web + admin + mobile Metro
+pnpm run run-platform-clients.ts --mobile-target ios|android
 ```
 
 Metro listens on **3011** (avoids the 8081 collision with the local Java
@@ -48,7 +48,7 @@ the same Wi-Fi.
 To run the mobile app alone from the workspace root (`clients/`):
 
 ```bash
-bun run --filter @dramaip/mobile start
+pnpm --filter @dramaip/mobile run start
 ```
 
 Then open the printed URL in the **Expo Go** app, or press `i` / `a` for the
@@ -87,4 +87,4 @@ npx gluestack-ui@latest add --all
 
 `src/mobile-session.ts` declares the public HTTP contract
 (`X-DramaIP-Contract-Version: 2`) and parses responses through
-`@dramaip/sdk/contracts`, satisfying `bun run contracts:check`.
+`@dramaip/sdk/contracts`, satisfying `pnpm run contracts:check`.

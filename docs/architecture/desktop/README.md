@@ -22,7 +22,7 @@
 | 范围          | 当前选择                                                                                                 |
 | ------------- | -------------------------------------------------------------------------------------------------------- |
 | 第一方插件    | 14 个插件使用锁定 DSH Cordis 的 `Context / Service / inject / effect / Fiber`；Kernel 校验产品契约和贡献 |
-| 源码与构建    | DSH vendor 只读；九个框架包生成到 `desktop/build/dsh-framework/`，由 Bun 1.4.0 安装、构建和校验          |
+| 源码与构建    | DSH vendor 只读；九个框架包生成到 `desktop/build/dsh-framework/`，由 pnpm 11.28.5 安装、构建和校验          |
 | Core 执行环境 | 独立运行、迁移 Worker、Runtime 测试使用 Node 24.18.0；桌面 Core 使用 Electron 内嵌 Node                  |
 | 装配          | 空根配置 → 六个 Bundle patch → Profile patch；五个 Profile JSON 只选择 Bundle                            |
 | 开发重载      | DSH Loader/Include/Group、Timer/HMR；请求暂停与排空、贡献暂存、图校验后原子发布，失败恢复上一成功构建    |

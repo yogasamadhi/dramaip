@@ -8,8 +8,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "bun --bun run tsc --noEmit",
-    "test": "bun test"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dramaip/agent-runtime": "workspace:*",

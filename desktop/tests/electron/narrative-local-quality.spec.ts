@@ -93,7 +93,7 @@ test("独立本地人工／规则质量：无模型、丢回复原请求后台�
   };
   const allocations = () => {
     const result = spawnSync(
-      "bun",
+      "node",
       [
         "scripts/run-node.mjs",
         "--input-type=module",

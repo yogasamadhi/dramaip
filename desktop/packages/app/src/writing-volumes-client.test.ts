@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createStudioClient } from "@dramaip/client";
 import type { WritingVolumeAssignmentInput } from "@dramaip/contracts/writing";
 const id = (n: number) =>
@@ -62,9 +62,9 @@ test("卷 SDK 原键创建和完整明确批量归属，不逐章调用或替换
     await assigned.sdk.assign(id(1), input, "original-membership-key"),
   ).toEqual(receipt);
   expect(assigned.calls).toHaveLength(1);
-  expect(assigned.calls[0]!.url).toEndWith(
-    `/projects/${id(1)}/volume-memberships`,
-  );
+  expect(
+    assigned.calls[0]!.url.endsWith(`/projects/${id(1)}/volume-memberships`),
+  ).toBe(true);
   expect(JSON.parse(await assigned.calls[0]!.text())).toEqual(input);
 });
 test("卷 SDK 拒绝异项目、错误原输入、错误结果版本和创建回执", async () => {
@@ -104,7 +104,7 @@ test("卷 SDK 拒绝异项目、错误原输入、错误结果版本和创建回
 test("卷 SDK 读取验证分页和归属，拒绝不完整或失败响应", async () => {
   const current = client({ items: [volume], nextCursor: "0" });
   expect((await current.sdk.list(id(1), { limit: 1 })).items).toEqual([volume]);
-  expect(current.calls[0]!.url).toEndWith("/volumes?limit=1");
+  expect(current.calls[0]!.url.endsWith("/volumes?limit=1")).toBe(true);
   for (const raw of [
     { items: [{ ...volume, projectId: id(9) }] },
     { items: [volume, volume] },

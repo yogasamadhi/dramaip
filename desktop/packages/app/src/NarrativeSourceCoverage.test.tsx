@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NarrativeSourceBasisSchema } from "@dramaip/contracts/creation";
 import { NarrativeSourceCoverage } from "./features/NarrativeSourceCoverage";

@@ -132,12 +132,12 @@ Platform 发布入口是 `platform/deploy/release/preflight.sh` 与 `platform/de
 
 ## 本地验证
 
-Desktop（要求 Bun 1.4.0）：
+Desktop（要求 pnpm 11.28.5）：
 
 ```bash
 cd desktop
-bun run test
-bun run test:e2e
+pnpm run test
+pnpm run test:e2e
 ```
 
 Platform：

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import {
   mkdtemp,
@@ -434,7 +434,7 @@ test("audio and visual descriptors stage full private snapshots by MIME, reject 
     new AbortController().signal,
   );
   expect(paths.size).toBe(2);
-  expect(paths.get(mediaRef)).toEndWith(".input.wav");
+  expect(paths.get(mediaRef)!.endsWith(".input.wav")).toBe(true);
   expect(await readFile(paths.get(mediaRef)!)).toEqual(audioBytes);
   await writeFile(audioFile, Buffer.alloc(audioBytes.length, 8));
   expect(await readFile(paths.get(mediaRef)!)).toEqual(audioBytes);

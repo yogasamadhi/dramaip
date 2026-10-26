@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EpisodeConfirmedSourceTransitionSchema } from "@dramaip/contracts/production";
 import { ConfirmedSourceTransitionView } from "./features/production/ConfirmedSourceTransitionView";

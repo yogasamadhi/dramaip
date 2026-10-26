@@ -90,7 +90,7 @@ export const PluginDescriptorSchema = z.object({
 
 export type PluginDescriptor = z.infer<typeof PluginDescriptorSchema>;
 
-export const RuntimeKindSchema = z.enum(["electron-node", "node", "bun"]);
+export const RuntimeKindSchema = z.enum(["electron-node", "node"]);
 export type RuntimeKind = z.infer<typeof RuntimeKindSchema>;
 
 export const RuntimeModeSchema = z.enum(["desktop", "server", "headless"]);

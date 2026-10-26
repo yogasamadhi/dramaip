@@ -641,22 +641,22 @@ function comparisonPair() {
   return [before, after];
 }
 
-test("离线评测回归接入原正常测试链，保留原类型／Main／App／Runtime／conformance且不用Bun运行Node测试", async () => {
+test("离线评测回归接入原正常测试链，保留原类型／Main／App／Runtime／conformance且不用pnpm运行Node测试", async () => {
   const { scripts } = JSON.parse(
     await readFile(new URL("../../package.json", import.meta.url), "utf8"),
   );
-  assert.equal(scripts.test, "bun run typecheck && bun run test:unit");
+  assert.equal(scripts.test, "pnpm run typecheck && pnpm run test:unit");
   assert.equal(
     scripts["test:product-evaluation"],
-    "bun scripts/run-node.mjs --test scripts/tests/product-evaluation.test.mjs",
+    "node scripts/run-node.mjs --test scripts/tests/product-evaluation.test.mjs",
   );
   assert.equal(
     scripts["test:unit"],
-    "bun run test:product-evaluation && bun run test:release-candidate && bun run test:release-metadata && bun run test:nle-copy && bun test --cwd apps/desktop/electron && bun test --cwd packages/app && bun run test:runtime && bun run test:conformance",
+    "pnpm run test:product-evaluation && pnpm run test:release-candidate && pnpm run test:release-metadata && pnpm run test:nle-copy && pnpm run test:electron && pnpm run test:app && pnpm run test:runtime && pnpm run test:conformance",
   );
   assert.equal(
     scripts["test:nle-copy"],
-    "bun scripts/run-node.mjs --import tsx --test apps/desktop/electron/host/nle-copy.integration.ts apps/desktop/electron/host/nle-copy-supervisor.integration.ts",
+    "node scripts/run-node.mjs --import tsx --test apps/desktop/electron/host/nle-copy.integration.ts apps/desktop/electron/host/nle-copy-supervisor.integration.ts",
   );
   for (const name of ["format", "format:check"])
     for (const path of [
