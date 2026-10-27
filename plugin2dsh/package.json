@@ -1,7 +1,7 @@
 {
   "name": "dramaip-dsh-plugin",
-  "description": "DramaIP as a third-party DeepSeek Harness plugin: a story text statistics Agent tool and a sidebar panel",
-  "version": "0.1.0",
+  "description": "Local-first story writing, revisions and author-approved AI proposals inside DSH Desktop",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
@@ -12,10 +12,10 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/host/**/*.js",
-    "lib/shared/**/*.js",
+    "lib/host/index.js",
     "lib/client.js",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "dsh": {
     "bundle": {
@@ -30,23 +30,33 @@
     }
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.2 <0.3.0",
+    "dsh": "0.2.1-rc.3",
     "node": ">=24"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.3"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.ts",
     "pack:plugin": "node scripts/build.mjs && corepack pnpm pack --pack-destination build",
-    "verify:temp-home": "node scripts/verify-temp-home.mjs"
+    "verify:temp-home": "node scripts/verify-temp-home.mjs",
+    "test:integration": "node scripts/verify-temp-home.mjs",
+    "test:ui": "node scripts/test-ui.mjs",
+    "format:check": "prettier --check src tests scripts package.json tsconfig*.json playwright.config.ts cordis.patch.yml .prettierrc.json README.md"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@types/node": "24.10.1",
     "@types/react": "18.3.27",
+    "diff": "8.0.3",
+    "dompurify": "3.4.17",
     "esbuild": "0.27.0",
-    "typescript": "5.9.3"
+    "marked": "16.4.1",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3",
+    "zod": "4.6.7"
   }
 }

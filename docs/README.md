@@ -66,32 +66,13 @@
 
 ## Desktop 架构
 
-文档权威关系：
-
-```text
-DramaIP Target Architecture
-        │ defines technical target and red lines
-        ▼
-Desktop Current Architecture
-        │ describes implemented facts
-        ▼
-Architecture Roadmap
-        │ tracks gaps and delivery order
-        ▼
-Level 1 / 2 / 3
-        └── generic selection references
-```
+Desktop 采用通用的[基于 DSH 的应用架构](./architecture/desktop/DESKTOP_ARCHITECTURE_BASELINE.md)：完全采用 [DeepSeek Harness 架构](../vendor/deepseek-harness/docs/architecture.zh.md)，直接复用 DSH 的 Cordis 框架与基础设施组件，Engine 以插件接入。
 
 - [Desktop 架构文档目录](./architecture/desktop/README.md)
-- [DramaIP Client / Plugin Runtime 目标架构](./architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)
+- 三个层级：[Level 1 小型项目](./architecture/desktop/DESKTOP_ARCHITECTURE_LEVEL1_SMALL_FINAL.md)、[Level 2 大型封闭项目](./architecture/desktop/DESKTOP_ARCHITECTURE_LEVEL2_LARGE_CLOSED_FINAL.md)、[Level 3 大型开放项目](./architecture/desktop/DESKTOP_ARCHITECTURE_LEVEL3_LARGE_OPEN_FINAL.md)
 - [DramaIP Desktop 当前实现](../desktop/docs/engineering/ARCHITECTURE.md)
-- [DramaIP Desktop 架构路线图](./architecture/desktop/DESKTOP_ARCHITECTURE_ROADMAP.md)
-- [通用桌面架构基线](./architecture/desktop/DESKTOP_ARCHITECTURE_BASELINE.md)
-- [Level 1：小型项目](./architecture/desktop/DESKTOP_ARCHITECTURE_LEVEL1_SMALL_FINAL.md)
-- [Level 2：大型封闭项目](./architecture/desktop/DESKTOP_ARCHITECTURE_LEVEL2_LARGE_CLOSED_FINAL.md)
-- [Level 3：大型开放项目](./architecture/desktop/DESKTOP_ARCHITECTURE_LEVEL3_LARGE_OPEN_FINAL.md)
 
-实现决策以 DramaIP 目标架构为准；判断当前代码能力时以 Desktop 当前实现说明和代码为准。Level 文档用于选择通用复杂度，不表示质量排名。
+设计决策以该架构文档为准；判断当前代码能力时以 Desktop 当前实现说明和代码为准。
 
 ## Platform
 

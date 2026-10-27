@@ -31,8 +31,10 @@ export function textStats(text: string): TextStats {
   const characters = normalized.replace(/\s/gu, '').length
   const cjkCharacters = normalized.match(CJK)?.length ?? 0
   const latinWords = normalized.match(LATIN_WORD)?.length ?? 0
-  const paragraphs = normalized.split(/\n\s*\n/u).filter(block => block.trim() !== '').length
-  const dialogueLines = normalized.split('\n').filter(line => line.trim() !== '' && DIALOGUE.test(line)).length
+  const paragraphs = normalized.split(/\n\s*\n/u).filter((block) => block.trim() !== '').length
+  const dialogueLines = normalized
+    .split('\n')
+    .filter((line) => line.trim() !== '' && DIALOGUE.test(line)).length
   const minutes = cjkCharacters / CJK_PER_MINUTE + latinWords / LATIN_PER_MINUTE
   return {
     characters,

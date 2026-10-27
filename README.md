@@ -121,7 +121,7 @@ A07.6.6 已按 PLAN 22.120 的五类规划准确来源冲突范围 done：原已
 
 - [品牌与文案规范](./docs/product/BRAND.md)
 - [产品定位](./docs/product/POSITIONING.md)
-- [Desktop Client / Plugin Runtime 目标架构](./docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md)
+- [基于 DSH 的应用架构](./docs/architecture/desktop/DESKTOP_ARCHITECTURE_BASELINE.md)
 - [Desktop 当前实现](./desktop/docs/engineering/ARCHITECTURE.md)
 - [Platform 后端技术架构](./docs/后端技术架构.md)
 - [产品路线图](./docs/product/ROADMAP.md)

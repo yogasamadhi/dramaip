@@ -1,41 +1,38 @@
 # Desktop 架构文档
 
-本目录集中维护通用 Desktop 分级架构、DramaIP Desktop 目标规范和实施路线。
+本目录定义一套通用应用架构：完全参照 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 的架构，直接复用 DSH 的 Cordis 框架包，按 DSH 组件的设计编写应用自己的基础设施组件，构建自己的桌面、Web 与无界面应用。它不针对具体产品；产品的业务域、品牌和定位由各应用自己的文档定义。
 
-产品市场定位、用户与业务边界由[产品定位](../../product/POSITIONING.md)统一定义；本目录只定义支撑这些目标的技术架构，不将路线能力写成当前已实现功能。
+## 文档
 
-2026-09-30 业务口径校准：架构同时支撑独立小说创作/稿件交付与改编剧本/试制交付，作者意图、连续性、版本和来源贯穿两路。媒体与云能力保持可选，不能成为小说闭环的硬依赖；这次校准不改变以下架构版本、历史状态日期或测试证据。
+- [基于 DSH 的应用架构](./DESKTOP_ARCHITECTURE_BASELINE.md)：最高优先级规范，覆盖分层、复用的 Cordis 框架包与基础设施组件、Cordis 插件、Profile 与组合包、应用启动、桌面应用、Web 应用、能力 seam、数据、Engine 插件、外部插件、工具链与约定；三个层级共享这一基线。
+- [Level 1 小型项目](./DESKTOP_ARCHITECTURE_LEVEL1_SMALL_FINAL.md)：一个应用插件按 Application / Domain / Adapter 分层，随包 Engine，不开放安装。
+- [Level 2 大型封闭项目](./DESKTOP_ARCHITECTURE_LEVEL2_LARGE_CLOSED_FINAL.md)：按业务域拆分的第一方插件、组合包与多个 Profile，不开放安装。
+- [Level 3 大型开放项目](./DESKTOP_ARCHITECTURE_LEVEL3_LARGE_OPEN_FINAL.md)：Level 2 加上插件管理器与插件市场，用户可安装同进程运行的外部插件与 Engine。
 
-本次同步日期：2026-09-10。规范描述设计约束；当前状态按工作区代码核对，已执行的迁移验收记录日期为 2026-09-07，不代表本次重新执行了全量测试或正式发布。
+层级只增减组合粒度与开放能力，不是质量排名；按真实需求选择，详见基线 §1.4。
 
-## 阅读顺序
+## DSH 参照
 
-1. [通用桌面架构基线](./DESKTOP_ARCHITECTURE_BASELINE.md)
-2. 按产品复杂度选择 [Level 1](./DESKTOP_ARCHITECTURE_LEVEL1_SMALL_FINAL.md)、[Level 2](./DESKTOP_ARCHITECTURE_LEVEL2_LARGE_CLOSED_FINAL.md) 或 [Level 3](./DESKTOP_ARCHITECTURE_LEVEL3_LARGE_OPEN_FINAL.md)
-3. DramaIP 实现以 [DramaIP Client / Plugin Runtime 目标架构](./DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md) 为最高优先级规范
-4. 通过 [Desktop Architecture Roadmap](./DESKTOP_ARCHITECTURE_ROADMAP.md) 跟踪当前差距和实施顺序
+本目录未覆盖的设计问题，以 DSH 对应文档与源码的做法为设计参照。下表路径相对于 DSH 仓库根目录：
 
-当前代码已经实现的事实仍记录在 [desktop/docs/engineering/ARCHITECTURE.md](../../../desktop/docs/engineering/ARCHITECTURE.md)，避免把目标、计划和现状混写在同一份文档中。
+| 主题           | DSH 路径                                    |
+| -------------- | ------------------------------------------- |
+| 总体架构       | `docs/architecture.zh.md`                   |
+| Cordis         | `docs/cordis-primer.zh.md`                  |
+| 桌面应用       | `apps/desktop/README.zh.md`                 |
+| HTTP 载体      | `docs/subsystems/web-server.zh.md`          |
+| 浏览器客户端   | `docs/subsystems/web-client.zh.md`          |
+| 客户端模块     | `docs/subsystems/client-modules.zh.md`      |
+| Remote 网关    | `docs/api-gateway.zh.md`                    |
+| 样式           | `docs/web-styling.zh.md`                    |
+| 存储           | `docs/subsystems/storage.zh.md`             |
+| Session 持久化 | `docs/subsystems/persistence.zh.md`         |
+| 凭据           | `docs/subsystems/credentials.zh.md`         |
+| 子进程         | `docs/subsystems/subprocess.zh.md`          |
+| 插件管理       | `packages/boot/plugin-manager/README.zh.md` |
+| 启动与 Profile | `packages/boot/app-boot/README.zh.md`       |
+| Agent 栈       | `docs/subsystems/core.zh.md`                |
 
-## DramaIP 当前架构选择
+DSH 源码以锁定快照引入项目，推荐放在只读的 `vendor/deepseek-harness/`，并以锁文件记录仓库、版本与源码哈希。应用只直接依赖其中的 Cordis 框架包，不依赖 `dsh-*` 组件包、DSH 组合包、`dsh` CLI 包与 `apps/*`。DSH 以 MIT 许可发布：基础设施组件、启动器、壳与 Host 可以从 DSH 源码复制改写，需保留版权与许可声明并去掉 DSH 的产品内容（见基线 §1.3）。
 
-| 范围          | 当前选择                                                                                                 |
-| ------------- | -------------------------------------------------------------------------------------------------------- |
-| 第一方插件    | 14 个插件使用锁定 DSH Cordis 的 `Context / Service / inject / effect / Fiber`；Kernel 校验产品契约和贡献 |
-| 源码与构建    | DSH vendor 只读；九个框架包生成到 `desktop/build/dsh-framework/`，由 pnpm 11.28.5 安装、构建和校验          |
-| Core 执行环境 | 独立运行、迁移 Worker、Runtime 测试使用 Node 24.18.0；桌面 Core 使用 Electron 内嵌 Node                  |
-| 装配          | 空根配置 → 六个 Bundle patch → Profile patch；五个 Profile JSON 只选择 Bundle                            |
-| 开发重载      | DSH Loader/Include/Group、Timer/HMR；请求暂停与排空、贡献暂存、图校验后原子发布，失败恢复上一成功构建    |
-| 生产运行      | 不监听第一方文件变化；Runtime 产物包含模块、配置和依赖，可在仓库外启动                                   |
-| 第三方扩展    | 独立 Extension Graph、每 revision 独立进程与 QuickJS/WASM；公开 SDK 不暴露 Cordis                        |
-
-Level 1 仍是无需插件框架的通用选择；Level 2 定义第一方组合与生命周期，Level 3 在此基础上增加扩展隔离。DramaIP 的源码来源、工具链和第一方 HMR 选择以产品规范为准。
-
-## 实施与验证入口
-
-- [DSH Cordis 迁移说明与验收记录](../../../desktop/docs/engineering/DSH_CORDIS_MIGRATION.md)：九包来源、安装顺序、原生生命周期、HMR 恢复和测试证据。
-- [Desktop 启动与构建说明](../../../desktop/README.md)：开发、独立 Runtime 和打包命令。
-- [Desktop 脚本清单](../../../desktop/package.json)：测试、生成和检查命令的权威入口。
-- [DSH 锁定快照](../../../vendor/deepseek-harness.lock.json)：来源版本、源码哈希与完整性约束。
-
-当前仍未完成正式跨平台 GA 验收：Windows/Linux 候选包验证、Apple 正式分发签名与公证等不能由本机 macOS 目录包测试替代。Isolated Interactive UI、远程发布者后台和多 Runtime 共享 SQLite 的 consumer lease 继续留在后续范围；本目录不为 Platform 增加构建或运行依赖。
+本目录的文档只互相链接，不链接所在仓库的其他位置，可以整体复制到其他项目作为架构文档。

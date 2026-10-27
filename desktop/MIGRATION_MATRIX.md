@@ -1,6 +1,6 @@
 # Desktop 3.0 alpha.3 功能迁移账本
 
-产品行为基线固定为只读的 `legacy/desktop`，技术实现以根目录 `docs/architecture/desktop/DRAMAIP_CLIENT_PLUGIN_RUNTIME_ARCHITECTURE.md` 为准。正式代码不得导入、运行或打包归档模块。
+产品行为基线固定为只读的 `legacy/desktop`，技术实现以根目录 `docs/architecture/desktop/DESKTOP_ARCHITECTURE_BASELINE.md` 为准。正式代码不得导入、运行或打包归档模块。
 
 机器可执行的权威账本是：
 

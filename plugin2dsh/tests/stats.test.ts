@@ -26,7 +26,12 @@ test('counts Latin words and estimates reading time', () => {
 test('empty and whitespace-only text measure zero', () => {
   for (const text of ['', ' \n\r\n\t']) {
     assert.deepEqual(textStats(text), {
-      characters: 0, cjkCharacters: 0, latinWords: 0, paragraphs: 0, dialogueLines: 0, readingMinutes: 0,
+      characters: 0,
+      cjkCharacters: 0,
+      latinWords: 0,
+      paragraphs: 0,
+      dialogueLines: 0,
+      readingMinutes: 0,
     })
   }
 })
