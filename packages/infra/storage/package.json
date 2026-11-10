@@ -1,0 +1,28 @@
+{
+  "name": "@dramaip/infra-storage",
+  "description": "Storage hub (ctx.storage): named backend registry plus mounted data-form facilities",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/storage/storage",
+      "package": "@deepseek-ai/dsh-storage",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

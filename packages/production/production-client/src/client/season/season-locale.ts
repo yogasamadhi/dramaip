@@ -1,0 +1,228 @@
+/** Copy of the season plan tool. */
+export const seasonZh = {
+  "season.label": "整季方案工作台",
+  "season.navigation":
+    "指定季纲或工作流不存在、归属／关联操作不符；不会改读最新方案或上次重排选择。",
+  "season.next": "从已采用季纲继续单集大纲与标准剧本 →",
+  "season.basis.title": "确认整季方案基准",
+  "season.basis.description":
+    "继承当前采用诊断、唯一策略、作者意图与实际表达，不扩大局部覆盖。混合诊断不补整章原文，摘要／片段不是全文阅读。旧导入占位不代表正式季纲；不会自动生成剧本、分镜或媒体。",
+  "season.basis.diagnosis": "当前诊断：{diagnosis} · ",
+  "season.basis.diagnosis.version": "v{version} · 策略 {strategy}",
+  "season.basis.diagnosis.none": "尚无来源有效的采用诊断",
+  "season.basis.check": "核对诊断与策略",
+  "season.basis.independent":
+    "本轮须明确冻结独立策略版本；旧诊断内策略不代替它。",
+  "season.basis.legacy": "旧诊断内已选策略为旧版流程，不冒充独立策略。",
+  "season.basis.strategy": "核对独立改编策略",
+  "season.basis.confirm": "确认本轮季纲基准",
+  "season.basis.required": "请先采用来源仍有效的诊断与一个策略。",
+  "season.basis.owner": "季纲来源项目归属不符。",
+  "season.basis.frozen":
+    "本轮已确认诊断 v{version} · {strategy}。后续来源变化不会自动重绑，生成时会重新核对。",
+  "season.basis.failed": "来源读取失败：{message}",
+  "season.result": "整季分集方案",
+  "season.instruction":
+    "遵守已采用诊断、唯一策略和作者意图，为已读来源生成完整目标集数方案，解释删减并保持因果与人物推进。",
+  "season.history.owner": "历史归属或完整分页无法核对。",
+  "season.history.cursor": "季纲历史游标重复，尚未核全。",
+  "season.lineage.workflow": "原季纲工作流归属无法核对。",
+  "season.lineage.chain": "人工季纲重排的原记录链无法核对。",
+  "season.lineage.parent": "人工季纲重排的原来源归属或冻结内容不符。",
+  "season.lineage.model": "原模型季纲的完整冻结来源无法核对。",
+  "season.current.title": "当前正式方案与历史",
+  "season.current": "当前：{current}",
+  "season.current.version": "v{version}",
+  "season.current.stale": "v{version}（来源已变化）",
+  "season.current.none": "尚未采用",
+  "season.history.item": "方案 v{version} · {origin} · {status}",
+  "season.origin.model": "AI 草稿",
+  "season.origin.human-reorder": "人工重排",
+  "season.status.pending": "待采用",
+  "season.status.adopted": "已采用",
+  "season.status.discarded": "已放弃",
+  "season.status.conflicted": "冲突",
+  "season.plan.label": "整季方案 v{version}",
+  "season.plan.title": "方案 v{version} · {theme}",
+  "season.plan.basis":
+    "诊断 v{diagnosis} / {strategy} · 作者意图 v{intent} · {scope} · {episodes} 集 × {duration} 秒",
+  "season.plan.scope.whole-book": "全书确认范围",
+  "season.plan.scope.selected-chapters": "局部确认范围",
+  "season.plan.coverage": "季纲继承的实际来源表达",
+  "season.plan.conflict": "主要冲突：{conflict}；情绪承诺：{promise}",
+  "season.plan.stale": "来源已变化，不能采用或重排：{reasons}",
+  "season.sources.label": "季纲来源覆盖",
+  "season.sources.title": "真实来源覆盖（不是模型自报百分比）",
+  "season.sources.item": "{title} v{version}：{disposition}",
+  "season.sources.omitted": "明确删减：{reason}",
+  "season.sources.unaccounted": "未说明遗漏",
+  "season.sources.unread": "诊断未读：{count} 章，不计入已覆盖。{chapters}",
+  "season.sources.chapter": "{title} v{version}",
+  "season.order.label": "完整分集顺序",
+  "season.order.title": "完整分集顺序",
+  "season.episode.label": "分集 {id}",
+  "season.episode.title": "{index}. {title}",
+  "season.episode.up.label": "上移 {id}",
+  "season.episode.up": "上移",
+  "season.episode.down.label": "下移 {id}",
+  "season.episode.down": "下移",
+  "season.episode.goal": "目标：{goal}；冲突：{conflict}",
+  "season.episode.turn": "转折：{turn}；结尾钩子：{hook}",
+  "season.episode.progress": "人物推进：{progress}",
+  "season.episode.progress.item": "{character}：{before} → {after}；{change}",
+  "season.episode.foreshadowing": "埋设伏笔：{planted}；回收：{paid}",
+  "season.episode.none": "无",
+  "season.episode.production":
+    "预计 {scenes} 场 / {characters} 角色 · 制作风险：{risk}。{notes}",
+  "season.episode.sources": "来源动作：{sources}",
+  "season.episode.source": "{title} v{version}：{rationale}",
+  "season.risk.low": "低",
+  "season.risk.medium": "中",
+  "season.risk.high": "高",
+  "season.risk.unknown": "尚未验证",
+  "season.separator": "；",
+  "season.list.separator": "、",
+  "season.reorder": "保存重排为新草稿",
+  "season.reorder.unsaved":
+    "当前只是未保存顺序草稿；保存新草稿后还须明确采用。原版本不变。",
+  "season.risks":
+    "方案风险：{risks}。权利为作者声明，不替代授权证明；不虚构费用。",
+  "season.risks.none": "仍需叙事与制作验证",
+  "season.adopt": "采用这个整季方案",
+  "season.discard": "放弃这个季纲草稿",
+  "season.cancel": "取消",
+  "season.close": "关闭",
+  "season.adopt.title": "采用这个整季方案？",
+  "season.adopt.description":
+    "核对实际来源覆盖、完整分集顺序与风险。替换当前方案，保留旧版本；不会自动生成剧本或媒体。",
+  "season.adopt.accept": "明确采用方案",
+  "season.reorder.title": "保存重排为新草稿？",
+  "season.reorder.description":
+    "保留分集标识与全部内容，保存独立新版本；原方案不变，仍需明确采用。",
+  "season.reorder.accept": "保存新草稿",
+  "season.discard.title": "放弃这个季纲草稿？",
+  "season.discard.description":
+    "仅处理此 AI 草稿，保留原稿、当前正式方案和其他顺序 AI 草稿。",
+  "season.discard.accept": "明确放弃",
+};
+
+/** English copy, key for key. */
+export const seasonEn: Record<keyof typeof seasonZh, string> = {
+  "season.label": "Season plan workbench",
+  "season.navigation":
+    "The season plan or run the link names does not exist, belongs elsewhere or is another operation; the latest plan and the last reorder are not used instead.",
+  "season.next":
+    "Continue episode outlines and standard scripts from the adopted plan →",
+  "season.basis.title": "Confirm the season plan basis",
+  "season.basis.description":
+    "Inherits the adopted diagnosis, its one strategy, the author intent and the expressions actually read, without widening a partial scope. A mixed diagnosis does not add whole chapters; summaries and excerpts are not a full read. An old import placeholder is not a formal season plan; no scripts, storyboards or media are generated.",
+  "season.basis.diagnosis": "Current diagnosis: {diagnosis} · ",
+  "season.basis.diagnosis.version": "v{version} · strategy {strategy}",
+  "season.basis.diagnosis.none": "no adopted diagnosis with current sources",
+  "season.basis.check": "Check the diagnosis and strategy",
+  "season.basis.independent":
+    "This round must freeze an independent strategy version; a strategy inside the diagnosis does not stand in for it.",
+  "season.basis.legacy":
+    "The strategy chosen inside the diagnosis is the older flow and does not pose as an independent strategy.",
+  "season.basis.strategy": "Check the independent adaptation strategy",
+  "season.basis.confirm": "Confirm this season plan basis",
+  "season.basis.required":
+    "Adopt a diagnosis with current sources and one strategy first.",
+  "season.basis.owner": "The season plan sources belong to another project.",
+  "season.basis.frozen":
+    "Confirmed diagnosis v{version} · {strategy} for this round. Later source changes are not rebound on their own; generation checks them again.",
+  "season.basis.failed": "The sources could not be read: {message}",
+  "season.result": "Season episode plan",
+  "season.instruction":
+    "Follow the adopted diagnosis, its one strategy and the author intent; plan every target episode from the sources read, explain cuts and keep cause and character progression.",
+  "season.history.owner":
+    "The history's project or its complete pages could not be checked.",
+  "season.history.cursor":
+    "The season plan history repeated a cursor; it is not complete.",
+  "season.lineage.workflow":
+    "The original season plan run could not be checked.",
+  "season.lineage.chain":
+    "The record chain of a human reorder could not be checked.",
+  "season.lineage.parent":
+    "The sources or frozen content of a human reorder do not match its original.",
+  "season.lineage.model":
+    "The complete frozen sources of the original model plan could not be checked.",
+  "season.current.title": "Adopted plan and history",
+  "season.current": "Current: {current}",
+  "season.current.version": "v{version}",
+  "season.current.stale": "v{version} (sources changed)",
+  "season.current.none": "not adopted yet",
+  "season.history.item": "Plan v{version} · {origin} · {status}",
+  "season.origin.model": "AI draft",
+  "season.origin.human-reorder": "human reorder",
+  "season.status.pending": "awaiting adoption",
+  "season.status.adopted": "adopted",
+  "season.status.discarded": "discarded",
+  "season.status.conflicted": "conflict",
+  "season.plan.label": "Season plan v{version}",
+  "season.plan.title": "Plan v{version} · {theme}",
+  "season.plan.basis":
+    "Diagnosis v{diagnosis} / {strategy} · author intent v{intent} · {scope} · {episodes} episodes × {duration} s",
+  "season.plan.scope.whole-book": "whole confirmed book",
+  "season.plan.scope.selected-chapters": "partial confirmed scope",
+  "season.plan.coverage": "Expressions the season plan inherits",
+  "season.plan.conflict":
+    "Main conflict: {conflict}; emotional promise: {promise}",
+  "season.plan.stale":
+    "Sources changed; it cannot be adopted or reordered: {reasons}",
+  "season.sources.label": "Season plan source coverage",
+  "season.sources.title":
+    "Actual source coverage (not a model-reported percentage)",
+  "season.sources.item": "{title} v{version}: {disposition}",
+  "season.sources.omitted": "explicitly cut: {reason}",
+  "season.sources.unaccounted": "omission not explained",
+  "season.sources.unread":
+    "Not read by the diagnosis: {count} chapters, not counted as covered. {chapters}",
+  "season.sources.chapter": "{title} v{version}",
+  "season.order.label": "Complete episode order",
+  "season.order.title": "Complete episode order",
+  "season.episode.label": "Episode {id}",
+  "season.episode.title": "{index}. {title}",
+  "season.episode.up.label": "Move up {id}",
+  "season.episode.up": "Up",
+  "season.episode.down.label": "Move down {id}",
+  "season.episode.down": "Down",
+  "season.episode.goal": "Goal: {goal}; conflict: {conflict}",
+  "season.episode.turn": "Turn: {turn}; ending hook: {hook}",
+  "season.episode.progress": "Character progression: {progress}",
+  "season.episode.progress.item": "{character}: {before} → {after}; {change}",
+  "season.episode.foreshadowing": "Planted: {planted}; paid off: {paid}",
+  "season.episode.none": "none",
+  "season.episode.production":
+    "About {scenes} scenes / {characters} characters · production risk: {risk}. {notes}",
+  "season.episode.sources": "Source actions: {sources}",
+  "season.episode.source": "{title} v{version}: {rationale}",
+  "season.risk.low": "low",
+  "season.risk.medium": "medium",
+  "season.risk.high": "high",
+  "season.risk.unknown": "not verified",
+  "season.separator": "; ",
+  "season.list.separator": ", ",
+  "season.reorder": "Save the reorder as a new draft",
+  "season.reorder.unsaved":
+    "This order is not saved yet; after saving a new draft it still needs adopting. The original version is unchanged.",
+  "season.risks":
+    "Plan risks: {risks}. Rights are the author's declaration, not a licence; no costs are invented.",
+  "season.risks.none": "narrative and production checks still needed",
+  "season.adopt": "Adopt this season plan",
+  "season.discard": "Discard this season plan draft",
+  "season.cancel": "Cancel",
+  "season.close": "Close",
+  "season.adopt.title": "Adopt this season plan?",
+  "season.adopt.description":
+    "Check the actual source coverage, the complete episode order and the risks. It replaces the current plan and keeps the old version; no scripts or media are generated.",
+  "season.adopt.accept": "Adopt the plan",
+  "season.reorder.title": "Save the reorder as a new draft?",
+  "season.reorder.description":
+    "Keeps every episode identity and its content in a separate new version; the original plan is unchanged and still needs adopting.",
+  "season.reorder.accept": "Save the new draft",
+  "season.discard.title": "Discard this season plan draft?",
+  "season.discard.description":
+    "Only this AI draft is handled; the manuscript, the adopted plan and other order drafts stay.",
+  "season.discard.accept": "Discard",
+};

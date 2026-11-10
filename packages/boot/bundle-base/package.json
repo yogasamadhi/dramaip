@@ -1,0 +1,37 @@
+{
+  "name": "@dramaip/boot-bundle-base",
+  "description": "Base patch layer: host infrastructure every DramaIP profile shares",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis-plugin-timer": "workspace:*",
+    "@dramaip/compat-runtime": "workspace:*",
+    "@dramaip/infra-config-editor": "workspace:*",
+    "@dramaip/infra-credentials-local": "workspace:*",
+    "@dramaip/infra-gateway": "workspace:*",
+    "@dramaip/infra-hmr": "workspace:*",
+    "@dramaip/infra-operations": "workspace:*",
+    "@dramaip/infra-remote-access": "workspace:*",
+    "@dramaip/infra-settings": "workspace:*",
+    "@dramaip/infra-storage": "workspace:*",
+    "@dramaip/infra-storage-domain": "workspace:*",
+    "@dramaip/infra-storage-relational": "workspace:*",
+    "@dramaip/infra-storage-sqlite": "workspace:*",
+    "@dramaip/infra-subprocess-local": "workspace:*",
+    "@dramaip/infra-typert-loader": "workspace:*",
+    "@dramaip/infra-typert-registry": "workspace:*",
+    "@dramaip/system-system": "workspace:*",
+    "@dramaip/workspace-workspace": "workspace:*"
+  }
+}

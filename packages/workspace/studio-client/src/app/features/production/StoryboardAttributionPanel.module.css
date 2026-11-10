@@ -1,0 +1,160 @@
+.c9,
+.c16 {
+  display: block;
+}
+
+.c6,
+.c12 {
+  display: flex;
+}
+
+.c10,
+.c16 {
+  width: 100%;
+}
+
+.c6 {
+  flex-wrap: wrap;
+}
+
+.c12 {
+  align-items: flex-start;
+}
+
+.c6,
+.c12 {
+  gap: 0.5rem;
+}
+
+:where(.c18 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c5 > :not(:last-child)),
+:where(.c11 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c8 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c1,
+.c5,
+.c16,
+.c17 {
+  border-radius: 0.25rem;
+}
+
+.c1,
+.c5,
+.c16,
+.c17 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c18 {
+  border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+}
+
+.c14 {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 2px;
+}
+
+.c1,
+.c5,
+.c14,
+.c16,
+.c17,
+.c18 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c16,
+.c17 {
+  padding: 0.5rem;
+}
+
+.c5 {
+  padding: 0.75rem;
+}
+
+.c1 {
+  padding: 1rem;
+}
+
+.c18 {
+  padding-top: 0.5rem;
+}
+
+.c14 {
+  padding-left: 0.75rem;
+}
+
+.c1 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c2 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c13 {
+  overflow-wrap: break-word;
+}
+
+.c7 {
+  word-break: break-all;
+}
+
+.c13,
+.c14,
+.c15 {
+  white-space: pre-wrap;
+}
+
+.c4 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c19 {
+  color: var(--dsw-alias-link);
+}
+
+.c3 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

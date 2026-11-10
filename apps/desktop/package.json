@@ -1,0 +1,37 @@
+{
+  "name": "@dramaip/desktop",
+  "version": "3.0.0-alpha.3",
+  "type": "module",
+  "private": true,
+  "description": "尽意 DramaIP——面向 AI 短剧与漫剧的本地优先 AI 编剧与 IP 改编工作台",
+  "author": "sdns",
+  "license": "Apache-2.0",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "pnpm run dev:raw",
+    "dev:raw": "node ../../scripts/dev-desktop.mjs",
+    "build": "pnpm --filter @dramaip/web run build && electron-vite build && pnpm run build:runtime",
+    "build:release": "node ../../scripts/build-release.mjs",
+    "preview": "electron-vite preview",
+    "build:pi": "node scripts/prepare-pi-runtime.mjs",
+    "verify:pi": "node scripts/verify-pi-runtime.mjs",
+    "package": "pnpm run build:release && electron-builder",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck": "pnpm run typecheck:node",
+    "build:runtime": "node ../../scripts/build-runtime.mjs && node ../../scripts/check-desktop-runtime.mjs"
+  },
+  "devDependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/desktop-host-process": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/host-shell-bridge": "workspace:*",
+    "@dramaip/runtime-adapters": "workspace:*",
+    "@dramaip/web": "workspace:*",
+    "@types/node": "^22.7.4",
+    "electron": "43.2.0",
+    "electron-builder": "^26.11.1",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.3"
+  }
+}

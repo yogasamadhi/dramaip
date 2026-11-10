@@ -1,0 +1,45 @@
+{
+  "name": "@dramaip/infra-subprocess-local",
+  "description": "Local-subprocess implementation of the subprocess seam",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./runner": "./src/bin.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./output": "./src/output.ts",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "scripts": {
+    "postinstall": "node scripts/ensure-spawn-helper.mjs"
+  },
+  "peerDependencies": {
+    "@dramaip/infra-subprocess": "workspace:*",
+    "@dramaip/infra-timeout": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-lazy-require": "workspace:*",
+    "@dramaip/infra-win32-process": "workspace:*",
+    "koffi": "3.1.1",
+    "node-pty": "1.2.0-beta.15"
+  },
+  "devDependencies": {
+    "@dramaip/infra-subprocess": "workspace:*",
+    "@dramaip/infra-timeout": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "execa": "^10.0.1",
+    "tsx": "4.22.4"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/subprocess/subprocess-local",
+      "package": "@deepseek-ai/dsh-subprocess-local",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

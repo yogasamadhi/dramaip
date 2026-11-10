@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entryPaths": ["inspiration", "source-import", "script-paste"],
+  "requiredEvidence": [
+    "fresh-profile-each-entry",
+    "restart-resume-each-entry",
+    "simple-assistant",
+    "advanced-assistant",
+    "five-candidate-review",
+    "pilot-plan",
+    "old-data",
+    "bad-file",
+    "no-provider",
+    "unknown-cost",
+    "interrupted-task",
+    "keyboard-1280"
+  ]
+}

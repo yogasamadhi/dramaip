@@ -1,0 +1,188 @@
+.c10,
+.c20 {
+  margin-top: 0.5rem;
+}
+
+.c15 {
+  margin-top: 1rem;
+}
+
+.c17 {
+  margin-left: 0.5rem;
+}
+
+.c16 {
+  display: block;
+}
+
+.c2,
+.c20 {
+  display: flex;
+}
+
+.c19 {
+  max-height: 24rem;
+}
+
+.c3,
+.c17 {
+  max-width: 100%;
+}
+
+.c9,
+.c14 {
+  cursor: pointer;
+}
+
+.c2,
+.c20 {
+  flex-wrap: wrap;
+}
+
+.c2,
+.c20 {
+  align-items: center;
+}
+
+.c2,
+.c20 {
+  gap: 0.5rem;
+}
+
+:where(.c18 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c5 > :not(:last-child)),
+:where(.c19 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c15 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c19 {
+  overflow: auto;
+}
+
+.c19 {
+  overscroll-behavior: contain;
+}
+
+.c1,
+.c5,
+.c20 {
+  border-radius: 0.25rem;
+}
+
+.c13 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c5,
+.c13,
+.c20 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c10 {
+  border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+}
+
+.c1,
+.c5,
+.c10,
+.c13,
+.c20 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c13 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c1,
+.c20 {
+  padding: 0.75rem;
+}
+
+.c5 {
+  padding: 1rem;
+}
+
+.c13 {
+  padding: 1.25rem;
+}
+
+.c10 {
+  padding-top: 0.5rem;
+}
+
+.c1,
+.c7,
+.c8,
+.c16,
+.c20 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c10,
+.c12 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c6,
+.c14 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c10,
+.c12 {
+  word-break: break-all;
+}
+
+.c8,
+.c11 {
+  white-space: pre-wrap;
+}
+
+.c4,
+.c7,
+.c12 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

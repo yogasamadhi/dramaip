@@ -1,0 +1,8 @@
+# DramaIP headless layer over bundle-base: one run, no listener, then exit.
+
+- id: hmr
+  disabled: true
+
+- insert:
+    - id: headless-runner
+      name: "@dramaip/boot-bundle-headless"

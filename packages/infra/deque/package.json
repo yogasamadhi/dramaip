@@ -1,0 +1,27 @@
+{
+  "name": "@dramaip/infra-deque",
+  "description": "Zero-dependency circular deque with amortized constant-time end operations and bounded vacant storage",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/util/deque",
+      "package": "@deepseek-ai/dsh-deque",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

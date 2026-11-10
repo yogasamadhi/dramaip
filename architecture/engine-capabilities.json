@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "pi",
+    "role": "embedded-default",
+    "name": "Pi",
+    "version": "1.5.0",
+    "capabilities": {
+      "prompt": true,
+      "streaming": true,
+      "steer": true,
+      "abort": true,
+      "resume": true,
+      "fork": true,
+      "compaction": true,
+      "readOnlyTools": true
+    }
+  }
+]

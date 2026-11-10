@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.client.json",
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/index.ts"
+  ]
+}

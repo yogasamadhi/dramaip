@@ -1,0 +1,9 @@
+/* Stacking layers for portaled surfaces. Controls read these instead of
+ * literal z-index values so a dialog, its menus and the toasts above it keep
+ * one order everywhere. */
+:root {
+  --dsw-layer-popover: 100;
+  --dsw-layer-overlay: 1000;
+  --dsw-layer-overlay-popover: 1050;
+  --dsw-layer-toast: 1100;
+}

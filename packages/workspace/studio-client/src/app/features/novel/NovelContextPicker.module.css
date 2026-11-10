@@ -1,0 +1,145 @@
+.c4,
+.c9,
+.c10,
+.c15,
+.c16 {
+  margin-top: 0.25rem;
+}
+
+.c3,
+.c8,
+.c13,
+.c17 {
+  margin-top: 0.5rem;
+}
+
+.c5 {
+  margin-top: 0.75rem;
+}
+
+.c8,
+.c18 {
+  display: block;
+}
+
+.c14 {
+  height: 2rem;
+}
+
+.c17 {
+  max-height: 12rem;
+}
+
+.c14 {
+  width: 100%;
+}
+
+.c7,
+.c13 {
+  min-width: 0;
+}
+
+.c2,
+.c11 {
+  cursor: pointer;
+}
+
+:where(.c5 > :not(:last-child)),
+:where(.c17 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c17 {
+  overflow-y: auto;
+}
+
+.c1,
+.c7,
+.c13 {
+  border-radius: 0.25rem;
+}
+
+.c1,
+.c7,
+.c13 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1,
+.c7,
+.c13 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c1,
+.c7,
+.c13 {
+  padding: 0.5rem;
+}
+
+.c14 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c1 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c2 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c9,
+.c18 {
+  overflow-wrap: break-word;
+}
+
+.c10,
+.c12 {
+  word-break: break-all;
+}
+
+.c9 {
+  white-space: pre-wrap;
+}
+
+.c16,
+.c19 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c3,
+.c4,
+.c6,
+.c9,
+.c10 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

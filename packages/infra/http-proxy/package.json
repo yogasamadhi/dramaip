@@ -1,0 +1,30 @@
+{
+  "name": "@dramaip/infra-http-proxy",
+  "description": "Process-wide outbound HTTP proxy policy: resolve it from the launch environment and install it as undici's global dispatcher",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "undici": "8.11.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/util/http-proxy",
+      "package": "@deepseek-ai/dsh-http-proxy",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

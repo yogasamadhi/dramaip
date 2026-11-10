@@ -1,0 +1,21 @@
+{
+  "package": "@earendil-works/pi-agent-core",
+  "version": "1.5.0",
+  "license": "MIT",
+  "node": ">=22.19.0",
+  "lockfile": "package-lock.json",
+  "packageLockSha256": "bec74037dd1ed27ec7f2076e1995d1481bcf09fd74e4f2e5cee003152e025915",
+  "sourceTreeFileCount": 3886,
+  "sourceTreeSha256": "e22c40b5e053bd54811c3fd922b0482952ab17506c79943128da27edcb2816f3",
+  "revision": "80f7a11494e7e593d13749b867e66701eed94aaf",
+  "excludedPaths": [
+    "packages/ai/src/providers/data"
+  ],
+  "modelData": {
+    "archive": "pi-model-data.tgz",
+    "sha256": "b9e813f655b84d979b676e718b86baa38a45cffb1fd7243ab450bdf4639de23c",
+    "manifestSha256": "ea2d826e8d10046f6d764b554a6b0a3014d53d06e499960de31e3885194a876c",
+    "generatedAt": "2026-11-04T12:24:56.486Z",
+    "sourceRevision": "80f7a11494e7e593d13749b867e66701eed94aaf"
+  }
+}

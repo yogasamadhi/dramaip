@@ -1,0 +1,22 @@
+{
+  "name": "@dramaip/web",
+  "description": "DramaIP browser shell served by the web profile",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@dramaip/infra-client-web": "workspace:*",
+    "@dramaip/infra-ui-theme": "workspace:*",
+    "@vitejs/plugin-react": "5.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vite": "7.3.7"
+  }
+}

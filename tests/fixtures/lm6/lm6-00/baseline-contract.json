@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "schema": "v3",
+  "fixtures": [
+    {
+      "id": "empty-project",
+      "source": "HTTP create-project contract",
+      "expected": { "projects": 1, "chapters": 0, "resources": 0 }
+    },
+    {
+      "id": "source-import",
+      "source": "source-import.md",
+      "expected": {
+        "sourceType": "markdown",
+        "contentKind": "novel",
+        "chapters": ["前言", "第一章 雨夜来信", "第二章 失联电话"]
+      }
+    },
+    {
+      "id": "script-storyboard",
+      "source": "production-structure HTTP contract",
+      "expected": { "episodes": 1, "scripts": 1, "scenes": 1, "shots": 1 }
+    },
+    {
+      "id": "locked-visual-asset",
+      "source": "production-structure HTTP contract",
+      "expected": { "domain": "visual-assets", "lockState": "已锁定" }
+    }
+  ],
+  "resultContract": {
+    "firstTrustedResult": "A persisted project emits project.created through the local SSE stream.",
+    "singleNextAction": "Not yet implemented as a derived cockpit result; record as partial rather than infer it from route availability.",
+    "humanAdoption": "Imports and generated candidates remain previews until an explicit commit or adopt action.",
+    "costGate": "Remote generation has server-side preflight and ledger evidence; default simplified UX remains partial.",
+    "delivery": "Structured local exports and reference timeline artifacts are verified; real NLE import and remote MP4 rendering are external evidence."
+  },
+  "statusVocabulary": {
+    "product": ["implemented", "partial", "unavailable", "unknown"],
+    "verification": ["pass", "fail", "timeout", "not-run"],
+    "providerEvidence": ["fake", "local", "external"]
+  }
+}

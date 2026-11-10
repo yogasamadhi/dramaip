@@ -1,0 +1,5 @@
+@dramaip/infra-settings-controller
+
+Copied from @deepseek-ai/dsh-api-settings-controller 0.2.1-rc.3 (packages/api/settings-controller) of
+DeepSeek Harness, MIT License, Copyright (c) 2026 DeepSeek; see LICENSE.
+Adapted for DramaIP: package names, product content and integration.

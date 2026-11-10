@@ -1,0 +1,106 @@
+.card {
+  padding: 22px 24px;
+  border: 1px solid var(--studio-border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--studio-gradient-card);
+  box-shadow: var(--studio-shadow-card);
+  color: var(--dsw-alias-label-primary);
+}
+
+.panel {
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0 8px;
+}
+
+.heading {
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font: var(--dsw-font-xxs-strong-12);
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+.title {
+  margin: 0;
+  font: 650 28px/1.3 var(--dsw-font-family);
+  letter-spacing: -0.5px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.description {
+  margin: 6px 0 0;
+  font: var(--dsw-font-s-14);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.disclosure {
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The marker is a rotated corner in the label color. */
+.summary::before {
+  content: '';
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  opacity: 0.6;
+  transform: translateY(-0.15em) rotate(-45deg);
+  transition: transform 160ms ease;
+}
+
+.disclosure[open] > .summary::before {
+  transform: translateY(-0.25em) rotate(45deg);
+}
+
+.body {
+  padding: 0 12px 12px;
+}

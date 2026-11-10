@@ -1,0 +1,13 @@
+# DramaIP insights domain bundle (D6). Business plugins still run on the
+# Kernel-era services of bundle-base's compat rows until their domain moves
+# to Remote methods (P4/P5).
+
+- insert:
+    # The `insights` Remote namespace: audience feedback, the generation
+    # ledger and the creative outcome reports (P4-b). It claims the plugin's
+    # /api/v2 operations and runs their handlers in process until P6.
+    - id: insights-insights
+      name: "@dramaip/insights-insights"
+
+    - id: insights
+      name: "@dramaip/insights-insights/handlers/insights"

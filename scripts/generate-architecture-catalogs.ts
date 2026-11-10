@@ -1,0 +1,300 @@
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { format as formatSource } from "prettier";
+import { AGENT_RUNTIME_DESCRIPTORS } from "@dramaip/host-contracts";
+import { bootWebComposition } from "@dramaip/test-web-composition";
+import { createFirstPartyPluginRegistry } from "./first-party-sources.js";
+import { legacyHandlerDirectory } from "./legacy-handlers.mjs";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const architectureDirectory = join(root, "architecture");
+const check = process.argv.includes("--check");
+
+async function sourceFiles(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? sourceFiles(path) : [path];
+    }),
+  );
+  return nested.flat().filter((path) => /\.[cm]?[jt]sx?$/u.test(path));
+}
+
+function stableJson(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function escapeRegularExpression(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function domainEventTemplatePattern(
+  template: string,
+): { owner: string; pattern: string } | undefined {
+  if (!template.includes("${") || !/\.v\d+$/u.test(template)) return undefined;
+  const owner = /^([a-z][a-z0-9-]*)\./u.exec(template)?.[1];
+  if (!owner) return undefined;
+  const parts = template.split(/\$\{[^}]+\}/gu);
+  if (parts.length < 2) return undefined;
+  return {
+    owner,
+    pattern: `^${parts.map(escapeRegularExpression).join("[a-z0-9-]+")}$`,
+  };
+}
+
+async function writeCatalog(name: string, value: unknown): Promise<void> {
+  const path = join(architectureDirectory, name);
+  const next = stableJson(value);
+  if (check) {
+    const current = await readFile(path, "utf8").catch(() => "");
+    if (current !== next)
+      throw new Error(
+        `Architecture catalog is stale: ${relative(root, path)} (run pnpm run architecture:generate)`,
+      );
+    return;
+  }
+  await writeFile(path, next);
+}
+
+async function writeGeneratedFile(path: string, next: string): Promise<void> {
+  if (check) {
+    const current = await readFile(path, "utf8").catch(() => "");
+    if (current !== next)
+      throw new Error(
+        `Generated architecture file is stale: ${relative(root, path)} (run pnpm run architecture:generate)`,
+      );
+    return;
+  }
+  await writeFile(path, next);
+}
+
+async function typescriptSource(source: string): Promise<string> {
+  return formatSource(source, { parser: "typescript" });
+}
+
+async function main(): Promise<void> {
+  const registry = createFirstPartyPluginRegistry();
+  // Compile source-declared events before booting consumers. A new durable
+  // consumer must not require a hand-edited generated manifest to bootstrap.
+  const domainEvents = new Map<string, string>();
+  const domainEventPatterns = new Map<string, string>();
+  const realtimeEvents = new Map<string, string>();
+  for (const [pluginId] of registry) {
+    const directory = legacyHandlerDirectory(root, pluginId);
+    for (const path of await sourceFiles(directory).catch(() => [])) {
+      const source = await readFile(path, "utf8");
+      for (const match of source.matchAll(
+        /type\s*:\s*["`]([a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.v\d+)["`]/gu,
+      )) {
+        const type = match[1]!;
+        const owner = type.split(".")[0]!;
+        if (owner !== pluginId)
+          throw new Error(
+            `Domain event owner mismatch: ${type} in ${pluginId}`,
+          );
+        domainEvents.set(type, owner);
+      }
+      for (const match of source.matchAll(
+        /type\s*:\s*`([^`]*\$\{[^`]+\}[^`]*)`/gu,
+      )) {
+        const declaration = domainEventTemplatePattern(match[1]!);
+        if (!declaration) continue;
+        if (declaration.owner !== pluginId)
+          throw new Error(
+            `Domain event pattern owner mismatch: ${declaration.pattern} in ${pluginId}`,
+          );
+        const existing = domainEventPatterns.get(declaration.pattern);
+        if (existing && existing !== declaration.owner)
+          throw new Error(
+            `Domain event pattern has multiple owners: ${declaration.pattern}`,
+          );
+        domainEventPatterns.set(declaration.pattern, declaration.owner);
+      }
+      for (const match of source.matchAll(
+        /publishLive\s*\(\s*\{[\s\S]{0,200}?type\s*:\s*["`]([^"`]+)["`]/gu,
+      ))
+        realtimeEvents.set(match[1]!, pluginId);
+    }
+  }
+  const eventPath = join(
+    root,
+    "packages",
+    "compat",
+    "runtime",
+    "src",
+    "event-manifest.generated.ts",
+  );
+  const eventSource = await typescriptSource(
+    `/* Generated by scripts/generate-architecture-catalogs.ts. Do not edit. */\nexport const DOMAIN_EVENT_MANIFEST = ${JSON.stringify(Object.fromEntries([...domainEvents].sort(([left], [right]) => left.localeCompare(right)).map(([type, owner]) => [type, { owner }])), null, 2)} as const;\nexport const DOMAIN_EVENT_PATTERNS = ${JSON.stringify(
+      [...domainEventPatterns]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([pattern, owner]) => ({ pattern, owner })),
+      null,
+      2,
+    )} as const;\n`,
+  );
+  const oldEventSource = await readFile(eventPath, "utf8").catch(() => "");
+  await writeGeneratedFile(eventPath, eventSource);
+  if (!check && oldEventSource !== eventSource) {
+    // The composition's static imports already saw the old file. Restart only this
+    // generator under the same locked Node/loader flags, not the user's app.
+    await new Promise<void>((resolveChild, rejectChild) => {
+      const child = spawn(
+        process.execPath,
+        [...process.execArgv, ...process.argv.slice(1)],
+        { stdio: "inherit" },
+      );
+      child.once("error", rejectChild);
+      child.once("exit", (code, signal) =>
+        code === 0
+          ? resolveChild()
+          : rejectChild(
+              new Error(
+                `Architecture generator reload failed: ${signal ?? code}`,
+              ),
+            ),
+      );
+    });
+    return;
+  }
+  const composition = await bootWebComposition({
+    databasePath: ":memory:",
+    plugins: [...registry.values()],
+  });
+
+  try {
+    const diagnostics = composition.diagnostics();
+    const routes: Array<{
+      method: string;
+      path: string;
+      operationId: string;
+      owner: string;
+    }> = [];
+    for (const route of diagnostics.routeContributions ?? []) {
+      if (!route.operationId || !route.method || !route.path)
+        throw new Error(`Route metadata is incomplete: ${route.id}`);
+      if (route.pluginId.length === 0)
+        throw new Error(`Route owner is missing: ${route.id}`);
+      routes.push({
+        method: route.method.toLowerCase(),
+        path: route.path.replace(/:([A-Za-z0-9_]+)/gu, "{$1}"),
+        operationId: route.operationId,
+        owner: route.pluginId,
+      });
+    }
+    if (
+      new Set(routes.map((route) => route.operationId)).size !== routes.length
+    )
+      throw new Error("Duplicate route operationId in the effective graph");
+    routes.sort((left, right) =>
+      `${left.path}:${left.method}`.localeCompare(
+        `${right.path}:${right.method}`,
+      ),
+    );
+
+    const tableOwners = new Map<string, string>();
+    for (const [pluginId, plugin] of registry)
+      for (const migration of plugin.migrations ?? []) {
+        if (migration.pluginId !== pluginId)
+          throw new Error(
+            `migration owner mismatch: ${migration.id} declares ${migration.pluginId}, expected ${pluginId}`,
+          );
+        for (const match of migration.sql.matchAll(
+          /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([A-Za-z_][A-Za-z0-9_]*)["`]?/giu,
+        )) {
+          const table = match[1]!;
+          const existing = tableOwners.get(table);
+          if (existing && existing !== migration.pluginId)
+            throw new Error(`Table has multiple owners: ${table}`);
+          tableOwners.set(table, migration.pluginId);
+        }
+      }
+
+    const ui = composition.ui
+      .contributions()
+      .map((contribution) => ({
+        id: contribution.id,
+        owner: contribution.pluginId,
+        kind: contribution.kind,
+        metadata: contribution.metadata,
+        metadataHash: contribution.metadataHash,
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    if (ui.some((contribution) => !contribution.metadataHash))
+      throw new Error(
+        "The composition did not sign every built-in UI contribution",
+      );
+
+    const services = [...diagnostics.services].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+    const engines = Object.values(AGENT_RUNTIME_DESCRIPTORS).sort(
+      (left, right) => left.kind.localeCompare(right.kind),
+    );
+
+    await writeCatalog(
+      "table-owners.json",
+      [...tableOwners]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([table, owner]) => ({ table, owner })),
+    );
+    await writeCatalog("route-owners.json", routes);
+    await writeCatalog("event-owners.json", {
+      domain: [...domainEvents]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([type, owner]) => ({ type, owner })),
+      domainPatterns: [...domainEventPatterns]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([pattern, owner]) => ({ pattern, owner })),
+      realtime: [...realtimeEvents]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([type, owner]) => ({ type, owner })),
+    });
+    await writeCatalog("ui-contributions.json", ui);
+    const builtinManifest = Object.fromEntries(
+      ui.map((contribution) => [
+        contribution.id,
+        {
+          pluginId: contribution.owner,
+          kind: contribution.kind,
+          metadata: contribution.metadata,
+          metadataHash: contribution.metadataHash,
+        },
+      ]),
+    );
+    await writeGeneratedFile(
+      join(
+        root,
+        "packages",
+        "workspace",
+        "studio-client",
+        "src",
+        "app",
+        "contribution-registry",
+        "builtin-manifest.generated.ts",
+      ),
+      await typescriptSource(
+        `/* Generated by scripts/generate-architecture-catalogs.ts. Do not edit. */\nexport const BUILTIN_UI_MANIFEST = ${JSON.stringify(
+          builtinManifest,
+          null,
+          2,
+        )} as const;\n`,
+      ),
+    );
+    await writeCatalog("engine-capabilities.json", engines);
+    await writeCatalog("service-contracts.json", services);
+  } finally {
+    await composition.dispose();
+  }
+
+  process.stdout.write(
+    check
+      ? "Architecture catalogs are current\n"
+      : "Architecture catalogs generated\n",
+  );
+}
+
+void main();

@@ -1,0 +1,147 @@
+.c1 {
+  margin: 1.5rem;
+}
+
+.c5 {
+  display: flex;
+}
+
+.c2 {
+  display: grid;
+}
+
+.c2,
+.c6 {
+  min-height: 100vh;
+}
+
+.c3 {
+  width: 100%;
+}
+
+.c3 {
+  max-width: 36rem;
+}
+
+.c5 {
+  flex-wrap: wrap;
+}
+
+.c2 {
+  place-items: center;
+}
+
+.c5 {
+  gap: 0.5rem;
+}
+
+:where(.c3 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c3 {
+  border-radius: var(--radius);
+}
+
+.c3 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c3 {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c3 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-error-primary) 25%,
+      transparent
+    );
+  }
+}
+
+.c2,
+.c6 {
+  background-color: var(--dsw-alias-bg-base);
+}
+
+.c3 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c2,
+.c3 {
+  padding: 1.5rem;
+}
+
+.c4 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c4 {
+  --tw-leading: 1.5rem;
+  line-height: 1.5rem;
+}
+
+.c4 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c3 {
+  --tw-shadow: var(--dsw-elevation-panel);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}

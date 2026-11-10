@@ -1,0 +1,9 @@
+{
+  // Client-side compiler options of the DSH sources these packages were
+  // copied from: browser library API and React JSX on top of the shared base.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext.Disposable"]
+  }
+}

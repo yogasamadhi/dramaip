@@ -1,0 +1,46 @@
+{
+  "name": "@dramaip/infra-settings",
+  "description": "Abstract user-settings seam (ctx.settings)",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-brand": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-values": "workspace:*",
+    "@dramaip/infra-config-editor": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cosmokit": "workspace:*",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-brand": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:*",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:*",
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-hmr": "workspace:*",
+    "yaml": "^2.8.1",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/settings/settings",
+      "package": "@deepseek-ai/dsh-settings",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

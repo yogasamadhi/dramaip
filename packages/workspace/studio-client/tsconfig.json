@@ -1,0 +1,12 @@
+{
+  // The Studio app keeps the Desktop compiler options it was written
+  // against; the domain clients' infra options are stricter.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "ignoreDeprecations": "6.0",
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["src", "tests"]
+}

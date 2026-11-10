@@ -1,0 +1,27 @@
+{
+  "title": "最后一班渡船",
+  "episodes": [
+    {
+      "episodeNumber": 1,
+      "title": "第 1 集：停航之前",
+      "content": "EXT. 渡口 - NIGHT\n\n阿禾把一张湿透的船票放在检票台。\n\n@阿禾\n只剩这一班了吗？\n\n@守渡人\n还要等一个人。",
+      "scenes": [
+        {
+          "title": "渡口·夜",
+          "content": "阿禾与守渡人核对最后一班船的乘客。"
+        }
+      ]
+    },
+    {
+      "episodeNumber": 2,
+      "title": "第 2 集：灯还亮着",
+      "content": "INT. 候船室 - NIGHT\n\n灯光照着无人认领的雨衣。\n\n@阿禾\n他留下的不是船票。",
+      "scenes": [
+        {
+          "title": "候船室·夜",
+          "content": "阿禾从雨衣口袋中找到一封没有地址的信。"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@dramaip/infra-typert-generator",
+  "description": "TypeScript project analyzer and model-driven Typert artifact generator",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tsdown": "./src/tsdown-plugin.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@jridgewell/gen-mapping": "^0.3.13",
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@dramaip/infra-typert-registry": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "zod": "4.4.3",
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "@dramaip/infra-values": "workspace:*",
+    "@dramaip/infra-brand": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/typert/generator",
+      "package": "@deepseek-ai/dsh-typert-generator",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

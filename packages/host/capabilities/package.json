@@ -1,0 +1,31 @@
+{
+  "name": "@dramaip/host-capabilities",
+  "description": "Desktop Host native capabilities: file grants, the credential vault, the media library and renderer, web research and provider HTTP, provided in-process as ctx.desktopHost",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/host-shell-bridge": "workspace:*",
+    "@dramaip/infra-home-paths": "workspace:*",
+    "@dramaip/seams-engines": "workspace:*",
+    "fflate": "0.8.3",
+    "htmlparser2": "8.0.2",
+    "turndown": "7.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@types/turndown": "5.0.5",
+    "vitest": "4.1.9"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@dramaip/infra-storage-sqlite",
+  "description": "SQLite storage backend (kv facet) for the storage hub",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@dramaip/infra-storage": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*"
+  },
+  "devDependencies": {
+    "@dramaip/infra-storage": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/storage/storage-sqlite",
+      "package": "@deepseek-ai/dsh-storage-sqlite",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

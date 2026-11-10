@@ -1,0 +1,46 @@
+{
+  "name": "@dramaip/infra-web-runtime",
+  "description": "DramaIP web runtime glue: frontend dist serving, shell runtime variables, the URL line, and the web startup flags",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./startup": "./src/startup.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./startup/locale/*.json": "./locale/startup/*.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*",
+    "@dramaip/infra-frontend-static": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*",
+    "@dramaip/infra-launch-environment": "workspace:*",
+    "@dramaip/infra-subprocess": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:*",
+    "commander": "^15.0.0",
+    "open": "^11.0.2",
+    "@dramaip/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/bundle/web-app",
+      "package": "@deepseek-ai/dsh-web-app",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

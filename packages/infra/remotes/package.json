@@ -1,0 +1,66 @@
+{
+  "name": "@dramaip/infra-remotes",
+  "description": "Remote BFF assembly for application-selected Host capabilities",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./types": "./src/types.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-deque": "workspace:*",
+    "@dramaip/infra-values": "workspace:*"
+  },
+  "devDependencies": {
+    "@dramaip/infra-gateway": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-remote-mock": "workspace:*",
+    "@dramaip/infra-typert-registry": "workspace:*",
+    "@dramaip/infra-credentials": "workspace:*",
+    "@dramaip/infra-settings": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "zod": "4.4.3",
+    "@dramaip/infra-settings-controller": "workspace:*",
+    "@dramaip/insights-insights": "workspace:*",
+    "@dramaip/production-delivery": "workspace:*",
+    "@dramaip/workspace-workspace": "workspace:*",
+    "@dramaip/production-review": "workspace:*",
+    "@dramaip/system-system": "workspace:*",
+    "@dramaip/writing-knowledge": "workspace:*",
+    "@dramaip/writing-quality": "workspace:*",
+    "@dramaip/writing-writing": "workspace:*",
+    "@dramaip/agents-agents": "workspace:*",
+    "@dramaip/automation-automation": "workspace:*",
+    "@dramaip/production-timeline": "workspace:*",
+    "@dramaip/production-media": "workspace:*",
+    "@dramaip/production-production": "workspace:*"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [
+        "@dramaip/infra-gateway"
+      ],
+      "platform": "web",
+      "immediately": true
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/api/remotes",
+      "package": "@deepseek-ai/dsh-api-remotes",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

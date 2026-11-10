@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "empty-project",
+      "expectedStatus": "needs-input",
+      "expectedAction": "导入已授权原著"
+    },
+    {
+      "id": "content-without-adaptation",
+      "expectedStatus": "needs-input",
+      "expectedAction": "创建改编方案"
+    },
+    {
+      "id": "awaiting-still-adoption",
+      "expectedStatus": "needs-human",
+      "expectedAction": "确认首个静帧"
+    },
+    {
+      "id": "failed-task",
+      "expectedStatus": "needs-attention",
+      "expectedAction": "处理失败任务"
+    },
+    {
+      "id": "delivered",
+      "expectedStatus": "delivered",
+      "expectedAction": "查看交付记录"
+    }
+  ]
+}

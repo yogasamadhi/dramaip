@@ -1,0 +1,27 @@
+{
+  "name": "@dramaip/infra-code-language",
+  "description": "Single file-extension to syntax-highlighting language table shared by Client code surfaces and the Host read card",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/util/code-language",
+      "package": "@deepseek-ai/dsh-util-code-language",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "name": "@dramaip/workspace-studio-client",
+  "description": "Workspace domain studio client plugin: the Studio app shell and its cross-domain workbench pages in the renderer's root Slot, with the request facade the pages call through the Remote bridge",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./client/contract": {
+      "types": "./src/client/contract.ts"
+    },
+    "./facade": "./src/facade/index.ts",
+    "./facade/*": "./src/facade/*.ts",
+    "./connection": "./src/connection/index.ts",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@dramaip/infra-locale",
+        "@dramaip/infra-remotes",
+        "@dramaip/infra-ui-renderer"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/infra-operations": "workspace:*",
+    "@dramaip/infra-ui-primitives": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/agents-agents": "workspace:*",
+    "@dramaip/automation-automation": "workspace:*",
+    "@dramaip/infra-locale": "workspace:*",
+    "@dramaip/infra-remotes": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@dramaip/infra-ui-settings": "workspace:*",
+    "@dramaip/infra-ui-slots": "workspace:*",
+    "@dramaip/infra-ui-theme": "workspace:*",
+    "@dramaip/insights-insights": "workspace:*",
+    "@dramaip/production-delivery": "workspace:*",
+    "@dramaip/production-media": "workspace:*",
+    "@dramaip/production-production": "workspace:*",
+    "@dramaip/production-review": "workspace:*",
+    "@dramaip/production-timeline": "workspace:*",
+    "@dramaip/system-system": "workspace:*",
+    "@dramaip/workspace-workspace": "workspace:*",
+    "@dramaip/writing-knowledge": "workspace:*",
+    "@dramaip/writing-quality": "workspace:*",
+    "@dramaip/writing-writing": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@tiptap/extension-placeholder": "^2.11.2",
+    "@tiptap/pm": "^2.11.2",
+    "@tiptap/react": "^2.11.2",
+    "@tiptap/starter-kit": "^2.11.2",
+    "clsx": "^2.1.1",
+    "tiptap-markdown": "^0.8.10"
+  }
+}

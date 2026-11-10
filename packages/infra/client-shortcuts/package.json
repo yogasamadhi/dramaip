@@ -1,0 +1,49 @@
+{
+  "name": "@dramaip/infra-client-shortcuts",
+  "description": "Application keyboard command registry and physical-key routing",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./protocol": "./src/protocol.ts",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-util-crypto": "workspace:*",
+    "@dramaip/infra-values": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-locale": "workspace:*",
+    "@dramaip/infra-client-store": "workspace:*",
+    "@dramaip/infra-ui-primitives": "workspace:*",
+    "@dramaip/infra-brand": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [
+        "@dramaip/infra-locale"
+      ],
+      "platform": "web"
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/shortcuts",
+      "package": "@deepseek-ai/dsh-client-shortcuts",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

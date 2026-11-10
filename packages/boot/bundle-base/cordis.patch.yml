@@ -1,0 +1,109 @@
+# DramaIP base layer: the host infrastructure every profile shares. Mode
+# bundles (bundle-web, bundle-headless) patch these rows by id; the profile's
+# own cordis.patch.yml and any --patch overlays come after them.
+#
+# Row order carries no load semantics (activation follows service
+# availability); the grouping is for readers.
+
+- insert:
+    - id: timer
+      name: "@deepseek-ai/cordis-plugin-timer"
+
+    # Profile configuration reloads without a restart; module roots are opt-in.
+    - id: hmr
+      name: "@dramaip/infra-hmr"
+      disabled: !!js "!ctx.get('profileContext')"
+      config:
+        root: []
+
+    # Live Config forms persist through the launcher's profile patch.
+    - id: config-editor
+      name: "@dramaip/infra-config-editor"
+      disabled: !!js "!ctx.get('profileContext')"
+
+    - id: settings
+      name: "@dramaip/infra-settings"
+      disabled: !!js "!ctx.get('profileContext')"
+
+    # Local credential file under $DRAMAIP_HOME; configuration carries refs only.
+    - id: credentials
+      name: "@dramaip/infra-credentials-local"
+
+    # Document storage: the hub, the SQLite record backend, and the
+    # schema-validated domain layer over them (D1, document domains).
+    - id: storage
+      name: "@dramaip/infra-storage"
+
+    - id: storage-sqlite
+      name: "@dramaip/infra-storage-sqlite"
+      config:
+        path: !!js dramaipHomePath('storage', 'documents.sqlite')
+
+    - id: storage-domain
+      name: "@dramaip/infra-storage-domain"
+      config:
+        backend: sqlite
+
+    # Relational storage (D1): the tables, forward migrations and unit of
+    # work the business plugins write through.
+    - id: storage-relational
+      name: "@dramaip/infra-storage-relational"
+      config:
+        path: !!js dramaipHomePath('storage', 'dramaip.sqlite')
+
+    - id: subprocess
+      name: "@dramaip/infra-subprocess-local"
+
+    # Typert Remote: the type registry, its Loader-entry ownership tracker,
+    # and the Gateway that dispatches /api calls and the remote.mux stream.
+    - id: typert
+      name: "@dramaip/infra-typert-registry"
+
+    - id: typert-loader
+      name: "@dramaip/infra-typert-loader"
+
+    - id: typert-gateway
+      name: "@dramaip/infra-gateway"
+
+    # Method-level access control for non-owner Peers; the Gateway requires it,
+    # and its Client half publishes the standard access Hooks.
+    - id: remote-access
+      name: "@dramaip/infra-remote-access"
+
+    # ── transitional: the pre-refactor runtime's services (D3, D11) ──
+
+    # Domain events, UI contributions, diagnostics and the plugin
+    # environment the business plugins were given by the Kernel.
+    - id: compat-runtime
+      name: "@dramaip/compat-runtime"
+
+    # The registry business plugins register their route contributions with
+    # (`http`) and domain controllers claim and run them through.
+    - id: operations
+      name: "@dramaip/infra-operations"
+
+    # ── domain packages (P4/P5): one Host face per migrated domain ──
+
+    # Runtime identity, diagnostics, the event stream and the Desktop Host
+    # actions behind the `system` Remote namespace.
+    - id: system-system
+      name: "@dramaip/system-system"
+
+    # ── core business plugins (D6: the former `core` bundle) ──
+
+    - id: foundation
+      name: "@dramaip/system-system/handlers/foundation"
+
+    - id: system
+      name: "@dramaip/system-system/handlers/system"
+      config:
+        # The `system` Remote namespace (system-system) serves the Host
+        # routes; this row keeps the migrations and UI contributions.
+        hostRoutes: false
+
+    # The `workspace` Remote namespace (P4-c): claims the workspace plugin's
+    # /api/v2 operations and runs their handlers in process until P6.
+    - id: workspace-workspace
+      name: "@dramaip/workspace-workspace"
+    - id: workspace
+      name: "@dramaip/workspace-workspace/handlers/workspace"

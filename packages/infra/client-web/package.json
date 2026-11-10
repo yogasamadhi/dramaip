@@ -1,0 +1,38 @@
+{
+  "name": "@dramaip/infra-client-web",
+  "description": "Web boot kernel: static module table, Cordis loader, framework-free boot page, and UI-renderer handoff",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./injections": "./src/apply-injections.ts"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@dramaip/infra-client-modules": "workspace:*",
+    "@dramaip/infra-client-store": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@dramaip/infra-ui-primitives": "workspace:*",
+    "@dramaip/infra-ui-slots": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@dramaip/infra-webserver": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/web",
+      "package": "@deepseek-ai/dsh-client-web",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

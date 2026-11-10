@@ -1,0 +1,20 @@
+# DramaIP writing domain bundle (D6). Business plugins still run on the
+# Kernel-era services of bundle-base's compat rows until their domain moves
+# to Remote methods (P4/P5).
+
+- insert:
+    # The `writing`, `knowledge` and `quality` Remote namespaces (P4-d). Each
+    # claims its plugin's /api/v2 operations and runs their handlers in
+    # process until P6.
+    - id: writing-writing
+      name: "@dramaip/writing-writing"
+    - id: writing
+      name: "@dramaip/writing-writing/handlers/writing"
+    - id: writing-knowledge
+      name: "@dramaip/writing-knowledge"
+    - id: knowledge
+      name: "@dramaip/writing-knowledge/handlers/knowledge"
+    - id: writing-quality
+      name: "@dramaip/writing-quality"
+    - id: creative-quality
+      name: "@dramaip/writing-quality/handlers/creative-quality"

@@ -1,0 +1,53 @@
+{
+  "name": "@dramaip/cli",
+  "description": "dramaip CLI: profile launch and configuration inspection",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./profile-boot": "./src/profile-boot.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dramaip": "node ../../scripts/run-node.mjs --import tsx src/bin.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:*",
+    "@dramaip/boot-bundle-agents": "workspace:*",
+    "@dramaip/boot-bundle-automation": "workspace:*",
+    "@dramaip/boot-bundle-base": "workspace:*",
+    "@dramaip/boot-bundle-desktop": "workspace:*",
+    "@dramaip/boot-bundle-engine-pi": "workspace:*",
+    "@dramaip/boot-bundle-headless": "workspace:*",
+    "@dramaip/boot-bundle-insights": "workspace:*",
+    "@dramaip/boot-bundle-production": "workspace:*",
+    "@dramaip/boot-bundle-web": "workspace:*",
+    "@dramaip/boot-bundle-writing": "workspace:*",
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*",
+    "@dramaip/infra-home-paths": "workspace:*",
+    "@dramaip/infra-http-proxy": "workspace:*",
+    "@dramaip/infra-launch-environment": "workspace:*",
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@dramaip/compat-runtime": "workspace:*",
+    "@dramaip/host-migration": "workspace:*",
+    "execa": "^10.0.1",
+    "playwright": "1.62.0",
+    "tsx": "4.22.4"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "apps/cli",
+      "package": "@deepseek-ai/dsh",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "@dramaip/production-production",
+  "description": "Host face of the production domain: adaptations, episodes, scripts, scenes and shots, seasons and season plans, diagnoses, adaptation strategies, episode developments and their revisions, storyboard attribution, screenplay imports, intakes and sources, quality sources and the production graph",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./legacy": "./src/legacy.ts",
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./handlers/production": "./handlers/production/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts",
+    "handlers"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/infra-operations": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "@dramaip/infra-values": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*",
+    "@xmldom/xmldom": "0.8.13",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-typert-registry": "workspace:*"
+  }
+}

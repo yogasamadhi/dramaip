@@ -1,0 +1,150 @@
+.c1 {
+  margin-top: 1rem;
+}
+
+.c12 {
+  display: block;
+}
+
+.c16 {
+  display: flex;
+}
+
+.c8,
+.c9 {
+  max-height: 24rem;
+}
+
+.c16 {
+  flex-wrap: wrap;
+}
+
+.c16 {
+  gap: 0.5rem;
+}
+
+:where(.c7 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c6 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c8,
+.c9 {
+  overflow: auto;
+}
+
+.c7,
+.c14 {
+  border-radius: 0.25rem;
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c7,
+.c14 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c10 {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+}
+
+.c1,
+.c7,
+.c10,
+.c14 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c1 {
+  background-color: var(--dsw-alias-bg-layer-2);
+}
+
+.c7,
+.c14 {
+  padding: 0.75rem;
+}
+
+.c1 {
+  padding: 1rem;
+}
+
+.c10,
+.c15 {
+  padding-block: 0.5rem;
+}
+
+.c1 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c2 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c5,
+.c10,
+.c13,
+.c15 {
+  word-break: break-all;
+}
+
+.c8,
+.c10,
+.c15 {
+  white-space: pre-wrap;
+}
+
+.c17 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.c11 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c3,
+.c5 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c4 {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

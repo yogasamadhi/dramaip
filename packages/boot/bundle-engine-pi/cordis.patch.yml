@@ -1,0 +1,7 @@
+# DramaIP Pi engine layer (D5): registers the pi engine with ctx.engines
+# while this row is enabled. Disabling the row stops its sidecar and drains
+# its work; the other engines are unaffected.
+
+- insert:
+    - id: engine-pi
+      name: "@dramaip/boot-bundle-engine-pi"

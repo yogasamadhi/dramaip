@@ -1,0 +1,43 @@
+{
+  "version": "3.0.0-alpha.3",
+  "generator": "scripts/generate-baseline-userdata.ts",
+  "profile": "studio",
+  "project": {
+    "id": "aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099",
+    "title": "基准项目：雨夜来信"
+  },
+  "volume": "647d2894-7a37-43f3-b89f-0e470ce6f2b4",
+  "chapters": [
+    "83f811d0-5795-45d2-9308-0ae3eb569254",
+    "e673e7e0-ab70-4b7b-b02d-7024e1877e48",
+    "f000ddbe-0b5a-4fdf-9917-7e51c65a8b65"
+  ],
+  "provider": {
+    "id": "b35d7b2d-c480-4335-bcb8-7314bbaa30fb",
+    "domain": "providers",
+    "title": "Baseline Fixture Provider",
+    "payload": {
+      "服务类型": "智能模型",
+      "预设服务商": "other",
+      "模型名称": "baseline-fixture-model",
+      "服务地址": "http://127.0.0.1:47831/v1",
+      "凭据引用": "1f2bea27-522e-474e-a75f-0863ba7052a8"
+    },
+    "version": 0,
+    "createdAt": "2026-10-28T03:11:07.172Z",
+    "updatedAt": "2026-10-28T03:11:07.172Z"
+  },
+  "model": {
+    "origin": "http://127.0.0.1:47831",
+    "name": "baseline-fixture-model"
+  },
+  "credentials": {
+    "storage": "master_password",
+    "password": "dramaip-baseline-fixture",
+    "credentialRef": "1f2bea27-522e-474e-a75f-0863ba7052a8",
+    "fakeSecret": "sk-dramaip-baseline-fake-0000"
+  },
+  "extensions": [
+    "baseline.fixture-extension"
+  ]
+}

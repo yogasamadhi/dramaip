@@ -1,0 +1,4 @@
+{
+  "extends": "../../infra/tsconfig.base.client.json",
+  "files": ["src/client/index.ts", "src/client/SampleBadge.tsx", "src/types.ts"]
+}

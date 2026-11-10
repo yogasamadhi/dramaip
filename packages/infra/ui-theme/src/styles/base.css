@@ -1,0 +1,40 @@
+/* Base variables referenced by the token sheets and component CSS but defined
+ * upstream (deepsuite theme/global.css) — supplied here so the composite
+ * --dsw-font-* variables resolve and motion rides the upstream curve. Code
+ * font stack deliberately omits a bare `monospace` tail (Windows CJK falls
+ * back to SimSun otherwise). */
+:root {
+  --dramaip-font-family-text-default: Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --dsw-font-family: var(--dramaip-font-family-text-default);
+  --dsw-font-family-brand: 'Montserrat', var(--dramaip-font-family-text-default);
+  --dramaip-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  --ds-font-family-code: var(--dramaip-font-family-code-default);
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-transition-duration: 0.2s;
+  --ds-transition-duration-fast: 0.1s;
+  --ds-transition-duration-slow: 0.3s;
+  --dsw-radius-xs: 4px;
+  --dsw-radius-tag: 6px;
+  --dsw-radius-sm: 8px;
+  --dsw-radius-md: 8px;
+  --dsw-radius-lg: 16px;
+  --dsw-radius-xl: 16px;
+  --dsw-radius-panel: 16px;
+}
+
+/* User font lists (--dramaip-font-family-text/-code, written on body by the theme
+ * boot script and ThemePresenter) lead the built-in stacks. An unset list
+ * falls back to the built-in stack itself; the repeated families are inert. */
+body {
+  --dsw-font-family: var(--dramaip-font-family-text, var(--dramaip-font-family-text-default)), var(--dramaip-font-family-text-default);
+  --ds-font-family-code: var(--dramaip-font-family-code, var(--dramaip-font-family-code-default)), var(--dramaip-font-family-code-default);
+  --dsw-alias-settings-card-fill: var(--dsw-alias-bg-layer-2);
+  --dsw-alias-settings-card-stroke: var(--dsw-alias-border-l4);
+}
+
+[data-dramaip-automatic-focus]:focus,
+[data-dramaip-automatic-focus]:focus:focus-visible {
+  outline: none;
+}

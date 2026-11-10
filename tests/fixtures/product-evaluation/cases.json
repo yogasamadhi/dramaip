@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "status": "internal-scaffold",
+  "sourcePolicy": "repository-authored-synthetic; internal evaluation only; source packets are not complete novels",
+  "cases": [
+    {
+      "id": "mystery-novel-knowledge",
+      "genre": "mystery",
+      "targetScale": "short",
+      "entryPath": "inspiration",
+      "workflowPath": "novel",
+      "task": "续写一章，保留限知视角与误会；不得让主角凭空知道凶手。",
+      "source": "阿禾在停运渡口收到姐姐三天前寄出的船票。她只知道船长谎报了最后一班船的时间，不知道姐姐是否上船。读者在上一章末看见姐姐把票交给另一个人，阿禾不在场。",
+      "authorIntent": "克制的悬疑与亲情；阿禾不能突然全知；姐姐仍有自主行动，不以死亡强行制造刺激。",
+      "sourceScope": "complete short scenario packet, not a published novel",
+      "checks": [
+        "character-knowledge",
+        "timeline",
+        "author-intent",
+        "no-forced-video"
+      ]
+    },
+    {
+      "id": "mystery-adaptation-causality",
+      "genre": "mystery",
+      "targetScale": "long",
+      "entryPath": "source-import",
+      "workflowPath": "adaptation",
+      "task": "比较两种改编策略并提出首集来源映射，明确哪些原著内容未读。",
+      "source": "第1章：票上有旧船厂的水印。第4章：阿禾查到旧船厂已停业，保存票据。第9章：姐姐认出水印对应一批事故前的纸，但没有向阿禾透露。第18章：阿禾在档案中看见同批纸，才形成可验证的推断。",
+      "authorIntent": "保留证据获取的因果顺序和姐妹互相保护的代价；可以压缩支线，不把未读章节虚构为已覆盖。",
+      "sourceScope": "four selected chapter excerpts only; intervening and other chapters unread",
+      "checks": [
+        "causality",
+        "character-knowledge",
+        "source-coverage",
+        "lineage",
+        "author-intent"
+      ]
+    },
+    {
+      "id": "emotion-novel-relationship",
+      "genre": "emotion",
+      "targetScale": "medium",
+      "entryPath": "source-import",
+      "workflowPath": "novel",
+      "task": "续写两人和解之前的一章，行动推进但不消除已建立的隔阂。",
+      "source": "母亲把女儿留下的旧稿整理成册，却没有读最后一页。女儿回来取稿，误以为母亲又替她决定了去留。两人都不知道对方已经取消了第二天的车票。",
+      "authorIntent": "温柔但不急于和解；人物的沉默有现实原因；不靠新反派或集尾反转强推情绪。",
+      "sourceScope": "selected relationship setup; no claim of complete manuscript coverage",
+      "checks": [
+        "relationship",
+        "character-knowledge",
+        "tone",
+        "no-forced-hook",
+        "repetition"
+      ]
+    },
+    {
+      "id": "emotion-script-continuity",
+      "genre": "emotion",
+      "targetScale": "short",
+      "entryPath": "script",
+      "workflowPath": "adaptation",
+      "task": "审阅并局部修订剧本，保持已存在的场景和人物关系；不要创建小说母稿。",
+      "source": "INT. 旧书店 - EVENING\n\n母亲把装订好的稿子放到柜台。\n\n@女儿\n你读了最后一页吗？\n\n@母亲\n没有。那一页该由你决定。",
+      "authorIntent": "结局保留未说出口的歉意；不新增母亲已经读过末页的事实；只处理选中剧本。",
+      "sourceScope": "one complete screenplay scene",
+      "checks": [
+        "screenplay-continuity",
+        "author-intent",
+        "no-forced-novel",
+        "stable-blocks"
+      ]
+    },
+    {
+      "id": "comedy-novel-no-hook",
+      "genre": "light-comedy",
+      "targetScale": "short",
+      "entryPath": "inspiration",
+      "workflowPath": "novel",
+      "task": "写一章日常轻喜剧，以人物观察和小行动形成趣味，不添加集尾反转。",
+      "source": "同住的三个人轮流照顾阳台番茄。大家以为对方忘了浇水，结果每天都偷偷补浇一次。今晚他们第一次一起对着潮湿的花盆开会。",
+      "authorIntent": "幽默来自善意与观察；没有爽点、反派或结尾钩子也允许成为有效小说章节。",
+      "sourceScope": "complete original scenario packet",
+      "checks": [
+        "tone",
+        "causality",
+        "no-forced-hook",
+        "no-forced-video",
+        "repetition"
+      ]
+    },
+    {
+      "id": "comedy-script-production-risk",
+      "genre": "light-comedy",
+      "targetScale": "medium",
+      "entryPath": "script",
+      "workflowPath": "adaptation",
+      "task": "提出保持笑点因果的分镜草案与制作风险；媒体 Provider 不得成为结构化交付前置。",
+      "source": "INT. 合租厨房 - MORNING\n\n三个人分别躲在门后，等别人先承认浇了水。花盆被放在冰箱顶上，缓慢滴水。\n\n@室友甲\n今天谁都别对它好。",
+      "authorIntent": "小空间和人物动作喜剧；分镜不增加大场面；制作风险是建议而非报价。",
+      "sourceScope": "selected screenplay scene only",
+      "checks": [
+        "causality",
+        "production-risk",
+        "stable-blocks",
+        "optional-media",
+        "unknown-cost"
+      ]
+    },
+    {
+      "id": "growth-novel-payoff",
+      "genre": "growth",
+      "targetScale": "long",
+      "entryPath": "source-import",
+      "workflowPath": "novel",
+      "task": "根据明确的三处原文安排伏笔回收，承认中间章节未读，不生成全书质量结论。",
+      "source": "第2章：许宁第一次在排练时记下别人的建议。第15章：许宁把那本笔记借给新成员，留下书签。第31章：演出失误时，新成员把书签递回，许宁决定让对方先说自己的办法。",
+      "authorIntent": "成长体现为学会倾听而非独占胜利；关系改变循序渐进；保留主角的普通能力边界。",
+      "sourceScope": "three excerpts from a designed long-form scenario; no full-book corpus",
+      "checks": [
+        "foreshadowing",
+        "relationship",
+        "source-coverage",
+        "author-intent",
+        "no-forced-hook"
+      ]
+    },
+    {
+      "id": "growth-original-script",
+      "genre": "growth",
+      "targetScale": "medium",
+      "entryPath": "inspiration",
+      "workflowPath": "adaptation",
+      "task": "从创意开发单集大纲与剧本，保留作者选择的剧本目标，不先造一部小说或假改编诊断。",
+      "source": "社区排练室第一次允许新成员担任主持。许宁习惯替别人说完话，今天必须让紧张的新成员独立完成开场。",
+      "authorIntent": "温和的成长短剧；故事因果由真实选择推动；不能把主持成功等同于人物彻底改变。",
+      "sourceScope": "complete original single-episode brief, not source-novel adaptation",
+      "checks": [
+        "author-intent",
+        "causality",
+        "no-forced-novel",
+        "optional-media",
+        "unknown-cost"
+      ]
+    },
+    {
+      "id": "fantasy-novel-world-rule",
+      "genre": "fantasy",
+      "targetScale": "medium",
+      "entryPath": "inspiration",
+      "workflowPath": "novel",
+      "task": "续写一章，保留世界规则、人物代价与限知视角。",
+      "source": "城里每个人一生只能借一次别人的记忆，归还时会失去自己的一个名字。顾遥已经借过一次，忘记了旧老师的姓名。她知道记忆里有一座塔，却不知道塔的地点。",
+      "authorIntent": "奇幻规则必须有代价；顾遥不能再次借记忆或突然恢复老师名字；结局允许有限的遗憾。",
+      "sourceScope": "complete world-rule scenario packet",
+      "checks": [
+        "world-rule",
+        "character-knowledge",
+        "causality",
+        "author-intent",
+        "repetition"
+      ]
+    },
+    {
+      "id": "fantasy-adaptation-coverage",
+      "genre": "fantasy",
+      "targetScale": "long",
+      "entryPath": "source-import",
+      "workflowPath": "adaptation",
+      "task": "提出压缩策略和季纲覆盖风险，仅依据选中片段，不把规则检查当语义质量通过。",
+      "source": "第1章：顾遥借记忆并失去一个名字。第8章：档案员发现所有借阅都有不可取消的代价。第20章：顾遥选择放弃知道塔的地点，保留自己最后一个亲人的名字。第35章：塔被别人找到，顾遥没有因此恢复任何失去的名字。",
+      "authorIntent": "保留选择的代价与克制结局；可以合并档案检索，不能取消魔法代价或发明全书覆盖。",
+      "sourceScope": "four selected excerpts only; not a complete long novel",
+      "checks": [
+        "world-rule",
+        "source-coverage",
+        "lineage",
+        "production-risk",
+        "author-intent"
+      ]
+    }
+  ]
+}

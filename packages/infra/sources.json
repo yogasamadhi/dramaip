@@ -1,0 +1,324 @@
+{
+  "$comment": "DSH component packages copied into @dramaip/infra-* (scripts/copy-dsh-infra.mjs). DSH is MIT; every copy keeps LICENSE and NOTICE. `adapt` names DSH product packages the copied sources import; those imports are removed by hand after the copy.",
+  "framework": [
+    "@deepseek-ai/cordis",
+    "@deepseek-ai/cosmokit",
+    "@deepseek-ai/schemastery",
+    "@deepseek-ai/cordis-plugin-loader",
+    "@deepseek-ai/cordis-plugin-include",
+    "@deepseek-ai/cordis-plugin-group",
+    "@deepseek-ai/cordis-plugin-timer",
+    "@deepseek-ai/cordis-plugin-hmr",
+    "@deepseek-ai/cordis-plugin-logger-console"
+  ],
+  "packages": {
+    "atomic-write": {
+      "dsh": "@deepseek-ai/dsh-atomic-write",
+      "from": "packages/util/atomic-write"
+    },
+    "package-manifest": {
+      "dsh": "@deepseek-ai/dsh-package-manifest",
+      "from": "packages/util/package-manifest"
+    },
+    "values": {
+      "dsh": "@deepseek-ai/dsh-util-values",
+      "from": "packages/util/values"
+    },
+    "home-paths": {
+      "dsh": "@deepseek-ai/dsh-home-paths",
+      "from": "packages/util/home-paths"
+    },
+    "launch-environment": {
+      "dsh": "@deepseek-ai/dsh-launch-environment",
+      "from": "packages/util/launch-environment"
+    },
+    "http-proxy": {
+      "dsh": "@deepseek-ai/dsh-http-proxy",
+      "from": "packages/util/http-proxy"
+    },
+    "brand": {
+      "dsh": "@deepseek-ai/dsh-brand",
+      "from": "packages/util/brand"
+    },
+    "lazy-require": {
+      "dsh": "@deepseek-ai/dsh-lazy-require",
+      "from": "packages/util/lazy-require"
+    },
+    "deque": {
+      "dsh": "@deepseek-ai/dsh-deque",
+      "from": "packages/util/deque"
+    },
+    "timeout": {
+      "dsh": "@deepseek-ai/dsh-timeout",
+      "from": "packages/util/timeout"
+    },
+    "scope": {
+      "dsh": "@deepseek-ai/dsh-scope",
+      "from": "packages/core/scope"
+    },
+    "app-boot": {
+      "dsh": "@deepseek-ai/dsh-app-boot",
+      "from": "packages/boot/app-boot"
+    },
+    "cmdline": {
+      "dsh": "@deepseek-ai/dsh-cmdline",
+      "from": "packages/boot/cmdline"
+    },
+    "hmr": {
+      "dsh": "@deepseek-ai/dsh-hmr",
+      "from": "packages/boot/hmr"
+    },
+    "config-editor": {
+      "dsh": "@deepseek-ai/dsh-config-editor",
+      "from": "packages/boot/config-editor"
+    },
+    "settings": {
+      "dsh": "@deepseek-ai/dsh-settings",
+      "from": "packages/settings/settings"
+    },
+    "webserver": {
+      "dsh": "@deepseek-ai/dsh-host-webserver",
+      "from": "packages/host/webserver"
+    },
+    "frontend-static": {
+      "dsh": "@deepseek-ai/dsh-host-frontend-static",
+      "from": "packages/host/frontend-static"
+    },
+    "connection": {
+      "dsh": "@deepseek-ai/dsh-client-connection",
+      "from": "packages/client/connection",
+      "adapt": [
+        "@deepseek-ai/dsh-attachment",
+        "@deepseek-ai/dsh-session",
+        "@deepseek-ai/dsh-llm"
+      ]
+    },
+    "storage": {
+      "dsh": "@deepseek-ai/dsh-storage",
+      "from": "packages/storage/storage"
+    },
+    "storage-domain": {
+      "dsh": "@deepseek-ai/dsh-storage-domain",
+      "from": "packages/storage/storage-domain"
+    },
+    "storage-sqlite": {
+      "dsh": "@deepseek-ai/dsh-storage-sqlite",
+      "from": "packages/storage/storage-sqlite"
+    },
+    "credentials": {
+      "dsh": "@deepseek-ai/dsh-credentials",
+      "from": "packages/credentials/credentials"
+    },
+    "credentials-local": {
+      "dsh": "@deepseek-ai/dsh-credentials-local",
+      "from": "packages/credentials/credentials-local"
+    },
+    "subprocess": {
+      "dsh": "@deepseek-ai/dsh-subprocess",
+      "from": "packages/subprocess/subprocess"
+    },
+    "subprocess-local": {
+      "dsh": "@deepseek-ai/dsh-subprocess-local",
+      "from": "packages/subprocess/subprocess-local"
+    },
+    "win32-process": {
+      "dsh": "@deepseek-ai/dsh-win32-process",
+      "from": "packages/subprocess/win32-process"
+    },
+    "typert-protocol": {
+      "dsh": "@deepseek-ai/dsh-typert-protocol",
+      "from": "packages/typert/protocol"
+    },
+    "web-runtime": {
+      "dsh": "@deepseek-ai/dsh-web-app",
+      "from": "packages/bundle/web-app",
+      "adapt": [
+        "@deepseek-ai/dsh-shell-env",
+        "@deepseek-ai/dsh-web-frontend"
+      ]
+    },
+    "typert-registry": {
+      "dsh": "@deepseek-ai/dsh-typert-registry",
+      "from": "packages/typert/registry"
+    },
+    "typert-loader": {
+      "dsh": "@deepseek-ai/dsh-typert-loader",
+      "from": "packages/typert/loader"
+    },
+    "typert-generator": {
+      "dsh": "@deepseek-ai/dsh-typert-generator",
+      "from": "packages/typert/generator"
+    },
+    "gateway": {
+      "dsh": "@deepseek-ai/dsh-api-gateway",
+      "from": "packages/api/gateway",
+      "adapt": [
+        "@deepseek-ai/dsh-remote-mock"
+      ]
+    },
+    "remotes": {
+      "dsh": "@deepseek-ai/dsh-api-remotes",
+      "from": "packages/api/remotes",
+      "adapt": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-session",
+        "@deepseek-ai/dsh-deepseek-account",
+        "@deepseek-ai/dsh-permission-presets",
+        "@deepseek-ai/dsh-plugin-manager",
+        "@deepseek-ai/dsh-plugin-market",
+        "@deepseek-ai/dsh-schedule",
+        "@deepseek-ai/dsh-agent",
+        "@deepseek-ai/dsh-commands",
+        "@deepseek-ai/dsh-cordis-host-runner",
+        "@deepseek-ai/dsh-goal",
+        "@deepseek-ai/dsh-llm",
+        "@deepseek-ai/dsh-agent-preset-registry",
+        "@deepseek-ai/dsh-user-approval",
+        "@deepseek-ai/dsh-user-questions",
+        "@deepseek-ai/dsh-client-product-analytics",
+        "@deepseek-ai/dsh-api-account-controller",
+        "@deepseek-ai/dsh-api-settings-controller",
+        "@deepseek-ai/dsh-office-to-pdf",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-host-plugin-inventory",
+        "@deepseek-ai/dsh-message-feedback",
+        "@deepseek-ai/dsh-command-feedback",
+        "@deepseek-ai/dsh-client-file-upload",
+        "@deepseek-ai/dsh-session-reference",
+        "@deepseek-ai/dsh-subagent",
+        "@deepseek-ai/dsh-api-job-controller",
+        "@deepseek-ai/dsh-api-workspace-controller",
+        "@deepseek-ai/dsh-api-terminal-controller",
+        "@deepseek-ai/dsh-api-workspace-files",
+        "@deepseek-ai/dsh-file-reference"
+      ]
+    },
+    "remote-access": {
+      "dsh": "@deepseek-ai/dsh-api-remote-access",
+      "from": "packages/api/remote-access"
+    },
+    "client-modules": {
+      "dsh": "@deepseek-ai/dsh-client-modules",
+      "from": "packages/client/modules"
+    },
+    "client-hmr": {
+      "dsh": "@deepseek-ai/dsh-client-hmr",
+      "from": "packages/client/hmr"
+    },
+    "client-web": {
+      "dsh": "@deepseek-ai/dsh-client-web",
+      "from": "packages/client/web",
+      "adapt": [
+        "@deepseek-ai/dsh-client-ui-dockkit",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ]
+    },
+    "client-store": {
+      "dsh": "@deepseek-ai/dsh-client-store",
+      "from": "packages/client/store"
+    },
+    "ui-slots": {
+      "dsh": "@deepseek-ai/dsh-client-ui-slots",
+      "from": "packages/client/ui-slots"
+    },
+    "ui-renderer": {
+      "dsh": "@deepseek-ai/dsh-client-ui-renderer",
+      "from": "packages/client/ui-renderer",
+      "adapt": [
+        "@deepseek-ai/dsh-client-test-runtime",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-session",
+        "@deepseek-ai/dsh-remote-mock"
+      ]
+    },
+    "ui-theme": {
+      "dsh": "@deepseek-ai/dsh-client-ui-theme",
+      "from": "packages/client/ui-theme",
+      "adapt": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-controller",
+        "@deepseek-ai/dsh-client-test-runtime"
+      ]
+    },
+    "ui-primitives": {
+      "dsh": "@deepseek-ai/dsh-client-ui-primitives",
+      "from": "packages/client/ui-primitives"
+    },
+    "ui-layout": {
+      "dsh": "@deepseek-ai/dsh-client-ui-layout",
+      "from": "packages/client/ui-layout",
+      "adapt": [
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-test-runtime",
+        "@deepseek-ai/dsh-api-workspace-controller",
+        "@deepseek-ai/dsh-session",
+        "@deepseek-ai/dsh-api-session-controller"
+      ]
+    },
+    "locale": {
+      "dsh": "@deepseek-ai/dsh-client-locale",
+      "from": "packages/client/locale",
+      "adapt": [
+        "@deepseek-ai/dsh-client-test-runtime",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-controller"
+      ]
+    },
+    "util-crypto": {
+      "dsh": "@deepseek-ai/dsh-util-crypto",
+      "from": "packages/util/crypto"
+    },
+    "workspace-path": {
+      "dsh": "@deepseek-ai/dsh-util-workspace-path",
+      "from": "packages/util/workspace-path"
+    },
+    "code-language": {
+      "dsh": "@deepseek-ai/dsh-util-code-language",
+      "from": "packages/util/code-language"
+    },
+    "client-shortcuts": {
+      "dsh": "@deepseek-ai/dsh-client-shortcuts",
+      "from": "packages/client/shortcuts"
+    },
+    "ui-settings": {
+      "dsh": "@deepseek-ai/dsh-client-ui-settings",
+      "from": "packages/client/ui-settings",
+      "adapt": [
+        "@deepseek-ai/dsh-client-test-runtime"
+      ]
+    },
+    "remote-mock": {
+      "dsh": "@deepseek-ai/dsh-remote-mock",
+      "from": "packages/test-support/remote-mock",
+      "adapt": [
+        "@deepseek-ai/dsh-api-settings-controller"
+      ]
+    },
+    "test-runtime": {
+      "dsh": "@deepseek-ai/dsh-client-test-runtime",
+      "from": "packages/test-support/client-runtime",
+      "adapt": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-controller",
+        "@deepseek-ai/dsh-attachment",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-session",
+        "@deepseek-ai/dsh-subagent",
+        "@deepseek-ai/dsh-base"
+      ]
+    },
+    "settings-controller": {
+      "dsh": "@deepseek-ai/dsh-api-settings-controller",
+      "from": "packages/api/settings-controller",
+      "adapt": [
+        "@deepseek-ai/dsh-agent-preset-registry",
+        "@deepseek-ai/dsh-native-command",
+        "@deepseek-ai/dsh-session"
+      ]
+    }
+  }
+}

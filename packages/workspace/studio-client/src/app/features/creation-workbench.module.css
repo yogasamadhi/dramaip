@@ -1,0 +1,445 @@
+.k1 {
+  height: 100%;
+}
+
+.k2 {
+  max-height: 720px;
+}
+
+.k3 {
+  min-height: 4rem;
+}
+
+.k4 {
+  min-height: 6rem;
+}
+
+.c36 {
+  margin-block: 0.5rem;
+}
+
+.c35 {
+  margin-top: 0.25rem;
+}
+
+.c15,
+.c16,
+.c17,
+.c19,
+.c24,
+.c39 {
+  margin-top: 0.5rem;
+}
+
+.c28,
+.c52 {
+  margin-top: 0.75rem;
+}
+
+.c27 {
+  margin-bottom: 0.5rem;
+}
+
+.c21,
+.c38 {
+  display: block;
+}
+
+.c1,
+.c2,
+.c40,
+.c52,
+.c55 {
+  display: flex;
+}
+
+.c46,
+.c50 {
+  display: grid;
+}
+
+.c39 {
+  max-height: 11rem;
+}
+
+.c44 {
+  max-height: 55vh;
+}
+
+.c49 {
+  max-height: 60vh;
+}
+
+.c1,
+.c5 {
+  min-height: 0;
+}
+
+.c53 {
+  width: auto;
+}
+
+.c39,
+.c42 {
+  width: 100%;
+}
+
+.c43 {
+  max-width: 56rem;
+}
+
+.c48 {
+  max-width: 64rem;
+}
+
+.c1 {
+  min-width: 0;
+}
+
+.c5 {
+  flex: 1;
+}
+
+.c2,
+.c37 {
+  flex-shrink: 0;
+}
+
+.c14,
+.c23 {
+  cursor: pointer;
+}
+
+.c39 {
+  resize: vertical;
+}
+
+.c46 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.c1 {
+  flex-direction: column;
+}
+
+.c40 {
+  flex-wrap: wrap;
+}
+
+.c2,
+.c40,
+.c55 {
+  align-items: center;
+}
+
+.c2 {
+  justify-content: space-between;
+}
+
+.c40 {
+  gap: 0.5rem;
+}
+
+.c2,
+.c46,
+.c50,
+.c52,
+.c55 {
+  gap: 0.75rem;
+}
+
+:where(.c7 > :not(:last-child)),
+:where(.c10 > :not(:last-child)),
+:where(.c19 > :not(:last-child)),
+:where(.c24 > :not(:last-child)),
+:where(.c32 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c37 > :not(:last-child)),
+:where(.c44 > :not(:last-child)),
+:where(.c54 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c5 > :not(:last-child)),
+:where(.c49 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c44,
+.c49 {
+  overflow: auto;
+}
+
+.c1 {
+  overflow: hidden;
+}
+
+.c5 {
+  overflow-y: auto;
+}
+
+.c5,
+.c44,
+.c49 {
+  overscroll-behavior: contain;
+}
+
+.c6,
+.c7,
+.c28,
+.c45,
+.c56 {
+  border-radius: 0.25rem;
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c10,
+.c13,
+.c31,
+.c33,
+.c39 {
+  border-radius: var(--radius-sm);
+}
+
+.c1,
+.c6,
+.c7,
+.c28,
+.c33,
+.c39,
+.c45,
+.c56 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c37 {
+  border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+}
+
+.c2 {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+}
+
+.c36 {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 2px;
+}
+
+.c36 {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.c1,
+.c2,
+.c6,
+.c7,
+.c28,
+.c33,
+.c37,
+.c39,
+.c45,
+.c56 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c13 {
+  background-color: var(--dsw-alias-state-business-tertiary);
+}
+
+.c10 {
+  background-color: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.c1,
+.c39 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c31 {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.c37 {
+  background-color: var(--dsw-alias-bg-layer-2);
+}
+
+.c56 {
+  padding: 0.5rem;
+}
+
+.c6,
+.c7,
+.c10,
+.c13,
+.c28,
+.c31,
+.c33,
+.c39,
+.c45 {
+  padding: 0.75rem;
+}
+
+.c5,
+.c37 {
+  padding: 1rem;
+}
+
+.c2 {
+  padding-inline: 1rem;
+}
+
+.c2 {
+  padding-block: 0.75rem;
+}
+
+.c36 {
+  padding-left: 0.5rem;
+}
+
+.c51 {
+  font-family:
+    Iowan Old Style,
+    Songti SC,
+    STSong,
+    serif;
+}
+
+.c3,
+.c4,
+.c6,
+.c7,
+.c10,
+.c11,
+.c12,
+.c13,
+.c14,
+.c15,
+.c16,
+.c17,
+.c18,
+.c24,
+.c26,
+.c30,
+.c31,
+.c33,
+.c38,
+.c39,
+.c47,
+.c51,
+.c52,
+.c55 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c20,
+.c22 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c11,
+.c12,
+.c15,
+.c39 {
+  --tw-leading: 1.5rem;
+  line-height: 1.5rem;
+}
+
+.c26 {
+  --tw-leading: 1.75rem;
+  line-height: 1.75rem;
+}
+
+.c14,
+.c34,
+.c38 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c3,
+.c27 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c9,
+.c22 {
+  word-break: break-all;
+}
+
+.c15,
+.c26,
+.c47,
+.c51 {
+  white-space: pre-wrap;
+}
+
+.c8,
+.c10,
+.c30 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c25 {
+  color: var(--dsw-alias-label-primary);
+}
+
+.c41 {
+  color: var(--dsw-alias-link);
+}
+
+.c4,
+.c6,
+.c11,
+.c16,
+.c20,
+.c22,
+.c24,
+.c29,
+.c35 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (min-width: 48rem) {
+  .c50 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

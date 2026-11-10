@@ -1,0 +1,27 @@
+{
+  "name": "@dramaip/infra-lazy-require",
+  "description": "Caller-relative, success-cached lazy loading for CommonJS-compatible Host dependencies",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/util/lazy-require",
+      "package": "@deepseek-ai/dsh-lazy-require",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

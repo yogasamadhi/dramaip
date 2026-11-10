@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.base.json",
+  "files": [
+    "src/index.ts",
+    "src/remote-events.ts",
+    "src/types.ts"
+  ]
+}

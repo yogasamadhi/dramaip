@@ -1,0 +1,7 @@
+@dramaip/infra-ui-primitives
+
+Copied from @deepseek-ai/dsh-client-ui-primitives 0.2.1-rc.3 (packages/client/ui-primitives) of
+DeepSeek Harness, MIT License, Copyright (c) 2026 DeepSeek; see LICENSE.
+Adapted for DramaIP: package names, product content and integration.
+
+The navigation and status glyphs in src/icons/navigation.tsx are authored for DramaIP.

@@ -1,0 +1,25 @@
+{
+  "name": "@dramaip/boot-bundle-desktop",
+  "description": "Desktop patch layer: the Desktop Host capabilities and engine registry over bundle-web",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dramaip/agents-agents": "workspace:*",
+    "@dramaip/compat-runtime": "workspace:*",
+    "@dramaip/host-capabilities": "workspace:*",
+    "@dramaip/host-shell-bridge": "workspace:*",
+    "@dramaip/infra-web-runtime": "workspace:*",
+    "@dramaip/seams-engines": "workspace:*"
+  }
+}

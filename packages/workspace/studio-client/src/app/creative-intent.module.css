@@ -1,0 +1,198 @@
+.c3 {
+  composes: studio-eyebrow from global;
+}
+
+.c4,
+.c9,
+.c10,
+.c11 {
+  margin-top: 0.25rem;
+}
+
+.c12,
+.c15 {
+  margin-top: 0.5rem;
+}
+
+.c6,
+.c13 {
+  margin-top: 0.75rem;
+}
+
+.c2 {
+  display: flex;
+}
+
+.c6 {
+  display: grid;
+}
+
+.c14 {
+  cursor: pointer;
+}
+
+.c12,
+.c15 {
+  list-style-type: disc;
+}
+
+.c2 {
+  flex-wrap: wrap;
+}
+
+.c2 {
+  align-items: flex-start;
+}
+
+.c2 {
+  justify-content: space-between;
+}
+
+.c2 {
+  gap: 0.5rem;
+}
+
+.c6 {
+  gap: 0.75rem;
+}
+
+:where(.c12 > :not(:last-child)),
+:where(.c15 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c5 {
+  border-radius: 3.40282e38px;
+}
+
+.c7,
+.c13 {
+  border-radius: var(--radius);
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c13 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1,
+.c13 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c5 {
+  background-color: var(--dsw-alias-state-business-tertiary);
+}
+
+.c7 {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.c1 {
+  background-color: var(--dsw-alias-bg-layer-2);
+}
+
+.c7,
+.c13 {
+  padding: 0.75rem;
+}
+
+.c1 {
+  padding: 1rem;
+}
+
+.c5 {
+  padding-inline: 0.625rem;
+}
+
+.c5 {
+  padding-block: 0.25rem;
+}
+
+.c12,
+.c15 {
+  padding-left: 1.25rem;
+}
+
+.c6,
+.c14,
+.c15 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c5,
+.c8,
+.c12 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c9,
+.c11 {
+  --tw-leading: 1.5rem;
+  line-height: 1.5rem;
+}
+
+.c5,
+.c8,
+.c14 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c4 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c9,
+.c11 {
+  white-space: pre-wrap;
+}
+
+.c5,
+.c8 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.c11,
+.c12,
+.c15 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+
+@media (min-width: 64rem) {
+  .k1 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

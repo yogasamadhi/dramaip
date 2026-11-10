@@ -1,0 +1,228 @@
+.c21 {
+  margin-block: 0.5rem;
+}
+
+.c23 {
+  margin-block: 0.75rem;
+}
+
+.c3 {
+  margin-top: 1rem;
+}
+
+.c12,
+.c24 {
+  display: block;
+}
+
+.c7 {
+  display: grid;
+}
+
+.c23 {
+  max-height: 15rem;
+}
+
+.c8 {
+  max-height: 24rem;
+}
+
+.c22 {
+  width: auto;
+}
+
+.c12 {
+  width: 100%;
+}
+
+.c22 {
+  max-width: 100%;
+}
+
+.c13 {
+  min-width: 0;
+}
+
+.c2,
+.c20 {
+  cursor: pointer;
+}
+
+.c7 {
+  gap: 1rem;
+}
+
+:where(.c9 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c15 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c8 > :not(:last-child)),
+:where(.c13 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c3 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c8,
+.c23 {
+  overflow: auto;
+}
+
+.c8,
+.c12,
+.c13,
+.c15,
+.c19,
+.c23 {
+  border-radius: 0.25rem;
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c8,
+.c13,
+.c15,
+.c19,
+.c23 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1,
+.c8,
+.c13,
+.c15,
+.c19,
+.c23 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c1 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c8,
+.c13,
+.c15,
+.c19,
+.c23 {
+  padding: 0.75rem;
+}
+
+.c1 {
+  padding: 1.25rem;
+}
+
+.c12 {
+  padding-inline: 0.5rem;
+}
+
+.c12 {
+  padding-block: 0.25rem;
+}
+
+.c12 {
+  text-align: left;
+}
+
+.c4,
+.c5,
+.c12,
+.c14,
+.c15,
+.c20,
+.c22,
+.c24 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c6,
+.c11,
+.c17,
+.c21 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c2,
+.c10,
+.c20 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c16 {
+  overflow-wrap: break-word;
+}
+
+.c6,
+.c18 {
+  word-break: break-all;
+}
+
+.c16 {
+  white-space: pre-wrap;
+}
+
+.c5 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c4,
+.c6,
+.c11,
+.c21 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (hover: hover) {
+  .c12:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+@media (min-width: 64rem) {
+  .c7 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@dramaip/bundles",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/run-node.mjs --expose-internals ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "js-yaml": "4.1.1"
+  },
+  "devDependencies": {
+    "vitest": "4.1.9"
+  }
+}

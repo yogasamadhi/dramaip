@@ -1,0 +1,12 @@
+{
+  "name": "@dramaip/host-migration",
+  "description": "First-launch copy of the pre-refactor Electron user data into the DramaIP home (D9)",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  }
+}

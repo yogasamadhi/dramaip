@@ -1,0 +1,43 @@
+{
+  "name": "@dramaip/boot-bundle-web",
+  "description": "Web patch layer: the browser surface over bundle-base",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dramaip/agents-agents-client": "workspace:*",
+    "@dramaip/automation-automation-client": "workspace:*",
+    "@dramaip/infra-client-hmr": "workspace:*",
+    "@dramaip/infra-client-modules": "workspace:*",
+    "@dramaip/infra-client-shortcuts": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-locale": "workspace:*",
+    "@dramaip/infra-remotes": "workspace:*",
+    "@dramaip/infra-settings-controller": "workspace:*",
+    "@dramaip/infra-ui-layout": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@dramaip/infra-ui-settings": "workspace:*",
+    "@dramaip/infra-ui-theme": "workspace:*",
+    "@dramaip/infra-web-runtime": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*",
+    "@dramaip/insights-insights-client": "workspace:*",
+    "@dramaip/workspace-studio-client": "workspace:*",
+    "@dramaip/production-media-client": "workspace:*",
+    "@dramaip/production-production-client": "workspace:*",
+    "@dramaip/production-review-client": "workspace:*",
+    "@dramaip/system-system-client": "workspace:*",
+    "@dramaip/workspace-workspace-client": "workspace:*",
+    "@dramaip/writing-quality-client": "workspace:*",
+    "@dramaip/writing-writing-client": "workspace:*"
+  }
+}

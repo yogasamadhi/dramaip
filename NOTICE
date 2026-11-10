@@ -1,0 +1,13 @@
+DramaIP Desktop
+Copyright 2026 DramaIP contributors
+
+This product includes software developed by the DramaIP contributors and
+third-party components whose notices and licenses are distributed with the
+corresponding source or binary artifacts.
+
+DramaIP Platform is a separate proprietary work and is not licensed under the
+Apache License, Version 2.0 by this notice.
+
+Optional renderer and agent sidecars are separate programs. Their manifests,
+licenses, corresponding-source locations, and build recipes must accompany
+every distributed artifact.

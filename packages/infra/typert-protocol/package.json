@@ -1,0 +1,33 @@
+{
+  "name": "@dramaip/infra-typert-protocol",
+  "description": "Compiler-independent Remote metadata and Typert provider protocols",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./remote-info": "./src/remote-info.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-brand": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/typert/protocol",
+      "package": "@deepseek-ai/dsh-typert-protocol",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

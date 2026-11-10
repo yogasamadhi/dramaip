@@ -1,0 +1,247 @@
+// Host face aggregate the Typert generator reads (scripts/generate-typert.mjs):
+// one reference per Host package project under packages/.
+// scripts/typecheck-infra.mjs keeps the list in step with the packages.
+// The Cordis framework resolves to its prepared source (build/dsh-framework,
+// see scripts/prepare-dsh-framework.mjs), as the generator reads source only.
+{
+  "compilerOptions": {
+    "paths": {
+      "@deepseek-ai/cordis": ["./build/dsh-framework/cordis/src/index.ts"],
+      "@deepseek-ai/cordis-plugin-group": [
+        "./build/dsh-framework/group/src/index.ts"
+      ],
+      "@deepseek-ai/cordis-plugin-hmr": [
+        "./build/dsh-framework/hmr/src/index.ts"
+      ],
+      "@deepseek-ai/cordis-plugin-include": [
+        "./build/dsh-framework/include/src/index.ts"
+      ],
+      "@deepseek-ai/cordis-plugin-loader": [
+        "./build/dsh-framework/loader/src/index.ts"
+      ],
+      "@deepseek-ai/cordis-plugin-logger-console": [
+        "./build/dsh-framework/logger-console/src/index.ts"
+      ],
+      "@deepseek-ai/cordis-plugin-timer": [
+        "./build/dsh-framework/timer/src/index.ts"
+      ],
+      "@deepseek-ai/cosmokit": ["./build/dsh-framework/cosmokit/src/index.ts"],
+      "@deepseek-ai/schemastery": [
+        "./build/dsh-framework/schemastery/src/index.ts"
+      ]
+    }
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/infra/app-boot"
+    },
+    {
+      "path": "./packages/infra/atomic-write"
+    },
+    {
+      "path": "./packages/infra/brand"
+    },
+    {
+      "path": "./packages/infra/client-hmr"
+    },
+    {
+      "path": "./packages/infra/client-modules"
+    },
+    {
+      "path": "./packages/infra/client-shortcuts/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/cmdline"
+    },
+    {
+      "path": "./packages/infra/code-language"
+    },
+    {
+      "path": "./packages/infra/config-editor"
+    },
+    {
+      "path": "./packages/infra/connection/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/credentials"
+    },
+    {
+      "path": "./packages/infra/credentials-local"
+    },
+    {
+      "path": "./packages/infra/deque"
+    },
+    {
+      "path": "./packages/infra/frontend-static"
+    },
+    {
+      "path": "./packages/infra/gateway/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/hmr"
+    },
+    {
+      "path": "./packages/infra/home-paths"
+    },
+    {
+      "path": "./packages/infra/http-proxy"
+    },
+    {
+      "path": "./packages/infra/launch-environment"
+    },
+    {
+      "path": "./packages/infra/lazy-require"
+    },
+    {
+      "path": "./packages/infra/locale/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/operations"
+    },
+    {
+      "path": "./packages/infra/package-manifest"
+    },
+    {
+      "path": "./packages/infra/remote-access/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/remotes/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/scope"
+    },
+    {
+      "path": "./packages/infra/settings"
+    },
+    {
+      "path": "./packages/infra/settings-controller"
+    },
+    {
+      "path": "./packages/infra/storage"
+    },
+    {
+      "path": "./packages/infra/storage-domain"
+    },
+    {
+      "path": "./packages/infra/storage-sqlite"
+    },
+    {
+      "path": "./packages/infra/storage-relational"
+    },
+    {
+      "path": "./packages/infra/subprocess"
+    },
+    {
+      "path": "./packages/infra/subprocess-local"
+    },
+    {
+      "path": "./packages/infra/timeout"
+    },
+    {
+      "path": "./packages/infra/typert-generator"
+    },
+    {
+      "path": "./packages/infra/typert-loader"
+    },
+    {
+      "path": "./packages/infra/typert-protocol"
+    },
+    {
+      "path": "./packages/infra/typert-registry"
+    },
+    {
+      "path": "./packages/infra/ui-settings/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/ui-theme/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/infra/util-crypto"
+    },
+    {
+      "path": "./packages/infra/values"
+    },
+    {
+      "path": "./packages/infra/web-runtime"
+    },
+    {
+      "path": "./packages/infra/webserver"
+    },
+    {
+      "path": "./packages/infra/win32-process"
+    },
+    {
+      "path": "./packages/infra/workspace-path"
+    },
+    {
+      "path": "./packages/boot/bundle-engine-pi"
+    },
+    {
+      "path": "./packages/boot/bundle-headless"
+    },
+    {
+      "path": "./packages/host/capabilities"
+    },
+    {
+      "path": "./packages/host/contracts"
+    },
+    {
+      "path": "./packages/host/migration"
+    },
+    {
+      "path": "./packages/host/shell-bridge"
+    },
+    {
+      "path": "./packages/seams/engines"
+    },
+    {
+      "path": "./packages/compat/runtime"
+    },
+    {
+      "path": "./packages/system/system"
+    },
+    {
+      "path": "./packages/insights/insights"
+    },
+    {
+      "path": "./packages/production/review"
+    },
+    {
+      "path": "./packages/production/delivery"
+    },
+    {
+      "path": "./packages/workspace/workspace"
+    },
+    {
+      "path": "./packages/writing/writing"
+    },
+    {
+      "path": "./packages/writing/quality"
+    },
+    {
+      "path": "./packages/writing/knowledge"
+    },
+    {
+      "path": "./packages/agents/agents"
+    },
+    {
+      "path": "./packages/automation/automation"
+    },
+    {
+      "path": "./packages/production/timeline"
+    },
+    {
+      "path": "./packages/production/production"
+    },
+    {
+      "path": "./packages/production/media"
+    },
+    {
+      "path": "./packages/testing/sample-plugin/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/testing/web-composition"
+    }
+  ]
+}

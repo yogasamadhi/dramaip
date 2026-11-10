@@ -1,0 +1,116 @@
+# DramaIP web layer over bundle-base: the browser surface.
+#
+# The web-startup plugin parses the invocation's web flags and provides
+# `webStartup`; rows configured from flags inject it, so Loader resolves their
+# expressions only after it exists. `dramaip --profile web --help` provides no
+# `webStartup`, so no server binds.
+
+- insert:
+    - id: web-startup
+      name: "@dramaip/infra-web-runtime/startup"
+
+    # Route-registration carrier; rejects wildcard binds.
+    - id: webserver
+      name: "@dramaip/infra-webserver"
+      inject: [webStartup]
+      config:
+        host: !!js ctx.webStartup.host ?? '127.0.0.1'
+        port: !!js ctx.webStartup.port ?? 3280
+        tls: !!js ctx.webStartup.tls
+        compression: gzip
+        compressionLevel: 1
+        compressionThresholdBytes: 1024
+
+    # Serves the built @dramaip/web dist, prints the token URL line and opens
+    # the browser after the Loader tree settles.
+    - id: web-runtime
+      name: "@dramaip/infra-web-runtime"
+      inject: [webStartup]
+      config:
+        openBrowser: !!js ctx.webStartup.openBrowser
+        printUrl: true
+        publicUrl: !!js ctx.webStartup.publicUrl
+        surfaceContext: true
+
+    # Token exchange for a signed cookie, Host/Origin trust, and the /api route.
+    - id: connection
+      name: "@dramaip/infra-connection"
+      inject: [webStartup]
+      config:
+        trustedHosts: !!js ctx.webStartup.trustedHosts
+
+    # Settings reads and writes over Typert Remote.
+    - id: settings-controller
+      name: "@dramaip/infra-settings-controller"
+
+    # The client-plugin reload chain: idle until a rebuild watcher rewrites
+    # client bundles.
+    - id: client-hmr
+      name: "@dramaip/infra-client-hmr"
+
+    # ── browser plugin roster (dramaip.client rows) ──
+
+    # Dual-face: the node half scans this tree, composes
+    # window.__DRAMAIP_BOOT__ and serves /plugins/<id>/client.js; the browser
+    # half is the module table the shell constructs before Cordis exists.
+    - id: modules
+      name: "@dramaip/infra-client-modules"
+
+    # The forwarded Cordis event source and the selected Client Remotes.
+    - id: api-remotes
+      name: "@dramaip/infra-remotes"
+
+    - id: ui-theme
+      name: "@dramaip/infra-ui-theme"
+
+    - id: locale
+      name: "@dramaip/infra-locale"
+
+    - id: shortcuts
+      name: "@dramaip/infra-client-shortcuts"
+
+    - id: ui-layout
+      name: "@dramaip/infra-ui-layout"
+
+    - id: ui-renderer
+      name: "@dramaip/infra-ui-renderer"
+
+    - id: ui-settings
+      name: "@dramaip/infra-ui-settings"
+
+    # The Studio app shell in the root Slot (workspace domain): its pages
+    # call the domain Remote namespaces through the request facade's bridge.
+    - id: workspace-studio-client
+      name: "@dramaip/workspace-studio-client"
+
+    # ── domain client plugins (P4/P5): one per migrated domain ──
+    # The settings page and the runtime diagnostics section (system Remote).
+    - id: system-system-client
+      name: "@dramaip/system-system-client"
+    # The feedback and outcomes page (insights Remote).
+    - id: insights-insights-client
+      name: "@dramaip/insights-insights-client"
+    # The review and delivery page frame.
+    - id: production-review-client
+      name: "@dramaip/production-review-client"
+    # The search page and the project tools page frame (workspace Remote).
+    - id: workspace-workspace-client
+      name: "@dramaip/workspace-workspace-client"
+    # The novel library, quick start and workspace frame (workspace and system Remote).
+    - id: writing-writing-client
+      name: "@dramaip/writing-writing-client"
+    # The creative analysis page frame.
+    - id: writing-quality-client
+      name: "@dramaip/writing-quality-client"
+    # The task and pending confirmation page frames.
+    - id: automation-automation-client
+      name: "@dramaip/automation-automation-client"
+    # The inspiration space page frame.
+    - id: agents-agents-client
+      name: "@dramaip/agents-agents-client"
+    # The production page frame.
+    - id: production-media-client
+      name: "@dramaip/production-media-client"
+    # The adaptation page frame.
+    - id: production-production-client
+      name: "@dramaip/production-production-client"

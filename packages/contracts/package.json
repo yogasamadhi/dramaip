@@ -1,0 +1,34 @@
+{
+  "name": "@dramaip/contracts",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent-context": "./src/agent-context.ts",
+    "./automation": "./src/automation.ts",
+    "./creation": "./src/creation.ts",
+    "./creative-quality": "./src/creative-quality.ts",
+    "./creative-intelligence": "./src/creative-intelligence.ts",
+    "./delivery": "./src/delivery.ts",
+    "./foundation": "./src/foundation.ts",
+    "./insights": "./src/insights.ts",
+    "./knowledge": "./src/knowledge.ts",
+    "./media": "./src/media.ts",
+    "./production": "./src/production.ts",
+    "./product": "./src/product.ts",
+    "./review": "./src/review.ts",
+    "./timeline": "./src/timeline.ts",
+    "./timeline-copy": "./src/timeline-copy.ts",
+    "./workspace": "./src/workspace.ts",
+    "./writing": "./src/writing.ts",
+    "./creation-project-lineage": "./src/creation-project-lineage.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
+}

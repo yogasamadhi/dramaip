@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "src/protocol.ts",
+    "src/native.ts",
+    "src/binding.ts",
+    "src/configuration.ts",
+    "src/persistence.ts",
+    "src/index.ts",
+    "src/config.ts"
+  ]
+}

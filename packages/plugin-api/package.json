@@ -1,0 +1,20 @@
+{
+  "name": "@dramaip/plugin-api",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./experimental": "./src/experimental.ts",
+    "./internal": "./src/internal.ts",
+    "./ui-registry": "./src/ui-registry.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  }
+}

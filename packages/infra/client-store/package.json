@@ -1,0 +1,28 @@
+{
+  "name": "@dramaip/infra-client-store",
+  "description": "React-free observable and snapshot-store contracts with the shared Immer engine",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "immer": "^10.1.1"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/store",
+      "package": "@deepseek-ai/dsh-client-store",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

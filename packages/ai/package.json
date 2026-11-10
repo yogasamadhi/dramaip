@@ -1,0 +1,20 @@
+{
+  "name": "@dramaip/agent-host-adapters",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pi-sidecar": "./src/pi-sidecar.ts",
+    "./pi-provider-runtime": "./src/pi-provider-runtime.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dramaip/infra-subprocess": "workspace:*"
+  }
+}

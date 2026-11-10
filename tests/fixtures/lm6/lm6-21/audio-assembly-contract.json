@@ -1,0 +1,8 @@
+{
+  "tracks": ["dialogue", "narration", "bgm", "sfx", "subtitle"],
+  "audioDefaults": { "bgmVolume": 0.24, "duckingGain": 0.55 },
+  "requiredStates": ["cleared", "unknown", "restricted"],
+  "protectedEdits": ["move", "trim", "set-clip-audio"],
+  "subtitleFormats": ["SRT", "WebVTT"],
+  "requiredElectronSpec": "lm6-21.spec.ts"
+}

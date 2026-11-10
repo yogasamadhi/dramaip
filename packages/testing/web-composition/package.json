@@ -1,0 +1,32 @@
+{
+  "name": "@dramaip/test-web-composition",
+  "description": "Test-only in-process web Profile business composition: relational backend, compat runtime and the operation registry, then the business plugins",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "transitional": {
+      "until": "P6"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@dramaip/compat-runtime": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/infra-operations": "workspace:*",
+    "@dramaip/infra-storage-relational": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  }
+}

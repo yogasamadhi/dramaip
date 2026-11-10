@@ -1,0 +1,58 @@
+# pnpm workspace definition for the DramaIP Desktop client.
+#
+# The DSH framework packages are generated into `build/dsh-framework/` by
+# `pnpm run prepare:framework`; that script must run before `pnpm install`
+# so the generated workspace members are linked to the local source snapshot
+# instead of a registry copy.
+# pnpm's isolated (symlinked) node_modules layout is the contract this
+# workspace is designed against; the setting is written out explicitly.
+nodeLinker: isolated
+
+packages:
+  - apps/desktop
+  - packages/ai
+  - packages/contracts
+  - packages/bundles
+  - packages/runtime-adapters
+  - packages/database
+  - packages/events
+  - packages/plugin-api
+  - packages/agent-runtime
+  - packages/infra/*
+  # Desktop Host plugins (D8) and the seams they share (D5).
+  - packages/host/*
+  - packages/seams/*
+  - packages/boot/*
+  # Transitional bridges to the pre-refactor runtime (D3, D11); removed in P6.
+  - packages/compat/*
+  # Domain packages (P4/P5): one Host face and one Client plugin per domain.
+  - packages/system/*
+  - packages/insights/*
+  - packages/production/*
+  - packages/workspace/*
+  - packages/writing/*
+  - packages/agents/*
+  - packages/automation/*
+  - apps/cli
+  - apps/desktop-host
+  - apps/web
+  # Test-only plugins the acceptance suites insert through a profile patch.
+  - packages/testing/*
+  - build/dsh-framework/*
+
+overrides:
+  "@electron/get@^3.0.0": 3.1.0
+  "@types/react": 18.3.31
+  "@types/react-dom": 18.3.7
+  react: 18.3.1
+  react-dom: 18.3.1
+
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  msgpackr-extract: true
+  # Persistent PTY backend of @dramaip/infra-subprocess-local (copied from DSH).
+  node-pty: true
+  # Windows MoveFileExW binding of @dramaip/infra-win32-process; ships prebuilt binaries.
+  koffi: true

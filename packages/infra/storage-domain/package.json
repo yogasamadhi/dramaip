@@ -1,0 +1,34 @@
+{
+  "name": "@dramaip/infra-storage-domain",
+  "description": "Domain data form (ctx.storage.domain): schema-validated, event-emitting KV domains over storage backends",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@dramaip/infra-storage": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@dramaip/infra-storage": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/storage/storage-domain",
+      "package": "@deepseek-ai/dsh-storage-domain",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

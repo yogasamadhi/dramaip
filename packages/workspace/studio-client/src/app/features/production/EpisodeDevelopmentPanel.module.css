@@ -1,0 +1,246 @@
+.c13,
+.c14 {
+  margin-top: 0.5rem;
+}
+
+.c28,
+.c30,
+.c32 {
+  margin-left: 0.5rem;
+}
+
+.c27 {
+  display: block;
+}
+
+.c29,
+.c33,
+.c34,
+.c37 {
+  display: flex;
+}
+
+.c30 {
+  width: 6rem;
+}
+
+.c32 {
+  width: auto;
+}
+
+.c29,
+.c34,
+.c37 {
+  flex-wrap: wrap;
+}
+
+.c37 {
+  align-items: center;
+}
+
+.c33 {
+  align-items: flex-start;
+}
+
+.c33,
+.c34,
+.c37 {
+  gap: 0.5rem;
+}
+
+.c29 {
+  gap: 1rem;
+}
+
+:where(.c3 > :not(:last-child)),
+:where(.c17 > :not(:last-child)),
+:where(.c19 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c10 > :not(:last-child)),
+:where(.c18 > :not(:last-child)),
+:where(.c22 > :not(:last-child)),
+:where(.c31 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c7 > :not(:last-child)),
+:where(.c15 > :not(:last-child)),
+:where(.c25 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c21 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c1,
+.c10,
+.c12,
+.c18,
+.c19,
+.c22,
+.c30 {
+  border-radius: 0.25rem;
+}
+
+.c25 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c10,
+.c12,
+.c18,
+.c19,
+.c22,
+.c25,
+.c30 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c5 {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 2px;
+}
+
+.c1,
+.c5,
+.c10,
+.c12,
+.c18,
+.c19,
+.c22,
+.c25,
+.c30 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c25,
+.c30 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c30 {
+  padding: 0.5rem;
+}
+
+.c1,
+.c10,
+.c12,
+.c18,
+.c19 {
+  padding: 0.75rem;
+}
+
+.c22 {
+  padding: 1rem;
+}
+
+.c25 {
+  padding: 1.25rem;
+}
+
+.c5 {
+  padding-left: 0.75rem;
+}
+
+.c1,
+.c6,
+.c7,
+.c23,
+.c24,
+.c26,
+.c27,
+.c29,
+.c35,
+.c37 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c36 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c9 {
+  --tw-leading: 1.75rem;
+  line-height: 1.75rem;
+}
+
+.c11 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c8 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c16 {
+  overflow-wrap: break-word;
+}
+
+.c4,
+.c14,
+.c17,
+.c18 {
+  word-break: break-all;
+}
+
+.c5,
+.c9,
+.c16 {
+  white-space: pre-wrap;
+}
+
+.c20,
+.c35 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c24,
+.c26 {
+  color: var(--dsw-alias-link);
+}
+
+.c2,
+.c6,
+.c36 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

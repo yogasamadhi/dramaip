@@ -1,0 +1,34 @@
+{
+  "name": "@dramaip/desktop-host-process",
+  "description": "Desktop Host: runs the desktop Profile under Electron's Node and reports readiness to the Electron shell over Node IPC",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./overlays/safe.yml": "./overlays/safe.yml",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/boot-bundle-agents": "workspace:*",
+    "@dramaip/boot-bundle-automation": "workspace:*",
+    "@dramaip/boot-bundle-base": "workspace:*",
+    "@dramaip/boot-bundle-desktop": "workspace:*",
+    "@dramaip/boot-bundle-engine-pi": "workspace:*",
+    "@dramaip/boot-bundle-insights": "workspace:*",
+    "@dramaip/boot-bundle-production": "workspace:*",
+    "@dramaip/boot-bundle-web": "workspace:*",
+    "@dramaip/boot-bundle-writing": "workspace:*",
+    "@dramaip/cli": "workspace:*",
+    "@dramaip/host-migration": "workspace:*",
+    "@dramaip/host-shell-bridge": "workspace:*",
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-home-paths": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "4.22.4"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@dramaip/infra-cmdline",
+  "description": "Immutable command-line handoff from a dramaip launcher to any app plugin that injects cmdlineArgs",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "commander": "^15.0.0",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/boot/cmdline",
+      "package": "@deepseek-ai/dsh-cmdline",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

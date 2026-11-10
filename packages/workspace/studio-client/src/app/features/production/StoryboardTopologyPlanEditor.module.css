@@ -1,0 +1,75 @@
+.c6 {
+  margin-right: 0.75rem;
+}
+
+.c8 {
+  display: block;
+}
+
+.c7 {
+  display: flex;
+}
+
+.c7 {
+  flex-wrap: wrap;
+}
+
+.c7 {
+  gap: 0.5rem;
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c3 > :not(:last-child)),
+:where(.c5 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c2 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c3,
+.c5 {
+  border-radius: 0.25rem;
+}
+
+.c3,
+.c5 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c3,
+.c5 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c5 {
+  padding: 0.5rem;
+}
+
+.c3 {
+  padding: 0.75rem;
+}
+
+.c1,
+.c4,
+.c8 {
+  word-break: break-all;
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}

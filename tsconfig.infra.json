@@ -1,0 +1,17 @@
+{
+  "extends": "./packages/infra/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext.Disposable"]
+  },
+  "include": [
+    "packages/infra/*/src",
+    "packages/infra/*/tests",
+    "packages/boot/*/src",
+    "apps/cli/src",
+    "apps/cli/tests",
+    "vitest.infra.config.ts",
+    "scripts/vitest"
+  ],
+  "exclude": ["packages/infra/typert-generator/tests/fixtures/**"]
+}

@@ -1,0 +1,97 @@
+.c5 {
+  margin-top: 0.125rem;
+}
+
+.c2,
+.c6 {
+  display: flex;
+}
+
+.c3 {
+  min-width: 0;
+}
+
+.c2,
+.c6 {
+  flex-wrap: wrap;
+}
+
+.c2 {
+  align-items: flex-end;
+}
+
+.c2 {
+  justify-content: space-between;
+}
+
+.c2 {
+  gap: 0.75rem;
+}
+
+:where(.c1 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c6 {
+  column-gap: 1rem;
+}
+
+.c6 {
+  row-gap: 0.25rem;
+}
+
+.c4 {
+  font-size: 1rem;
+  line-height: var(--tw-leading, calc(1.5 / 1));
+}
+
+.c5,
+.c6 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c4 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c4 {
+  color: var(--dsw-alias-label-primary);
+}
+
+.c7 {
+  color: var(--dsw-alias-link);
+}
+
+.c5 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c7 {
+  text-underline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .c7:hover {
+    text-decoration-line: underline;
+  }
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

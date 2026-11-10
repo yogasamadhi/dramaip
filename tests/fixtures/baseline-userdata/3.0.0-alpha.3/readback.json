@@ -1,0 +1,88 @@
+{
+  "/api/v2/projects/aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099": {
+    "id": "aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099",
+    "title": "基准项目：雨夜来信",
+    "shortDramaType": "未分类",
+    "mode": "series_longform",
+    "modeConfig": {
+      "mode": "series_longform",
+      "targetChapterCount": 300,
+      "targetSeasonCount": 5
+    },
+    "lifecycleStatus": "ready",
+    "targetEpisodeCount": 12,
+    "synopsis": "用于重构迁移验收的基准项目。",
+    "version": 0,
+    "createdAt": "2026-10-28T03:11:07.162Z",
+    "updatedAt": "2026-10-28T03:11:07.162Z"
+  },
+  "/api/v2/projects/aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099/volumes": {
+    "items": [
+      {
+        "id": "647d2894-7a37-43f3-b89f-0e470ce6f2b4",
+        "projectId": "aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099",
+        "title": "第一卷",
+        "outline": "",
+        "orderIndex": 0,
+        "version": 0,
+        "createdAt": "2026-10-28T03:11:07.167Z",
+        "updatedAt": "2026-10-28T03:11:07.167Z"
+      }
+    ]
+  },
+  "/api/v2/projects/aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099/chapters": [
+    {
+      "id": "83f811d0-5795-45d2-9308-0ae3eb569254",
+      "projectId": "aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099",
+      "volumeId": "647d2894-7a37-43f3-b89f-0e470ce6f2b4",
+      "title": "第1章",
+      "orderIndex": 0,
+      "summary": "",
+      "content": "雨夜，她在门口拆开一封没有署名的信。",
+      "version": 0,
+      "createdAt": "2026-10-28T03:11:07.169Z",
+      "updatedAt": "2026-10-28T03:11:07.169Z"
+    },
+    {
+      "id": "e673e7e0-ab70-4b7b-b02d-7024e1877e48",
+      "projectId": "aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099",
+      "volumeId": "647d2894-7a37-43f3-b89f-0e470ce6f2b4",
+      "title": "第2章",
+      "orderIndex": 1,
+      "summary": "",
+      "content": "信里只有一个地址，和一张十年前的照片。",
+      "version": 0,
+      "createdAt": "2026-10-28T03:11:07.170Z",
+      "updatedAt": "2026-10-28T03:11:07.170Z"
+    },
+    {
+      "id": "f000ddbe-0b5a-4fdf-9917-7e51c65a8b65",
+      "projectId": "aa3a8ecc-fc80-48bb-b91c-2f9e7bd1d099",
+      "volumeId": "647d2894-7a37-43f3-b89f-0e470ce6f2b4",
+      "title": "第3章",
+      "orderIndex": 2,
+      "summary": "",
+      "content": "她按地址找到旧楼，门牌已经换过三次。",
+      "version": 0,
+      "createdAt": "2026-10-28T03:11:07.171Z",
+      "updatedAt": "2026-10-28T03:11:07.171Z"
+    }
+  ],
+  "/api/v2/providers": [
+    {
+      "id": "b35d7b2d-c480-4335-bcb8-7314bbaa30fb",
+      "domain": "providers",
+      "title": "Baseline Fixture Provider",
+      "payload": {
+        "服务类型": "智能模型",
+        "预设服务商": "other",
+        "模型名称": "baseline-fixture-model",
+        "服务地址": "http://127.0.0.1:47831/v1",
+        "凭据引用": "1f2bea27-522e-474e-a75f-0863ba7052a8"
+      },
+      "version": 0,
+      "createdAt": "2026-10-28T03:11:07.172Z",
+      "updatedAt": "2026-10-28T03:11:07.172Z"
+    }
+  ]
+}

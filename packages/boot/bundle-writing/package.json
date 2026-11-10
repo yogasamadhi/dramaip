@@ -1,0 +1,22 @@
+{
+  "name": "@dramaip/boot-bundle-writing",
+  "description": "Writing domain: manuscript, knowledge and creative-quality plugins",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dramaip/writing-knowledge": "workspace:*",
+    "@dramaip/writing-quality": "workspace:*",
+    "@dramaip/writing-writing": "workspace:*"
+  }
+}

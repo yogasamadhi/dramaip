@@ -1,0 +1,12 @@
+# DramaIP agents domain bundle (D6). Business plugins still run on the
+# Kernel-era services of bundle-base's compat rows until their domain moves
+# to Remote methods (P4/P5).
+
+- insert:
+    # The `agents` Remote namespace (P5-a): agent sessions, engines, providers and the inspiration space. It claims
+    # its plugin's /api/v2 operations and runs their handlers in process
+    # until P6.
+    - id: agents-agents
+      name: "@dramaip/agents-agents"
+    - id: agents
+      name: "@dramaip/agents-agents/handlers/agents"

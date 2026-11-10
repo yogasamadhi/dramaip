@@ -1,0 +1,157 @@
+/* Text fields share the Input stroke, fill and focus feedback. */
+.textarea,
+.native,
+.trigger {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-s-14);
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.textarea {
+  min-height: 88px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.textarea:focus,
+.native:focus,
+.trigger:focus-visible,
+.trigger[data-state='open'] {
+  border-color: var(--dsw-alias-state-business-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)) 20%, transparent);
+}
+
+.textarea:disabled,
+.native:disabled,
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.native {
+  height: 36px;
+  padding: 0 28px 0 10px;
+  appearance: none;
+  /* A chevron drawn from two gradient triangles, so it takes the theme's label color. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--dsw-alias-label-tertiary) 50%),
+    linear-gradient(135deg, var(--dsw-alias-label-tertiary) 50%, transparent 50%);
+  background-position:
+    right 15px center,
+    right 10px center;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font: var(--dsw-font-xs-strong-13);
+  color: var(--dsw-alias-label-primary);
+}
+
+.required {
+  margin-left: 2px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.hint,
+.error {
+  margin: 0;
+  font: var(--dsw-font-xxs-12);
+}
+
+.hint {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px 0 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.trigger[data-placeholder] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.content {
+  z-index: var(--dsw-layer-overlay-popover);
+  min-width: var(--radix-select-trigger-width);
+  max-height: var(--radix-select-content-available-height);
+  overflow: hidden;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-elevation-panel);
+  /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens. */
+  --dramaip-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dramaip-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.viewport {
+  padding: 4px;
+}
+
+.groupLabel {
+  padding: 6px 8px 4px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 28px 0 8px;
+  border-radius: var(--dsw-radius-sm);
+  font: var(--dsw-font-s-14);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.item[data-highlighted] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.indicator {
+  position: absolute;
+  right: 8px;
+  display: inline-flex;
+}

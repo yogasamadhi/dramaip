@@ -1,0 +1,105 @@
+.c7 {
+  margin-right: 0.75rem;
+}
+
+.c6 {
+  margin-left: 0.5rem;
+}
+
+.c3,
+.c8 {
+  display: flex;
+}
+
+.c7 {
+  display: inline-flex;
+}
+
+.c6 {
+  width: 6rem;
+}
+
+.c8 {
+  flex-wrap: wrap;
+}
+
+.c7 {
+  align-items: center;
+}
+
+.c3 {
+  align-items: flex-start;
+}
+
+.c7 {
+  gap: 0.25rem;
+}
+
+.c3,
+.c8 {
+  gap: 0.5rem;
+}
+
+:where(.c2 > :not(:last-child)),
+:where(.c4 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c2,
+.c4,
+.c6 {
+  border-radius: 0.25rem;
+}
+
+.c2,
+.c4,
+.c6 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c2,
+.c4,
+.c6 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c6 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c6 {
+  padding: 0.25rem;
+}
+
+.c4 {
+  padding: 0.5rem;
+}
+
+.c2 {
+  padding: 0.75rem;
+}
+
+.c5 {
+  word-break: break-all;
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}

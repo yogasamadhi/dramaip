@@ -1,0 +1,19 @@
+{
+  "name": "@dramaip/host-shell-bridge",
+  "description": "Host half of the Electron shell bridge: native shell actions over the Desktop Host's Node IPC channel",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  }
+}

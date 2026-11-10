@@ -1,0 +1,9 @@
+/* The existing Studio app was drawn with circular corners. ui-theme smooths
+ * every corner through its corner-shape token, which would reshape each of
+ * the app's corners and square off its pills, so while this plugin renders
+ * the app the token stays round. The selector outranks ui-theme's `:root`,
+ * whatever order the plugin stylesheets load in. The domain clients that take
+ * the pages over (P4/P5) adopt the smoothing with their visual review. */
+html:root {
+  --dsw-corner-shape: round;
+}

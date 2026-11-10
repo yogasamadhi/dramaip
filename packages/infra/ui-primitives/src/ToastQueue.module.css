@@ -1,0 +1,62 @@
+.viewport {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: var(--dsw-layer-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  outline: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 14px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
+  font: var(--dsw-font-xs-13);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.toast[data-state='open'] {
+  animation: toast-in 160ms ease-out;
+}
+
+/* Tones mark the leading edge in their state color; the neutral tone has none. */
+.toast[data-tone='success'] {
+  padding-left: 11px;
+  border-left: 3px solid var(--dsw-alias-state-success-primary);
+}
+
+.toast[data-tone='warning'] {
+  padding-left: 11px;
+  border-left: 3px solid var(--dsw-alias-state-warn-primary);
+}
+
+.toast[data-tone='danger'] {
+  padding-left: 11px;
+  border-left: 3px solid var(--dsw-alias-state-error-primary);
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

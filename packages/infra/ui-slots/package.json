@@ -1,0 +1,29 @@
+{
+  "name": "@dramaip/infra-ui-slots",
+  "description": "Slot registry pure core: typed ordinary Slots and reusable Component Factories, derived props, Store seats, and renderer installation",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@dramaip/infra-client-store": "workspace:*",
+    "react": "^18.2.0",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/ui-slots",
+      "package": "@deepseek-ai/dsh-client-ui-slots",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

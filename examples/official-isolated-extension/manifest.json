@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "official.dramaip.sample",
+  "name": "DramaIP 隔离扩展示例",
+  "description": "Public Plugin API v1 的存储、命令、事件、路由与声明式面板示例。",
+  "version": "1.0.0",
+  "publisher": { "id": "official.dramaip", "keyId": "official-dev-1" },
+  "pluginApi": "^1",
+  "product": ">=3.0.0-alpha.3 <4",
+  "entrypoint": "dist/extension.js",
+  "activation": "lazy",
+  "permissions": [
+    "storage.read",
+    "storage.write",
+    "events.subscribe",
+    "commands.register",
+    "extensions.route",
+    "ui.contribute",
+    "notification.show"
+  ],
+  "dependencies": [],
+  "serverContributions": [
+    {
+      "id": "official.dramaip.sample.echo",
+      "method": "post",
+      "path": "/echo",
+      "handler": "sample.echo",
+      "requestSchema": { "type": "object" },
+      "responseSchema": { "type": "object" }
+    }
+  ],
+  "eventSubscriptions": [
+    {
+      "id": "official.dramaip.sample.project-package",
+      "eventType": "workspace.project-package-committed.v1",
+      "handler": "sample.project-package"
+    }
+  ],
+  "uiContributions": [
+    {
+      "id": "official.dramaip.sample.panel",
+      "kind": "panel",
+      "slot": "workspace.panels",
+      "title": "隔离扩展示例",
+      "description": "该面板由严格声明式 schema 渲染。",
+      "icon": "sparkles",
+      "command": "sample.increment",
+      "fields": [{ "id": "label", "label": "标签", "type": "text" }]
+    }
+  ],
+  "storage": {
+    "collections": [
+      {
+        "name": "counters",
+        "schema": { "type": "object", "properties": { "value": { "type": "number" } } },
+        "indexes": [{ "name": "by_value", "path": "$.value", "type": "number" }]
+      }
+    ]
+  },
+  "resources": { "memoryMiB": 64, "maxConcurrentRequests": 4, "requestsPerMinute": 100 }
+}

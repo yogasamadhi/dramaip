@@ -1,0 +1,12 @@
+# DramaIP automation domain bundle (D6). Business plugins still run on the
+# Kernel-era services of bundle-base's compat rows until their domain moves
+# to Remote methods (P4/P5).
+
+- insert:
+    # The `automation` Remote namespace (P5-a): workflows, templates, tasks and change previews. It claims
+    # its plugin's /api/v2 operations and runs their handlers in process
+    # until P6.
+    - id: automation-automation
+      name: "@dramaip/automation-automation"
+    - id: automation
+      name: "@dramaip/automation-automation/handlers/automation"

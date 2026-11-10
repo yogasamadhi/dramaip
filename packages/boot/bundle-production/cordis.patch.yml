@@ -1,0 +1,32 @@
+# DramaIP production domain bundle (D6). Business plugins still run on the
+# Kernel-era services of bundle-base's compat rows until their domain moves
+# to Remote methods (P4/P5).
+
+- insert:
+    # The `production` Remote namespace (P5-c) claims its plugin's /api/v2
+    # operations, so it loads before the plugin it replaces.
+    - id: production-production
+      name: "@dramaip/production-production"
+    - id: production
+      name: "@dramaip/production-production/handlers/production"
+    # The `media` and `timeline` Remote namespaces (P5-b), loaded the same
+    # way; the media playback bytes keep their /api/v2 URL on the media
+    # controller's own route.
+    - id: production-media
+      name: "@dramaip/production-media"
+    - id: media
+      name: "@dramaip/production-media/handlers/media"
+    - id: production-timeline
+      name: "@dramaip/production-timeline"
+    - id: timeline
+      name: "@dramaip/production-timeline/handlers/timeline"
+    # The `review` and `delivery` Remote namespaces (P4-b). Each claims its
+    # plugin's /api/v2 operations and runs their handlers in process until P6.
+    - id: production-review
+      name: "@dramaip/production-review"
+    - id: review
+      name: "@dramaip/production-review/handlers/review"
+    - id: production-delivery
+      name: "@dramaip/production-delivery"
+    - id: delivery
+      name: "@dramaip/production-delivery/handlers/delivery"

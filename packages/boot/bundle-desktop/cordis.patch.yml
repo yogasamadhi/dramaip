@@ -1,0 +1,39 @@
+# DramaIP desktop layer over bundle-base and bundle-web: the Desktop Host
+# capabilities the Electron shell's Host process provides (D8).
+#
+# The shell bridge carries native shell actions over the Host's Node IPC
+# channel; host-capabilities provides `desktopHost` over it; the engine
+# registry is filled by the engine bundles composed after this one. The
+# transitional rows inject `desktopHost` so business plugins, which start
+# after compat-runtime, see the Host from their first apply.
+
+- insert:
+    - id: shell-bridge
+      name: "@dramaip/host-shell-bridge"
+
+    - id: engines
+      name: "@dramaip/seams-engines"
+
+    - id: host-capabilities
+      name: "@dramaip/host-capabilities"
+
+    # The engines' private MCP boundary (`/engine/v1/mcp`).
+    - id: agents-engine-mcp
+      name: "@dramaip/agents-agents/engine-mcp"
+
+- id: compat-runtime
+  name: "@dramaip/compat-runtime"
+  inject: [desktopHost]
+  config:
+    profile: studio
+    desktopHost: true
+
+# The Host reports its launch URL to the shell over Node IPC only: no token
+# line on stdout, and no browser handoff.
+- id: web-runtime
+  name: "@dramaip/infra-web-runtime"
+  config:
+    openBrowser: false
+    printUrl: false
+    publicUrl: !!js ctx.webStartup.publicUrl
+    surfaceContext: true

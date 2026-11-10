@@ -1,0 +1,43 @@
+{
+  "name": "@dramaip/test-plugin-suites",
+  "description": "Test-only suites of the first-party plugins: domain behaviour through the in-process web composition and plugin fixtures",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../../scripts/run-node.mjs --expose-internals ../../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --passWithNoTests src"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/agents-agents": "workspace:*",
+    "@dramaip/automation-automation": "workspace:*",
+    "@dramaip/compat-runtime": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/database": "workspace:*",
+    "@dramaip/events": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/infra-operations": "workspace:*",
+    "@dramaip/insights-insights": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*",
+    "@dramaip/production-delivery": "workspace:*",
+    "@dramaip/production-media": "workspace:*",
+    "@dramaip/production-production": "workspace:*",
+    "@dramaip/production-review": "workspace:*",
+    "@dramaip/production-timeline": "workspace:*",
+    "@dramaip/runtime-adapters": "workspace:*",
+    "@dramaip/system-system": "workspace:*",
+    "@dramaip/test-web-composition": "workspace:*",
+    "@dramaip/workspace-workspace": "workspace:*",
+    "@dramaip/writing-knowledge": "workspace:*",
+    "@dramaip/writing-quality": "workspace:*",
+    "@dramaip/writing-writing": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "4.1.9"
+  },
+  "engines": {
+    "node": "24.18.0"
+  }
+}

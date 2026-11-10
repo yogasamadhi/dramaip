@@ -1,0 +1,42 @@
+{
+  "name": "@dramaip/infra-typert-registry",
+  "description": "Runtime registry for generated package reflection and Zod schemas",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./types": "./src/types.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [],
+      "platform": "web",
+      "immediately": true
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/typert/registry",
+      "package": "@deepseek-ai/dsh-typert-registry",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

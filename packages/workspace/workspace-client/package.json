@@ -1,0 +1,58 @@
+{
+  "name": "@dramaip/workspace-workspace-client",
+  "description": "Workspace domain client plugin: the search page, the project tools page frame and the project records workspace Factory over the workspace Remote namespace",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./client/contract": {
+      "types": "./src/client/contract.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@dramaip/infra-locale",
+        "@dramaip/infra-remotes",
+        "@dramaip/infra-ui-renderer"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/automation-automation": "workspace:*",
+    "@dramaip/automation-automation-client": "workspace:*",
+    "@dramaip/infra-locale": "workspace:*",
+    "@dramaip/infra-remotes": "workspace:*",
+    "@dramaip/infra-ui-primitives": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@dramaip/infra-ui-settings": "workspace:*",
+    "@dramaip/infra-ui-slots": "workspace:*",
+    "@dramaip/workspace-studio-client": "workspace:*",
+    "@dramaip/production-delivery": "workspace:*",
+    "@dramaip/production-media": "workspace:*",
+    "@dramaip/production-production": "workspace:*",
+    "@dramaip/system-system": "workspace:*",
+    "@dramaip/workspace-workspace": "workspace:*",
+    "@dramaip/writing-knowledge": "workspace:*",
+    "@dramaip/writing-writing": "workspace:*",
+    "@dramaip/writing-writing-client": "workspace:*",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "18.3.31",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "clsx": "^2.0.0"
+  }
+}

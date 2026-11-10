@@ -1,0 +1,100 @@
+.c4,
+.c9,
+.c10 {
+  display: flex;
+}
+
+.c4 {
+  flex-wrap: wrap;
+}
+
+.c10 {
+  align-items: flex-start;
+}
+
+.c4,
+.c9,
+.c10 {
+  gap: 0.5rem;
+}
+
+:where(.c7 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c6 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c1,
+.c7 {
+  border-radius: 0.25rem;
+}
+
+.c1,
+.c7 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1,
+.c7 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c7 {
+  padding: 0.5rem;
+}
+
+.c1 {
+  padding: 0.75rem;
+}
+
+.c1 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c2 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c3 {
+  word-break: break-all;
+}
+
+.c8 {
+  white-space: pre-wrap;
+}
+
+.c5 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

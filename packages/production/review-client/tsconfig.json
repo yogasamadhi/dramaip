@@ -1,0 +1,4 @@
+{
+  "extends": "../../infra/tsconfig.base.client.json",
+  "include": ["src", "tests"]
+}

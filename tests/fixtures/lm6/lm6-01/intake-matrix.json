@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "paths": [
+    {
+      "id": "inspiration",
+      "label": "从灵感开始",
+      "contentForm": "故事构思",
+      "firstOutcome": "可继续完善的生产简报"
+    },
+    {
+      "id": "source-import",
+      "label": "导入原著",
+      "contentForm": "已授权原著或 IP",
+      "firstOutcome": "可审查的原著导入预览"
+    },
+    {
+      "id": "script",
+      "label": "直接导入 / 粘贴剧本",
+      "contentForm": "剧本草稿",
+      "firstOutcome": "可编辑的首集剧本草稿"
+    }
+  ],
+  "briefDefaults": {
+    "targetPlatform": "短视频平台",
+    "episodeDuration": "60—90 秒",
+    "aspectRatio": "9:16 竖屏"
+  }
+}

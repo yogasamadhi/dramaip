@@ -1,0 +1,7 @@
+{
+  "tracks": ["video", "dialogue", "narration", "bgm", "sfx", "subtitle"],
+  "commands": ["move", "trim", "split", "set-track-audio", "relink"],
+  "mediaStates": ["linked", "missing", "unsupported", "proxy", "unattached"],
+  "timebase": "seconds",
+  "frameRate": 25
+}

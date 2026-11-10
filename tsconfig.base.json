@@ -1,0 +1,61 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dramaip/agent-host-adapters": ["./packages/ai/src/index.ts"],
+      "@dramaip/contracts": ["./packages/contracts/src/index.ts"],
+      "@dramaip/contracts/product": ["./packages/contracts/src/product.ts"],
+      "@dramaip/contracts/creation": ["./packages/contracts/src/creation.ts"],
+      "@dramaip/contracts/automation": [
+        "./packages/contracts/src/automation.ts"
+      ],
+      "@dramaip/contracts/creative-quality": [
+        "./packages/contracts/src/creative-quality.ts"
+      ],
+      "@dramaip/contracts/delivery": ["./packages/contracts/src/delivery.ts"],
+      "@dramaip/contracts/knowledge": ["./packages/contracts/src/knowledge.ts"],
+      "@dramaip/contracts/media": ["./packages/contracts/src/media.ts"],
+      "@dramaip/contracts/insights": ["./packages/contracts/src/insights.ts"],
+      "@dramaip/contracts/production": [
+        "./packages/contracts/src/production.ts"
+      ],
+      "@dramaip/contracts/review": ["./packages/contracts/src/review.ts"],
+      "@dramaip/contracts/timeline": ["./packages/contracts/src/timeline.ts"],
+      "@dramaip/contracts/timeline-copy": [
+        "./packages/contracts/src/timeline-copy.ts"
+      ],
+      "@dramaip/contracts/workspace": ["./packages/contracts/src/workspace.ts"],
+      "@dramaip/contracts/writing": ["./packages/contracts/src/writing.ts"],
+      "@dramaip/agent-runtime": ["./packages/agent-runtime/src/index.ts"],
+      "@dramaip/bundles": ["./packages/bundles/src/index.ts"],
+      "@dramaip/database": ["./packages/database/src/index.ts"],
+      "@dramaip/database/migration-worker": [
+        "./packages/database/src/migration-worker.ts"
+      ],
+      "@dramaip/database/migration-worker-runtime": [
+        "./packages/database/src/migration-worker-runtime.ts"
+      ],
+      "@dramaip/events": ["./packages/events/src/index.ts"],
+      "@dramaip/plugin-api": ["./packages/plugin-api/src/index.ts"],
+      "@dramaip/host-contracts": ["./packages/host/contracts/src/index.ts"],
+      "@dramaip/contracts/creation-project-lineage": [
+        "./packages/contracts/src/creation-project-lineage.ts"
+      ]
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "title": "重复分集号，应整体拒绝，不创建项目",
+  "episodes": [
+    { "episodeNumber": 1, "content": "林晚核对号码。" },
+    { "episodeNumber": 1, "content": "第二条重复集号，不应静默丢失。" }
+  ]
+}

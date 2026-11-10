@@ -1,0 +1,30 @@
+{
+  "name": "@dramaip/boot-bundle-engine-pi",
+  "description": "Pi engine layer: its sidecar under the Desktop Host's subprocess service, registered with ctx.engines",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*",
+    "@dramaip/agent-host-adapters": "workspace:*",
+    "@dramaip/infra-home-paths": "workspace:*",
+    "@dramaip/seams-engines": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  }
+}

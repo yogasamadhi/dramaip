@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "media": {
+    "id": "cloud-media-1",
+    "relativePath": "episode-1/selected.mp4",
+    "mimeType": "video/mp4"
+  },
+  "guarantees": [
+    "credential-ref-only",
+    "selected-media-only",
+    "no-bearer-to-object-storage",
+    "client-id-cursor-idempotency",
+    "local-first-fallback"
+  ]
+}

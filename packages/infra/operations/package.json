@@ -1,0 +1,32 @@
+{
+  "name": "@dramaip/infra-operations",
+  "description": "Operation registry: runs first-party route contributions in process under their route policy, for the domain controllers that claim them",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./operations": "./src/operations.ts",
+    "./legacy-routes": {
+      "types": "./src/legacy-routes.ts"
+    },
+    "./problem": {
+      "types": "./src/problem.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-cmdline": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "zod": "4.4.3"
+  }
+}

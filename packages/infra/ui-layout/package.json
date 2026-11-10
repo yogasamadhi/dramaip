@@ -1,0 +1,50 @@
+{
+  "name": "@dramaip/infra-ui-layout",
+  "description": "Shell plugin: three-column AppFrame with drag handles, ctx.layout viewing-state service (navigation + panels)",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@dramaip/infra-brand": "workspace:*",
+    "@dramaip/infra-locale": "workspace:*",
+    "@dramaip/infra-client-store": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@dramaip/infra-ui-slots": "workspace:*",
+    "@dramaip/infra-ui-theme": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "react": "^18.2.0",
+    "@dramaip/infra-client-shortcuts": "workspace:*",
+    "@dramaip/infra-test-runtime": "workspace:*"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [
+        "@dramaip/infra-locale",
+        "@dramaip/infra-ui-renderer",
+        "@dramaip/infra-ui-theme",
+        "@dramaip/infra-client-shortcuts"
+      ],
+      "platform": "web"
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/ui-layout",
+      "package": "@deepseek-ai/dsh-client-ui-layout",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

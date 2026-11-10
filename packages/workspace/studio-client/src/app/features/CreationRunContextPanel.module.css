@@ -1,0 +1,24 @@
+:where(.c1 > :not(:last-child)),
+:where(.c3 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c1 {
+  word-break: break-all;
+}
+
+.c4 {
+  white-space: pre-wrap;
+}
+
+.c2 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}

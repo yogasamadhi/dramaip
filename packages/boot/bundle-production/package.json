@@ -1,0 +1,24 @@
+{
+  "name": "@dramaip/boot-bundle-production",
+  "description": "Production domain: scripts, media, timeline, review and delivery",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dramaip/production-delivery": "workspace:*",
+    "@dramaip/production-media": "workspace:*",
+    "@dramaip/production-production": "workspace:*",
+    "@dramaip/production-review": "workspace:*",
+    "@dramaip/production-timeline": "workspace:*"
+  }
+}

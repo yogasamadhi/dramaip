@@ -1,0 +1,13 @@
+.c1 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c1 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}

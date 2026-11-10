@@ -1,0 +1,756 @@
+{
+  "domain": [
+    {
+      "type": "agents.assistant-item-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-item-delta.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-item-failed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-run-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-run-failed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-session-created.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-session-deleted.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-session-project-bound.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-session-updated.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-turn-started.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.auxiliary-usage-observed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.context-prepared.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.engine-default-updated.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.inspiration-card-created.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.inspiration-memory-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.project-engine-default-updated.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.provider-activated.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.provider-configured.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.provider-deleted.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-canceled.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-failed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-interrupted.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-recovered.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-resumed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-started.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-steered.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.session-disposed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.session-forked.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.usage-observed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.web-research-consent-updated.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "automation.change-preview-content-updated.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.change-preview-created.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.change-preview-rebased.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.chapter-candidate-revision-recorded.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creation-created.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creation-updated.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-candidate-ready.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-continuation-requested.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-continuation-started.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-metric-state.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-requested.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.creative-source-conflict.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-candidate-ready.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-metric-state.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-requested.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.planning-source-conflict.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.provider-action-preview-created.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.provider-action-preview-discarded.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.provider-action-preview-executed.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.task-created.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.task-updated.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "automation.template-run-created.v1",
+      "owner": "automation"
+    },
+    {
+      "type": "creative-quality.local-review-changed.v1",
+      "owner": "creative-quality"
+    },
+    {
+      "type": "creative-quality.narrative-report-adopted.v1",
+      "owner": "creative-quality"
+    },
+    {
+      "type": "creative-quality.narrative-report-changed.v1",
+      "owner": "creative-quality"
+    },
+    {
+      "type": "delivery.creation-adopted.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.manuscript-exported.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.manuscript-updated.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.pilot-package-exported.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.pilot-package-updated.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.platform-metadata-archived.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "delivery.platform-variant-adopted.v1",
+      "owner": "delivery"
+    },
+    {
+      "type": "insights.feedback-clustered.v1",
+      "owner": "insights"
+    },
+    {
+      "type": "insights.feedback-imported.v1",
+      "owner": "insights"
+    },
+    {
+      "type": "insights.generation-recorded.v1",
+      "owner": "insights"
+    },
+    {
+      "type": "insights.generation-updated.v1",
+      "owner": "insights"
+    },
+    {
+      "type": "knowledge.chapter-memory-written.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "knowledge.creation-adopted.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "knowledge.narrative-summary-changed.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "knowledge.planning-batch-adopted.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "knowledge.story-bible-settings-updated.v1",
+      "owner": "knowledge"
+    },
+    {
+      "type": "media.animatic-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.animatic-reviewed.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.artifact-archived.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-revision-confirmed.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-revision-discarded.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-revision-previewed.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-track-adopted.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.audio-track-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.complete-byte-verified.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.likeness-consent-revoked.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.likeness-subject-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.source-review-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.storyboard-derivations-stale.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.video-generation-canceled.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.video-generation-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.video-generation-updated.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.voice-profile-adopted.v1",
+      "owner": "media"
+    },
+    {
+      "type": "media.voice-profile-created.v1",
+      "owner": "media"
+    },
+    {
+      "type": "production.adaptation-strategy-result-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.creation-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.creation-source-confirmed.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.creative-adoption-rejected.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.diagnosis-result-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-outline-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-script-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-source-revision-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-source-revision-discarded.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-source-revision-previewed.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-topology-revision-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-topology-revision-discarded.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.episode-topology-revision-previewed.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.screenplay-imported.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.screenplay-intake-state-changed.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.screenplay-updated.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.script-result-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.season-chapter-mapped.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.season-created.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.season-plan-result-adopted.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.season-review-required.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.season-updated.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.storyboard-shots-redone.v1",
+      "owner": "production"
+    },
+    {
+      "type": "production.updated.v1",
+      "owner": "production"
+    },
+    {
+      "type": "review.media-package-created.v1",
+      "owner": "review"
+    },
+    {
+      "type": "timeline.audio-resolution-confirmed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.audio-resolution-discarded.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.audio-resolution-previewed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.audio-resolved.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.media-copy-action-requested.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.media-copy-observed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.media-copy-requested.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "timeline.render-status-changed.v1",
+      "owner": "timeline"
+    },
+    {
+      "type": "workspace.backup-created.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.backup-restored.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.creation-goal-confirmed.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.creation-source-confirmed.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.project-initialization-progress.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.project-initialization-retried.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.project-package-committed.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.project-package-discarded.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "workspace.project-package-previewed.v1",
+      "owner": "workspace"
+    },
+    {
+      "type": "writing.chapter-adopted.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.chapter-updated.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.chapters-reordered.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.creation-adopted.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.planning-adopted.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.planning-batch-adopted.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.volume-created.v1",
+      "owner": "writing"
+    },
+    {
+      "type": "writing.volume-updated.v1",
+      "owner": "writing"
+    }
+  ],
+  "domainPatterns": [
+    {
+      "pattern": "^automation\\.[a-z0-9-]+-[a-z0-9-]+\\.v1$",
+      "owner": "automation"
+    },
+    {
+      "pattern": "^automation\\.[a-z0-9-]+\\.v1$",
+      "owner": "automation"
+    },
+    {
+      "pattern": "^automation\\.change-preview-[a-z0-9-]+\\.v1$",
+      "owner": "automation"
+    },
+    {
+      "pattern": "^automation\\.pilot-[a-z0-9-]+\\.v1$",
+      "owner": "automation"
+    },
+    {
+      "pattern": "^creative-quality\\.[a-z0-9-]+-created\\.v1$",
+      "owner": "creative-quality"
+    },
+    {
+      "pattern": "^creative-quality\\.[a-z0-9-]+-removed\\.v1$",
+      "owner": "creative-quality"
+    },
+    {
+      "pattern": "^creative-quality\\.[a-z0-9-]+-updated\\.v1$",
+      "owner": "creative-quality"
+    },
+    {
+      "pattern": "^creative-quality\\.[a-z0-9-]+\\.v1$",
+      "owner": "creative-quality"
+    },
+    {
+      "pattern": "^delivery\\.[a-z0-9-]+\\.v1$",
+      "owner": "delivery"
+    },
+    {
+      "pattern": "^knowledge\\.[a-z0-9-]+-created\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.[a-z0-9-]+-removed\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.[a-z0-9-]+-updated\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.story-[a-z0-9-]+-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.story-assertion-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.story-bible-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^knowledge\\.story-declaration-[a-z0-9-]+\\.v1$",
+      "owner": "knowledge"
+    },
+    {
+      "pattern": "^media\\.[a-z0-9-]+-removed\\.v1$",
+      "owner": "media"
+    },
+    {
+      "pattern": "^media\\.[a-z0-9-]+\\.v1$",
+      "owner": "media"
+    },
+    {
+      "pattern": "^media\\.source-review-[a-z0-9-]+\\.v1$",
+      "owner": "media"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+-adopted\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+-created\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+-removed\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+-reordered\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.diagnosis-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.episode-script-revision-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.season-plan-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^production\\.storyboard-attribution-[a-z0-9-]+\\.v1$",
+      "owner": "production"
+    },
+    {
+      "pattern": "^review\\.[a-z0-9-]+\\.v1$",
+      "owner": "review"
+    },
+    {
+      "pattern": "^timeline\\.[a-z0-9-]+\\.v1$",
+      "owner": "timeline"
+    },
+    {
+      "pattern": "^workspace\\.[a-z0-9-]+\\.v1$",
+      "owner": "workspace"
+    },
+    {
+      "pattern": "^workspace\\.author-intent-[a-z0-9-]+\\.v1$",
+      "owner": "workspace"
+    },
+    {
+      "pattern": "^workspace\\.project-[a-z0-9-]+\\.v1$",
+      "owner": "workspace"
+    },
+    {
+      "pattern": "^writing\\.[a-z0-9-]+-created\\.v1$",
+      "owner": "writing"
+    },
+    {
+      "pattern": "^writing\\.[a-z0-9-]+-removed\\.v1$",
+      "owner": "writing"
+    },
+    {
+      "pattern": "^writing\\.[a-z0-9-]+-updated\\.v1$",
+      "owner": "writing"
+    },
+    {
+      "pattern": "^writing\\.chapter-[a-z0-9-]+\\.v1$",
+      "owner": "writing"
+    },
+    {
+      "pattern": "^writing\\.creator-[a-z0-9-]+-created\\.v1$",
+      "owner": "writing"
+    },
+    {
+      "pattern": "^writing\\.creator-[a-z0-9-]+-updated\\.v1$",
+      "owner": "writing"
+    }
+  ],
+  "realtime": [
+    {
+      "type": "agents.assistant-item-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-item-delta.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-item-failed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-run-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.assistant-run-failed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-completed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-failed.v1",
+      "owner": "agents"
+    },
+    {
+      "type": "agents.run-steered.v1",
+      "owner": "agents"
+    }
+  ]
+}

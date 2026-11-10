@@ -1,0 +1,37 @@
+{
+  "name": "@dramaip/infra-frontend-static",
+  "description": "SPA dist server for the Web shell: owns the webserver fallback seat, serving explicit index entries and static assets with traversal rejection and 404 misses",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@dramaip/infra-webserver": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-credentials-local": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/host/frontend-static",
+      "package": "@deepseek-ai/dsh-host-frontend-static",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

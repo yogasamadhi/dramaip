@@ -1,0 +1,160 @@
+/* Button sizes share the global control-radius scale. */
+.button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  cursor: pointer;
+  font: 13px/1.4 var(--dsw-font-family);
+  color: var(--dsw-alias-label-primary);
+  background: transparent;
+  padding: 0 14px;
+  white-space: nowrap;
+  text-decoration: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.md {
+  height: 36px;
+}
+
+/* Compact controls retain their dimensions across filled and outlined variants. */
+.sm {
+  height: 28px;
+  font: var(--dsw-font-xxs-12);
+  padding: 0 10px;
+  border-radius: var(--dsw-radius-sm);
+}
+
+.lg {
+  height: 40px;
+  padding: 0 18px;
+}
+
+.primary {
+  background: var(--studio-gradient-action);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-weight: 600;
+  box-shadow: var(--studio-shadow-action);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--studio-gradient-action);
+  filter: brightness(1.05);
+}
+
+/* The default action: a filled neutral surface with a hairline stroke. */
+.secondary {
+  background: var(--studio-gradient-card);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l4);
+}
+
+.secondary:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+
+.ghost:hover:not(:disabled),
+.subtle:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.ghost:active:not(:disabled),
+.subtle:active:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+/* Quieter text for tertiary actions that sit beside primary content. */
+.subtle {
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Outlined actions use the same neutral stroke as settings links. */
+.outline {
+  border: 1px solid var(--dsw-alias-border-l3);
+  background: transparent;
+}
+
+.outline:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.toolbar {
+  background: var(--dsw-alias-button-tool-bar-fill);
+}
+
+.toolbar:hover:not(:disabled) {
+  background: var(--dsw-alias-button-tool-bar-hover);
+}
+
+.danger {
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary-inverted);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--dsw-alias-state-error-secondary);
+}
+
+.icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Icon-only buttons are square at every size. */
+.square {
+  padding: 0;
+}
+
+.square.sm {
+  width: 28px;
+}
+
+.square.md {
+  width: 36px;
+}
+
+.square.lg {
+  width: 40px;
+}
+
+/* Zero specificity: a bare button is a reset, so the caller's class always
+   wins whichever stylesheet loads last. */
+:where(.bare) {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+:where(.bare):disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

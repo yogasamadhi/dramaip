@@ -1,0 +1,24 @@
+{
+  "name": "@dramaip/infra-storage-relational",
+  "description": "Relational storage backend (D1): node:sqlite tables, forward migrations and the transactional unit of work",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/database": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  }
+}

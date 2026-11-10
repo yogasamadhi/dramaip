@@ -1,0 +1,79 @@
+.c3 {
+  margin-top: 0.75rem;
+}
+
+.c4 {
+  display: flex;
+}
+
+.c4 {
+  flex-wrap: wrap;
+}
+
+.c4 {
+  gap: 0.5rem;
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c3 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c2,
+.c3,
+.c5,
+.c6 {
+  border-radius: 0.25rem;
+}
+
+.c2,
+.c3,
+.c5,
+.c6 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c2,
+.c3,
+.c5,
+.c6 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c2,
+.c3 {
+  padding: 0.5rem;
+}
+
+.c5,
+.c6 {
+  padding-inline: 0.5rem;
+}
+
+.c5,
+.c6 {
+  padding-block: 0.25rem;
+}
+
+.c5 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.c7 {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}

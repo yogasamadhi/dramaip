@@ -1,0 +1,5 @@
+@dramaip/infra-launch-environment
+
+Copied from @deepseek-ai/dsh-launch-environment 0.2.1-rc.3 (packages/util/launch-environment) of
+DeepSeek Harness, MIT License, Copyright (c) 2026 DeepSeek; see LICENSE.
+Adapted for DramaIP: package names, product content and integration.

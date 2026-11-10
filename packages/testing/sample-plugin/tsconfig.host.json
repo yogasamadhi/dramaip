@@ -1,0 +1,4 @@
+{
+  "extends": "../../infra/tsconfig.base.json",
+  "files": ["src/index.ts", "src/types.ts"]
+}

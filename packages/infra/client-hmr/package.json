@@ -1,0 +1,46 @@
+{
+  "name": "@dramaip/infra-client-hmr",
+  "description": "Web client graph synchronization and rebuilt-bundle reload transport",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@dramaip/infra-client-modules": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "eventsource-parser": "^3.1.0"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [
+        "@dramaip/infra-client-modules"
+      ],
+      "platform": "web",
+      "immediately": true
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/hmr",
+      "package": "@deepseek-ai/dsh-client-hmr",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

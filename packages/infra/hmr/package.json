@@ -1,0 +1,49 @@
+{
+  "name": "@dramaip/infra-hmr",
+  "description": "Coordinated module and profile configuration hot reload",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis-plugin-timer": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*"
+  },
+  "dependencies": {
+    "@babel/code-frame": "^7.29.0",
+    "chokidar": "5.0.0",
+    "node-addon-require-builtin": "^0.1.9",
+    "picomatch": "^4.0.7",
+    "@deepseek-ai/schemastery": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/babel__code-frame": "^7.27.0",
+    "@types/picomatch": "^4.0.3",
+    "esbuild": "^0.28.2",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*",
+    "@dramaip/infra-atomic-write": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/boot/hmr",
+      "package": "@deepseek-ai/dsh-hmr",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@dramaip/infra-webserver",
+  "description": "Web route-registration plugin: HTTP and upgrade routes, index transform taps, and static dist fallback; knows no harness concepts",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*",
+    "compression": "^1.8.1",
+    "ipaddr.js": "^2.5.0",
+    "negotiator": "^1.1.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@types/compression": "^1.8.1",
+    "@types/negotiator": "^0.6.5",
+    "selfsigned": "^4.0.1",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/host/webserver",
+      "package": "@deepseek-ai/dsh-host-webserver",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

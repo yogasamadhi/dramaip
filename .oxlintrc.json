@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "overrides": [
+    {
+      // Sources copied from DeepSeek Harness keep its lint profile, where the
+      // correctness category is off and `_`-prefixed bindings are intentional.
+      // Keeping upstream idioms keeps each copy diffable against its source.
+      "files": ["packages/infra/**", "apps/cli/**"],
+      "rules": {
+        "no-unused-vars": [
+          "warn",
+          {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_"
+          }
+        ],
+        "no-control-regex": "off",
+        "no-empty-pattern": "off",
+        "no-empty-static-block": "off",
+        "no-sparse-arrays": "off",
+        "no-unused-private-class-members": "off",
+        "no-unsafe-finally": "off",
+        "no-unsafe-optional-chaining": "off",
+        "no-useless-escape": "off",
+        "require-yield": "off",
+        "unicorn/no-new-array": "off",
+        "unicorn/no-thenable": "off",
+        "unicorn/no-useless-length-check": "off",
+        "unicorn/no-useless-spread": "off",
+        "unicorn/prefer-string-starts-ends-with": "off"
+      }
+    }
+  ]
+}

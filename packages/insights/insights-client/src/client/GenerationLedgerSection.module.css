@@ -1,0 +1,149 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--radius);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.muted,
+.small,
+.clamp {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.muted {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.small,
+.clamp {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.danger {
+  margin: 0;
+  font-size: 14px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.strong {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.select,
+.input,
+.textarea {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  color: inherit;
+  font: inherit;
+}
+
+.select {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.input {
+  margin-left: 8px;
+  padding: 4px 8px;
+}
+
+.textarea {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.list > p {
+  margin: 0;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.action {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.form {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inline {
+  font-size: 14px;
+}
+
+.stack {
+  display: block;
+  font-size: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}

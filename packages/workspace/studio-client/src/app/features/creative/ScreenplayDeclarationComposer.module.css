@@ -1,0 +1,119 @@
+.c1,
+.c10 {
+  margin-top: 0.25rem;
+}
+
+.c3 {
+  margin-top: 0.75rem;
+}
+
+.c6,
+.c9,
+.c10 {
+  display: block;
+}
+
+.c7 {
+  display: flex;
+}
+
+.c1 {
+  width: 100%;
+}
+
+.c7 {
+  gap: 0.5rem;
+}
+
+:where(.c8 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c3 > :not(:last-child)),
+:where(.c5 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c1,
+.c2,
+.c9 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c2,
+.c9 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1,
+.c2,
+.c9 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c1 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c9 {
+  padding: 0.5rem;
+}
+
+.c1,
+.c2 {
+  padding-inline: 0.75rem;
+}
+
+.c1,
+.c2 {
+  padding-block: 0.5rem;
+}
+
+.c1,
+.c2,
+.c6,
+.c9 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c4,
+.c10 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c10 {
+  white-space: pre-wrap;
+}
+
+.c4 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c2:disabled {
+  opacity: 0.5;
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}

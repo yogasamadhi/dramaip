@@ -1,0 +1,60 @@
+.c3 {
+  margin-block: 0.75rem;
+}
+
+.c2 {
+  cursor: pointer;
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c1 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c1 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c1 {
+  padding: 1rem;
+}
+
+.c2,
+.c3 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c2 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c2,
+.c3 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

@@ -1,0 +1,41 @@
+.root {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.viewport {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.scrollbar {
+  display: flex;
+  padding: 2px;
+  touch-action: none;
+  user-select: none;
+}
+
+.scrollbar[data-orientation='vertical'] {
+  width: 8px;
+}
+
+.scrollbar[data-orientation='horizontal'] {
+  flex-direction: column;
+  height: 8px;
+}
+
+.thumb {
+  position: relative;
+  flex: 1;
+  border-radius: 999px;
+  corner-shape: round;
+  /* The thumb reads scrollbar.css's indirection, so elevated surfaces that
+     rebind it (dialogs, menus) recolor this thumb too. */
+  background: var(--dramaip-scrollbar-thumb);
+}
+
+.thumb:hover {
+  background: var(--dramaip-scrollbar-thumb-hover);
+}

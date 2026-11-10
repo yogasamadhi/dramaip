@@ -1,0 +1,47 @@
+{
+  "name": "@dramaip/writing-knowledge",
+  "description": "Host face of the knowledge domain: the story bible, memories, character states, story events, narrative indexes, research and visual profiles",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./legacy": "./src/legacy.ts",
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./handlers/knowledge": "./handlers/knowledge/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts",
+    "handlers"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/infra-operations": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "@dramaip/infra-values": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-typert-registry": "workspace:*"
+  }
+}

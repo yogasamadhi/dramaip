@@ -1,0 +1,43 @@
+{
+  "name": "@dramaip/infra-ui-renderer",
+  "description": "Browser UI renderer: React slot bindings, ctx.uiRenderer, and the assembled application root",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-ui-slots": "workspace:*",
+    "@types/use-sync-external-store": "^1.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "use-sync-external-store": "1.6.0",
+    "@dramaip/infra-test-runtime": "workspace:*",
+    "@dramaip/infra-remote-mock": "workspace:*"
+  },
+  "dramaip": {
+    "client": {
+      "platform": "web",
+      "immediately": true
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/client/ui-renderer",
+      "package": "@deepseek-ai/dsh-client-ui-renderer",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+.evidence {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.evidence p {
+  margin: 0;
+}
+
+.alert {
+  color: var(--dsw-alias-state-error-primary);
+}

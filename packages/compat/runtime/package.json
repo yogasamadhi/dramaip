@@ -1,0 +1,34 @@
+{
+  "name": "@dramaip/compat-runtime",
+  "description": "Transitional host of the Kernel-era plugin services: domain events, UI contributions, diagnostics, plugin environment",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./event-manifest": "./src/event-manifest.generated.ts",
+    "./plugin-manifests": "./src/plugin-manifests.generated.json",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "transitional": {
+      "until": "P6"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/events": "workspace:*",
+    "@dramaip/host-capabilities": "workspace:*",
+    "@dramaip/infra-storage-relational": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  }
+}

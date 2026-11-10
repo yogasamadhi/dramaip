@@ -1,0 +1,82 @@
+[
+  {
+    "operationId": "system.extensions.catalog",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.disable",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.effectiveOpenApi",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.enable",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.installCommit",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.installed",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.installPreview",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.invokeCommand",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.invokeRoute.delete",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.invokeRoute.get",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.invokeRoute.patch",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.invokeRoute.post",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.invokeRoute.put",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.retry",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.rollback",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.uiContributions",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "system.extensions.uninstall",
+    "reason": "D7: Level 2 不开放扩展安装与扩展平台，扩展目录、安装、启停、调用与 UI 贡献接口随扩展平台一并下线；旧库的扩展表保留，用户扩展数据原地保留但不加载。"
+  },
+  {
+    "operationId": "codex-auth.login",
+    "reason": "Codex Agent 引擎及其认证能力已移除，仅保留 Pi。"
+  },
+  {
+    "operationId": "codex-auth.logout",
+    "reason": "Codex Agent 引擎及其认证能力已移除，仅保留 Pi。"
+  },
+  {
+    "operationId": "codex-auth.status",
+    "reason": "Codex Agent 引擎及其认证能力已移除，仅保留 Pi。"
+  }
+]

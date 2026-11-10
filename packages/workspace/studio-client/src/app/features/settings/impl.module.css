@@ -1,0 +1,285 @@
+.c2 {
+  composes: studio-eyebrow from global;
+}
+
+.c3,
+.c7,
+.c8 {
+  margin-top: 0.25rem;
+}
+
+.c4,
+.c12,
+.c13 {
+  margin-top: 0.5rem;
+}
+
+.c10,
+.c14 {
+  margin-top: 0.75rem;
+}
+
+.c5,
+.c9,
+.c11 {
+  margin-top: 1rem;
+}
+
+.c14 {
+  display: flex;
+}
+
+.c12 {
+  list-style-type: disc;
+}
+
+.c14 {
+  flex-wrap: wrap;
+}
+
+.c14 {
+  gap: 0.75rem;
+}
+
+:where(.c12 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c5,
+.c9,
+.c11 {
+  border-radius: var(--radius);
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c5,
+.c9,
+.c11 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1 {
+  border-style: var(--tw-border-style);
+  border-width: 2px;
+}
+
+.c1 {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.c5 {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c5 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-business-primary) 30%,
+      transparent
+    );
+  }
+}
+
+.c9 {
+  border-color: var(--dsw-alias-state-success-primary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c9 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-success-primary) 25%,
+      transparent
+    );
+  }
+}
+
+.c11 {
+  border-color: var(--dsw-alias-state-warn-primary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c11 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-warn-primary) 25%,
+      transparent
+    );
+  }
+}
+
+.c1 {
+  background-color: var(--dsw-alias-state-business-tertiary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c1 {
+    background-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-business-tertiary) 40%,
+      transparent
+    );
+  }
+}
+
+.c9 {
+  background-color: var(--dsw-alias-state-success-tertiary);
+}
+
+.c5 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c11 {
+  background-color: var(--dsw-alias-state-warn-tertiary);
+}
+
+.c9,
+.c11 {
+  padding: 0.75rem;
+}
+
+.c5 {
+  padding: 1rem;
+}
+
+.c1 {
+  padding: 1.25rem;
+}
+
+.c12 {
+  padding-left: 1.25rem;
+}
+
+.c4,
+.c5,
+.c9,
+.c11,
+.c14 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c3 {
+  font-size: 1.25rem;
+  line-height: var(--tw-leading, calc(1.75 / 1.25));
+}
+
+.c6,
+.c8,
+.c12,
+.c13 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c4 {
+  --tw-leading: 1.5rem;
+  line-height: 1.5rem;
+}
+
+.c6,
+.c15 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c3,
+.c7 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c7 {
+  color: var(--dsw-alias-label-primary);
+}
+
+.c15 {
+  color: var(--dsw-alias-link);
+}
+
+.c4,
+.c6,
+.c8,
+.c16 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c9 {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.c11 {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.c15,
+.c16 {
+  text-decoration-line: underline;
+}
+
+.c1 {
+  --tw-shadow: var(--dsw-elevation-panel);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}

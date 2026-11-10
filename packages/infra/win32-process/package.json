@@ -1,0 +1,31 @@
+{
+  "name": "@dramaip/infra-win32-process",
+  "description": "Shared low-level Win32 process, stdio, and Job Object primitives",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-lazy-require": "workspace:*",
+    "koffi": "3.1.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/subprocess/win32-process",
+      "package": "@deepseek-ai/dsh-win32-process",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

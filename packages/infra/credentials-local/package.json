@@ -1,0 +1,41 @@
+{
+  "name": "@dramaip/infra-credentials-local",
+  "description": "File-backed credentials provider ($DRAMAIP_HOME/.env under the live process environment)",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@dramaip/infra-atomic-write": "workspace:*",
+    "@dramaip/infra-credentials": "workspace:*",
+    "@dramaip/infra-launch-environment": "workspace:*",
+    "@dramaip/infra-home-paths": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "chokidar": "5.0.0",
+    "@deepseek-ai/schemastery": "workspace:*",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@dramaip/infra-atomic-write": "workspace:*",
+    "@dramaip/infra-credentials": "workspace:*",
+    "@dramaip/infra-launch-environment": "workspace:*",
+    "@dramaip/infra-home-paths": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/credentials/credentials-local",
+      "package": "@deepseek-ai/dsh-credentials-local",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

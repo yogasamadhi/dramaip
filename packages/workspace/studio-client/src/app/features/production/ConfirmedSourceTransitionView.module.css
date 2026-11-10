@@ -1,0 +1,48 @@
+:where(.c1 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c1 {
+  border-radius: 0.25rem;
+}
+
+.c1 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c1 {
+  padding: 0.75rem;
+}
+
+.c1 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c2 {
+  word-break: break-all;
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}

@@ -1,0 +1,58 @@
+{
+  "name": "@dramaip/production-review-client",
+  "description": "Review domain client plugin: the review and delivery page, its scope choice and stage navigation, and the native stage bodies over the review, delivery and quality Remote namespaces",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./client/contract": {
+      "types": "./src/client/contract.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@dramaip/infra-locale",
+        "@dramaip/infra-remotes",
+        "@dramaip/infra-ui-renderer"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/automation-automation": "workspace:*",
+    "@dramaip/automation-automation-client": "workspace:*",
+    "@dramaip/infra-locale": "workspace:*",
+    "@dramaip/infra-remotes": "workspace:*",
+    "@dramaip/infra-ui-primitives": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@dramaip/infra-ui-slots": "workspace:*",
+    "@dramaip/workspace-studio-client": "workspace:*",
+    "@dramaip/production-delivery": "workspace:*",
+    "@dramaip/production-media": "workspace:*",
+    "@dramaip/production-media-client": "workspace:*",
+    "@dramaip/production-production": "workspace:*",
+    "@dramaip/production-review": "workspace:*",
+    "@dramaip/production-timeline": "workspace:*",
+    "@dramaip/system-system": "workspace:*",
+    "@dramaip/workspace-workspace-client": "workspace:*",
+    "@dramaip/writing-quality": "workspace:*",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "18.3.31",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "clsx": "^2.0.0"
+  }
+}

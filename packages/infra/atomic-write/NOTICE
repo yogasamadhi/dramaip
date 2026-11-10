@@ -1,0 +1,5 @@
+@dramaip/infra-atomic-write
+
+Copied from @deepseek-ai/dsh-atomic-write 0.2.1-rc.3 (packages/util/atomic-write) of
+DeepSeek Harness, MIT License, Copyright (c) 2026 DeepSeek; see LICENSE.
+Adapted for DramaIP: package names, product content and integration.

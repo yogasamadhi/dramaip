@@ -1,0 +1,116 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp.*
+
+# Build output
+dist/
+**/dist/
+out/
+**/out/
+dist-electron/
+release/
+**/release/
+!docs/release/
+!docs/release/*.md
+*.tsbuildinfo
+
+# Electron / Vite caches
+.cache/
+**/.cache/
+.vite/
+**/.vite/
+node_modules/.cache/
+**/node_modules/.cache/
+
+# Test and coverage output
+coverage/
+**/coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Database and generated local data
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.sql.bak
+
+# Keep generated SQL migrations commit-friendly.
+!packages/db/drizzle/**/*.sql
+
+# Logs and runtime artifacts
+*.log
+logs/
+**/logs/
+npm-debug.log*
+pnpm-debug.log*
+pnpm-error.log*
+yarn-debug.log*
+yarn-error.log*
+_tmp_*
+tmp/
+temp/
+artifacts/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Package artifacts
+*.tgz
+*.zip
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# 固定版本引擎的本机构建产物（源码锁定文件与许可证继续提交）
+apps/desktop/build/dsh/
+apps/desktop/build/dsh-mcp-staging/
+apps/desktop/build/pi/
+
+# Reproducible Cordis and Node Runtime outputs
+/build/
+
+# P0 baseline user data is a committed fixture (REFACTOR_PLAN_DSH_LEVEL2 §4.2).
+!tests/fixtures/baseline-userdata/**/*.db
+
+# Generated per package by scripts/generate-typert.mjs and the client build
+/packages/infra/*/lib/
+/packages/boot/*/lib/
+/packages/testing/*/lib/
+/packages/compat/*/lib/
+/packages/system/*/lib/
+/packages/insights/*/lib/
+/packages/production/*/lib/
+/packages/workspace/*/lib/
+/packages/writing/*/lib/
+/packages/agents/*/lib/
+/packages/automation/*/lib/
+
+# Standalone Desktop checkout caches and historical snapshots.
+.pnpm-store/
+.turbo/
+legacy/
+# The pinned Pi model catalog is source input, not a package artifact.
+!vendor/pi-model-data.tgz
+
+# Python helper caches in an independent Desktop checkout.
+__pycache__/
+*.py[cod]

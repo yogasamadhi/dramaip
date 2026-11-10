@@ -1,0 +1,26 @@
+{
+  "name": "@dramaip/seams-engines",
+  "description": "Engine seam (ctx.engines): the registry of agent engines the Desktop Host runs, and the sidecar runner engine bundles start them with",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/host-contracts": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*",
+    "@dramaip/infra-subprocess": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "vitest": "4.1.9"
+  }
+}

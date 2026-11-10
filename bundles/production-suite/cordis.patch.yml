@@ -1,0 +1,21 @@
+# Trusted first-party Cordis Bundle group.
+- insert:
+    - id: bundle.production-suite
+      name: cordis:group
+      group: true
+      config:
+        - id: production
+          name: "@dramaip/production-production/handlers/production"
+          config: {}
+        - id: media
+          name: "@dramaip/production-media/handlers/media"
+          config: {}
+        - id: timeline
+          name: "@dramaip/production-timeline/handlers/timeline"
+          config: {}
+        - id: review
+          name: "@dramaip/production-review/handlers/review"
+          config: {}
+        - id: delivery
+          name: "@dramaip/production-delivery/handlers/delivery"
+          config: {}

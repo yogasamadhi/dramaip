@@ -1,0 +1,35 @@
+{
+  "name": "@dramaip/infra-remote-mock",
+  "description": "Endpoint-named mock for Typert Remote traffic: unary answers and stream scripts per <namespace>/<method>, live stream control, a log, and the Connection carrier face whole-client specs install",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*"
+  },
+  "dependencies": {
+    "@vitest/spy": "^4.1.11"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "typescript": "^6.0.3",
+    "@dramaip/infra-settings-controller": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/test-support/remote-mock",
+      "package": "@deepseek-ai/dsh-remote-mock",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

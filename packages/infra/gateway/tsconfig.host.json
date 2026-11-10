@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "files": [
+    "src/access.ts",
+    "src/index.ts",
+    "src/remote-error-codes.ts",
+    "src/stream-protocol.ts",
+    "src/stream-server.ts",
+    "src/types.ts"
+  ]
+}

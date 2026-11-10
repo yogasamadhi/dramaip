@@ -1,0 +1,31 @@
+{
+  "name": "@dramaip/infra-subprocess",
+  "description": "Subprocess seam (ctx.subprocess) — managed process groups, bounded spill-backed output, and escalated kills behind one abstract service",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./control": "./src/control.ts"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-http-proxy": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-http-proxy": "workspace:*",
+    "@dramaip/infra-launch-environment": "workspace:*"
+  },
+  "dramaip": {
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/subprocess/subprocess",
+      "package": "@deepseek-ai/dsh-subprocess",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

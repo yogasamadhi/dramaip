@@ -1,0 +1,166 @@
+.c4,
+.c14 {
+  display: flex;
+}
+
+.c11 {
+  display: grid;
+}
+
+.c1,
+.c12 {
+  width: 100%;
+}
+
+.c4 {
+  flex-wrap: wrap;
+}
+
+.c14 {
+  align-items: flex-start;
+}
+
+.c11 {
+  gap: 0.25rem;
+}
+
+.c4,
+.c14 {
+  gap: 0.5rem;
+}
+
+:where(.c8 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)),
+:where(.c13 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c7 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c5,
+.c6,
+.c7,
+.c8,
+.c13,
+.c15 {
+  border-radius: 0.25rem;
+}
+
+.c5,
+.c6,
+.c7,
+.c13 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c5 {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.c6,
+.c7,
+.c13 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c15 {
+  background-color: var(--dsw-alias-state-business-primary);
+}
+
+.c8 {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.c8 {
+  padding: 0.5rem;
+}
+
+.c7,
+.c13 {
+  padding: 0.75rem;
+}
+
+.c5,
+.c6,
+.c15 {
+  padding-inline: 0.5rem;
+}
+
+.c5,
+.c6,
+.c15 {
+  padding-block: 0.25rem;
+}
+
+.c1 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c9 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c10 {
+  overflow-wrap: break-word;
+}
+
+.c5 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.c16 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.c2 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c3 {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.c15 {
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+.c5:disabled,
+.c15:disabled {
+  opacity: 0.5;
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

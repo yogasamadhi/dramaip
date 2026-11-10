@@ -1,0 +1,12 @@
+{
+  "extends": "../../../vendor/pi/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "verbatimModuleSyntax": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "inlineSources": false
+  },
+  "include": ["dramaip-pi-runtime.ts"]
+}

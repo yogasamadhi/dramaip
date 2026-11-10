@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.client.json",
+  "files": [
+    "src/client/index.ts",
+    "src/client/mount.ts",
+    "src/client/state.ts",
+    "src/snapshot.ts",
+    "src/types.ts"
+  ]
+}

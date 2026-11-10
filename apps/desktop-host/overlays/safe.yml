@@ -1,0 +1,29 @@
+# Safe launch overlay, applied after the Profile's own patch when the user
+# chooses safe mode in the recovery window: the core business plugins only,
+# without the domain bundles and engines (the former `safe` profile). The
+# Profile's own patch is left untouched.
+
+- id: writing
+  disabled: true
+- id: knowledge
+  disabled: true
+- id: creative-quality
+  disabled: true
+- id: agents
+  disabled: true
+- id: automation
+  disabled: true
+- id: production
+  disabled: true
+- id: media
+  disabled: true
+- id: timeline
+  disabled: true
+- id: review
+  disabled: true
+- id: delivery
+  disabled: true
+- id: insights
+  disabled: true
+- id: engine-pi
+  disabled: true

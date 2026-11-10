@@ -1,0 +1,316 @@
+.k1 {
+  background-color: var(--dsw-alias-state-business-tertiary);
+}
+
+.k1 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.k1 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.k2 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c1 {
+  margin-inline: auto;
+}
+
+.c10,
+.c22 {
+  margin-top: 0.25rem;
+}
+
+.c24 {
+  margin-top: 0.75rem;
+}
+
+.c4,
+.c6,
+.c11,
+.c20,
+.c23 {
+  margin-top: 1rem;
+}
+
+.c26,
+.c28 {
+  margin-bottom: 0.5rem;
+}
+
+.c7,
+.c11,
+.c18,
+.c21,
+.c23 {
+  display: flex;
+}
+
+.c4,
+.c8,
+.c13,
+.c24,
+.c29 {
+  display: grid;
+}
+
+.c3 {
+  width: 1rem;
+  height: 1rem;
+}
+
+.c12 {
+  height: 10rem;
+}
+
+.c1 {
+  max-width: 64rem;
+}
+
+.c7 {
+  flex-wrap: wrap;
+}
+
+.c18,
+.c21 {
+  align-items: center;
+}
+
+.c18,
+.c21 {
+  justify-content: space-between;
+}
+
+.c23 {
+  justify-content: flex-end;
+}
+
+.c7,
+.c11,
+.c23 {
+  gap: 0.5rem;
+}
+
+.c21,
+.c24,
+.c29 {
+  gap: 0.75rem;
+}
+
+.c4,
+.c8,
+.c13 {
+  gap: 1rem;
+}
+
+:where(.c14 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c6 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c2 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+:where(.c1 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(1.25rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c20 {
+  border-radius: var(--radius);
+}
+
+.c16,
+.c25,
+.c27 {
+  border-radius: var(--radius-sm);
+}
+
+.c12 {
+  border-radius: var(--radius);
+}
+
+.c12 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c18 {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+}
+
+.c12,
+.c18 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c27 {
+  background-color: var(--dsw-alias-state-business-tertiary);
+}
+
+.c20 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c12 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.c25 {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.c25,
+.c27 {
+  padding: 0.75rem;
+}
+
+.c12 {
+  padding: 1rem;
+}
+
+.c20 {
+  padding: 1.25rem;
+}
+
+.c16 {
+  padding-inline: 0.75rem;
+}
+
+.c16 {
+  padding-block: 0.5rem;
+}
+
+.c18 {
+  padding-bottom: 0.75rem;
+}
+
+.c20 {
+  font-family:
+    Iowan Old Style,
+    Songti SC,
+    STSong,
+    serif;
+}
+
+.c20 {
+  font-size: 1.125rem;
+  line-height: var(--tw-leading, calc(1.75 / 1.125));
+}
+
+.c10,
+.c16,
+.c25,
+.c27 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c15,
+.c19,
+.c22 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c20 {
+  --tw-leading: 2rem;
+  line-height: 2rem;
+}
+
+.c26,
+.c28 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c9,
+.c15 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c28 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.c10,
+.c15,
+.c19,
+.c22,
+.c30 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (min-width: 40rem) {
+  .c24 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 48rem) {
+  .c5 {
+    grid-column: span 2 / span 2;
+  }
+
+  .c4,
+  .c8 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .c29 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .c17 {
+    grid-column: span 2 / span 2;
+  }
+
+  .c13 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

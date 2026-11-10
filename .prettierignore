@@ -1,0 +1,10 @@
+# Sources copied from DeepSeek Harness keep its formatting so each copy stays
+# diffable against the pinned upstream file (see THIRD_PARTY_NOTICES.md).
+packages/infra/*
+# Written for DramaIP, not copied.
+!packages/infra/storage-relational
+apps/cli/
+
+# Independent upstream snapshots and standalone DSH plugin.
+vendor/
+plugin2dsh/

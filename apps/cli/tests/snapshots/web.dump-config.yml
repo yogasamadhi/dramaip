@@ -1,0 +1,176 @@
+# == @dramaip/boot-bundle-base
+- id: timer
+  name: '@deepseek-ai/cordis-plugin-timer'
+- id: hmr
+  name: '@dramaip/infra-hmr'
+  disabled: !!js '!ctx.get(''profileContext'')'
+  config:
+    root: []
+- id: config-editor
+  name: '@dramaip/infra-config-editor'
+  disabled: !!js '!ctx.get(''profileContext'')'
+- id: settings
+  name: '@dramaip/infra-settings'
+  disabled: !!js '!ctx.get(''profileContext'')'
+- id: credentials
+  name: '@dramaip/infra-credentials-local'
+- id: storage
+  name: '@dramaip/infra-storage'
+- id: storage-sqlite
+  name: '@dramaip/infra-storage-sqlite'
+  config:
+    path: !!js dramaipHomePath('storage', 'documents.sqlite')
+- id: storage-domain
+  name: '@dramaip/infra-storage-domain'
+  config:
+    backend: sqlite
+- id: storage-relational
+  name: '@dramaip/infra-storage-relational'
+  config:
+    path: !!js dramaipHomePath('storage', 'dramaip.sqlite')
+- id: subprocess
+  name: '@dramaip/infra-subprocess-local'
+- id: typert
+  name: '@dramaip/infra-typert-registry'
+- id: typert-loader
+  name: '@dramaip/infra-typert-loader'
+- id: typert-gateway
+  name: '@dramaip/infra-gateway'
+- id: remote-access
+  name: '@dramaip/infra-remote-access'
+- id: compat-runtime
+  name: '@dramaip/compat-runtime'
+- id: operations
+  name: '@dramaip/infra-operations'
+- id: system-system
+  name: '@dramaip/system-system'
+- id: foundation
+  name: '@dramaip/system-system/handlers/foundation'
+- id: system
+  name: '@dramaip/system-system/handlers/system'
+  config:
+    hostRoutes: false
+- id: workspace-workspace
+  name: '@dramaip/workspace-workspace'
+- id: workspace
+  name: '@dramaip/workspace-workspace/handlers/workspace'
+# == @dramaip/boot-bundle-web
+- id: web-startup
+  name: '@dramaip/infra-web-runtime/startup'
+- id: webserver
+  name: '@dramaip/infra-webserver'
+  inject:
+    - webStartup
+  config:
+    host: !!js ctx.webStartup.host ?? '127.0.0.1'
+    port: !!js ctx.webStartup.port ?? 3280
+    tls: !!js ctx.webStartup.tls
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
+- id: web-runtime
+  name: '@dramaip/infra-web-runtime'
+  inject:
+    - webStartup
+  config:
+    openBrowser: !!js ctx.webStartup.openBrowser
+    printUrl: true
+    publicUrl: !!js ctx.webStartup.publicUrl
+    surfaceContext: true
+- id: connection
+  name: '@dramaip/infra-connection'
+  inject:
+    - webStartup
+  config:
+    trustedHosts: !!js ctx.webStartup.trustedHosts
+- id: settings-controller
+  name: '@dramaip/infra-settings-controller'
+- id: client-hmr
+  name: '@dramaip/infra-client-hmr'
+- id: modules
+  name: '@dramaip/infra-client-modules'
+- id: api-remotes
+  name: '@dramaip/infra-remotes'
+- id: ui-theme
+  name: '@dramaip/infra-ui-theme'
+- id: locale
+  name: '@dramaip/infra-locale'
+- id: shortcuts
+  name: '@dramaip/infra-client-shortcuts'
+- id: ui-layout
+  name: '@dramaip/infra-ui-layout'
+- id: ui-renderer
+  name: '@dramaip/infra-ui-renderer'
+- id: ui-settings
+  name: '@dramaip/infra-ui-settings'
+- id: workspace-studio-client
+  name: '@dramaip/workspace-studio-client'
+- id: system-system-client
+  name: '@dramaip/system-system-client'
+- id: insights-insights-client
+  name: '@dramaip/insights-insights-client'
+- id: production-review-client
+  name: '@dramaip/production-review-client'
+- id: workspace-workspace-client
+  name: '@dramaip/workspace-workspace-client'
+- id: writing-writing-client
+  name: '@dramaip/writing-writing-client'
+- id: writing-quality-client
+  name: '@dramaip/writing-quality-client'
+- id: automation-automation-client
+  name: '@dramaip/automation-automation-client'
+- id: agents-agents-client
+  name: '@dramaip/agents-agents-client'
+- id: production-media-client
+  name: '@dramaip/production-media-client'
+- id: production-production-client
+  name: '@dramaip/production-production-client'
+# == @dramaip/boot-bundle-writing
+- id: writing-writing
+  name: '@dramaip/writing-writing'
+- id: writing
+  name: '@dramaip/writing-writing/handlers/writing'
+- id: writing-knowledge
+  name: '@dramaip/writing-knowledge'
+- id: knowledge
+  name: '@dramaip/writing-knowledge/handlers/knowledge'
+- id: writing-quality
+  name: '@dramaip/writing-quality'
+- id: creative-quality
+  name: '@dramaip/writing-quality/handlers/creative-quality'
+# == @dramaip/boot-bundle-agents
+- id: agents-agents
+  name: '@dramaip/agents-agents'
+- id: agents
+  name: '@dramaip/agents-agents/handlers/agents'
+# == @dramaip/boot-bundle-automation
+- id: automation-automation
+  name: '@dramaip/automation-automation'
+- id: automation
+  name: '@dramaip/automation-automation/handlers/automation'
+# == @dramaip/boot-bundle-production
+- id: production-production
+  name: '@dramaip/production-production'
+- id: production
+  name: '@dramaip/production-production/handlers/production'
+- id: production-media
+  name: '@dramaip/production-media'
+- id: media
+  name: '@dramaip/production-media/handlers/media'
+- id: production-timeline
+  name: '@dramaip/production-timeline'
+- id: timeline
+  name: '@dramaip/production-timeline/handlers/timeline'
+- id: production-review
+  name: '@dramaip/production-review'
+- id: review
+  name: '@dramaip/production-review/handlers/review'
+- id: production-delivery
+  name: '@dramaip/production-delivery'
+- id: delivery
+  name: '@dramaip/production-delivery/handlers/delivery'
+# == @dramaip/boot-bundle-insights
+- id: insights-insights
+  name: '@dramaip/insights-insights'
+- id: insights
+  name: '@dramaip/insights-insights/handlers/insights'

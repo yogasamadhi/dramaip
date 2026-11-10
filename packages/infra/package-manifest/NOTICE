@@ -1,0 +1,5 @@
+@dramaip/infra-package-manifest
+
+Copied from @deepseek-ai/dsh-package-manifest 0.2.1-rc.3 (packages/util/package-manifest) of
+DeepSeek Harness, MIT License, Copyright (c) 2026 DeepSeek; see LICENSE.
+Adapted for DramaIP: package names, product content and integration.

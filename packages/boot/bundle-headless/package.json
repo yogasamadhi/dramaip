@@ -1,0 +1,27 @@
+{
+  "name": "@dramaip/boot-bundle-headless",
+  "description": "Headless patch layer: one run without a listener, then exit",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@dramaip/infra-app-boot": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*"
+  }
+}

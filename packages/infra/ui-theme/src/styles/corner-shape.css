@@ -1,0 +1,13 @@
+/* Nexta uses standard circular corners, including cards and controls.
+ * Keep the shared token for components that explicitly consume it. */
+@supports (corner-shape: superellipse(1.5)) {
+  :root {
+    --dsw-corner-shape: round;
+  }
+
+  *,
+  *::before,
+  *::after {
+    corner-shape: var(--dsw-corner-shape);
+  }
+}

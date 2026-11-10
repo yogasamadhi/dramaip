@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "episodeCounts": [1, 2, 3],
+  "stages": ["confirm-source", "script", "scenes", "shots", "assets", "review"],
+  "safety": ["source-confirmation", "derived-coverage", "duplicate-safe", "stale-resume", "cancel-preserves-adopted-content"]
+}

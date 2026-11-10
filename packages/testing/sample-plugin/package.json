@@ -1,0 +1,57 @@
+{
+  "name": "@dramaip/test-sample-plugin",
+  "description": "Test-only sample plugin for the P1-b acceptance: one unary and one stream Remote method, one unmarked method and one Slot contribution",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-typert-protocol": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@dramaip/infra-gateway": "workspace:*",
+    "@dramaip/infra-typert-registry": "workspace:*",
+    "@dramaip/infra-ui-layout": "workspace:*",
+    "@dramaip/infra-ui-renderer": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "^18.2.0"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [
+        "@dramaip/infra-gateway",
+        "@dramaip/infra-ui-layout"
+      ],
+      "platform": "web"
+    }
+  }
+}

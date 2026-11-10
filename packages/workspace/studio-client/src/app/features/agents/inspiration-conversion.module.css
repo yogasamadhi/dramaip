@@ -1,0 +1,211 @@
+.k1 {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.k2 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.k2 {
+  background-color: var(--dsw-alias-bg-layer-1);
+}
+
+.k1 {
+  background-color: var(--dsw-alias-bg-layer-2);
+}
+
+.k1 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.k2 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c3,
+.c7,
+.c11,
+.c12 {
+  margin-top: 0.25rem;
+}
+
+.c13 {
+  margin-top: 0.75rem;
+}
+
+.c6,
+.c7 {
+  display: block;
+}
+
+.c13 {
+  display: flex;
+}
+
+.c4,
+.c8 {
+  display: grid;
+}
+
+.c15 {
+  width: 1rem;
+  height: 1rem;
+}
+
+.c14 {
+  width: 100%;
+}
+
+.c4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.c8 {
+  gap: 0.25rem;
+}
+
+.c4,
+.c13 {
+  gap: 0.5rem;
+}
+
+:where(.c1 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.75rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c5,
+.c9 {
+  border-radius: var(--radius);
+}
+
+.c1 {
+  border-radius: var(--radius);
+}
+
+.c1,
+.c5,
+.c9 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c1,
+.c9 {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c1,
+  .c9 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-business-primary) 25%,
+      transparent
+    );
+  }
+}
+
+.c1 {
+  background-color: var(--dsw-alias-state-business-tertiary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c1 {
+    background-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-business-tertiary) 45%,
+      transparent
+    );
+  }
+}
+
+.c9 {
+  background-color: var(--dsw-alias-bg-layer-2);
+}
+
+.c5 {
+  padding: 0.5rem;
+}
+
+.c1,
+.c9 {
+  padding: 0.75rem;
+}
+
+.c5 {
+  text-align: left;
+}
+
+.c2 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c3,
+.c5,
+.c8,
+.c9 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c7 {
+  --tw-leading: 1rem;
+  line-height: 1rem;
+}
+
+.c3,
+.c9 {
+  --tw-leading: 1.25rem;
+  line-height: 1.25rem;
+}
+
+.c6,
+.c8,
+.c10 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c2 {
+  --tw-font-weight: 600;
+  font-weight: 600;
+}
+
+.c6,
+.c10 {
+  color: var(--dsw-alias-label-primary);
+}
+
+.c3,
+.c11 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c12 {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}

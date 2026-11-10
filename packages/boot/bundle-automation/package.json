@@ -1,0 +1,20 @@
+{
+  "name": "@dramaip/boot-bundle-automation",
+  "description": "Automation domain: creation workflows and pipelines",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dramaip": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dramaip/automation-automation": "workspace:*"
+  }
+}

@@ -1,0 +1,57 @@
+.content {
+  z-index: var(--dsw-layer-overlay-popover);
+  box-sizing: border-box;
+  min-width: 180px;
+  max-height: var(--radix-dropdown-menu-content-available-height);
+  overflow: auto;
+  padding: 4px;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-elevation-panel);
+  /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens. */
+  --dramaip-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dramaip-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  color: var(--dsw-alias-label-primary);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: var(--dsw-radius-sm);
+  font: var(--dsw-font-s-14);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.item[data-highlighted] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.item[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.label {
+  padding: 6px 8px 4px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.separator {
+  height: 0.5px;
+  margin: 4px 0;
+  background: var(--dsw-alias-border-l2);
+}
+
+.indicator {
+  display: inline-flex;
+  margin-left: auto;
+}

@@ -1,0 +1,64 @@
+{
+  "name": "@dramaip/infra-gateway",
+  "description": "Typert Remote Host dispatcher and Client API endpoint",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    },
+    "./types": "./src/types.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./stream-protocol": "./src/stream-protocol.ts",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:*"
+  },
+  "dependencies": {
+    "@dramaip/infra-deque": "workspace:*",
+    "@dramaip/infra-timeout": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:*",
+    "ws": "^8.21.3",
+    "@dramaip/infra-typert-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@dramaip/infra-remote-access": "workspace:*",
+    "@dramaip/infra-brand": "workspace:*",
+    "@dramaip/infra-cmdline": "workspace:*",
+    "@dramaip/infra-connection": "workspace:*",
+    "@dramaip/infra-webserver": "workspace:*",
+    "@dramaip/infra-typert-registry": "workspace:*",
+    "@dramaip/infra-util-crypto": "workspace:*",
+    "@types/ws": "^8.18.1",
+    "@deepseek-ai/cordis": "workspace:*",
+    "zod": "4.4.3",
+    "@dramaip/infra-remotes": "workspace:*",
+    "@dramaip/infra-remote-mock": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:*",
+    "@dramaip/infra-credentials-local": "workspace:*",
+    "@dramaip/infra-frontend-static": "workspace:*"
+  },
+  "dramaip": {
+    "client": {
+      "inject": [
+        "@dramaip/infra-typert-registry",
+        "@dramaip/infra-connection"
+      ],
+      "platform": "web",
+      "immediately": true
+    },
+    "copiedFrom": {
+      "repository": "vendor/deepseek-harness",
+      "path": "packages/api/gateway",
+      "package": "@deepseek-ai/dsh-api-gateway",
+      "version": "0.2.1-rc.3"
+    }
+  }
+}

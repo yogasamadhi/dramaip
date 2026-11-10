@@ -1,0 +1,454 @@
+.k5 {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.k6 {
+  border-color: var(--dsw-alias-state-warn-primary);
+}
+
+.k5 {
+  background-color: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.k1 {
+  background-color: var(--dsw-alias-bg-layer-2);
+}
+
+.k6 {
+  background-color: var(--dsw-alias-state-warn-tertiary);
+}
+
+.k3 {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.k5 {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.k1 {
+  color: var(--dsw-alias-label-primary);
+}
+
+.k2,
+.k4 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.k6 {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.k1 {
+  --tw-shadow: var(--dsw-elevation-soft);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+.c6 {
+  margin-top: 0.125rem;
+}
+
+.c13 {
+  margin-top: 0.25rem;
+}
+
+.c12 {
+  margin-top: 0.5rem;
+}
+
+.c14 {
+  margin-top: 0.75rem;
+}
+
+.c5 {
+  margin-right: 0.375rem;
+}
+
+.c4 {
+  display: block;
+}
+
+.c2,
+.c6,
+.c8,
+.c14 {
+  display: flex;
+}
+
+.c7 {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.c2,
+.c8,
+.c14 {
+  flex-wrap: wrap;
+}
+
+.c6,
+.c8 {
+  align-items: center;
+}
+
+.c8 {
+  justify-content: space-between;
+}
+
+.c2,
+.c6 {
+  gap: 0.25rem;
+}
+
+.c14 {
+  gap: 0.5rem;
+}
+
+.c8 {
+  gap: 0.75rem;
+}
+
+:where(.c1 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-block-end: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+}
+
+.c2,
+.c8 {
+  border-radius: var(--radius);
+}
+
+.c3 {
+  border-radius: var(--radius-sm);
+}
+
+.c10 {
+  border-radius: var(--radius);
+}
+
+.c2,
+.c8,
+.c10 {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+
+.c2 {
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.c8 {
+  border-color: var(--dsw-alias-state-warn-primary);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .c8 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-warn-primary) 25%,
+      transparent
+    );
+  }
+}
+
+.c2 {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.c8 {
+  background-color: var(--dsw-alias-state-warn-tertiary);
+}
+
+.c2 {
+  padding: 0.375rem;
+}
+
+.c10 {
+  padding: 1rem;
+}
+
+.c3 {
+  padding-inline: 0.75rem;
+}
+
+.c8 {
+  padding-inline: 1rem;
+}
+
+.c3 {
+  padding-block: 0.5rem;
+}
+
+.c8 {
+  padding-block: 0.75rem;
+}
+
+.c3 {
+  text-align: left;
+}
+
+.c3,
+.c8,
+.c10 {
+  font-size: 0.875rem;
+  line-height: var(--tw-leading, calc(1.25 / 0.875));
+}
+
+.c6 {
+  font-size: 0.75rem;
+  line-height: var(--tw-leading, calc(1 / 0.75));
+}
+
+.c3,
+.c9,
+.c11 {
+  --tw-font-weight: 500;
+  font-weight: 500;
+}
+
+.c6 {
+  --tw-font-weight: 400;
+  font-weight: 400;
+}
+
+.c9 {
+  color: var(--dsw-alias-link);
+}
+
+.c5 {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.c8 {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.c5 {
+  --tw-numeric-spacing: tabular-nums;
+  font-variant-numeric: var(--tw-ordinal,) var(--tw-slashed-zero,)
+    var(--tw-numeric-figure,) var(--tw-numeric-spacing,)
+    var(--tw-numeric-fraction,);
+}
+
+.c9 {
+  text-decoration-line: underline;
+}
+
+.c9 {
+  text-underline-offset: 2px;
+}
+
+.c3 {
+  transition-property:
+    color,
+    background-color,
+    border-color,
+    outline-color,
+    text-decoration-color,
+    fill,
+    stroke,
+    --tw-gradient-from,
+    --tw-gradient-via,
+    --tw-gradient-to,
+    opacity,
+    box-shadow,
+    transform,
+    translate,
+    scale,
+    rotate,
+    filter,
+    -webkit-backdrop-filter,
+    backdrop-filter,
+    display,
+    content-visibility,
+    overlay,
+    pointer-events;
+  transition-timing-function: var(--tw-ease, cubic-bezier(0.4, 0, 0.2, 1));
+  transition-duration: var(--tw-duration, 0.15s);
+}
+
+.c3:focus-visible {
+  --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0
+    calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+.c3:focus-visible {
+  --tw-ring-color: var(--dsw-alias-state-business-primary);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-gradient-from {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --tw-gradient-via {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --tw-gradient-to {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-ordinal {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-slashed-zero {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-numeric-figure {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-numeric-spacing {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-numeric-fraction {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-inset {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-ring-offset-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .k5 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-error-primary) 25%,
+      transparent
+    );
+  }
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .k6 {
+    border-color: color-mix(
+      in oklab,
+      var(--dsw-alias-state-warn-primary) 25%,
+      transparent
+    );
+  }
+}
+
+@media (hover: hover) {
+  .k2:hover {
+    background-color: var(--dsw-alias-bg-layer-1);
+  }
+
+  .k2:hover {
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}
+
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 transparent;
+}

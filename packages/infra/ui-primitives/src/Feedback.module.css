@@ -1,0 +1,112 @@
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.emptyTitle {
+  margin: 0;
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+}
+
+.emptyDescription {
+  max-width: 420px;
+  margin: 0;
+  font: var(--dsw-font-xs-13);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.emptyAction {
+  margin-top: 8px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  font: var(--dsw-font-xs-13);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--dsw-radius-md);
+  font: var(--dsw-font-xs-13);
+  color: var(--dsw-alias-label-primary);
+}
+
+.notice[data-tone='info'] {
+  background: var(--dsw-alias-state-business-tertiary);
+}
+
+.notice[data-tone='success'] {
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
+.notice[data-tone='warning'] {
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.notice[data-tone='danger'] {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.noticeIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.notice[data-tone='info'] .noticeIcon {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.notice[data-tone='success'] .noticeIcon {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.notice[data-tone='warning'] .noticeIcon {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.notice[data-tone='danger'] .noticeIcon {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.noticeBody {
+  min-width: 0;
+}
+
+.noticeTitle {
+  margin: 0 0 2px;
+  font: var(--dsw-font-xs-strong-13);
+}
