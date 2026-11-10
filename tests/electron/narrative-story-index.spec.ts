@@ -147,7 +147,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
   const openContext = async () => {
     const summary = workbench()
       .locator("summary")
-      .filter({ hasText: "本轮前文来源" });
+      .filter({ hasText: "本章参考的前文" });
     if (
       !(await summary
         .locator("..")
@@ -421,7 +421,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
     ).toBeDisabled();
     await expect(storyPanel()).not.toContainText("PRIVATE SOURCE");
     await expect(storyPanel()).not.toContainText("PRIVATE ENDPOINT");
-    await expect(workbench()).toContainText("明确选择 0 章 + 4 条叙事解释");
+    await expect(workbench()).toContainText("手动选择 0 章 + 4 条叙事解释");
     const timeline = () =>
       storyPanel().getByRole("table", {
         name: "来源事件时间线",

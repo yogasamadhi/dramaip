@@ -6,6 +6,9 @@ import {
   PROJECT_SOURCE_OPTIONS,
   recommendedProjectMode,
   projectModeBrief,
+  projectModeConfigFromDraft,
+  PROJECT_QUICK_START_OPTIONS,
+  quickStartProjectTitle,
 } from "./project-intake";
 
 test("素材先于内部模式，三条入口完整且允许原著继续小说创作", () => {
@@ -84,4 +87,56 @@ test("题材为空时仍可创建为未分类项目", () => {
     targetEpisodeCount: 24,
   });
   expect(input.shortDramaType).toBeUndefined();
+});
+
+test("新建项目只需选择写小说、写剧本或小说改剧本，名称可不填", () => {
+  expect(PROJECT_QUICK_START_OPTIONS.map((item) => item.title)).toEqual([
+    "写小说",
+    "写剧本",
+    "小说改剧本",
+  ]);
+  // Every choice is valid with defaults alone; nothing else must be filled in.
+  for (const option of PROJECT_QUICK_START_OPTIONS) {
+    const brief = {
+      ...projectModeBrief(option.mode, option.source),
+      title: quickStartProjectTitle(option.kind, "", []),
+    };
+    const config = projectModeConfigFromDraft(
+      option.mode,
+      option.source,
+      brief,
+      "",
+    );
+    expect(config?.mode).toBe(option.mode);
+    expect(projectInputFromBrief(brief, config).title).toBe(
+      option.defaultTitle,
+    );
+  }
+  expect(
+    projectModeConfigFromDraft(
+      "single_season",
+      "inspiration",
+      projectModeBrief("single_season", "inspiration"),
+      "",
+    ),
+  ).toMatchObject({ entryPath: "inspiration" });
+  expect(
+    projectModeConfigFromDraft(
+      "single_season",
+      "source-import",
+      projectModeBrief("single_season", "source-import"),
+      "",
+    ),
+  ).toMatchObject({ entryPath: "source-import" });
+});
+
+test("未填写的项目名称使用不重名的占位名，填写的名称原样保留", () => {
+  expect(quickStartProjectTitle("novel", "  我的书  ", [])).toBe("我的书");
+  expect(quickStartProjectTitle("novel", "", [])).toBe("未命名小说");
+  expect(quickStartProjectTitle("script", "", ["未命名剧本"])).toBe(
+    "未命名剧本 2",
+  );
+  expect(
+    quickStartProjectTitle("adaptation", " ", ["未命名改编", "未命名改编 2"]),
+  ).toBe("未命名改编 3");
 });

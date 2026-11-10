@@ -295,9 +295,6 @@ export const toolsZh = {
   "cockpit.coverage.ratio": "{current}/{required}",
   "cockpit.blockers": "当前阻断项",
   "cockpit.zones": "项目四区导航",
-  "cockpit.zones.optional": "按需进入改编、制作或审片",
-  "cockpit.zones.optional.note":
-    "这些工具不是小说完成条件；继续小说或导出稿件无需先做分镜、静帧或视频。",
   "cockpit.zone.create": "创作",
   "cockpit.zone.create.detail": "正文与项目设定",
   "cockpit.zone.adapt": "改编",
@@ -638,10 +635,6 @@ export const toolsEn: Record<keyof typeof toolsZh, string> = {
   "cockpit.coverage.ratio": "{current}/{required}",
   "cockpit.blockers": "Current blockers",
   "cockpit.zones": "Project zones",
-  "cockpit.zones.optional":
-    "Adaptation, production or review, when you need them",
-  "cockpit.zones.optional.note":
-    "These tools are not part of finishing a novel; writing on or exporting needs no storyboard, stills or video first.",
   "cockpit.zone.create": "Create",
   "cockpit.zone.create.detail": "Text and project settings",
   "cockpit.zone.adapt": "Adapt",

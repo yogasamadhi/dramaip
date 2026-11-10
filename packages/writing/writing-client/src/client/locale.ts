@@ -50,6 +50,7 @@ export const zh = {
   "workspace.back": "← 小说",
   "workspace.chapters": "{count} 章",
   "workspace.nav": "小说创作入口",
+  "section.plan": "构思",
   "section.chapters": "正文",
   "section.outlines": "大纲",
   "section.characters": "人物",
@@ -72,10 +73,10 @@ export const zh = {
   "io.cancelled": "已取消导出。",
   "io.manuscript.saved": "稿件已保存并核验。",
   "guide.close": "关闭工作台说明",
-  "guide.series_longform.title": "系列长篇工作台",
+  "guide.series_longform.title": "小说工作台",
   "guide.series_longform.detail":
-    "人物与大纲 → 章节 AI 草稿与采用 → 连续性记忆 → 下一章或稿件导出。小说可独立完成；改编、分镜和媒体制作按需选择。",
-  "guide.series_longform.action": "管理长篇资料 →",
+    "人物与大纲 → 章节 AI 草稿与采用 → 连续性记忆 → 下一章，写完导出稿件。",
+  "guide.series_longform.action": "管理小说资料 →",
   "guide.single_season.title": "单季短剧工作台",
   "guide.single_season.detail":
     "按需从原著诊断、独立策略或已有剧本进入分集与剧本开发；小说写作可独立完成，不必改编或制作媒体。80 集只是建议值。",
@@ -143,6 +144,7 @@ export const en: Record<keyof typeof zh, string> = {
   "workspace.back": "← Novels",
   "workspace.chapters": "{count} chapters",
   "workspace.nav": "Novel sections",
+  "section.plan": "Plan",
   "section.chapters": "Chapters",
   "section.outlines": "Outline",
   "section.characters": "Characters",
@@ -165,10 +167,10 @@ export const en: Record<keyof typeof zh, string> = {
   "io.cancelled": "Export cancelled.",
   "io.manuscript.saved": "The manuscript was saved and verified.",
   "guide.close": "Close the workspace guide",
-  "guide.series_longform.title": "Series workspace",
+  "guide.series_longform.title": "Novel workspace",
   "guide.series_longform.detail":
-    "Characters and outline → AI chapter drafts and adoption → continuity memory → the next chapter or a manuscript. The novel stands on its own; adaptation, storyboards and media are optional.",
-  "guide.series_longform.action": "Manage the series material →",
+    "Characters and outline → AI chapter drafts and adoption → continuity memory → the next chapter, then export the manuscript.",
+  "guide.series_longform.action": "Manage the novel material →",
   "guide.single_season.title": "Single season workspace",
   "guide.single_season.detail":
     "Start episode and script development from a source diagnosis, a strategy or a script as needed; the novel stands on its own. 80 episodes is only a suggestion.",

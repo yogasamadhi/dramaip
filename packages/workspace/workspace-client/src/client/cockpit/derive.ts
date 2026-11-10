@@ -204,7 +204,7 @@ export function deriveProjectCockpit(input: CockpitInput): ProjectCockpit {
       {
         label: "继续 AI 创作",
         description:
-          "继续本章或下一章，审阅采用后维护连续性记忆；也可以导出小说稿件，不要求改编或媒体制作。",
+          "继续本章或下一章，审阅采用后维护连续性记忆；写完可以导出小说稿件。",
         to: `/projects/${project.id}`,
       },
       [],
@@ -730,30 +730,30 @@ function deriveNovelCockpit(input: CockpitInput): ProjectCockpit {
       [task.title],
       "小说稿件和正式记录保留。",
     );
+  // Memory sync is a continuity aid shown on its own gate; it never stands
+  // between the author and the next chapter.
   const currentAdopted = adopted.find((chapter) => chapter.id === target?.id);
-  if (currentAdopted) {
-    const currentSynced = synced.some((chapter) => chapter.id === target?.id);
+  if (currentAdopted)
     return result(
-      currentSynced ? "ready-for-review" : "needs-input",
-      currentSynced ? "可以继续下一章" : "核对本章连续性",
+      "ready-for-review",
+      "可以继续下一章",
       {
-        label: currentSynced ? "继续下一章" : "核对本章事实记忆",
-        description: currentSynced
-          ? "当前章节已明确采用且事实记忆对应当前版本；可续写下一章，也可按目标导出稿件。不要求改编或媒体制作。"
-          : "当前章节已有正式采用记录，但事实记忆未核验为当前版本；回到本章核对或重试记忆，仍可维护作者稿。",
+        label: "继续下一章",
+        description:
+          "接着写下一章，前面章节会自动作为参考带入；写完可以随时导出小说稿件。",
         to: chapterPath(target?.id),
       },
       [],
       `最近章节：${target!.title}（正式采用 v${target!.version}）`,
     );
-  }
   return result(
     "needs-input",
     chapters.length ? "继续创作母本" : "准备 AI 创作",
     {
       label: chapters.length ? "继续 AI 创作" : "AI 生成第一章",
-      description:
-        "继续作者稿或生成本章候选，审阅后明确采用；也可以导出小说稿件，不要求改编或媒体制作。",
+      description: chapters.length
+        ? "打开当前章节接着写，或让 AI 写出本章供你修改后采用。写完可以导出小说稿件。"
+        : "自己动笔写第一章，或让 AI 写出第一章供你修改。",
       to:
         chapters.length && novel
           ? chapterPath(target?.id)

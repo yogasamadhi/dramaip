@@ -471,16 +471,11 @@ export function writingAdvancedRoutes(
               "承接上一章结尾与全书规划，推进新的剧情，生成下一章完整候选正文。",
             wordGoal: input.data.wordGoal,
             sourceIds: [],
-            narrativeContextRequest: input.data.narrativeContextRequest ?? {
-              format: "narrative-context-v1",
-              chapters: [
-                {
-                  id: source.id,
-                  version: source.version,
-                  representation: "original",
-                },
-              ],
-            },
+            // Without an explicit selection the chapter workflow picks the
+            // default context: recent chapters in full, earlier by summary.
+            ...(input.data.narrativeContextRequest
+              ? { narrativeContextRequest: input.data.narrativeContextRequest }
+              : {}),
           };
           try {
             // No await between real allocation/source checks and Writing's

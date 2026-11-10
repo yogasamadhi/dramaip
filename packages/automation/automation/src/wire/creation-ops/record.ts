@@ -18,6 +18,7 @@ export type CreationRecord = {
     operation:
       | "author-intent"
       | "chapter"
+      | "story-setup"
       | "characters"
       | "book-outline"
       | "chapter-outline"

@@ -11,6 +11,30 @@ import type {
 import type { ProjectCreationSource } from "./project-intake";
 import type { CreationDraftV1 } from "./studio-session";
 
+/**
+ * Whether a saved creation draft holds anything worth reopening the
+ * step-by-step form for: typed content, a file preview, or a creation that is
+ * in flight and must be recovered. A draft that only records which buttons
+ * were clicked is not; the project home then opens on the quick start.
+ */
+export function creationDraftWorthRestoring(
+  draft: CreationDraftV1 | undefined,
+): boolean {
+  if (!draft) return false;
+  return Boolean(
+    draft.attemptId ||
+    draft.createdProjectId ||
+    draft.sourceImportAttempt ||
+    draft.nativeScriptIntake ||
+    draft.pendingSourceImport ||
+    draft.storyPresetId ||
+    draft.brief?.title?.trim() ||
+    draft.brief?.idea?.trim() ||
+    draft.scriptDraft?.trim() ||
+    draft.creatorTopic?.trim(),
+  );
+}
+
 /** Called only by the explicit goal button, never by recommendations or parsing. */
 export function explicitCreationGoal(
   mode: ProjectMode,

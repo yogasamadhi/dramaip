@@ -3,7 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type ElectronApplication, type Page } from "playwright";
-import { createSeriesProject, openProjectTool } from "./project-tools";
+import {
+  createSeriesProject,
+  openProjectTool,
+  quickCreateProject,
+} from "./project-tools";
 import { electron } from "./desktop-host";
 
 let application: ElectronApplication;
@@ -28,16 +32,34 @@ test.afterAll(async () => {
 });
 
 test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定到当前项目", async () => {
-  await createSeriesProject(page, "LM6 驾驶舱项目");
+  // A novel project only writes the novel: one next step, and no adaptation,
+  // production or review entries on its cockpit or in its navigation.
+  await createSeriesProject(page, "LM6 小说项目");
   await openProjectTool(page, "项目驾驶舱");
   await expect(page.getByLabel("项目驾驶舱")).toBeVisible();
   const actions = page.getByRole("link", { name: "继续 AI 创作" });
   await expect(actions).toBeVisible();
   await expect(actions).toHaveCount(1);
+  await expect(page.getByText("按需进入改编、制作或审片")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "项目四区导航" }),
+  ).toHaveCount(0);
+  const novelNav = page.getByRole("navigation", { name: "当前项目导航" });
+  for (const label of ["改编", "制作", "审核交付"])
+    await expect(
+      novelNav.getByRole("link", { name: label, exact: true }),
+    ).toHaveCount(0);
 
-  const projectId = /\/projects\/([^/?]+)/.exec(page.url())?.[1];
+  // Script projects carry the downstream areas, bound to the current project.
+  await quickCreateProject(page, "写剧本", "LM6 驾驶舱项目");
+  await expect(
+    page.getByRole("button", { name: "当前项目：LM6 驾驶舱项目" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/projectId=/);
+  const projectId = new URL(page.url().replace("#/", "/")).searchParams.get(
+    "projectId",
+  );
   expect(projectId).toBeTruthy();
-  await page.getByText("按需进入改编、制作或审片", { exact: true }).click();
   await page.getByRole("link", { name: "审核交付", exact: true }).click();
   await expect(page.getByRole("heading", { name: "审核交付" })).toBeVisible();
   await expect(page.locator("select").first()).toHaveValue(projectId!);
@@ -55,10 +77,6 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
     await expect(
       reviewStages.getByRole("button", { name: label }),
     ).toBeVisible();
-  await reviewStages.getByRole("button", { name: "导出与发布" }).click();
-  await expect(
-    page.getByRole("link", { name: "去改编工作区补齐" }),
-  ).toBeVisible();
 
   await page.getByRole("link", { name: "改编", exact: true }).click();
   const adaptationStages = page.getByRole("navigation", { name: "改编阶段" });
@@ -66,8 +84,6 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
     await expect(
       adaptationStages.getByRole("button", { name: label }),
     ).toBeVisible();
-  await adaptationStages.getByRole("button", { name: "剧本" }).click();
-  await expect(page.getByText("请先创建或选择一个分集。")).toBeVisible();
 
   await page.getByRole("link", { name: "制作", exact: true }).click();
   const productionStages = page.getByRole("navigation", {
@@ -85,11 +101,8 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   await page.getByRole("button", { name: "当前项目：LM6 第二项目" }).click();
   await page.getByRole("menuitem", { name: /LM6 驾驶舱项目/ }).click();
   await expect(page).toHaveURL(
-    new RegExp(`/produce\\?projectId=${projectId}$`),
+    new RegExp(`/produce\\?projectId=${projectId}(&|$)`),
   );
-
-  await page.getByRole("link", { name: "故事", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
 
   for (const label of ["改编", "制作", "审核交付"] as const) {
     await page.getByRole("link", { name: label, exact: true }).click();

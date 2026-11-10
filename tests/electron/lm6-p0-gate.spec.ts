@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type ElectronApplication, type Page } from "playwright";
-import { openProjectTool } from "./project-tools";
+import { openCreationWizardIfQuick, openProjectTool } from "./project-tools";
 import { electron, hostAccess, hostFetch } from "./desktop-host";
 
 type EntryPath = "inspiration" | "source-import" | "script-paste";
@@ -36,6 +36,8 @@ async function launch(
 }
 
 async function selectByKeyboard(page: Page, name: string): Promise<void> {
+  if (["从创意开始", "导入小说或大纲", "导入已有剧本"].includes(name))
+    await openCreationWizardIfQuick(page);
   const entry = page.getByRole("button", { name });
   await entry.focus();
   await expect(entry).toBeFocused();
@@ -336,7 +338,7 @@ for (const [source, goal] of [
   ["导入小说或大纲", "写小说 · 系列长篇"],
   ["导入已有剧本", "开发剧本 · 单季短剧"],
 ] as const) {
-  test(`${source} 重启后仍需确认目标，并保留明确选择的目标`, async () => {
+  test(`${source} 只点选未填写的草稿重启后回到快速新建，填写后保留明确选择的目标`, async () => {
     const userData = await mkdtemp(join(tmpdir(), "dramaip-p0-intake-goal-"));
     let running: RunningApp | undefined;
     try {
@@ -347,10 +349,16 @@ for (const [source, goal] of [
       ).toBeVisible();
       await running.application.close();
 
+      // Clicks alone are not worth restoring: the next visit opens on the
+      // quick start instead of a half-filled form.
       running = await launch(userData);
       await expect(
-        running.page.getByText(source, { exact: true }),
+        running.page.getByRole("radiogroup", { name: "开始方式" }),
       ).toBeVisible();
+      await expect(
+        running.page.getByRole("heading", { name: "你希望先完成什么？" }),
+      ).toHaveCount(0);
+      await selectByKeyboard(running.page, source);
       await expect(
         running.page.getByRole("heading", { name: "你希望先完成什么？" }),
       ).toBeVisible();

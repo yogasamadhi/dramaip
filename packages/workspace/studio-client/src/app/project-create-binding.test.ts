@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import { ProjectInputSchema } from "@dramaip/contracts/workspace";
 import { createCreationDraft, parseCreationDraft } from "./studio-session";
 import {
+  creationDraftWorthRestoring,
   explicitCreationGoal,
   projectInputForNativeCreation,
   prepareProjectCreationAttempt,
@@ -124,4 +125,36 @@ test("old ambiguous keys never gain new goal fields or fabricated original input
     "原创建输入损坏",
   );
   expect(bad.attemptId).toBe(draft.attemptId);
+});
+
+test("只有含内容或未完成创建的草稿才重新打开分步表单", () => {
+  const clicksOnly = {
+    ...createCreationDraft("project-home", "series_longform", "inspiration"),
+    intakeStep: 3 as const,
+    goalConfirmation: {
+      confirmed: true as const,
+      goal: "novel-first" as const,
+      material: "inspiration" as const,
+    },
+  };
+  expect(creationDraftWorthRestoring(undefined)).toBe(false);
+  expect(creationDraftWorthRestoring(clicksOnly)).toBe(false);
+  expect(
+    creationDraftWorthRestoring({
+      ...clicksOnly,
+      brief: { ...clicksOnly.brief, title: "我的书" },
+    }),
+  ).toBe(true);
+  expect(
+    creationDraftWorthRestoring({
+      ...clicksOnly,
+      brief: { ...clicksOnly.brief, idea: "一座会遗忘的城" },
+    }),
+  ).toBe(true);
+  expect(
+    creationDraftWorthRestoring({ ...clicksOnly, scriptDraft: "林晚：开门。" }),
+  ).toBe(true);
+  expect(creationDraftWorthRestoring({ ...clicksOnly, attemptId: "a" })).toBe(
+    true,
+  );
 });

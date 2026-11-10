@@ -62,7 +62,8 @@ test("系列长篇默认继续母本，显式建立改编后才推进试制", ()
     "章节",
     "已保存正文",
   ]);
-  expect(result.primaryAction.description).toContain("不要求改编或媒体制作");
+  expect(result.primaryAction.description).toContain("导出小说稿件");
+  expect(result.primaryAction.description).not.toMatch(/改编|媒体|制作/);
 });
 
 test("主动取消和局部静帧不能代替新主流程六阶段正式证据", () => {
@@ -472,7 +473,7 @@ test("记忆删除、错归属、缺正文证据、错来源版本或未采用�
   ]) {
     const result = novelCockpit({ ...evidence, memories });
     expect(result.gates?.[1]?.status).toBe("pending");
-    expect(result.primaryAction.label).toBe("核对本章事实记忆");
+    expect(result.primaryAction.label).toBe("继续下一章");
   }
   expect(
     novelCockpit({

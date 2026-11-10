@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type ElectronApplication } from "playwright";
 import {
+  openCreationWizardIfQuick,
   selectWorkspaceObject,
   openProductionStage,
   openProjectCreation,
@@ -38,6 +39,7 @@ test("剧本入口直达本地规则检查，示例时间线与内部审片反�
     page.getByRole("heading", { name: "示例短剧：雨夜归来" }),
   ).toBeVisible();
   await openProjectCreation(page);
+  await openCreationWizardIfQuick(page);
   await page.getByRole("button", { name: "导入已有剧本" }).click();
   await page.getByRole("button", { name: /单季短剧/ }).click();
   await page

@@ -44,6 +44,65 @@ export const PROJECT_SOURCE_OPTIONS = [
   },
 ] as const;
 
+/**
+ * The one choice a new project needs: what the author wants to make. Everything
+ * else (genre, scale, platform, the source file) is filled in later inside the
+ * project, by hand or with the assistant.
+ */
+export const PROJECT_QUICK_START_OPTIONS = [
+  {
+    kind: "novel" as const,
+    title: "写小说",
+    description: "从一个想法开始写长篇小说，专心写书，写完导出成稿。",
+    mode: "series_longform" as const,
+    source: "inspiration" as const,
+    defaultTitle: "未命名小说",
+  },
+  {
+    kind: "script" as const,
+    title: "写剧本",
+    description: "直接写短剧、漫剧剧本，写好后可以接着进入视频生成。",
+    mode: "single_season" as const,
+    source: "inspiration" as const,
+    defaultTitle: "未命名剧本",
+  },
+  {
+    kind: "adaptation" as const,
+    title: "小说改剧本",
+    description: "导入已有小说，改编成短剧、漫剧剧本，再进入视频生成。",
+    mode: "single_season" as const,
+    source: "source-import" as const,
+    defaultTitle: "未命名改编",
+  },
+] as const;
+
+export type ProjectQuickStartKind =
+  (typeof PROJECT_QUICK_START_OPTIONS)[number]["kind"];
+
+export function projectQuickStart(kind: ProjectQuickStartKind) {
+  return PROJECT_QUICK_START_OPTIONS.find((item) => item.kind === kind)!;
+}
+
+/**
+ * The project name is only a label for the author's shelf; it is not the title
+ * of the novel or script. An empty name gets a placeholder that does not clash
+ * with an existing project.
+ */
+export function quickStartProjectTitle(
+  kind: ProjectQuickStartKind,
+  typed: string,
+  existingTitles: readonly string[],
+): string {
+  const name = typed.trim();
+  if (name) return name;
+  const base = projectQuickStart(kind).defaultTitle;
+  const taken = new Set(existingTitles.map((title) => title.trim()));
+  if (!taken.has(base)) return base;
+  let index = 2;
+  while (taken.has(`${base} ${index}`)) index += 1;
+  return `${base} ${index}`;
+}
+
 export function recommendedProjectMode(
   source: ProjectCreationSource,
 ): ProjectMode {

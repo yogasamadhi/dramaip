@@ -3427,7 +3427,7 @@ export const zh = {
   "app/ui-showcase.57": "用于辅助信息和次级工作流。",
   "app/writing-sections.1": "一句话完成项目设定",
   "app/writing-sections.2":
-    "像旧版一样输入一个想法即可生成题材钩子、故事梗概、情绪主轴、创作规范和视觉方向；结果确认后才写入。",
+    "输入一个想法，AI 会整理题材、故事梗概、世界观、核心钩子、情感内核、目标读者和文风；你确认后才写入下面的设定。",
   "app/writing-sections.3": "智能补全项目设定",
   "app/writing-sections.4": "项目技能、灵感与模板",
   "app/writing-sections.5": "视觉设定",

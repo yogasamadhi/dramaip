@@ -265,18 +265,10 @@ export function CockpitTool(props: ToolProps) {
           )}
         </div>
       </div>
-      {novelOnly ? (
-        <details className={css.details}>
-          <summary>{t("cockpit.zones.optional")}</summary>
-          <p className={clsx(css.muted, css.small)}>
-            {t("cockpit.zones.optional.note")}
-          </p>
-          {nav}
-        </details>
-      ) : (
-        nav
-      )}
-      {project.mode !== "creator_channel" && (
+      {/* A novel project only writes the novel: no adaptation, production or
+          pilot entries. Script and novel-to-script projects carry those. */}
+      {novelOnly ? null : nav}
+      {!novelOnly && project.mode !== "creator_channel" && (
         <details className={css.details}>
           <summary>{t("cockpit.pilot")}</summary>
           <p className={css.muted}>{t("cockpit.pilot.note")}</p>

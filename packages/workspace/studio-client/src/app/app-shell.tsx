@@ -37,6 +37,9 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "./router";
 import { contextualNavigationTarget, useStudioSession } from "./studio-session";
+import { useQuery } from "./query";
+import { useStudioClient } from "./runtime-connection";
+import { usesNovelWorkflow } from "./project-cockpit";
 import styles from "./app-shell.module.css";
 import { copyText } from "./copy";
 import { clsx } from "clsx";
@@ -82,6 +85,12 @@ const PROJECT_ROUTES = new Set([
   "/produce",
   "/review",
 ]);
+/**
+ * A novel project is only for writing the novel. Adaptation, video production
+ * and review/delivery belong to script and novel-to-script projects, so their
+ * entries are not listed; the pages stay reachable by address.
+ */
+const NOVEL_HIDDEN_ROUTES = new Set(["/adapt", "/produce", "/review"]);
 const GLOBAL_ROUTES = new Set([
   "/",
   "/inspiration",
@@ -293,8 +302,25 @@ export function AppShell(props: {
   const globalNavigation = sortedNavigation.filter((item) =>
     GLOBAL_ROUTES.has(item.to),
   );
-  const projectNavigation = sortedNavigation.filter((item) =>
-    PROJECT_ROUTES.has(item.to),
+  // Same rule as the project home page: a series project without any
+  // adaptation is a novel project. Older series projects that already hold an
+  // adaptation (and the built-in demo) keep their downstream entries.
+  const client = useStudioClient();
+  const seriesProject =
+    activeProject?.mode === "series_longform" ? activeProject : undefined;
+  const graphRead = useQuery({
+    queryKey: ["production-graph", seriesProject?.id],
+    queryFn: () => client.production.graph(seriesProject!.id),
+    enabled: Boolean(seriesProject),
+  });
+  const novelProject = Boolean(
+    seriesProject &&
+    (!graphRead.data || usesNovelWorkflow(seriesProject, graphRead.data)),
+  );
+  const projectNavigation = sortedNavigation.filter(
+    (item) =>
+      PROJECT_ROUTES.has(item.to) &&
+      !(novelProject && NOVEL_HIDDEN_ROUTES.has(item.to)),
   );
   const projectOverview = sortedNavigation.find((item) => item.to === "/");
   const trail = objectTrail(location.search);

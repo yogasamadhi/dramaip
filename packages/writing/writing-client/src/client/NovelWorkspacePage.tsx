@@ -19,6 +19,7 @@ import css from "./Writing.module.css";
 
 /** The sections, in the order the header offers them. */
 const SECTIONS: readonly LegacyNovelSection[] = [
+  "plan",
   "chapters",
   "outlines",
   "characters",

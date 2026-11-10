@@ -97,7 +97,7 @@ const props = (remotes: object) =>
     ...remotes,
   }) as unknown as ToolProps;
 
-it("小说项目显示唯一下一步与结果 Gate，按需工具收在折叠区，不读制作进度", async () => {
+it("小说项目显示唯一下一步与结果 Gate，不出现改编、制作或试制入口，不读制作进度", async () => {
   const { remotes: fake, progress } = remotes();
   render(<CockpitTool {...props(fake)} />);
   const cockpit = await screen.findByRole("region", { name: "项目驾驶舱" });
@@ -108,21 +108,20 @@ it("小说项目显示唯一下一步与结果 Gate，按需工具收在折叠�
   expect(
     await within(cockpit).findByRole("list", { name: "小说结果 Gate" }),
   ).toBeTruthy();
-  const nav = within(cockpit).getByRole("navigation", { name: "项目四区导航" });
-  expect(nav.closest("details")).not.toBeNull();
+  // A novel project only writes the novel: no adaptation, production or
+  // pilot entries anywhere on its cockpit.
   expect(
-    within(nav)
-      .getAllByRole("link")
-      .map((link) => link.getAttribute("href")),
-  ).toEqual([
-    `#/projects/${PROJECT}`,
-    `#/adapt?projectId=${PROJECT}`,
-    `#/produce?projectId=${PROJECT}`,
-    `#/review?projectId=${PROJECT}`,
-  ]);
+    within(cockpit).queryByRole("navigation", { name: "项目四区导航" }),
+  ).toBeNull();
   expect(
-    within(cockpit).getByRole("link", { name: "打开试制计划" }),
-  ).toHaveProperty("hash", `#/projects/${PROJECT}/tools/pilot`);
+    within(cockpit).queryByRole("link", { name: "打开试制计划" }),
+  ).toBeNull();
+  expect(
+    within(cockpit)
+      .queryAllByRole("link")
+      .map((link) => link.getAttribute("href"))
+      .filter((href) => /adapt|produce|review|pilot/.test(href ?? "")),
+  ).toEqual([]);
   expect(progress).not.toHaveBeenCalled();
 });
 

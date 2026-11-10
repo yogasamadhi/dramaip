@@ -3,7 +3,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type ElectronApplication, type Page } from "playwright";
-import { openProjectCreation } from "./project-tools";
+import {
+  openCreationWizardIfQuick,
+  openProjectCreation,
+} from "./project-tools";
 import { electron } from "./desktop-host";
 
 let application: ElectronApplication;
@@ -40,9 +43,7 @@ test.afterAll(async () => {
 });
 
 test("三种创建入口进入同一项目上下文，原著路径先展示权益预览", async () => {
-  await expect(
-    page.getByRole("heading", { name: "你现在手中有什么素材？" }),
-  ).toBeVisible();
+  await openCreationWizardIfQuick(page);
 
   await page.getByRole("button", { name: "从创意开始" }).click();
   await page.getByRole("button", { name: /系列长篇/ }).click();

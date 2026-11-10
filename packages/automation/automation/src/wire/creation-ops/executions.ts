@@ -17,6 +17,7 @@ export type CreationExecutionResult = {
   operation:
     | "author-intent"
     | "chapter"
+    | "story-setup"
     | "characters"
     | "book-outline"
     | "chapter-outline"

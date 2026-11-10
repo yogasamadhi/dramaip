@@ -42,6 +42,7 @@ import { loadDirectScriptCockpitEvidence } from "../../direct-script-cockpit-evi
 import { projectProgressReadiness } from "../../project-progress-readiness";
 import { NativeScriptIntakePanel } from "./NativeScriptIntakePanel";
 import {
+  creationDraftWorthRestoring,
   explicitCreationGoal,
   prepareProjectCreationAttempt,
   projectInputForNativeCreation,
@@ -59,7 +60,11 @@ import {
 import {
   positiveInteger,
   isDirectScriptProject,
+  PROJECT_QUICK_START_OPTIONS,
   PROJECT_SOURCE_OPTIONS,
+  projectQuickStart,
+  quickStartProjectTitle,
+  type ProjectQuickStartKind,
   projectModeBrief,
   projectModeConfigFromDraft,
   projectInputFromBrief,
@@ -866,9 +871,45 @@ export function ProjectHome() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const session = useStudioSession();
-  const restoredDraft = session.creationDraft;
-  const creationDraftRef = useRef(session.creationDraft);
-  creationDraftRef.current = session.creationDraft;
+  // Only a draft with real content (or an unfinished creation) reopens the
+  // step-by-step form. A draft that merely recorded clicks is dropped, so
+  // 新建项目 always opens on the quick start.
+  const [restoredDraft] = useState(() =>
+    creationDraftWorthRestoring(session.creationDraft)
+      ? session.creationDraft
+      : undefined,
+  );
+  // Judged once, when the page opens: a draft being built in this visit is
+  // never dropped, even before anything has been typed.
+  const [staleDraftId] = useState(() =>
+    session.creationDraft && !creationDraftWorthRestoring(session.creationDraft)
+      ? session.creationDraft.draftId
+      : undefined,
+  );
+  const liveDraft =
+    staleDraftId && session.creationDraft?.draftId === staleDraftId
+      ? undefined
+      : session.creationDraft;
+  const creationDraftRef = useRef(liveDraft);
+  creationDraftRef.current = liveDraft;
+  useEffect(() => {
+    if (staleDraftId && session.creationDraft?.draftId === staleDraftId)
+      session.clearCreationDraft();
+    // Run once for the draft found on opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staleDraftId]);
+  const creationPanelRef = useRef<HTMLElement>(null);
+  const openCreation = () => {
+    setCreationOpen(true);
+    window.setTimeout(
+      () =>
+        creationPanelRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        }),
+      0,
+    );
+  };
   const [projects, setProjects] = useState<Project[]>(session.projects);
   const [creationOpen, setCreationOpen] = useState(Boolean(restoredDraft));
   const [packageImportOpen, setPackageImportOpen] = useState(false);
@@ -919,6 +960,16 @@ export function ProjectHome() {
   const [activeCreateStep, setActiveCreateStep] = useState<1 | 2 | 3>(
     restoredDraft?.intakeStep ?? (restoredDraft ? 3 : 1),
   );
+  // New projects start from one choice; the step-by-step form is kept for
+  // file imports and the other templates, and for restoring an unfinished one.
+  const [wizardOpen, setWizardOpen] = useState(Boolean(restoredDraft));
+  const [quickKind, setQuickKind] = useState<ProjectQuickStartKind>("novel");
+  const [quickName, setQuickName] = useState("");
+  const [quickTarget, setQuickTarget] = useState<{
+    projectMode: ProjectMode;
+    creationSource: ProjectCreationSource;
+    brief: ProductionBriefDraft;
+  }>();
   const startMethodRef = useRef<HTMLDivElement>(null);
   const creationGoalRef = useRef<HTMLElement>(null);
   const projectFormRef = useRef<HTMLDivElement>(null);
@@ -986,7 +1037,12 @@ export function ProjectHome() {
     setScriptRightsConfirmed(false);
     setShowAdvanced(false);
     setActiveCreateStep(1);
-    if (close) setCreationOpen(false);
+    setQuickName("");
+    setQuickTarget(undefined);
+    if (close) {
+      setCreationOpen(false);
+      setWizardOpen(false);
+    }
     session.clearCreationDraft();
     creationDraftRef.current = undefined;
   };
@@ -1145,12 +1201,36 @@ export function ProjectHome() {
   const createFromBrief = async (
     mode: "inspiration" | "source-file" | "script-draft" | "script-file",
     resumeScriptInitialization = false,
+    quick?: {
+      projectMode: ProjectMode;
+      creationSource: ProjectCreationSource;
+      brief: ProductionBriefDraft;
+    },
   ) => {
+    // The quick start passes its own choices; wizard state may not have
+    // re-rendered yet, so never read the closure values in that case.
+    const target = quick ?? { projectMode, creationSource, brief };
+    const targetConfig = quick
+      ? projectModeConfigFromDraft(
+          quick.projectMode,
+          quick.creationSource,
+          quick.brief,
+          "",
+        )
+      : modeConfig;
+    const draftFields = quick
+      ? {
+          projectMode: quick.projectMode,
+          creationSource: quick.creationSource,
+          brief: quick.brief,
+        }
+      : {};
     if (nativeScriptIntake) {
       setError("先核验并完成或撤销同一原生文件预览；不会另建项目。");
       return;
     }
-    if (!creationSource || !brief.title.trim() || !modeConfig) return;
+    if (!target.creationSource || !target.brief.title.trim() || !targetConfig)
+      return;
     if (
       mode === "script-draft" &&
       (!scriptContent.trim() || !scriptRightsConfirmed) &&
@@ -1186,24 +1266,34 @@ export function ProjectHome() {
     let destination: string | undefined;
     try {
       const storyPreset =
+        !quick &&
         mode === "inspiration" &&
-        (projectMode === "series_longform" || projectMode === "single_season")
+        (target.projectMode === "series_longform" ||
+          target.projectMode === "single_season")
           ? novelStoryPreset(storyPresetId)
           : undefined;
       const attempt = prepareProjectCreationAttempt(
         creationDraftRef.current,
         storyPreset
-          ? projectInputFromStoryPreset(brief, storyPreset, modeConfig)
-          : projectInputFromBrief(brief, modeConfig),
+          ? projectInputFromStoryPreset(target.brief, storyPreset, targetConfig)
+          : projectInputFromBrief(target.brief, targetConfig),
       );
       const { attemptId, frozenProjectInput } = attempt;
-      persistCreationDraft({ attemptId, frozenProjectInput }, true);
+      persistCreationDraft(
+        { ...draftFields, attemptId, frozenProjectInput },
+        true,
+      );
       const project = creationDraftRef.current?.createdProjectId
         ? await client.projects.get(creationDraftRef.current.createdProjectId)
         : (await client.projects.create(attempt.input, attemptId)).project;
       createdProject = project;
       persistCreationDraft(
-        { attemptId, frozenProjectInput, createdProjectId: project.id },
+        {
+          ...draftFields,
+          attemptId,
+          frozenProjectInput,
+          createdProjectId: project.id,
+        },
         true,
       );
       if (sourceFile && pendingImport) {
@@ -1257,7 +1347,7 @@ export function ProjectHome() {
       try {
         const initialized = await initializeProjectMaterials(client, {
           project,
-          brief,
+          brief: target.brief,
           preset: storyPreset,
           ...(mode === "script-draft"
             ? { scriptDraft: scriptContent, scriptRightsConfirmed }
@@ -1265,7 +1355,18 @@ export function ProjectHome() {
         });
         if (initialized.scriptContext)
           destination = scriptWorkspacePath(initialized.scriptContext);
-        persistCreationDraft({ initializationSteps: initialized.steps }, true);
+        // A novel-to-script project made without a file starts by importing
+        // the novel inside the project.
+        else if (target.creationSource === "source-import" && !sourceFile)
+          destination = `/projects/${encodeURIComponent(project.id)}/tools/import`;
+        // A novel started from the quick start is planned with the AI first:
+        // setup, characters and outline, then the first chapter.
+        else if (quick && target.projectMode === "series_longform")
+          destination = `/projects/${encodeURIComponent(project.id)}?section=plan`;
+        persistCreationDraft(
+          { ...draftFields, initializationSteps: initialized.steps },
+          true,
+        );
         if (initialized.chapterId)
           window.localStorage.setItem(
             `dramaip-novel-last-chapter:${project.id}`,
@@ -1273,7 +1374,10 @@ export function ProjectHome() {
           );
       } catch (cause) {
         if (cause instanceof ProjectInitializationError)
-          persistCreationDraft({ initializationSteps: cause.steps }, true);
+          persistCreationDraft(
+            { ...draftFields, initializationSteps: cause.steps },
+            true,
+          );
         throw new Error(
           `${message(cause)}；项目和已完成的初始化资料均已保留，可安全继续初始化。`,
         );
@@ -1299,6 +1403,38 @@ export function ProjectHome() {
     } finally {
       setSaving(false);
     }
+  };
+  const quickCreate = async () => {
+    const option = projectQuickStart(quickKind);
+    const target = {
+      projectMode: option.mode as ProjectMode,
+      creationSource: option.source as ProjectCreationSource,
+      brief: {
+        ...projectModeBrief(option.mode, option.source),
+        title: quickStartProjectTitle(
+          quickKind,
+          quickName,
+          projects.map((project) => project.title),
+        ),
+      },
+    };
+    // Keep the wizard state in step so a recovery retry sees the same target.
+    setProjectMode(target.projectMode);
+    setCreationSource(target.creationSource);
+    setBrief(target.brief);
+    setStoryPresetId(undefined);
+    setQuickTarget(target);
+    persistCreationDraft({
+      ...target,
+      storyPresetId: undefined,
+      scriptDraft: "",
+      intakeStep: 3,
+      goalConfirmation: explicitCreationGoal(
+        target.projectMode,
+        target.creationSource,
+      ),
+    });
+    await createFromBrief("inspiration", false, target);
   };
   const createDemo = async () => {
     setCreatingDemo(true);
@@ -1422,9 +1558,72 @@ export function ProjectHome() {
     },
   ];
   const importReady = Boolean(pendingImport?.rightsConfirmed);
+  // A quick-start project has no file to import before creation; retrying it
+  // must not take the file-import route.
+  const retryQuickTarget =
+    quickTarget ??
+    (creationSource === "source-import" && !pendingImport
+      ? { projectMode, creationSource, brief }
+      : undefined);
+  const creationErrorNotice = error ? (
+    <div className={styles.c94}>
+      <RecoveryNotice
+        tone="danger"
+        happened={error}
+        contentSafety={
+          session.creationDraft?.createdProjectId
+            ? "项目、已完成的初始化资料和创作草稿均已保留在本机。"
+            : "创作草稿已保留，尚未确认成功的项目不会被当作完成项目。"
+        }
+        nextStep={
+          session.creationDraft?.sourceImportAttempt
+            ? "先核验并恢复同一次导入；保留原输入和原键，不把可能已有内容的项目当作空项目移除。"
+            : session.creationDraft?.createdProjectId
+              ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
+              : "检查当前输入后重试创建。"
+        }
+        returnTo="成功后进入刚创建的项目工作区。"
+        actions={
+          session.creationDraft?.createdProjectId ? (
+            <>
+              <Button
+                variant="secondary"
+                disabled={saving}
+                onClick={() =>
+                  void (retryQuickTarget
+                    ? createFromBrief("inspiration", false, retryQuickTarget)
+                    : createFromBrief(
+                        creationSource === "inspiration"
+                          ? "inspiration"
+                          : creationSource === "source-import"
+                            ? "source-file"
+                            : pendingImport
+                              ? "script-file"
+                              : "script-draft",
+                        creationSource === "script" && !pendingImport,
+                      ))
+                }
+              >
+                {copyText("app/features/workspace/impl.89")}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={
+                  saving || Boolean(session.creationDraft?.sourceImportAttempt)
+                }
+                onClick={() => void removeUnfinishedProject()}
+              >
+                {copyText("app/features/workspace/impl.90")}
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
+    </div>
+  ) : null;
   const scaleSummary =
     modeConfig?.mode === "series_longform"
-      ? `${modeConfig.targetChapterCount}章 · 小说可独立交付，改编按需选择`
+      ? `${modeConfig.targetChapterCount}章 · 写完可导出小说稿件`
       : modeConfig?.mode === "single_season"
         ? `${modeConfig.targetEpisodeCount}集 · ${brief.episodeDuration}`
         : modeConfig?.mode === "personal_theater"
@@ -1449,11 +1648,7 @@ export function ProjectHome() {
               >
                 {copyText("app/features/workspace/impl.39")}
               </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setCreationOpen(true)}
-              >
+              <Button size="sm" variant="primary" onClick={openCreation}>
                 <Plus aria-hidden="true" className={styles.actionIcon} />
                 {copyText("app/features/workspace/impl.40")}
               </Button>
@@ -1476,15 +1671,19 @@ export function ProjectHome() {
       {session.activeProject && projects.length ? (
         <ProjectHomeTaskSummary projectId={session.activeProject.id} />
       ) : null}
-      {(creationOpen || !projects.length) && (
-        <section className={styles.c52}>
+      {(creationOpen || !projects.length) && !wizardOpen && (
+        <section
+          ref={creationPanelRef}
+          className={styles.c52}
+          aria-label={copyText("app/features/workspace/impl.40")}
+        >
           <div className={styles.c2}>
             <div>
               <h2 className={styles.c53}>
-                {copyText("app/features/workspace/impl.41")}
+                {copyText("app/features/workspace/impl.40")}
               </h2>
               <p className={styles.c4}>
-                {copyText("app/features/workspace/impl.42")}
+                选一种开始方式就能创建。题材、篇幅、平台等都可以创建后在项目里补充，或和智能助手对话完善。
               </p>
             </div>
             {projects.length ? (
@@ -1496,6 +1695,114 @@ export function ProjectHome() {
                 {copyText("app/features/workspace/impl.43")}
               </Button>
             ) : null}
+          </div>
+          <div className={styles.c55} role="radiogroup" aria-label="开始方式">
+            {PROJECT_QUICK_START_OPTIONS.map((option) => (
+              <BareButton
+                key={option.kind}
+                role="radio"
+                aria-checked={quickKind === option.kind}
+                aria-label={option.title}
+                className={clsx(
+                  styles.c56,
+                  quickKind === option.kind ? styles.k3 : styles.k4,
+                )}
+                disabled={saving}
+                onClick={() => setQuickKind(option.kind)}
+              >
+                <p className={styles.c58}>{option.title}</p>
+                <p className={styles.c59}>{option.description}</p>
+              </BareButton>
+            ))}
+          </div>
+          <div className={styles.c90}>
+            <div className={styles.c77}>
+              <label htmlFor="quick-project-title">项目名称（可不填）</label>
+              <Input
+                id="quick-project-title"
+                placeholder={quickStartProjectTitle(
+                  quickKind,
+                  "",
+                  projects.map((project) => project.title),
+                )}
+                value={quickName}
+                disabled={saving}
+                onChange={(event) => setQuickName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !saving) void quickCreate();
+                }}
+              />
+              <span className={styles.c23}>
+                只是项目的名字，不是小说或剧本的书名，随时可以改。
+              </span>
+            </div>
+            <div className={styles.c93}>
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={() => void quickCreate()}
+              >
+                {saving ? "正在创建…" : "创建项目"}
+              </Button>
+            </div>
+          </div>
+          <p className={styles.c80}>
+            已经有小说或剧本文件，或想用其他模板（AI 小剧场、博主内容）？
+            <BareButton
+              type="button"
+              className={styles.c81}
+              disabled={saving}
+              onClick={() => {
+                setError(undefined);
+                setWizardOpen(true);
+              }}
+            >
+              用其他方式新建
+            </BareButton>
+          </p>
+          {creationErrorNotice}
+        </section>
+      )}
+      {(creationOpen || !projects.length) && wizardOpen && (
+        <section ref={creationPanelRef} className={styles.c52}>
+          <div className={styles.c2}>
+            <div>
+              <h2 className={styles.c53}>
+                {copyText("app/features/workspace/impl.41")}
+              </h2>
+              <p className={styles.c4}>
+                {copyText("app/features/workspace/impl.42")}
+              </p>
+            </div>
+            <div className={styles.c93}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={
+                  saving ||
+                  Boolean(
+                    session.creationDraft?.attemptId ||
+                    session.creationDraft?.sourceImportAttempt ||
+                    nativeScriptIntake,
+                  )
+                }
+                onClick={() => {
+                  resetCreationForm();
+                  setWizardOpen(false);
+                }}
+              >
+                返回快速新建
+              </Button>
+              {projects.length ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCreationOpen(false)}
+                >
+                  {copyText("app/features/workspace/impl.43")}
+                </Button>
+              ) : null}
+            </div>
           </div>
           {activeCreateStep === 1 ? (
             <div ref={startMethodRef} className={styles.c54}>
@@ -2183,61 +2490,7 @@ export function ProjectHome() {
               </div>
             </div>
           )}
-          {error && (
-            <div className={styles.c94}>
-              <RecoveryNotice
-                tone="danger"
-                happened={error}
-                contentSafety={
-                  session.creationDraft?.createdProjectId
-                    ? "项目、已完成的初始化资料和创作草稿均已保留在本机。"
-                    : "创作草稿已保留，尚未确认成功的项目不会被当作完成项目。"
-                }
-                nextStep={
-                  session.creationDraft?.sourceImportAttempt
-                    ? "先核验并恢复同一次导入；保留原输入和原键，不把可能已有内容的项目当作空项目移除。"
-                    : session.creationDraft?.createdProjectId
-                      ? "继续初始化只会读取实际资料并补齐缺失步骤；也可以把确认无内容的项目移入回收站。"
-                      : "检查当前输入后重试创建。"
-                }
-                returnTo="成功后进入刚创建的项目工作区。"
-                actions={
-                  session.creationDraft?.createdProjectId ? (
-                    <>
-                      <Button
-                        variant="secondary"
-                        disabled={saving}
-                        onClick={() =>
-                          void createFromBrief(
-                            creationSource === "inspiration"
-                              ? "inspiration"
-                              : creationSource === "source-import"
-                                ? "source-file"
-                                : pendingImport
-                                  ? "script-file"
-                                  : "script-draft",
-                            creationSource === "script" && !pendingImport,
-                          )
-                        }
-                      >
-                        {copyText("app/features/workspace/impl.89")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={
-                          saving ||
-                          Boolean(session.creationDraft?.sourceImportAttempt)
-                        }
-                        onClick={() => void removeUnfinishedProject()}
-                      >
-                        {copyText("app/features/workspace/impl.90")}
-                      </Button>
-                    </>
-                  ) : undefined
-                }
-              />
-            </div>
-          )}
+          {creationErrorNotice}
         </section>
       )}
       {packageImportOpen ? (

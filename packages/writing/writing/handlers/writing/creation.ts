@@ -31,10 +31,16 @@ import {
   type NarrativeStorySelection,
 } from "@dramaip/contracts/knowledge";
 import {
+  automaticNovelContextRequest,
+  isEmptyNarrativeContextRequest,
   prepareNovelContext,
   prepareNarrativeSources,
 } from "./narrative-context.js";
 import { mergeChapterText } from "./text-merge.js";
+import {
+  CHAPTER_WRITING_METHOD,
+  novelContextNote,
+} from "./chapter-writing-method.js";
 import {
   prepareNarrativePlanning,
   prepareProductionNarrative,
@@ -54,6 +60,7 @@ import {
   WRITING_CHAPTER_SERVICE,
   WRITING_RESOURCE_SERVICE,
 } from "@dramaip/contracts/writing";
+import { AGENT_CONTEXT_SERVICE } from "@dramaip/contracts/agent-context";
 import type {
   PluginContext,
   PluginMigration,
@@ -328,22 +335,36 @@ export function registerWritingCreation(context: PluginContext) {
           chapter.version !== input.baseVersion)
       )
         throw new Error("章节不存在、归属不符或版本已变化。");
+      const chapterDetail = (id: string) => {
+        const index = optionalService(
+          context,
+          KNOWLEDGE_NARRATIVE_INDEX_SERVICE,
+        );
+        if (!index)
+          throw new Error(
+            "可信来源索引未启用，不能使用未验证摘要或猜测原文段落。",
+          );
+        return index.chapter(project.id, id);
+      };
       const novel = chapter
         ? prepareNovelContext(
             chapter,
             all,
-            input.narrativeContextRequest,
-            (id) => {
-              const index = optionalService(
-                context,
-                KNOWLEDGE_NARRATIVE_INDEX_SERVICE,
-              );
-              if (!index)
-                throw new Error(
-                  "可信来源索引未启用，不能使用未验证摘要或猜测原文段落。",
-                );
-              return index.chapter(project.id, id);
-            },
+            // No selection means "use the sensible default", not "no context":
+            // a new chapter must see what came before it.
+            isEmptyNarrativeContextRequest(input.narrativeContextRequest)
+              ? automaticNovelContextRequest(
+                  chapter,
+                  all,
+                  chapterDetail,
+                  sendableContextPath(
+                    optionalService(context, AGENT_CONTEXT_SERVICE)?.policies?.(
+                      project.id,
+                    ).policies ?? [],
+                  ),
+                )
+              : input.narrativeContextRequest,
+            chapterDetail,
             (id) =>
               optionalService(
                 context,
@@ -418,8 +439,8 @@ export function registerWritingCreation(context: PluginContext) {
             )
           : [];
       const formats: Record<string, string> = {
-        chapter:
-          "先在内部明确本章任务：剧情推进、人物目标、视角、事实限制、情绪、伏笔与字数。content 只放完整小说正文，title 为章名，items 为空。遵循作者要求，不强制每章反转。",
+        chapter: CHAPTER_WRITING_METHOD,
+        "story-setup": STORY_SETUP_FORMAT,
         characters:
           "items 的 kind 为 characters，data 使用「角色定位、身份背景、性格、欲望与目标、秘密与弱点、人物弧光、视觉描述」。",
         "book-outline":
@@ -448,7 +469,7 @@ export function registerWritingCreation(context: PluginContext) {
         ),
       ];
       return {
-        prompt: `${planning?.basis.sourceBasis.story?.length || novel?.basis.story?.length ? "本轮明确纳入的叙事声明是作者采用的来源锚定解释，含声明文本、实际端点名称／版本和来源身份，不附带原文引文或端点摘要；源指针不证明已提供原文。作者推断不能升级为原文事实，不按声明数量认证连续性或文学质量。\n" : ""}${formats[input.operation]}\n${planning ? `本轮规划来源范围=${planning.basis.request.chapterScope.mode}，实际表达覆盖 ${planning.basis.coverage.included.length} 章，目录未纳入 ${planning.basis.coverage.excluded.length} 章。只有明确原文是权威文本；采用摘要是派生概括，段落是片段，不冒充全文或语义保证。高层摘要仅代表实际冻结范围，未选内容不声称已读；不补整章或旧记忆。人物、大纲、故事弧是待审阅方案，不是已发生事实；无正文可以独立规划，不制造小说目标或改编任务。` : novel ? `本章正文及明确选择的原文是权威文本；已采用摘要是有来源的派生概括，不等于原文或语义保证。高层摘要仅代表其冻结章节范围，不证明当前整卷或全书覆盖；摘要与所选原文片段可重叠，不能重复计算覆盖。大纲与故事弧是未来规划。直接表达 ${novel.basis.chapters.length} 章，高层摘要 ${novel.basis.summaries?.length ?? 0} 条，未纳入 ${novel.basis.omitted.length} 章；未选择的内容不能声称已读、完整连续性或全书覆盖。` : "引用资料中已采用章节与故事记忆是事实；大纲是未来规划，历史设定必须核对。"}${intent.authorIntent.state === "adopted" ? `\n${AUTHOR_INTENT_CREATION_PROMPT}` : ""}`,
+        prompt: `${planning?.basis.sourceBasis.story?.length || novel?.basis.story?.length ? "本轮明确纳入的叙事声明是作者采用的来源锚定解释，含声明文本、实际端点名称／版本和来源身份，不附带原文引文或端点摘要；源指针不证明已提供原文。作者推断不能升级为原文事实，不按声明数量认证连续性或文学质量。\n" : ""}${formats[input.operation]}\n${planning ? `本轮规划来源范围=${planning.basis.request.chapterScope.mode}，实际表达覆盖 ${planning.basis.coverage.included.length} 章，目录未纳入 ${planning.basis.coverage.excluded.length} 章。只有明确原文是权威文本；采用摘要是派生概括，段落是片段，不冒充全文或语义保证。高层摘要仅代表实际冻结范围，未选内容不声称已读；不补整章或旧记忆。人物、大纲、故事弧是待审阅方案，不是已发生事实；无正文可以独立规划，不制造小说目标或改编任务。` : novel ? novelContextNote(novel.basis) : "引用资料中已采用章节与故事记忆是事实；大纲是未来规划，历史设定必须核对。"}${intent.authorIntent.state === "adopted" ? `\n${AUTHOR_INTENT_CREATION_PROMPT}` : ""}`,
         authorIntent: intent.authorIntent,
         ...(formalPrevious && previous && chapter
           ? {
@@ -526,14 +547,21 @@ export function registerWritingCreation(context: PluginContext) {
           issue(`正文 ${length} 字，目标 ${input.wordGoal} 字。`, "warning");
       } else {
         if (!output.items.length) issue("方案未包含可采用的结构化条目。");
+        if (input.operation === "story-setup") {
+          if (output.items.length !== 1) issue("故事设定只能包含一条设定。");
+          else if (!storySetupPatch(output.items[0]!.data).synopsis)
+            issue("故事设定缺少故事梗概。");
+        }
         const kinds =
-          input.operation === "characters"
-            ? ["characters"]
-            : input.operation === "story-arc"
-              ? ["story-arcs"]
-              : input.operation === "creator-content"
-                ? ["idea", "draft"]
-                : ["outlines"];
+          input.operation === "story-setup"
+            ? ["story-setup"]
+            : input.operation === "characters"
+              ? ["characters"]
+              : input.operation === "story-arc"
+                ? ["story-arcs"]
+                : input.operation === "creator-content"
+                  ? ["idea", "draft"]
+                  : ["outlines"];
         if (output.items.some((item) => !kinds.includes(item.kind)))
           issue("候选条目类型不符合本次操作。");
         if (
@@ -827,6 +855,46 @@ export function registerWritingCreation(context: PluginContext) {
         });
         return;
       }
+      if (workflow.input.operation === "story-setup") {
+        // The setup fills the project's own fields. The project name is the
+        // author's label, not the book's title, so it is never touched.
+        const projects = optionalService(context, WORKSPACE_PROJECT_SERVICE);
+        const project = projects?.get(workflow.input.projectId);
+        const frozen = workflow.sources.find(
+          (source) =>
+            source.kind === "project" && source.id === workflow.input.projectId,
+        );
+        if (!projects || !project || !frozen)
+          throw new Error("项目不存在，无法采用故事设定。");
+        const updated = projects.update(project.id, {
+          version: frozen.version,
+          ...storySetupPatch(workflow.output!.items[0]!.data),
+        });
+        if (!updated || updated === "conflict")
+          throw new Error("项目设定已被修改，请重新生成故事设定。");
+        context.uow.execute((tx) => {
+          const at = new Date().toISOString();
+          tx.run(
+            "INSERT OR IGNORE INTO writing_creation_adoptions VALUES (?, ?, ?)",
+            workflow.id,
+            JSON.stringify({ projectId: project.id, version: updated.version }),
+            at,
+          );
+          tx.append({
+            type: "writing.creation-adopted.v1",
+            pluginId: "writing",
+            aggregateType: "creation",
+            aggregateId: workflow.id,
+            aggregateVersion: 1,
+            payload: {
+              projectId: project.id,
+              workflowId: workflow.id,
+              ids: [project.id],
+            },
+          });
+        });
+        return;
+      }
       try {
         context.uow.execute((tx) => {
           if (
@@ -971,4 +1039,73 @@ export function registerWritingCreation(context: PluginContext) {
     () => provideService(context, CREATION_WRITING_SERVICE, service),
     `service:${CREATION_WRITING_SERVICE}`,
   );
+}
+
+/** What a story setup candidate must hold, in the creation prompt's words. */
+const STORY_SETUP_FORMAT =
+  "items 只含一条，kind 为 story-setup，title 为暂定书名，data 使用「题材类型、故事梗概、世界观与规则、核心钩子、情感内核、核心卖点、目标读者、文风指南」。故事梗概写清主角、目标、阻碍和结局走向；作者没提到的内容按题材合理补全，作者明确说过的要求必须保留。";
+
+/**
+ * The project fields a story setup candidate fills. The world and its rules
+ * join the synopsis, which every later writing run already reads.
+ */
+export function storySetupPatch(data: Record<string, unknown>): {
+  shortDramaType?: string;
+  synopsis?: string;
+  coreHook?: string;
+  emotionalCore?: string;
+  coreSellingPoint?: string;
+  targetAudience?: string;
+  styleGuide?: string;
+} {
+  const field = (key: string): string | undefined => {
+    const value = data[key];
+    const text =
+      typeof value === "string"
+        ? value
+        : Array.isArray(value)
+          ? value.filter((item) => typeof item === "string").join("、")
+          : "";
+    return text.trim() || undefined;
+  };
+  const story = field("故事梗概");
+  const world = field("世界观与规则");
+  const synopsis = story
+    ? world
+      ? `${story}\n\n世界观与规则：${world}`
+      : story
+    : undefined;
+  const patch: ReturnType<typeof storySetupPatch> = {};
+  const genre = field("题材类型");
+  if (genre) patch.shortDramaType = genre.slice(0, 160);
+  if (synopsis) patch.synopsis = synopsis;
+  for (const [key, label] of [
+    ["coreHook", "核心钩子"],
+    ["emotionalCore", "情感内核"],
+    ["coreSellingPoint", "核心卖点"],
+    ["targetAudience", "目标读者"],
+    ["styleGuide", "文风指南"],
+  ] as const) {
+    const value = field(label);
+    if (value) patch[key] = value;
+  }
+  return patch;
+}
+
+/**
+ * Whether a field path may leave the device under the project's saved
+ * policies: a "never" on the path or any ancestor denies it, matching the
+ * agent context store. Automatic context uses this to skip, rather than fail
+ * on, sources the author has kept private.
+ */
+function sendableContextPath(
+  policies: readonly { fieldPath: string; mode: string }[],
+): (fieldPath: string) => boolean {
+  const denied = policies
+    .filter((policy) => policy.mode === "never")
+    .map((policy) => policy.fieldPath);
+  return (fieldPath) =>
+    !denied.some(
+      (path) => fieldPath === path || fieldPath.startsWith(`${path}/`),
+    );
 }

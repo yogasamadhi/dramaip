@@ -27,6 +27,7 @@ export type CreationListResult = {
       operation:
         | "author-intent"
         | "chapter"
+        | "story-setup"
         | "characters"
         | "book-outline"
         | "chapter-outline"

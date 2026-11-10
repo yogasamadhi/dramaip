@@ -371,6 +371,106 @@ export function prepareNarrativeSources(
   };
 }
 
+/** Limits for the default chapter context. They stay well under the 64k-token
+ * creation budget, which project materials and author intent also share. */
+export const AUTO_NOVEL_CONTEXT_LIMITS = {
+  originalChapters: 3,
+  originalChars: 10_000,
+  summaryChars: 8_000,
+  scanChapters: 60,
+  /** A single chapter longer than this is offered by summary, never in full. */
+  singleOriginalChars: 30_000,
+} as const;
+
+/** True when the author has not chosen any chapter, summary or story source. */
+export function isEmptyNarrativeContextRequest(
+  raw: NarrativeContextRequest | undefined,
+): boolean {
+  return (
+    !raw ||
+    (!raw.chapters.length && !raw.summaries?.length && !raw.story?.length)
+  );
+}
+
+/**
+ * The context used when the author has not picked one: the most recent prior
+ * chapters in full, then earlier chapters by their current adopted summary,
+ * within {@link AUTO_NOVEL_CONTEXT_LIMITS}. The result is an ordinary request,
+ * so it is validated and frozen exactly like an explicit selection.
+ * `allowed` reports whether a context field path may be sent; chapters or
+ * summaries the author's privacy policy denies are skipped, not failed on.
+ */
+export function automaticNovelContextRequest(
+  target: Chapter,
+  chapters: readonly Chapter[],
+  detail: (id: string) => NarrativeIndexDetail | undefined,
+  allowed: (fieldPath: string) => boolean = () => true,
+): NarrativeContextRequest {
+  const limits = AUTO_NOVEL_CONTEXT_LIMITS;
+  const prior = chapters
+    .filter(
+      (chapter) =>
+        chapter.projectId === target.projectId &&
+        chapter.id !== target.id &&
+        chapter.orderIndex < target.orderIndex &&
+        chapter.content.trim() &&
+        allowed(`/chapters/${chapter.id}`),
+    )
+    .sort((a, b) => b.orderIndex - a.orderIndex || b.id.localeCompare(a.id))
+    .slice(0, limits.scanChapters);
+  const picked: NarrativeContextRequest["chapters"] = [];
+  let originals = 0;
+  let originalChars = 0;
+  let summaryChars = 0;
+  let summariesOnly = false;
+  for (const chapter of prior) {
+    const length = chapter.content.length;
+    if (
+      !summariesOnly &&
+      originals < limits.originalChapters &&
+      length <= limits.singleOriginalChars &&
+      (originals === 0 || originalChars + length <= limits.originalChars)
+    ) {
+      picked.push({
+        id: chapter.id,
+        version: chapter.version,
+        representation: "original",
+      });
+      originals += 1;
+      originalChars += length;
+      continue;
+    }
+    summariesOnly = true;
+    let index: NarrativeIndexDetail | undefined;
+    try {
+      index = detail(chapter.id);
+    } catch {
+      // Without a trusted index there is no summary to offer; keep going
+      // with what the originals already cover.
+      break;
+    }
+    const current =
+      index &&
+      index.projectId === target.projectId &&
+      index.chapter.id === chapter.id &&
+      index.chapter.version === chapter.version &&
+      index.chapter.contentHash === hash(chapter.content);
+    const summary = current ? index!.summaries.at(-1) : undefined;
+    if (!summary || !allowed(`/knowledge/${summary.id}`)) continue;
+    if (summaryChars + summary.text.length > limits.summaryChars) break;
+    summaryChars += summary.text.length;
+    picked.push({
+      id: chapter.id,
+      version: chapter.version,
+      representation: "summary",
+      record: { id: summary.id, version: summary.version },
+    });
+  }
+  const order = new Map(prior.map((chapter, position) => [chapter.id, position]));
+  picked.sort((a, b) => order.get(b.id)! - order.get(a.id)!);
+  return { format: "narrative-context-v1", chapters: picked };
+}
+
 /** Novel continuation additionally freezes the actual target and permits only prior chapters. */
 export function prepareNovelContext(
   target: Chapter,

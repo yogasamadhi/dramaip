@@ -67,43 +67,88 @@ export function NovelContextPicker(
   for (const summary of props.request.summaries ?? [])
     if (!higher.has(summary.id))
       higher.set(summary.id, { id: summary.id, title: "先前所选冻结范围" });
+  // Chapter writing: an empty selection means the writer picks the default
+  // context itself, so the author normally never has to open this.
+  const automatic =
+    !quality &&
+    !props.request.chapters.length &&
+    !props.request.summaries?.length &&
+    !props.request.story?.length;
   return (
     <details
       className={styles.c1}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className={styles.c2}>
-        {props.scope?.title ??
-          (props.includeTarget ? "下一章来源范围" : "本轮前文来源")}{" "}
-        {copyText("app/features/novel/NovelContextPicker.1")}
-        {props.request.chapters.length}
-        {copyText("app/features/novel/NovelContextPicker.2")}
-        {props.request.summaries?.length
-          ? ` + ${props.request.summaries.length} 条高层摘要`
-          : ""}
-        {props.request.story?.length
-          ? ` + ${props.request.story.length} 条叙事解释`
-          : ""}
+        {quality ? (
+          <>
+            {props.scope?.title}{" "}
+            {copyText("app/features/novel/NovelContextPicker.1")}
+            {props.request.chapters.length}
+            {copyText("app/features/novel/NovelContextPicker.2")}
+            {props.request.summaries?.length
+              ? ` + ${props.request.summaries.length} 条高层摘要`
+              : ""}
+            {props.request.story?.length
+              ? ` + ${props.request.story.length} 条叙事解释`
+              : ""}
+          </>
+        ) : (
+          <>
+            {props.includeTarget ? "续写下一章参考的前文：" : "本章参考的前文："}
+            {automatic
+              ? "自动"
+              : `手动选择 ${props.request.chapters.length} 章${
+                  props.request.summaries?.length
+                    ? ` + ${props.request.summaries.length} 条阶段摘要`
+                    : ""
+                }${
+                  props.request.story?.length
+                    ? ` + ${props.request.story.length} 条叙事解释`
+                    : ""
+                }`}
+          </>
+        )}
       </summary>
-      <p className={styles.c3}>
-        {quality
-          ? "只使用本轮确认范围的实际表达；每章须直接选择原文/章节摘要/段落，或由明确高层摘要覆盖。"
-          : props.includeTarget
-            ? "续章默认只承接当前章完整原文；可在启动前明确改选摘要、段落或其他前文。"
-            : "本章原文会冻结。"}
-        {copyText("app/features/novel/NovelContextPicker.3")}
-      </p>
-      <p className={styles.c4}>
-        {quality ? "本轮范围" : "当前前文"} {previous.length}
-        {copyText("app/features/novel/NovelContextPicker.4")}{" "}
-        {
-          previous.filter(
-            (chapter) =>
-              !props.request.chapters.some((item) => item.id === chapter.id),
-          ).length
-        }{" "}
-        {copyText("app/features/novel/NovelContextPicker.5")}
-      </p>
+      {quality ? (
+        <>
+          <p className={styles.c3}>
+            只使用本轮确认范围的实际表达；每章须直接选择原文/章节摘要/段落，或由明确高层摘要覆盖。
+            {copyText("app/features/novel/NovelContextPicker.3")}
+          </p>
+          <p className={styles.c4}>
+            本轮范围 {previous.length}
+            {copyText("app/features/novel/NovelContextPicker.4")}{" "}
+            {
+              previous.filter(
+                (chapter) =>
+                  !props.request.chapters.some(
+                    (item) => item.id === chapter.id,
+                  ),
+              ).length
+            }{" "}
+            {copyText("app/features/novel/NovelContextPicker.5")}
+          </p>
+        </>
+      ) : (
+        <p className={styles.c3}>
+          {automatic
+            ? "自动带入最近几章的原文和更早章节的摘要，一般不用设置。需要时可在下面手动指定，指定后只使用你选的内容。"
+            : "当前只使用你手动选择的内容。"}
+          {!automatic && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={props.disabled}
+              onClick={() =>
+                props.onChange({ format: "narrative-context-v1", chapters: [] })
+              }
+            >
+              恢复自动
+            </Button>
+          )}
+        </p>
+      )}
       {open &&
         previous.map((chapter) => (
           <ContextChapter
@@ -210,7 +255,7 @@ export function NovelContextPicker(
               : props.purpose === "planning"
                 ? "请先明确选择规划范围，不自动补入原文或摘要；无正文规划可另行明确确认。"
                 : "请先明确选择质量范围，不自动补入原文或摘要。"
-            : "当前章节之前没有正文目录，不制造前文占位。"}
+            : "这是第一章，还没有前文。"}
         </p>
       )}
       {open && (

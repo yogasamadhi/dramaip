@@ -67,6 +67,7 @@ import { clsx } from "clsx";
 export const CREATION_LABELS: Record<CreationInput["operation"], string> = {
   "author-intent": "作者意图建议",
   chapter: "本章正文",
+  "story-setup": "故事设定",
   characters: "人物方案",
   "book-outline": "全书大纲",
   "chapter-outline": "章节大纲",
@@ -208,6 +209,7 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
         ? "creative-quality"
         : [
               "chapter",
+              "story-setup",
               "characters",
               "book-outline",
               "chapter-outline",

@@ -112,6 +112,7 @@ function ownerOf(operation: CreationOperation): string {
   if (
     [
       "chapter",
+      "story-setup",
       "characters",
       "book-outline",
       "chapter-outline",

@@ -240,7 +240,7 @@ test("五个 Gate 来自同一正式版本链，内部保存不冒充质量或�
 test("无真实正文或明确采用意图必须回到第一阶段，不能跳到历史下游", () => {
   const e = fixture();
   e.sources.chapters = [];
-  expect(derive(e).primaryAction.label).toBe("补充实际来源正文");
+  expect(derive(e).primaryAction.label).toBe("导入小说原文");
   expect(derive(e).gates!.every((item) => item.status !== "ready")).toBe(true);
   e.sources.chapters = fixture().sources.chapters;
   e.intent.current!.status = "pending";

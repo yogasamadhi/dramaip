@@ -80,6 +80,7 @@ export const AUTHOR_INTENT_CREATION_PROMPT =
 export const CreationOperationSchema = z.enum([
   "author-intent",
   "chapter",
+  "story-setup",
   "characters",
   "book-outline",
   "chapter-outline",

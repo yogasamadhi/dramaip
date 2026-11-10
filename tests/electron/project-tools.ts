@@ -18,7 +18,16 @@ export async function selectWorkspaceObject(
     .selectOption(selection);
 }
 
+/** Opens the step-by-step form used for file imports and other templates. */
 export async function openProjectCreation(page: Page): Promise<void> {
+  await openProjectQuickStart(page);
+  await page.getByRole("button", { name: "用其他方式新建" }).click();
+  await expect(
+    page.getByRole("heading", { name: "你现在手中有什么素材？" }),
+  ).toBeVisible();
+}
+
+export async function openProjectQuickStart(page: Page): Promise<void> {
   await page.evaluate(() => {
     window.location.hash = "#/";
   });
@@ -29,19 +38,40 @@ export async function openProjectCreation(page: Page): Promise<void> {
   });
   if (await create.isVisible().catch(() => false)) await create.click();
   await expect(
-    page.getByRole("heading", { name: "你现在手中有什么素材？" }),
+    page.getByRole("radiogroup", { name: "开始方式" }),
   ).toBeVisible();
+}
+
+/**
+ * Specs that start from a material ("从创意开始", "导入小说或大纲", "导入已有剧本")
+ * use the step-by-step form; new projects otherwise open on the quick start.
+ */
+export async function openCreationWizardIfQuick(page: Page): Promise<void> {
+  const quick = page.getByRole("radiogroup", { name: "开始方式" });
+  const wizard = page.getByRole("heading", { name: "你现在手中有什么素材？" });
+  await expect(quick.or(wizard).first()).toBeVisible();
+  if (await quick.isVisible())
+    await page.getByRole("button", { name: "用其他方式新建" }).click();
+  await expect(wizard).toBeVisible();
+}
+
+export async function quickCreateProject(
+  page: Page,
+  kind: "写小说" | "写剧本" | "小说改剧本",
+  title = "",
+): Promise<void> {
+  await openProjectQuickStart(page);
+  await page.getByRole("radio", { name: kind }).click();
+  if (title)
+    await page.getByRole("textbox", { name: "项目名称（可不填）" }).fill(title);
+  await page.getByRole("button", { name: "创建项目", exact: true }).click();
 }
 
 export async function createSeriesProject(
   page: Page,
   title: string,
 ): Promise<void> {
-  await openProjectCreation(page);
-  await page.getByRole("button", { name: "从创意开始" }).click();
-  await page.getByRole("button", { name: /系列长篇/ }).click();
-  await page.getByRole("textbox", { name: "项目名称" }).fill(title);
-  await page.getByRole("button", { name: "创建系列长篇" }).click();
+  await quickCreateProject(page, "写小说", title);
 }
 
 export async function openProjectTool(

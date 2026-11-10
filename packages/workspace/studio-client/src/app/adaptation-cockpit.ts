@@ -107,10 +107,8 @@ export function deriveAdaptationCockpit(
       ? `正式作者意图 v${intent!.version}`
       : "来源或正式作者意图待确认",
     `${sources.chapters.length} 章有正文来源；${sourceReady ? "作者意图已明确采用" : "旧字段、目录和候选不等于正式意图"}。权利声明不等于授权证明核验。`,
-    sources.chapters.length ? "确认来源与作者意图" : "补充实际来源正文",
-    sources.chapters.length
-      ? sourceTo
-      : `/projects/${encodeURIComponent(project.id)}`,
+    sources.chapters.length ? "确认来源与作者意图" : "导入小说原文",
+    sources.chapters.length ? sourceTo : tool("import"),
   );
 
   const diagnosisHeads = evidence.diagnoses.filter(

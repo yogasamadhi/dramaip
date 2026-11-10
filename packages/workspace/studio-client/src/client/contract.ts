@@ -238,7 +238,13 @@ export interface LegacyProjectRecord {
 
 /** The sections of the novel workspace. */
 export type LegacyNovelSection =
-  "chapters" | "outlines" | "characters" | "settings" | "story-bible" | "more";
+  | "plan"
+  | "chapters"
+  | "outlines"
+  | "characters"
+  | "settings"
+  | "story-bible"
+  | "more";
 
 /** How the novel workspace's outline section lays the outline out. */
 export type LegacyOutlineMode = "book" | "chapter" | "arc";

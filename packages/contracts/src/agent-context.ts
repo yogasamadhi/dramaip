@@ -216,6 +216,11 @@ export interface AgentContextService {
     request: AgentContextPreparationRequest,
   ): AgentContextPreparationResult;
   deriveCreation?(snapshotId: string, prompt: string): AgentContextSnapshot;
+  /** The project's saved field policies, so owners can avoid denied sources up front. */
+  policies?(projectId: string): {
+    version: number;
+    policies: readonly AgentContextPolicy[];
+  };
   createPreview(input: AgentContextPreviewInput): AgentContextPreview;
   updatePreview(
     id: string,

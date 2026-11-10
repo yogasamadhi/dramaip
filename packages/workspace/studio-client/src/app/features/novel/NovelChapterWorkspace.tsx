@@ -1001,15 +1001,9 @@ function NovelEditor(
     nextContextDraft.key === nextContextKey
       ? nextContextDraft.value
       : readNextContext();
-  const nextContextRequest = explicitNextContext ?? {
+  const nextContextRequest: NarrativeContextRequest = explicitNextContext ?? {
     format: "narrative-context-v1",
-    chapters: [
-      {
-        id: props.chapter.id,
-        version: props.chapter.version,
-        representation: "original",
-      },
-    ],
+    chapters: [],
   };
   const updateNextContext = (value: NarrativeContextRequest) => {
     setNextContextDraft({ key: nextContextKey, value });
@@ -1892,17 +1886,10 @@ function NovelEditor(
     handledPreviewIds.current.clear();
     try {
       const persisted = await persist();
+      // An empty selection lets the writer pick the default context: the
+      // latest chapters in full and earlier ones by their summaries.
       const request = NarrativeContextRequestSchema.parse(
-        explicitNextContext ?? {
-          format: "narrative-context-v1",
-          chapters: [
-            {
-              id: persisted.id,
-              version: persisted.version,
-              representation: "original",
-            },
-          ],
-        },
+        explicitNextContext ?? { format: "narrative-context-v1", chapters: [] },
       );
       const result = await props.client.novelWorkspace.continueChapter(
         props.projectId,

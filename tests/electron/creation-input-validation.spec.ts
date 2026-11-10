@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { electron } from "./desktop-host";
+import { openCreationWizardIfQuick } from "./project-tools";
 
 test("原生创建的非法名称只阻止提交，不使确认界面崩溃或清除原草稿（后台）", async () => {
   const userData = await mkdtemp(
@@ -18,6 +19,7 @@ test("原生创建的非法名称只阻止提交，不使确认界面崩溃或�
   try {
     const page = await application.firstWindow();
     await page.waitForLoadState("domcontentloaded");
+    await openCreationWizardIfQuick(page);
     await page
       .getByRole("button", { name: "导入已有剧本", exact: true })
       .click();

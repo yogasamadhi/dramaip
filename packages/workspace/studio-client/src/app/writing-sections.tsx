@@ -11,12 +11,13 @@ import { ManuscriptExportDialog } from "./features/novel/ManuscriptExportDialog"
 import { NarrativePlanningWorkbench } from "./features/novel/NarrativePlanningWorkbench";
 import { NovelChapterWorkspace } from "./features/novel/NovelChapterWorkspace";
 import {
-  NovelArtifactGenerator,
   NovelCharactersSection,
   NovelLongformToolsSection,
   NovelOutlineSection,
   type NovelOutlineMode,
 } from "./features/novel/NovelProjectSections";
+import { StorySetupGenerator } from "./features/novel/StorySetupGenerator";
+import { NovelPlanningGuide } from "./features/novel/NovelPlanningGuide";
 import { NovelStoryPresetPicker } from "./features/novel/NovelStoryPresetPicker";
 import {
   applyNovelStoryPresetToBrief,
@@ -67,6 +68,7 @@ import { copyText } from "./copy";
 
 /** The sections of the novel workspace. */
 export const NOVEL_SECTIONS = [
+  "plan",
   "chapters",
   "outlines",
   "characters",
@@ -374,6 +376,14 @@ export function NovelSectionBody(
       ? storyPresetRefinementInstruction(storyPreset, part)
       : undefined;
   switch (props.section) {
+    case "plan":
+      return (
+        <NovelPlanningGuide
+          project={project}
+          onOpen={(section) => props.open(section)}
+          onProjectChanged={record.load}
+        />
+      );
     case "chapters":
       return (
         <NovelChapterWorkspace
@@ -417,10 +427,8 @@ export function NovelSectionBody(
               </h2>
               <p className={styles.c4}>{copyText("app/writing-sections.2")}</p>
             </div>
-            <NovelArtifactGenerator
-              client={client}
+            <StorySetupGenerator
               projectId={project.id}
-              taskType="generate_project"
               title={copyText("app/writing-sections.3")}
               description="可以只写一句话，也可以补充目标读者、题材偏好和不希望出现的内容。"
               defaultInstruction={refine("project")}

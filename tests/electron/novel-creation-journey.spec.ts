@@ -27,7 +27,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type ElectronApplication, type Locator, type Page } from "playwright";
-import { openProjectTool } from "./project-tools";
+import { openCreationWizardIfQuick, openProjectTool } from "./project-tools";
 import type {
   AuthorIntentCurrent,
   AuthorIntentContent,
@@ -3284,6 +3284,7 @@ test("普通导入的新建回复丢失和项目内最终保存故障都按冻�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "导入小说或大纲", exact: true })
       .click();
@@ -3702,6 +3703,7 @@ test("明确初始目标在回复丢失后按冻结原请求恢复，旧默认�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -3717,6 +3719,7 @@ test("明确初始目标在回复丢失后按冻结原请求恢复，旧默认�
     await running.page
       .getByRole("button", { name: "更换素材", exact: true })
       .click();
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -3939,6 +3942,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -4173,7 +4177,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
       .click();
     await workbench()
       .locator("summary")
-      .filter({ hasText: "下一章来源范围" })
+      .filter({ hasText: "续写下一章参考的前文" })
       .click();
     const contextSource = workbench().getByRole("group", {
       name: `前文来源 ${first.title}`,
@@ -5204,6 +5208,7 @@ for (const independentEpisode of [false, true]) {
       await running.page.evaluate(() => {
         window.location.hash = "#/";
       });
+      await openCreationWizardIfQuick(running.page);
       await running.page
         .getByRole("button", { name: "导入小说或大纲", exact: true })
         .click();
@@ -5333,7 +5338,7 @@ for (const independentEpisode of [false, true]) {
         .fill("300");
       await workbench()
         .locator("summary")
-        .filter({ hasText: "下一章来源范围" })
+        .filter({ hasText: "续写下一章参考的前文" })
         .click();
       const next = () =>
         workbench().getByLabel("小说高层摘要来源", { exact: true });
@@ -6740,6 +6745,7 @@ for (const { novelMode, sourceChange } of [
           window.location.hash = value;
         }, hash);
       await navigate("#/");
+      await openCreationWizardIfQuick(running.page);
       await running.page
         .getByRole("button", { name: "导入小说或大纲", exact: true })
         .click();
@@ -8767,6 +8773,7 @@ for (const entryPath of ["inspiration", "script"] as const) {
           window.location.hash = value;
         }, hash);
       await navigate("#/");
+      await openCreationWizardIfQuick(running.page);
       await running.page
         .getByRole("button", {
           name: entryPath === "script" ? "导入已有剧本" : "从创意开始",
@@ -9302,6 +9309,7 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
       await running.page.evaluate(() => {
         window.location.hash = "#/";
       });
+      await openCreationWizardIfQuick(running.page);
       await running.page
         .getByRole("button", {
           name: entryPath === "script" ? "导入已有剧本" : "从创意开始",
@@ -11415,6 +11423,7 @@ for (const independentStrategy of [false, true]) {
       await running.page.evaluate(() => {
         window.location.hash = "#/";
       });
+      await openCreationWizardIfQuick(running.page);
       await running.page
         .getByRole("button", { name: "导入小说或大纲", exact: true })
         .click();
@@ -13604,6 +13613,7 @@ test("独立小说质量报告经真实证据、精确待确认、人工风险�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -14014,6 +14024,7 @@ test("创建前解析失败的真实 404 可明确解除未创建绑定，断网
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "导入已有剧本", exact: true })
       .click();
@@ -14217,6 +14228,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
       await running.page.evaluate(() => {
         window.location.hash = "#/";
       });
+      await openCreationWizardIfQuick(running.page);
       await running.page
         .getByRole("button", {
           name: entryPath === "script" ? "导入已有剧本" : "从创意开始",
@@ -17043,6 +17055,7 @@ test("小说跨章范围明确选择第一与第四章、全书不能漏读，�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -17374,6 +17387,7 @@ test("全书非空章节范围新增后，专用诊断拒绝保留原候选集�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -17618,6 +17632,7 @@ test("明确段落续写的原章节改稿后只记录准确版本冲突，保�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -17656,7 +17671,7 @@ test("明确段落续写的原章节改稿后只记录准确版本冲突，保�
       .fill("300");
     await workbench()
       .locator("summary")
-      .filter({ hasText: "下一章来源范围" })
+      .filter({ hasText: "续写下一章参考的前文" })
       .click();
     const selected = workbench().getByRole("group", {
       name: `前文来源 ${source.title}`,
@@ -17846,6 +17861,7 @@ test("明确采用章摘要记录改稿而原章不变，只记原记录准确�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();
@@ -17918,7 +17934,7 @@ test("明确采用章摘要记录改稿而原章不变，只记原记录准确�
       .fill("300");
     await workbench()
       .locator("summary")
-      .filter({ hasText: "下一章来源范围" })
+      .filter({ hasText: "续写下一章参考的前文" })
       .click();
     const selected = workbench().getByRole("group", {
       name: `前文来源 ${source.title}`,
@@ -18124,6 +18140,7 @@ test("正式作者意图替换后，桌面中的旧小说候选采用冲突且�
     await running.page.evaluate(() => {
       window.location.hash = "#/";
     });
+    await openCreationWizardIfQuick(running.page);
     await running.page
       .getByRole("button", { name: "从创意开始", exact: true })
       .click();

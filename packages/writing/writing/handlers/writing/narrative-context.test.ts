@@ -10,9 +10,13 @@ import type {
   NarrativeSummary,
 } from "@dramaip/contracts/knowledge";
 import {
+  AUTO_NOVEL_CONTEXT_LIMITS,
+  automaticNovelContextRequest,
+  isEmptyNarrativeContextRequest,
   prepareNovelContext,
   prepareNarrativeSources,
 } from "./narrative-context";
+import { novelContextNote } from "./chapter-writing-method";
 
 const hash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -399,5 +403,128 @@ describe("explicit novel context compiler", () => {
         () => index(first),
       ),
     ).toThrow();
+  });
+});
+
+describe("automatic chapter context", () => {
+  const book = (count: number, length = 2_000) =>
+    Array.from({ length: count }, (_, position) =>
+      chapter(position, `第${position}章正文。`.padEnd(length, "字")),
+    );
+  const detailOf = (list: Chapter[]) => (id: string) =>
+    index(list.find((item) => item.id === id)!);
+
+  it("treats only a request with no chapters, summaries or story as empty", () => {
+    expect(isEmptyNarrativeContextRequest(undefined)).toBe(true);
+    expect(isEmptyNarrativeContextRequest(request())).toBe(true);
+    expect(
+      isEmptyNarrativeContextRequest(
+        request({ id: first.id, version: 1, representation: "original" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("gives a first chapter no prior context", () => {
+    const [only] = book(1);
+    expect(automaticNovelContextRequest(only!, [only!], detailOf([only!])).chapters).toEqual(
+      [],
+    );
+  });
+
+  it("includes recent chapters in full and earlier ones by summary, in directory order", () => {
+    const chapters = book(8);
+    const next = chapters[7]!;
+    const value = automaticNovelContextRequest(next, chapters, detailOf(chapters));
+    const originals = value.chapters.filter(
+      (item) => item.representation === "original",
+    );
+    expect(originals.map((item) => item.id)).toEqual(
+      chapters.slice(4, 7).map((item) => item.id),
+    );
+    expect(
+      value.chapters
+        .filter((item) => item.representation === "summary")
+        .map((item) => item.id),
+    ).toEqual(chapters.slice(0, 4).map((item) => item.id));
+    // The default request must pass the same validation as a manual one.
+    const prepared = prepareNovelContext(next, chapters, value, detailOf(chapters));
+    expect(prepared.basis.chapters).toHaveLength(7);
+    expect(prepared.basis.omitted).toEqual([]);
+  });
+
+  it("keeps the latest chapter even when it alone exceeds the original budget", () => {
+    const chapters = book(3, AUTO_NOVEL_CONTEXT_LIMITS.originalChars + 1);
+    const value = automaticNovelContextRequest(chapters[2]!, chapters, detailOf(chapters));
+    expect(value.chapters.map((item) => item.representation)).toEqual([
+      "summary",
+      "original",
+    ]);
+  });
+
+  it("skips empty, later and stale-summary chapters and survives a missing index", () => {
+    const chapters = book(6, 4_000);
+    const blank = { ...chapters[1]!, content: "  " };
+    const directory = [chapters[0]!, blank, ...chapters.slice(2)];
+    const fresh = detailOf(directory);
+    const stale = (id: string) =>
+      id === chapters[0]!.id
+        ? { ...fresh(id), chapter: { ...fresh(id).chapter, version: 9 } }
+        : fresh(id);
+    const value = automaticNovelContextRequest(chapters[4]!, directory, stale);
+    expect(value.chapters.map((item) => item.id)).toEqual(
+      chapters.slice(2, 4).map((item) => item.id),
+    );
+    const noIndex = automaticNovelContextRequest(chapters[5]!, directory, () => {
+      throw new Error("index unavailable");
+    });
+    expect(noIndex.chapters.map((item) => item.representation)).toEqual([
+      "original",
+      "original",
+    ]);
+    expect(noIndex.chapters.map((item) => item.id)).toEqual(
+      chapters.slice(3, 5).map((item) => item.id),
+    );
+  });
+
+  it("skips sources the privacy policy denies and summarises an oversized latest chapter", () => {
+    const chapters = book(5);
+    const value = automaticNovelContextRequest(
+      chapters[4]!,
+      chapters,
+      detailOf(chapters),
+      (path) => path !== `/chapters/${chapters[3]!.id}`,
+    );
+    expect(value.chapters.map((item) => item.id)).toEqual(
+      chapters.slice(0, 3).map((item) => item.id),
+    );
+    const huge = book(2, AUTO_NOVEL_CONTEXT_LIMITS.singleOriginalChars + 1);
+    expect(
+      automaticNovelContextRequest(huge[1]!, huge, detailOf(huge)).chapters.map(
+        (item) => item.representation,
+      ),
+    ).toEqual(["summary"]);
+    expect(
+      automaticNovelContextRequest(
+        huge[1]!,
+        huge,
+        detailOf(huge),
+        (path) => !path.startsWith("/knowledge/"),
+      ).chapters,
+    ).toEqual([]);
+  });
+
+  it("tells the model what it was given and not to invent the rest", () => {
+    const chapters = book(5);
+    const manual = prepareNovelContext(
+      chapters[4]!,
+      chapters,
+      request({ id: chapters[3]!.id, version: 1, representation: "original" }),
+      detailOf(chapters),
+    );
+    const note = novelContextNote(manual.basis);
+    expect(note).toContain("前文原文 1 章、章节摘要 0 章");
+    expect(note).toContain("另有 3 章前文未提供");
+    const opening = prepareNovelContext(chapters[0]!, chapters, request(), detailOf(chapters));
+    expect(novelContextNote(opening.basis)).toContain("本次没有前文资料");
   });
 });

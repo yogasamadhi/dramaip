@@ -10,6 +10,7 @@ import {
   hostFetch,
   hostRemoteValue,
 } from "./desktop-host";
+import { openCreationWizardIfQuick } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -101,9 +102,7 @@ async function openProjectCreation(): Promise<void> {
     exact: true,
   });
   if (await create.isVisible().catch(() => false)) await create.click();
-  await expect(
-    page.getByRole("heading", { name: "你现在手中有什么素材？" }),
-  ).toBeVisible();
+  await openCreationWizardIfQuick(page);
 }
 
 test.afterAll(async () => {
@@ -900,7 +899,7 @@ test("完整向导创建嘉豪预设并提供四个分区的可确认 AI 润色�
   await expect(projectGenerator).toBeVisible();
   await projectGenerator.click();
   await expect(
-    page.getByPlaceholder("补充你的想法或要求；留空也可以直接生成。"),
+    page.getByRole("textbox", { name: "对项目设定的要求" }),
   ).toHaveValue(/保留用户灵感和“嘉豪”预设/);
 
   await guide.getByRole("button", { name: "人物", exact: true }).click();

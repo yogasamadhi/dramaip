@@ -11,6 +11,7 @@ export type CreationStartInput = {
   operation:
     | "author-intent"
     | "chapter"
+    | "story-setup"
     | "characters"
     | "book-outline"
     | "chapter-outline"
@@ -593,6 +594,7 @@ export type CreationStartResult = {
     operation:
       | "author-intent"
       | "chapter"
+      | "story-setup"
       | "characters"
       | "book-outline"
       | "chapter-outline"

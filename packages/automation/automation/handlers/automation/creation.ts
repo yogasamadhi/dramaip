@@ -129,6 +129,7 @@ function adapter(
         ? CREATION_NARRATIVE_QUALITY_SERVICE
         : [
               "chapter",
+              "story-setup",
               "characters",
               "book-outline",
               "chapter-outline",
