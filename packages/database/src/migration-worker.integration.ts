@@ -7,8 +7,8 @@ import type { PluginMigration } from "@dramaip/plugin-api/internal";
 import { openDatabase } from "./index.js";
 import { runMigrationPlanInWorker } from "./migration-worker.js";
 
-if (process.versions.node !== "24.18.0" || process.versions.bun)
-  throw new Error("Migration Worker integration requires Node 24.18.0");
+if (!process.versions.node.startsWith("24.") || process.versions.bun)
+  throw new Error("Migration Worker integration requires Node 24.x");
 
 const directory = mkdtempSync(join(tmpdir(), "dramaip-worker-test-"));
 const databasePath = join(directory, "dramaip.db");

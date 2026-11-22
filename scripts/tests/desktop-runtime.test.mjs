@@ -23,7 +23,7 @@ import {
   privateRuntimeBundles,
   releaseFileAllowed,
 } from "../runtime-release.mjs";
-import runtimeTarget from "../check-runtime-target.cjs";
+import runtimeTarget from "../../apps/desktop/build/check-runtime-target.cjs";
 
 const facts = {
   version: "3.0.0-alpha.3",

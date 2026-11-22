@@ -27,7 +27,7 @@ export function createSqlite(
   options: { readOnly?: boolean } = {},
 ): SqliteDatabase {
   if (process.versions.bun)
-    throw new Error("Core SQLite requires Node 24.18.0 or Electron Node");
+    throw new Error("Core SQLite requires Node 24.x or Electron Node");
   const { DatabaseSync } = taskRequire("node:sqlite") as {
     DatabaseSync: SqliteConstructor;
   };

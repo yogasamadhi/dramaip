@@ -154,9 +154,7 @@ export function nativeActions(context: NativeActionContext): Handlers {
       // macOS draws its own traffic lights; the overlay exists elsewhere only.
       if (process.platform === "darwin") return null;
       parent()?.setTitleBarOverlay({
-        color: theme === "dark" ? "#161616" : "#ffffff",
         symbolColor: theme === "dark" ? "#f1eee9" : "#242320",
-        height: 64,
       });
       return null;
     },

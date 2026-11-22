@@ -155,9 +155,10 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
       : {
           titleBarStyle: "hidden" as const,
           titleBarOverlay: {
-            color: dark ? "#161616" : "#ffffff",
+            // Let the renderer paint the background across the 48px header.
+            color: "#00000000",
             symbolColor: dark ? "#f1eee9" : "#242320",
-            height: 64,
+            height: 48,
           },
         }),
     webPreferences: {

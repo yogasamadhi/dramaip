@@ -14,12 +14,12 @@ function checkTarget(manifest, platform, arch) {
 }
 
 module.exports = async function checkRuntimeTarget(context) {
-  const app = createRequire(join(__dirname, "../apps/desktop/package.json"));
+  const app = createRequire(join(__dirname, "../package.json"));
   const builder = createRequire(app.resolve("electron-builder"));
   const { Arch } = builder("builder-util");
   const root = resolve(
     __dirname,
-    "..",
+    "../../..",
     process.env.DRAMAIP_RUNTIME_BUILD ?? "build/runtime",
   );
   checkTarget(

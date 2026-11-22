@@ -276,7 +276,7 @@ await writeFile(
       version: (await readJson(join(desktopRoot, "package.json"))).version,
       private: true,
       type: "module",
-      engines: { node: "24.18.0" },
+      engines: { node: "24.x" },
     },
     null,
     2,

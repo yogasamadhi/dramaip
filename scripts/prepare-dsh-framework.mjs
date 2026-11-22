@@ -8,8 +8,8 @@ import {
   verifyDshSource,
 } from "./dsh-framework.mjs";
 
-if (process.versions.node !== "24.18.0" || process.versions.bun)
-  throw new Error("Framework preparation requires Node 24.18.0 exactly");
+if (!process.versions.node.startsWith("24.") || process.versions.bun)
+  throw new Error("Framework preparation requires Node 24.x");
 const digest = await verifyDshSource();
 const check = process.argv.includes("--check");
 for (const name of frameworkPackages) {

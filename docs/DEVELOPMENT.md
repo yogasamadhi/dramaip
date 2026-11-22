@@ -2,7 +2,7 @@
 
 ## 环境
 
-安装 Git、Node.js **24.18.0** 和 pnpm **11.28.5**。本工作区使用 pnpm 管理依赖；桌面应用的 Host 使用 Electron 内嵌的 Node.js。
+安装 Git、Node.js **24.x**（推荐 24.18.0，与 Electron 内置版本一致）和 pnpm **11.28.5**。本工作区使用 pnpm 管理依赖；桌面应用的 Host 使用 Electron 内嵌的 Node.js。
 
 以下命令均从含 `package.json` 的桌面工作区根目录执行。
 

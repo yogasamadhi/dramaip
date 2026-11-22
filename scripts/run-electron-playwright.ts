@@ -3,8 +3,8 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-if (process.versions.node !== "24.18.0")
-  throw new Error("Electron E2E requires Node 24.18.0");
+if (!process.versions.node.startsWith("24."))
+  throw new Error("Electron E2E requires Node 24.x");
 
 const taskRequire = createRequire(import.meta.url);
 const desktopRequire = createRequire(

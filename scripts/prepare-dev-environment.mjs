@@ -22,6 +22,7 @@ const studioRoot = join(desktopRoot, "apps", "desktop");
 const installMarker = join(desktopRoot, "node_modules", ".modules.yaml");
 
 export const REQUIRED_NODE_VERSION = "24.18.0";
+export const REQUIRED_NODE_MAJOR = 24;
 export const REQUIRED_PNPM_VERSION = "11.28.5";
 
 /** Vendor submodules the development environment needs. */
@@ -87,9 +88,10 @@ export function resolveExecutable(name) {
 }
 
 export function assertNodeVersion(version) {
-  if (version !== REQUIRED_NODE_VERSION)
+  const major = version?.split(".")[0];
+  if (!version || major !== String(REQUIRED_NODE_MAJOR))
     throw new Error(
-      `Node 版本必须恰好为 ${REQUIRED_NODE_VERSION}，当前为 ${version || "非 Node 运行时"}`,
+      `Node 版本必须为 ${REQUIRED_NODE_MAJOR}.x（推荐 ${REQUIRED_NODE_VERSION}），当前为 ${version || "非 Node 运行时"}`,
     );
   return version;
 }
@@ -171,7 +173,7 @@ export function cleanEnvironment(overrides) {
 /** Verifies the pinned Node and pnpm versions. */
 export function checkToolchain() {
   const node = resolveExecutable("node");
-  if (!node) throw new Error("未找到 Node，请先安装 Node 24.18.0");
+  if (!node) throw new Error(`未找到 Node，请先安装 Node ${REQUIRED_NODE_MAJOR}.x`);
   const nodeProbe = spawnSync(node, ["--version"], { encoding: "utf8" });
   const nodeVersion = assertNodeVersion(
     nodeProbe.stdout?.trim().replace(/^v/u, "") || undefined,

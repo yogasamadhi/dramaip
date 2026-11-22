@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   image: { isEmpty: vi.fn(() => false), setTemplateImage: vi.fn() },
-  tray: { setToolTip: vi.fn(), setContextMenu: vi.fn() },
+  tray: {
+    on: vi.fn(),
+    setToolTip: vi.fn(),
+    setContextMenu: vi.fn(),
+    popUpContextMenu: vi.fn(),
+  },
   createFromPath: vi.fn(),
   buildFromTemplate: vi.fn((items) => items),
   createTray: vi.fn(),
@@ -34,29 +39,45 @@ const options = () => ({
   quit: vi.fn(),
 });
 
-describe("macOS status tray", () => {
-  it("uses a template icon and routes show/quit through the shell", () => {
+describe("desktop status tray", () => {
+  it("uses a macOS template icon and opens the menu on right-click", () => {
     const actions = options();
     expect(createStatusTray(actions, "darwin")).toBe(mocks.tray);
     expect(mocks.createFromPath).toHaveBeenCalledWith(actions.iconPath);
     expect(mocks.image.setTemplateImage).toHaveBeenCalledWith(true);
     expect(mocks.tray.setToolTip).toHaveBeenCalledWith("DramaIP");
     const menu = mocks.buildFromTemplate.mock.results[0]!.value;
-    menu[0].click();
-    menu[2].click();
-    expect(actions.showWindow).toHaveBeenCalledOnce();
-    expect(actions.quit).toHaveBeenCalledOnce();
-    expect(mocks.tray.setContextMenu).toHaveBeenCalledWith(menu);
+    expect(mocks.tray.on).toHaveBeenCalledWith("click", actions.showWindow);
+    const rightClick = mocks.tray.on.mock.calls.find(
+      ([event]) => event === "right-click",
+    )?.[1];
+    rightClick();
+    expect(mocks.tray.popUpContextMenu).toHaveBeenCalledWith(menu);
+    expect(mocks.tray.setContextMenu).not.toHaveBeenCalled();
   });
 
-  it.each(["win32", "linux"] as const)(
-    "does not create a macOS tray on %s",
-    (platform) => {
-      expect(createStatusTray(options(), platform)).toBeUndefined();
-      expect(mocks.createTray).not.toHaveBeenCalled();
-      expect(mocks.createFromPath).not.toHaveBeenCalled();
-    },
-  );
+  it("uses a Windows icon and routes single click and menu actions through the shell", () => {
+    const actions = { ...options(), iconPath: "/app/tray/icon.ico" };
+    expect(createStatusTray(actions, "win32")).toBe(mocks.tray);
+    expect(mocks.createFromPath).toHaveBeenCalledWith(actions.iconPath);
+    expect(mocks.image.setTemplateImage).not.toHaveBeenCalled();
+    const click = mocks.tray.on.mock.calls.find(
+      ([event]) => event === "click",
+    )?.[1];
+    click();
+    const menu = mocks.buildFromTemplate.mock.results[0]!.value;
+    expect(mocks.tray.setContextMenu).toHaveBeenCalledWith(menu);
+    menu[0].click();
+    menu[2].click();
+    expect(actions.showWindow).toHaveBeenCalledTimes(2);
+    expect(actions.quit).toHaveBeenCalledOnce();
+  });
+
+  it("does not create a tray on Linux", () => {
+    expect(createStatusTray(options(), "linux")).toBeUndefined();
+    expect(mocks.createTray).not.toHaveBeenCalled();
+    expect(mocks.createFromPath).not.toHaveBeenCalled();
+  });
 
   it("keeps background runs free of menu bar UI", () => {
     expect(
@@ -68,7 +89,7 @@ describe("macOS status tray", () => {
   it("reports missing image resources instead of creating an invisible icon", () => {
     mocks.image.isEmpty.mockReturnValue(true);
     expect(() => createStatusTray(options(), "darwin")).toThrow(
-      "无法加载 DramaIP 菜单栏图标",
+      "无法加载 DramaIP 托盘图标",
     );
     expect(mocks.createTray).not.toHaveBeenCalled();
   });

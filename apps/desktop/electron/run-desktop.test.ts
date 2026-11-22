@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
  * The desktop launcher is a pnpm script (`pnpm run dev`), so this Node
@@ -10,10 +10,11 @@ import { fileURLToPath } from "node:url";
 const launcher = fileURLToPath(
   new URL("../../../scripts/prepare-dev-environment.mjs", import.meta.url),
 );
+const launcherUrl = pathToFileURL(launcher).href;
 
 function probe<T>(expression: string): T {
   const script = [
-    `const launcher = await import(${JSON.stringify(launcher)});`,
+    `const launcher = await import(${JSON.stringify(launcherUrl)});`,
     `console.log(JSON.stringify(${expression}));`,
   ].join("\n");
   const result = spawnSync(
@@ -28,7 +29,7 @@ function probe<T>(expression: string): T {
 
 function rejects(call: string): string {
   const script = [
-    `const launcher = await import(${JSON.stringify(launcher)});`,
+    `const launcher = await import(${JSON.stringify(launcherUrl)});`,
     `${call};`,
   ].join("\n");
   const result = spawnSync(
@@ -41,14 +42,17 @@ function rejects(call: string): string {
 }
 
 describe("desktop launcher toolchain", () => {
-  test("requires Node 24.18.0 and pnpm 11.28.5 exactly for Desktop tooling", () => {
+  test("accepts any Node 24.x and requires pnpm 11.28.5 exactly", () => {
     expect(
       probe<string[]>(
-        "[launcher.assertNodeVersion(launcher.REQUIRED_NODE_VERSION), launcher.assertPnpmVersion(launcher.REQUIRED_PNPM_VERSION)]",
+        "[launcher.assertNodeVersion(launcher.REQUIRED_NODE_VERSION), launcher.assertNodeVersion('24.21.0'), launcher.assertPnpmVersion(launcher.REQUIRED_PNPM_VERSION)]",
       ),
-    ).toEqual(["24.18.0", "11.28.5"]);
-    expect(rejects("launcher.assertNodeVersion('24.17.0')")).toMatch(
-      /恰好为 24\.18\.0/u,
+    ).toEqual(["24.18.0", "24.21.0", "11.28.5"]);
+    expect(rejects("launcher.assertNodeVersion('25.0.0')")).toMatch(
+      /必须为 24\.x/u,
+    );
+    expect(rejects("launcher.assertNodeVersion('23.11.0')")).toMatch(
+      /必须为 24\.x/u,
     );
     expect(rejects("launcher.assertNodeVersion(undefined)")).toMatch(
       /非 Node 运行时/u,

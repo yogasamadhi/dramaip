@@ -25,8 +25,8 @@ async function files(directory) {
 
 const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 const workspace = await readFile(join(root, "pnpm-workspace.yaml"), "utf8");
-if (manifest.engines?.node !== "24.18.0")
-  throw new Error("Desktop workspace must pin Node 24.18.0 exactly");
+if (manifest.engines?.node !== "24.x")
+  throw new Error('Desktop workspace must declare Node "24.x"');
 if (manifest.engines?.pnpm !== "11.28.5")
   throw new Error("Desktop workspace must pin pnpm 11.28.5 exactly");
 if (manifest.packageManager !== "pnpm@11.28.5")

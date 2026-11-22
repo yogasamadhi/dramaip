@@ -10,8 +10,8 @@ electronLanguages:
   - en
   - zh-CN
   - zh-TW
-beforePack: ../../scripts/check-runtime-target.cjs
-afterSign: ../../scripts/notarize-mac.cjs
+beforePack: build/check-runtime-target.cjs
+afterSign: build/notarize-mac.cjs
 # 版本号从 apps/desktop/package.json 读取；GA 前必须由当次发布门禁验证。
 directories:
   output: dist
@@ -85,6 +85,9 @@ mac:
   gatekeeperAssess: false
 win:
   icon: build/icon.ico
+  extraResources:
+    - from: build/icon.ico
+      to: tray/icon.ico
   target:
     - nsis
     - zip

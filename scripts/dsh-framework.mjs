@@ -41,7 +41,9 @@ export async function sourceFiles(root, excluded = new Set(), relative = "") {
       !entry.name.endsWith(".tsbuildinfo")
     ) {
       const bytes = entry.isSymbolicLink()
-        ? Buffer.from(`link:${await readlink(join(root, path))}`)
+        ? // The pinned digest uses POSIX separators; Windows stores the
+          // reparse-point target with backslashes.
+          Buffer.from(`link:${(await readlink(join(root, path))).replaceAll("\\", "/")}`)
         : await readFile(join(root, path));
       files.push({ path, sha256: sha256(bytes) });
     }

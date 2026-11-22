@@ -405,18 +405,22 @@ if (!app.requestSingleInstanceLock()) {
         background,
         iconPath: join(
           app.isPackaged ? process.resourcesPath : join(desktopRoot(), "build"),
-          "tray",
-          "iconTemplate.png",
+          process.platform === "darwin"
+            ? "tray/iconTemplate.png"
+            : app.isPackaged
+              ? "tray/icon.ico"
+              : "icon.ico",
         ),
         showWindow: showMainWindow,
         quit: () => app.quit(),
       });
-      // Closing the window on macOS only hides it; the page and Host keep running.
-      mainWindow.on("close", (event) => {
-        if (quitting || process.platform !== "darwin") return;
-        event.preventDefault();
-        mainWindow?.hide();
-      });
+      if (statusTray) {
+        mainWindow.on("close", (event) => {
+          if (quitting) return;
+          event.preventDefault();
+          mainWindow?.hide();
+        });
+      }
       app.on("activate", showMainWindow);
     })
     .catch((error: unknown) => {
