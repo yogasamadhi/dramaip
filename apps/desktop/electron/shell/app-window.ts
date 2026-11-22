@@ -141,7 +141,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     minHeight: 700,
     show: false,
     ...(options.background ? { focusable: false, skipTaskbar: true } : {}),
-    title: "尽意 DramaIP",
+    title: "DramaIP",
     backgroundColor: dark ? "#161616" : "#ffffff",
     ...(options.developmentIconPath
       ? { icon: options.developmentIconPath }

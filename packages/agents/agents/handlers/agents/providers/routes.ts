@@ -42,7 +42,7 @@ export interface ProviderEntity {
 export const engineDefinitions = {
   pi: {
     name: "Pi",
-    version: "1.5.0",
+    version: "1.5.2",
     isBeta: false,
     role: "embedded-default",
   },
@@ -120,6 +120,35 @@ export function agentProviderConfiguration(
   if (serviceType !== "智能模型")
     throw new Error("仅“智能模型”类型的服务商可供智能助手使用。");
   if (!model) throw new Error("智能助手模型需要模型名称。");
+  if (provider.payload["认证方式"] === "piSubscription") {
+    const piProviderId = provider.payload["Pi服务商"];
+    if (
+      typeof piProviderId !== "string" ||
+      !piProviderId.trim() ||
+      baseUrl ||
+      credentialRef
+    )
+      throw new Error("Pi 订阅模型必须使用服务商原生地址。");
+    const kind = piProviderId === "anthropic" ? "anthropic" : "openai";
+    return {
+      providerId: provider.id,
+      runtimeProviderId: "dramaip-agent",
+      providerKind: kind,
+      providerAdapter: kind,
+      piProviderId,
+      authentication: "piSubscription",
+      model,
+    };
+  }
+  if (provider.payload["认证方式"] === "hosted")
+    return {
+      providerId: provider.id,
+      runtimeProviderId: "dramaip-agent",
+      providerKind: "openai",
+      providerAdapter: "openai-compatible",
+      authentication: "hosted",
+      model,
+    };
   if (
     authentication === "none" &&
     localRuntimeKind !== "ollama" &&
@@ -208,6 +237,26 @@ export function configuredProvider(
     text(provider.payload["认证方式"]) === "none" ? "none" : "apiKey";
   const localRuntimeKind = text(provider.payload["本地运行时"]);
   if (!model) throw new Error("服务商需要模型名称。");
+  if (provider.payload["认证方式"] === "piSubscription") {
+    agentProviderConfiguration(provider);
+    return {
+      id: provider.id,
+      title: provider.title,
+      serviceType,
+      model,
+      authentication: "piSubscription",
+    };
+  }
+  if (provider.payload["认证方式"] === "hosted") {
+    if (serviceType !== "智能模型") throw new Error("云 AI 支持智能文本模型。");
+    return {
+      id: provider.id,
+      title: provider.title,
+      serviceType,
+      model,
+      authentication: "hosted",
+    };
+  }
   if (authentication === "apiKey" && !credentialRef)
     throw new Error("云端服务商需要已保存的接口密钥。");
   if (
@@ -353,6 +402,14 @@ export function projectAgentSettings(
   projectId: string,
 ): Record<string, unknown> {
   const global = globalAgentSettings(pluginContext);
+  const activeProvider = global.activeProviderId
+    ? findProvider(pluginContext, global.activeProviderId)
+    : undefined;
+  const auth = activeProvider?.payload["认证方式"];
+  const activeModel =
+    auth === "hosted" || auth === "piSubscription"
+      ? text(activeProvider?.payload["模型名称"])
+      : undefined;
   return pluginContext.uow.execute((transaction) => {
     const row = transaction.get<{
       default_engine_kind: string;
@@ -367,14 +424,16 @@ export function projectAgentSettings(
     const parsedModel = row?.default_model_json
       ? modelSelection(JSON.parse(row.default_model_json))
       : undefined;
+    const defaultModel =
+      activeModel && activeProvider
+        ? { providerId: activeProvider.id, modelId: activeModel }
+        : (parsedModel ?? global.defaultModel);
     return {
       projectId,
       defaultEngineKind: isAgentEngineKind(row?.default_engine_kind)
         ? row.default_engine_kind
         : global.defaultEngineKind,
-      ...((parsedModel ?? global.defaultModel)
-        ? { defaultModel: parsedModel ?? global.defaultModel }
-        : {}),
+      ...(defaultModel ? { defaultModel } : {}),
       assistantMode: row?.assistant_mode === "advanced" ? "advanced" : "simple",
       updatedAt: row?.updated_at ?? new Date().toISOString(),
     };
@@ -464,13 +523,13 @@ export async function agentEngineDescriptors(
         isBeta: definition.isBeta,
         statusMessage: !running
           ? host
-            ? "引擎进程未启动或未通过健康检查"
-            : "当前 Runtime 未连接 Desktop Host，本地引擎不可用"
+            ? "AI 服务正在启动，请稍候再试"
+            : "桌面服务未连接，AI 暂时不能使用"
           : !configured
             ? providerConfigured
-              ? "已保存智能助手模型，但尚未下发到此引擎"
-              : "尚未设定智能助手模型"
-            : "引擎已启动，尚未完成实际调用验证",
+              ? "AI 模型已保存，正在生效，请稍候"
+              : "还没有设置 AI 模型"
+            : "AI 模型已就绪",
         capabilities: {
           streaming: true,
           interrupt: true,
@@ -480,7 +539,7 @@ export async function agentEngineDescriptors(
           compaction: kind === "pi",
           readOnlyMcp: true,
           structuredOutput: true,
-          chatGptLogin: false,
+          chatGptLogin: Boolean(host?.piSubscription),
           apiKeyLogin: true,
         },
       };
@@ -580,6 +639,20 @@ export function providerRoutes(
 ): readonly AgentRouteDraft[] {
   const find = (id: string): ProviderEntity | undefined =>
     findProvider(pluginContext, id);
+  /** Keep the last check's outcome on the provider, for its card. */
+  const recordStatus = (provider: ProviderEntity, status: string) => {
+    try {
+      pluginContext.uow.execute((transaction) => {
+        transaction.run(
+          `UPDATE agent_provider_configurations SET payload_json = ? WHERE id = ?`,
+          JSON.stringify({ ...provider.payload, 连接状态: status }),
+          provider.id,
+        );
+      });
+    } catch {
+      // The status is a convenience; the check's answer still reaches the user.
+    }
+  };
   return [
     {
       id: "agents:engine-list",
@@ -620,7 +693,7 @@ export function providerRoutes(
               context,
               400,
               "VALIDATION_ERROR",
-              "全局智能引擎必须为 Pi。",
+              "默认 AI 服务配置无效。",
             );
           const defaultModel =
             typeof body.defaultModel === "undefined"
@@ -695,7 +768,7 @@ export function providerRoutes(
               context,
               400,
               "VALIDATION_ERROR",
-              "项目智能引擎必须为 Pi。",
+              "项目 AI 服务配置无效。",
             );
           const defaultEngineKind = body.defaultEngineKind;
           const defaultModel =
@@ -1006,7 +1079,7 @@ export function providerRoutes(
                 context,
                 503,
                 "CAPABILITY_UNAVAILABLE",
-                "当前 Runtime 没有可用的 Desktop Host，无法配置本地智能助手引擎。",
+                "桌面服务未连接，暂时不能设置 AI 模型。",
               );
             let engine: { available: boolean; message?: string };
             try {
@@ -1016,16 +1089,22 @@ export function providerRoutes(
                 context,
                 503,
                 "ENGINE_UNAVAILABLE",
-                "Desktop Host 无法配置智能助手引擎，请检查本地引擎状态后重试。",
+                "AI 服务暂时无法应用这项设置，请稍候再试。",
               );
             }
-            if (!engine.available)
+            if (!engine.available) {
+              recordStatus(
+                provider,
+                `未能生效：${engine.message ?? "AI 服务当前不可用"}`,
+              );
               return problem(
                 context,
                 503,
                 "ENGINE_UNAVAILABLE",
-                engine.message ?? "智能助手引擎当前不可用。",
+                engine.message ?? "AI 服务当前不可用，请稍候再试。",
               );
+            }
+            recordStatus(provider, "已生效");
             const activatedAt = new Date().toISOString();
             pluginContext.uow.execute((transaction) => {
               transaction.run(
@@ -1052,7 +1131,7 @@ export function providerRoutes(
               providerKind: configuration.providerKind,
               model: configuration.model,
               activatedAt,
-              message: "已设为智能助手模型。",
+              message: "已设为默认 AI 模型。",
             });
           },
         ),
@@ -1072,7 +1151,7 @@ export function providerRoutes(
                 context,
                 503,
                 "CAPABILITY_UNAVAILABLE",
-                "当前 Runtime 未连接 Desktop Host，无法安全解析凭据并测试连接。",
+                "桌面服务未连接，暂时不能检查 AI 模型设置。",
               );
             let configuration: AgentProviderActivationInput;
             try {
@@ -1087,7 +1166,15 @@ export function providerRoutes(
             }
             const checkedAt = new Date().toISOString();
             try {
-              const result = await host.activateAgentProvider(configuration);
+              const result = host.testAgentProvider
+                ? await host.testAgentProvider(configuration)
+                : await host.activateAgentProvider(configuration);
+              recordStatus(
+                provider,
+                result.available
+                  ? "配置可用"
+                  : `未能生效：${result.message ?? "请检查服务地址、模型和密钥"}`,
+              );
               return context.json({
                 providerId: provider.id,
                 ok: result.available,
@@ -1095,9 +1182,12 @@ export function providerRoutes(
                 models: result.available ? [configuration.model] : [],
                 message:
                   result.message ??
-                  (result.available ? "连接测试成功。" : "连接测试未通过。"),
+                  (result.available
+                    ? "配置可用。"
+                    : "设置未能生效，请检查服务地址、模型和密钥。"),
               });
             } catch {
+              recordStatus(provider, "未能生效：请检查服务地址、模型和密钥");
               return context.json({
                 providerId: provider.id,
                 ok: false,

@@ -1,6 +1,8 @@
 # electron-builder 配置（ROADMAP v1.0-5）—— macOS / Windows / Linux 安装包
 appId: com.sdns.studio
-productName: 尽意 DramaIP
+# 安装包、可执行文件、快捷方式与系统界面显示的都是这个名称，必须保持英文。
+# appId 与 apps/desktop/package.json 的 name 是升级和用户数据路径锚点，不要随名称改动。
+productName: DramaIP
 compression: normal
 # The application registers Chinese and English. Keep their Chromium resources;
 # ICU data remains intact for all locales, calendars and time zones.
@@ -67,8 +69,8 @@ extraResources:
 # .sdnspkg 项目包文件关联（双击可在应用内打开导入）
 fileAssociations:
   - ext: sdnspkg
-    name: 尽意 DramaIP Project Package
-    description: 尽意 DramaIP 项目包
+    name: DramaIP Project Package
+    description: DramaIP project package
     role: Editor
 # 图标（buildResources 下：icon.icns / icon.ico / icon.png，缺失则用默认）
 mac:

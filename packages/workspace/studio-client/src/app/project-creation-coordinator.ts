@@ -277,7 +277,7 @@ export async function initializeProjectMaterials(
             : 80,
         preset: input.preset,
       });
-      chapterId = chapter.id;
+      chapterId = chapter?.id;
     });
   } else if (input.project.mode === "series_longform") {
     await run("series-materials", async () => {

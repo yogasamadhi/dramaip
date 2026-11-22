@@ -11,6 +11,12 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import {
+  CharacterMentions,
+  mentionCharacters,
+  setMentionCharacters,
+  type MentionCharacter,
+} from "./character-mentions";
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -18,6 +24,7 @@ import {
   useState,
   type CSSProperties,
   type DragEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -36,7 +43,6 @@ import type {
   DomainEntity,
   NovelChapterStatus,
   Project,
-  Task,
 } from "@dramaip/contracts/product";
 import { useStudioClient } from "../../runtime-connection";
 import { useQuery } from "../../query";
@@ -404,15 +410,6 @@ function proposedContent(preview: ChangePreview): string | undefined {
   return undefined;
 }
 
-function previewFromTaskResult(value: unknown): ChangePreview | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return undefined;
-  const candidate = (value as Record<string, unknown>).changePreview;
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
-    return undefined;
-  return candidate as ChangePreview;
-}
-
 function asChangePreview(value: unknown): ChangePreview | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return undefined;
@@ -489,6 +486,19 @@ function taskTypeLabel(taskType: AgentTaskType): string {
     )?.label ?? "请处理当前创作任务"
   );
 }
+
+/** Events after which the conversation's runs and items are worth re-reading. */
+const RUN_LIFECYCLE_EVENTS = new Set([
+  "agents.assistant-turn-started.v1",
+  "agents.assistant-run-completed.v1",
+  "agents.assistant-run-failed.v1",
+  "agents.run-started.v1",
+  "agents.run-completed.v1",
+  "agents.run-failed.v1",
+  "agents.run-interrupted.v1",
+  "agents.run-canceled.v1",
+  "agents.run-resumed.v1",
+]);
 
 function expectsNovelChange(taskType: AgentTaskType): boolean {
   return (
@@ -596,6 +606,47 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
       ) as Record<string, NovelChapterStatus>,
     [workspace.statuses],
   );
+  // Memory is recorded on its own after a chapter is adopted; the latest
+  // chapter run of each chapter says whether that is still going.
+  const studio = useStudioClient();
+  const memoryRuns = useQuery({
+    queryKey: ["chapter-memory-states", props.projectId],
+    queryFn: async () => {
+      const page = await studio.creation.list(props.projectId);
+      const states: Record<string, string> = {};
+      for (const run of [...page.items].sort((a, b) =>
+        b.updatedAt.localeCompare(a.updatedAt),
+      ))
+        if (
+          run.input.operation === "chapter" &&
+          run.input.targetId &&
+          run.memoryState &&
+          !states[run.input.targetId]
+        )
+          states[run.input.targetId] = run.memoryState;
+        else if (
+          run.input.operation === "chapter-memory" &&
+          run.input.memoryTrigger === "imported" &&
+          run.input.targetId &&
+          !states[run.input.targetId]
+        )
+          // An imported chapter's memory has no chapter draft to report it.
+          states[run.input.targetId] =
+            run.stage === "applied"
+              ? "synced"
+              : run.stage === "awaiting-review"
+                ? "review-required"
+                : run.stage === "failed" || run.stage === "canceled"
+                  ? "failed"
+                  : "running";
+      return states;
+    },
+    refetchInterval: (query) =>
+      Object.values(query.state.data ?? {}).includes("running")
+        ? 3_000
+        : 30_000,
+  });
+  const memoryStates = memoryRuns.data ?? {};
   const filteredChapters = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return props.chapters.filter(
@@ -880,15 +931,39 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                                 "app/features/novel/NovelChapterWorkspace.14",
                               )}
                             </span>
-                            <span
-                              title={
-                                status?.hasMemory
-                                  ? "已有章节记忆"
-                                  : "尚无章节记忆"
-                              }
-                            >
-                              {status?.hasMemory ? "记忆已更新" : "无记忆"}
-                            </span>
+                            {memoryStates[chapter.id] === "running" ? (
+                              <span
+                                title={copyText(
+                                  "app/features/novel/NovelChapterWorkspace.132",
+                                )}
+                              >
+                                {copyText(
+                                  "app/features/novel/NovelChapterWorkspace.133",
+                                )}
+                              </span>
+                            ) : memoryStates[chapter.id] ===
+                                "review-required" ||
+                              memoryStates[chapter.id] === "failed" ? (
+                              <span
+                                title={copyText(
+                                  "app/features/novel/NovelChapterWorkspace.134",
+                                )}
+                              >
+                                {copyText(
+                                  "app/features/novel/NovelChapterWorkspace.135",
+                                )}
+                              </span>
+                            ) : (
+                              <span
+                                title={
+                                  status?.hasMemory
+                                    ? "已有章节记忆"
+                                    : "尚无章节记忆"
+                                }
+                              >
+                                {status?.hasMemory ? "记忆已更新" : "无记忆"}
+                              </span>
+                            )}
                             {status?.quality && (
                               <span>
                                 {status.quality === "pass"
@@ -1024,6 +1099,17 @@ function NovelEditor(
   const [instruction, setInstruction] = useState(
     () => pendingChapterIntent?.input ?? "",
   );
+  // A fix asked for from the opening check fills the instruction once.
+  useEffect(() => {
+    if (pendingChapterIntent?.actionId === "novel-chapter:opening-fix")
+      studioSession.clearPendingIntent();
+  }, []);
+  // The first three chapters can be checked against the opening standard.
+  const openingChapter =
+    [...props.chapters]
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .findIndex((item) => item.id === props.chapter.id) < 3 &&
+    Boolean(props.chapter.content.trim());
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
   const engineKind: AgentEngineKind = "pi";
   const [modelId, setModelId] = useState("");
@@ -1157,6 +1243,7 @@ function NovelEditor(
           transformPastedText: true,
           transformCopiedText: true,
         }),
+        CharacterMentions,
       ],
       content: props.chapter.content,
       editable: manualEditing && (!preview || previewView !== "candidate"),
@@ -1205,6 +1292,53 @@ function NovelEditor(
     },
     [props.chapter.id],
   );
+
+  // Character names in the text are highlighted; hovering one shows who
+  // that is, from the 人物 list and the latest story memory.
+  const mentionSource = useQuery({
+    queryKey: ["chapter-mention-characters", props.projectId],
+    queryFn: async () => {
+      const [characters, states] = await Promise.all([
+        props.client.resources.list("characters", props.projectId),
+        props.client.resources
+          .list("character-states", props.projectId)
+          .catch(() => []),
+      ]);
+      return mentionCharacters(characters, states);
+    },
+    staleTime: 30_000,
+  });
+  const [mention, setMention] = useState<{
+    character: MentionCharacter;
+    top: number;
+    left: number;
+  }>();
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    setMentionCharacters(editor.view, mentionSource.data ?? []);
+  }, [editor, mentionSource.data]);
+  const showMention = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-character-id]",
+    );
+    const character = target
+      ? mentionSource.data?.find(
+          (item) => item.id === target.dataset.characterId,
+        )
+      : undefined;
+    if (!target || !character) {
+      if (mention) setMention(undefined);
+      return;
+    }
+    if (mention?.character.id === character.id) return;
+    const host = event.currentTarget.getBoundingClientRect();
+    const box = target.getBoundingClientRect();
+    setMention({
+      character,
+      top: box.bottom - host.top + 6,
+      left: Math.max(0, box.left - host.left),
+    });
+  };
 
   useEffect(() => {
     setTitle(props.chapter.title);
@@ -1462,123 +1596,95 @@ function NovelEditor(
         setArchivedConversations(updateTitle);
       }
       const run = activeRunRef.current;
+      const eventRunId =
+        typeof payload.runId === "string" ? payload.runId : undefined;
       if (
-        event.type.startsWith("assistant_turn.") &&
+        conversationId &&
         payload.sessionId === conversationId &&
-        conversationId
+        RUN_LIFECYCLE_EVENTS.has(event.type)
       )
         void loadConversationDetail(conversationId).catch(() => undefined);
+      if (!run || eventRunId !== run.runId) return;
       if (
-        [
-          "agent_item.started",
-          "agent_item.completed",
-          "agent_item.failed",
-        ].includes(event.type) &&
-        typeof payload.id === "string" &&
-        typeof payload.runId === "string"
+        event.type === "agents.assistant-item-delta.v1" ||
+        ((event.type === "agents.assistant-item-started.v1" ||
+          event.type === "agents.assistant-item-completed.v1") &&
+          (payload.type === undefined || payload.type === "message"))
       ) {
-        const item = payload as unknown as AgentItem;
-        setConversationDetail((current) =>
-          current &&
-          (current.runs.some((candidate) => candidate.id === item.runId) ||
-            run?.runId === item.runId)
-            ? { ...current, items: upsertAgentItem(current.items, item) }
-            : current,
-        );
-        if (run?.runId === item.runId && item.type === "message") {
-          streamTextRef.current = item.content ?? "";
-          setStreamText(streamTextRef.current);
-        }
-      }
-      if (event.type === "agent_item.delta" && payload.runId === run?.runId) {
-        if (!run) return;
         if (props.chapter.id !== run.chapterId) return;
-        const delta = typeof payload.delta === "string" ? payload.delta : "";
-        if (!delta) return;
-        streamTextRef.current += delta;
+        if (typeof payload.content !== "string") return;
+        streamTextRef.current = payload.content;
         setStreamText(streamTextRef.current);
-        setConversationDetail((current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.map((item) =>
-                  item.id === payload.itemId
-                    ? {
-                        ...item,
-                        content: `${item.content ?? ""}${delta}`,
-                        status: "streaming",
-                      }
-                    : item,
-                ),
-              }
-            : current,
-        );
         return;
       }
       if (
-        [
-          "agent_run.completed",
-          "agent_run.failed",
-          "agent_run.interrupted",
-        ].includes(event.type) &&
-        conversationId
-      )
-        void loadConversationDetail(conversationId).catch(() => undefined);
-      if (!run) return;
-      if (event.type === "change_preview.created") {
-        const candidate = payload as unknown as ChangePreview;
-        if (candidate.taskId !== run.taskId) return;
-        if (props.chapter.id !== run.chapterId) {
-          setNotice("后台生成已经完成，请返回对应章节查看 AI 草稿正文");
-          setBusy(false);
-          return;
-        }
-        void handleCompletedPreview(candidate, run);
+        event.type === "agents.run-failed.v1" ||
+        event.type === "agents.assistant-run-failed.v1"
+      ) {
+        setActiveRun({
+          ...run,
+          status: "failed",
+          error: typeof payload.error === "string" ? payload.error : undefined,
+        });
+        setNotice(
+          typeof payload.error === "string" && payload.error
+            ? payload.error
+            : "生成没有完成；当前编辑草稿没有变化，可以重试。",
+        );
+        setBusy(false);
         return;
       }
-      if (event.type === "task.updated" && payload.id === run.taskId) {
-        const task = payload as unknown as Task;
-        const runStatus: AgentRun["status"] =
-          task.status === "succeeded"
-            ? "completed"
-            : task.status === "canceled"
-              ? "aborted"
-              : task.status;
-        const next = {
-          ...run,
-          status: runStatus,
-          progress: task.progress,
-          error: task.error,
-        };
-        setActiveRun(next);
-        if (task.status === "failed" || task.status === "canceled") {
-          setNotice(
-            task.error ??
-              "生成任务未能完成；当前编辑草稿没有变化，可从原操作重试",
-          );
-          setBusy(false);
-        } else if (task.status === "interrupted") {
-          setNotice("生成已中断；当前编辑草稿已保留，可以使用原引擎继续");
-          setBusy(false);
-        } else if (task.status === "succeeded") {
-          if (!expectsNovelChange(run.taskType)) {
+      if (event.type === "agents.run-interrupted.v1") {
+        setActiveRun({ ...run, status: "interrupted" });
+        setNotice("生成已中断；当前编辑草稿已保留，可以继续。");
+        setBusy(false);
+        return;
+      }
+      if (event.type === "agents.run-canceled.v1") {
+        setActiveRun(undefined);
+        setBusy(false);
+        return;
+      }
+      if (
+        event.type !== "agents.run-completed.v1" &&
+        event.type !== "agents.assistant-run-completed.v1"
+      )
+        return;
+      if (!expectsNovelChange(run.taskType)) {
+        setBusy(false);
+        setActiveRun(undefined);
+        return;
+      }
+      if (props.chapter.id !== run.chapterId) {
+        setNotice("后台生成已经完成，请返回对应章节查看 AI 草稿正文");
+        setBusy(false);
+        return;
+      }
+      void props.client.assistantConversations
+        .get(payload.sessionId as string)
+        .then((detail) => {
+          const candidate = detail.changePreviews
+            .map(asChangePreview)
+            .find(
+              (item) =>
+                item?.status === "pending" &&
+                (item.taskId === run.taskId ||
+                  item.targets.some(
+                    (target) =>
+                      target.kind === "chapter" && target.id === run.chapterId,
+                  )),
+            );
+          if (candidate) void handleCompletedPreview(candidate, run);
+          else {
             setBusy(false);
             setActiveRun(undefined);
-            if (conversationId)
-              void loadConversationDetail(conversationId).catch(
-                () => undefined,
-              );
-            return;
-          }
-          const candidate = previewFromTaskResult(task.result);
-          if (candidate && props.chapter.id === run.chapterId)
-            void handleCompletedPreview(candidate, run);
-          else if (!candidate && !preview) {
-            setBusy(false);
             setNotice("模型本次没有返回可采用的正文；当前编辑草稿已保留");
           }
-        }
-      }
+        })
+        .catch((cause: unknown) => {
+          setBusy(false);
+          setNotice(cause instanceof Error ? cause.message : String(cause));
+        });
     });
     return unsubscribe;
   }, [
@@ -1770,9 +1876,7 @@ function NovelEditor(
     }));
     setDrawerOpen(true);
     if (!canRun) {
-      setNotice(
-        selectedEngine?.statusMessage ?? "所选智能引擎当前不能执行写作任务",
-      );
+      setNotice(selectedEngine?.statusMessage ?? "AI 模型当前不能执行写作任务");
       setDrawerOpen(true);
       return;
     }
@@ -1873,9 +1977,7 @@ function NovelEditor(
       return;
     }
     if (!canRun) {
-      setNotice(
-        selectedEngine?.statusMessage ?? "所选智能引擎当前不能执行写作任务",
-      );
+      setNotice(selectedEngine?.statusMessage ?? "AI 模型当前不能执行写作任务");
       return;
     }
     setBusy(true);
@@ -2365,7 +2467,45 @@ function NovelEditor(
               lineHeight: preferences.lineHeight,
             }}
           >
-            <EditorContent editor={editor} />
+            <div
+              className={styles.mentionHost}
+              onMouseOver={showMention}
+              onMouseLeave={() => setMention(undefined)}
+            >
+              <EditorContent editor={editor} />
+              {mention ? (
+                <div
+                  className={styles.mentionCard}
+                  role="tooltip"
+                  style={{ top: mention.top, left: mention.left }}
+                >
+                  <strong>{mention.character.name}</strong>
+                  {(
+                    [
+                      [
+                        "app/features/novel/NovelChapterWorkspace.136",
+                        mention.character.role,
+                      ],
+                      [
+                        "app/features/novel/NovelChapterWorkspace.137",
+                        mention.character.summary,
+                      ],
+                      [
+                        "app/features/novel/NovelChapterWorkspace.138",
+                        mention.character.state,
+                      ],
+                    ] as const
+                  ).map(([key, value]) =>
+                    value ? (
+                      <p key={key}>
+                        <span>{copyText(key)}</span>
+                        {value}
+                      </p>
+                    ) : null,
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
         <footer className={styles.c58}>
@@ -2382,6 +2522,14 @@ function NovelEditor(
             {preferences.wordGoal + WORD_GOAL_TOLERANCE}
             {copyText("app/features/novel/NovelChapterWorkspace.18")}
           </span>
+          {openingChapter && (
+            <Link
+              className={styles.openingLink}
+              to={`/projects/${encodeURIComponent(props.projectId)}?section=more&tool=opening&chapterId=${encodeURIComponent(props.chapter.id)}`}
+            >
+              {copyText("app/features/novel/NovelChapterWorkspace.139")}
+            </Link>
+          )}
         </footer>
 
         {preview && diffOpen && (
@@ -3057,7 +3205,7 @@ function ChapterCreationActions(props: {
     >
       <p className={styles.c95}>
         {copyText("app/features/novel/NovelChapterWorkspace.74")}
-        {!props.hasContent && "先生成本章正文，再续写或强化。"}
+        {!props.hasContent && "先写这一章，写完后可以续写或强化。"}
       </p>
       <section
         aria-label={copyText("app/features/novel/NovelChapterWorkspace.75")}
@@ -3401,9 +3549,7 @@ function WritingPanel(props: {
       <div ref={assistantScroll.endRef} aria-hidden="true" />
       {!runnable && (
         <div className={styles.c129}>
-          <p>
-            {props.selectedEngine?.statusMessage ?? "当前引擎尚不能启动任务"}
-          </p>
+          <p>{props.selectedEngine?.statusMessage ?? "AI 模型还没配置好"}</p>
           {props.selectedEngine?.lastFailure?.message && (
             <p className={styles.c130}>
               {copyText("app/features/novel/NovelChapterWorkspace.99")}
@@ -3470,7 +3616,7 @@ function WritingPanel(props: {
               <BareButton className={styles.c139} onClick={props.onRetry}>
                 {props.activeRun.status === "interrupted"
                   ? "从检查点恢复"
-                  : "使用原引擎重试"}
+                  : "重试"}
               </BareButton>
             )}
             <Link className={styles.c140} to="/tasks">
@@ -3982,17 +4128,4 @@ function ChapterDetailsDialog(props: {
       </Dialog.Content>
     </Dialog>
   );
-}
-
-function upsertAgentItem(items: AgentItem[], next: AgentItem): AgentItem[] {
-  const index = items.findIndex((item) => item.id === next.id);
-  if (index < 0)
-    return [...items, next].sort(
-      (left, right) =>
-        left.createdAt.localeCompare(right.createdAt) ||
-        left.sequence - right.sequence,
-    );
-  const updated = [...items];
-  updated[index] = { ...updated[index]!, ...next };
-  return updated;
 }

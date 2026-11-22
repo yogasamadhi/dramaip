@@ -156,6 +156,10 @@ describe("the system Remote namespace", () => {
       "deactivateLocalModelRuntime",
       "localModels",
       "checkLocalModelRuntime",
+      "cloudAiSummary",
+      "cloudAiSignIn",
+      "cloudAiSignOut",
+      "piSubscription",
     ]);
   });
 

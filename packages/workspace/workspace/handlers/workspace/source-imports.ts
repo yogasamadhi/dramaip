@@ -210,6 +210,14 @@ export function parseImportedDocument(
   return parseTextSource(file.name, file.content, file.format);
 }
 
+const CHAPTER_HEADING =
+  /^(?:第\s*[0-9０-９零〇一二两三四五六七八九十百千万]+\s*[章回节]|chapter\s+\d+)(?:[\s:：、.．-]|$)/iu;
+
+/** A line that opens a chapter: 「第一章 风起」, 「第12回」, 「Chapter 3」. */
+export function isChapterHeading(line: string): boolean {
+  return line.length <= 40 && CHAPTER_HEADING.test(line);
+}
+
 function parseTextSource(
   fileName: string,
   content: string,
@@ -224,9 +232,15 @@ function parseTextSource(
       .find((line) => /^#\s+\S/u.test(line))
       ?.replace(/^#\s+/u, "")
       .trim() ?? fileName.replace(/\.[^.]+$/u, "");
-  const headings = lines
+  const numbered = lines
     .map((line, index) => ({ line, index }))
     .filter((item) => /^##\s+\S/u.test(item.line));
+  // Plain-text novels mark chapters with 「第一章 …」 lines instead.
+  const headings = numbered.length
+    ? numbered
+    : lines
+        .map((line, index) => ({ line: line.trim(), index }))
+        .filter((item) => isChapterHeading(item.line));
   const sections = headings.length
     ? headings.map((heading, index) => ({
         title: heading.line.replace(/^##\s+/u, "").trim(),

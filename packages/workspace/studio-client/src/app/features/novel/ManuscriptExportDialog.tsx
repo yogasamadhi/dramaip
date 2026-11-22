@@ -15,7 +15,7 @@ import { copyText } from "../../copy";
 
 export function ManuscriptExportDialog(props: {
   projectId: string;
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "txt" | "docx";
   previewId?: string;
   onClose(): void;
   onSaved(): void;
@@ -225,14 +225,21 @@ export function ManuscriptExportDialog(props: {
                 {copyText("app/features/novel/ManuscriptExportDialog.12")}
                 {preview.manifest.contentSha256}
               </p>
-              <pre
-                className={styles.c10}
-                aria-label={copyText(
-                  "app/features/novel/ManuscriptExportDialog.13",
-                )}
-              >
-                {preview.document.content}
-              </pre>
+              {preview.manifest.format === "docx" ? (
+                // A Word file is binary: what it holds is listed above.
+                <p className={styles.c9}>
+                  {copyText("app/features/novel/ManuscriptExportDialog.30")}
+                </p>
+              ) : (
+                <pre
+                  className={styles.c10}
+                  aria-label={copyText(
+                    "app/features/novel/ManuscriptExportDialog.13",
+                  )}
+                >
+                  {preview.document.content}
+                </pre>
+              )}
               {preview.sourceState === "stale" && (
                 <InlineNotice tone="warning">
                   {copyText("app/features/novel/ManuscriptExportDialog.14")}

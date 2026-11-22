@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { DomainEntity } from "@dramaip/contracts/product";
 import {
+  CHAPTER_PLAN_STEP,
   PLANNING_STEPS,
+  importedExcerpt,
   nextPlanningStep,
   planningInstruction,
   storySetupInstruction,
@@ -85,5 +87,54 @@ describe("storySetupInstruction", () => {
     expect(text).toContain("只补全空缺的部分");
     expect(text).toContain("作者的要求：\n基调温暖");
     expect(storySetupInstruction(" ")).not.toContain("作者的要求");
+  });
+});
+
+describe("可选的前 10 章章节大纲", () => {
+  it("不计入构思进度，有章节大纲时算完成", () => {
+    const done = planningProgress({
+      project: { synopsis: "旧书店的故事", coreHook: "继承一家书店" },
+      characters: [entity({})],
+      outlines: [entity({ 大纲层级: "全书" })],
+    });
+    expect(nextPlanningStep(done)).toBeUndefined();
+    expect(done["chapter-plan"]).toBe(false);
+    expect(
+      planningProgress({
+        project: { synopsis: "x", coreHook: "y" },
+        characters: [],
+        outlines: [entity({ 大纲层级: "章节", 排序: 1 })],
+      })["chapter-plan"],
+    ).toBe(true);
+    expect(
+      planningInstruction({ step: CHAPTER_PLAN_STEP, authorLines: [] }),
+    ).toContain("「排序」从 1 到 10");
+  });
+});
+
+describe("importedExcerpt", () => {
+  it("keeps every chapter's opening within the budget", () => {
+    const text = importedExcerpt(
+      [
+        { title: "第二章", content: "乙".repeat(5000), orderIndex: 1 },
+        { title: "第一章", content: "甲甲甲", orderIndex: 0 },
+        { title: "空章", content: "  ", orderIndex: 2 },
+      ],
+      1000,
+    );
+    expect(text.startsWith("【第一章】\n甲甲甲")).toBe(true);
+    expect(text).toContain("【第二章】");
+    expect(text).not.toContain("空章");
+    expect(text.length).toBeLessThan(1100);
+  });
+
+  it("puts the source into the planning instruction", () => {
+    const text = planningInstruction({
+      step: PLANNING_STEPS[1]!,
+      authorLines: [],
+      source: "【第一章】\n原文",
+    });
+    expect(text).toContain("只从原文中提取");
+    expect(text).toContain("【第一章】\n原文");
   });
 });

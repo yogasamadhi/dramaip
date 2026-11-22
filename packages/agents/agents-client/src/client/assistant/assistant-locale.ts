@@ -22,7 +22,7 @@ export const assistantZh = {
   "assistant.tool.dramaip_get_chapter": "读取章节正文",
   "assistant.tool.dramaip_list_chapters": "读取章节目录",
   "assistant.tool.dramaip_list_characters": "读取人物资料",
-  "assistant.tool.dramaip_search_story_bible": "检索故事圣经",
+  "assistant.tool.dramaip_search_story_bible": "检索故事记忆",
   "assistant.tool.dramaip_analyze_continuity": "检查故事连续性",
   "assistant.tool.dramaip_search_project": "检索项目资料",
   "assistant.tool.dramaip_get_adaptation": "读取改编方案",

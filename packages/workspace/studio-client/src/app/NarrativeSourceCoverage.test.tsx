@@ -72,7 +72,7 @@ test("source coverage renders exact original references and omitted reasons with
   expect(html).toContain(empty);
   expect(html).toContain("明确未选");
   expect(html).toContain("空章");
-  expect(html).toContain("本冻结允许范围");
+  expect(html).toContain("本锁定允许范围");
   expect(html).toContain("摘要／片段不是全文阅读");
   expect(html).toContain("不保证模型理解");
   expect(sources).toEqual(before);
@@ -102,7 +102,7 @@ test("quality source coverage includes the exact frozen interpretation without a
   );
   expect(html).toContain("质量评议原参考内容表达");
   expect(html).toContain("所选原文段落");
-  expect(html).toContain("本轮冻结叙事解释 1 条");
+  expect(html).toContain("本轮锁定叙事解释 1 条");
   expect(html).toContain(declaration);
   expect(html).toContain(node);
   expect(html).toContain("不增加整章表达覆盖");
@@ -117,7 +117,7 @@ test("historical quality sources with no frozen mixed basis stay absent; missing
   const html = renderToStaticMarkup(
     <NarrativeQualitySourceCoverage basis={{ sourceBasis: sources }} />,
   );
-  expect(html).toContain("冻结章节覆盖未提供");
+  expect(html).toContain("锁定章节覆盖未提供");
   expect(html).not.toContain("0 章");
   expect(html).toContain(declaration);
 });

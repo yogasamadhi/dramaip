@@ -63,9 +63,11 @@ async function createPilotFromEntry(
       .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
       .check();
     await page.getByRole("button", { name: "创建单季短剧并导入" }).click();
-    // Creation ends by opening the project; reaching for its tools earlier
-    // races that navigation.
-    await expect(page).toHaveURL(/#\/projects\/[^/?]+$/);
+    // Creation ends by opening the adaptation guide; reaching for its tools
+    // earlier races that navigation.
+    await expect(page).toHaveURL(
+      /#\/adapt\?projectId=[^&]+&stage=adaptations$/,
+    );
   } else {
     await selectByKeyboard(page, "导入已有剧本");
     await selectByKeyboard(page, "开发剧本 · 单季短剧");
@@ -83,16 +85,16 @@ async function createPilotFromEntry(
     return;
   }
 
-  await openProjectTool(page, "试制计划");
-  const pilotWizard = page.getByLabel("试制向导");
+  await openProjectTool(page, "样片计划");
+  const pilotWizard = page.getByLabel("样片向导");
   await expect(pilotWizard).toBeVisible();
   await expect(
     pilotWizard.locator('input[type="checkbox"]:checked'),
   ).toHaveCount(1);
-  await page.getByRole("button", { name: "建立试制计划" }).click();
+  await page.getByRole("button", { name: "建立样片计划" }).click();
   await page.getByRole("button", { name: "确认来源并生成首集" }).click();
   await expect(
-    page.getByText("当前阶段：采用试制剧本", { exact: true }),
+    page.getByText("当前阶段：采用样片剧本", { exact: true }),
   ).toBeVisible();
 }
 
@@ -101,7 +103,7 @@ for (const [entry, title] of [
   ["source-import", "P0 原著重开项目"],
   ["script-paste", "P0 剧本重开项目"],
 ] as const satisfies ReadonlyArray<[EntryPath, string]>) {
-  test(`${entry} 在 fresh profile ${entry === "script-paste" ? "直达剧本检查" : "建立试制计划"}并于重开后恢复`, async () => {
+  test(`${entry} 在 fresh profile ${entry === "script-paste" ? "直达剧本检查" : "建立样片计划"}并于重开后恢复`, async () => {
     const userData = await mkdtemp(join(tmpdir(), `dramaip-p0-${entry}-`));
     let running: RunningApp | undefined;
     try {
@@ -125,10 +127,10 @@ for (const [entry, title] of [
           running.page.getByRole("button", { name: "章节目录", exact: true }),
         ).toHaveCount(0);
       } else {
-        await openProjectTool(running.page, "试制计划");
-        await expect(running.page.getByLabel("试制向导")).toBeVisible();
+        await openProjectTool(running.page, "样片计划");
+        await expect(running.page.getByLabel("样片向导")).toBeVisible();
         await expect(
-          running.page.getByText("当前阶段：采用试制剧本", { exact: true }),
+          running.page.getByText("当前阶段：采用样片剧本", { exact: true }),
         ).toBeVisible();
       }
     } finally {
@@ -241,7 +243,7 @@ test("已有小说选择继续写作：保留两章原稿、末章位置，独�
       .getByRole("button", { name: "创建系列长篇并导入", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     const bootstrap = await hostAccess(running.page);
     const get = async <T>(path: string): Promise<T> => {
       const response = await hostFetch(`${bootstrap.baseUrl}/api/v2/${path}`, {
@@ -260,6 +262,11 @@ test("已有小说选择继续写作：保留两章原稿、末章位置，独�
       "第一章 雨夜来信",
       "第二章 失联电话",
     ]);
+    // The import lands on 构思; the manuscript keeps its last chapter.
+    await expect(running.page).toHaveURL(/\?section=plan$/);
+    await running.page
+      .getByRole("button", { name: "正文", exact: true })
+      .click();
     await expect(
       running.page.getByRole("textbox", {
         name: "章节正文编辑器",
@@ -276,8 +283,8 @@ test("已有小说选择继续写作：保留两章原稿、末章位置，独�
     ])
       expect(await get(`${kind}?projectId=${projectId}`)).toEqual([]);
 
-    await openProjectTool(running.page, "项目驾驶舱");
-    const cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    const cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByRole("link", { name: "继续 AI 创作", exact: true }),
     ).toBeVisible();
@@ -317,7 +324,7 @@ test("已有小说选择继续写作：保留两章原稿、末章位置，独�
     ).toBeVisible();
     const exported = await readFile(savedPath, "utf8");
     for (const chapter of chapters) expect(exported).toContain(chapter.content);
-    expect(exported).not.toContain("单季故事母稿");
+    expect(exported).not.toContain("单季故事");
     await running.application.close();
     running = await launch(userData);
     await running.page.getByRole("link", { name: "继续写我的小说" }).click();
@@ -504,7 +511,7 @@ test("创意直接开发剧本：保存真实构思与空草稿、恢复创作�
       .click();
     await running.page
       .getByRole("navigation", { name: "项目工具导航" })
-      .getByRole("link", { name: "项目驾驶舱", exact: true })
+      .getByRole("link", { name: "项目概览", exact: true })
       .click();
     const next = running.page.getByRole("link", {
       name: "确认直写作者意图",

@@ -117,14 +117,9 @@ export type {
   StructureSelectCurrentAdaptationResult,
 } from "./wire/structure.js";
 
-export type {
-  GraphResult,
-} from "./wire/graph.js";
+export type { GraphResult } from "./wire/graph.js";
 
-export type {
-  ImpactInput,
-  ImpactResult,
-} from "./wire/impact.js";
+export type { ImpactInput, ImpactResult } from "./wire/impact.js";
 
 export type {
   ProductionQualitySourcesGetResult,
@@ -173,6 +168,7 @@ export type {
 
 export type {
   ScreenplaysExportResult,
+  ScreenplaysSaveExportResult,
   ScreenplaysGetResult,
   ScreenplaysUpdateInput,
   ScreenplaysUpdateResult,

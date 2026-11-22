@@ -45,18 +45,18 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "先看看示例" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
-  await openProjectTool(page, "试制计划");
+  await openProjectTool(page, "样片计划");
 
-  const pilot = page.getByLabel("试制向导");
+  const pilot = page.getByLabel("样片向导");
   const sources = pilot.getByRole("checkbox");
   await expect(sources).toHaveCount(3);
   await expect(sources.nth(0)).toBeChecked();
   await sources.nth(1).check();
   await sources.nth(2).check();
-  await pilot.getByRole("combobox", { name: "试制集数" }).selectOption("3");
-  await pilot.getByRole("button", { name: "建立试制计划" }).click();
+  await pilot.getByRole("combobox", { name: "样片集数" }).selectOption("3");
+  await pilot.getByRole("button", { name: "建立样片计划" }).click();
   await pilot.getByRole("button", { name: "确认来源并生成首集" }).click();
-  await expect(pilot).toContainText("3 集试制");
+  await expect(pilot).toContainText("3 集样片");
   await expect(pilot.getByRole("link", { name: "前往唯一待办" })).toBeVisible();
 
   await page.getByRole("button", { name: "← 返回写作" }).click();

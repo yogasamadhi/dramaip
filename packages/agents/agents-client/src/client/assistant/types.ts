@@ -20,6 +20,7 @@ export interface AssistantTurn {
   runId?: string | undefined;
   userMessage: string;
   status: string;
+  error?: string | undefined;
   projectId?: string | undefined;
   chapterId?: string | undefined;
   routingInputTokens?: number | undefined;

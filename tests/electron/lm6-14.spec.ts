@@ -56,7 +56,7 @@ test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与�
 
   await sidecar.getByRole("button", { name: "生成变更草案" }).click();
   await expect(
-    sidecar.getByText("当前章节变更集", { exact: true }),
+    sidecar.getByText("当前章节更新草案", { exact: true }),
   ).toBeVisible();
   await sidecar.getByText("查看字段差异并选择采用", { exact: true }).click();
   const fields = sidecar.getByRole("checkbox");
@@ -75,5 +75,5 @@ test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与�
     .getByRole("dialog")
     .getByRole("button", { name: "确认继续", exact: true })
     .click();
-  await expect(sidecar.getByText("已撤销此变更集创建的资料。")).toBeVisible();
+  await expect(sidecar.getByText("已撤销此更新草案创建的资料。")).toBeVisible();
 });

@@ -43,7 +43,7 @@ describe("desktop component supervision", () => {
     for await (const event of channel) events.push(event);
     expect(events.at(-1)).toEqual({
       type: "error",
-      message: "智能引擎事件流超过背压限制，任务已中断。",
+      message: "AI 返回内容过多过快，任务已中断，请重试。",
     });
   });
 });

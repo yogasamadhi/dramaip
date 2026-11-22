@@ -35,8 +35,8 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   // A novel project only writes the novel: one next step, and no adaptation,
   // production or review entries on its cockpit or in its navigation.
   await createSeriesProject(page, "LM6 小说项目");
-  await openProjectTool(page, "项目驾驶舱");
-  await expect(page.getByLabel("项目驾驶舱")).toBeVisible();
+  await openProjectTool(page, "项目概览");
+  await expect(page.getByLabel("项目概览")).toBeVisible();
   const actions = page.getByRole("link", { name: "继续 AI 创作" });
   await expect(actions).toBeVisible();
   await expect(actions).toHaveCount(1);

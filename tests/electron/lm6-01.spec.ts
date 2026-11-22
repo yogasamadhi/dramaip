@@ -65,9 +65,8 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
     .check();
   await page.getByRole("button", { name: "创建单季短剧并导入" }).click();
-  await expect(
-    page.getByRole("heading", { name: "LM6 原著项目" }),
-  ).toBeVisible();
+  // An adaptation import lands on the adaptation guide.
+  await expect(page).toHaveURL(/#\/adapt\?projectId=[^&]+&stage=adaptations$/);
 
   await openProjectCreation(page);
   await page.getByRole("button", { name: "导入已有剧本" }).click();

@@ -104,7 +104,7 @@ export function PilotPackageDialog(props: {
             })
           )
             throw new Error(
-              "试制包与指定原包、项目或单集不一致；未打开其他包。",
+              "样片包与指定原包、项目或单集不一致；未打开其他包。",
             );
           setPreview(value);
           setBasis(value.rights?.basis ?? "original");
@@ -198,7 +198,7 @@ export function PilotPackageDialog(props: {
           episodeId: props.episodeId,
         })
       )
-        throw new Error("试制包与指定原包、项目或单集不一致；未打开其他包。");
+        throw new Error("样片包与指定原包、项目或单集不一致；未打开其他包。");
       setPreview(value);
       props.onUpdated();
     } catch (cause) {
@@ -247,7 +247,7 @@ export function PilotPackageDialog(props: {
             episodeId: props.episodeId,
           })
         )
-          throw new Error("试制包与指定原包、项目或单集不一致；未打开其他包。");
+          throw new Error("样片包与指定原包、项目或单集不一致；未打开其他包。");
         setPreview(value);
         props.onUpdated();
       } catch {
@@ -283,7 +283,7 @@ export function PilotPackageDialog(props: {
       <Dialog.Content
         className={styles.c1}
         aria-label={copyText("app/features/production/PilotPackageDialog.1")}
-        closeLabel="关闭试制预览"
+        closeLabel="关闭样片预览"
       >
         <Dialog.Title>
           {copyText("app/features/production/PilotPackageDialog.2")}
@@ -738,7 +738,7 @@ export function PilotPackageDialog(props: {
                     }
                     onClick={() => void save()}
                   >
-                    {working ? "正在保存…" : "确认并保存 ZIP 试制包"}
+                    {working ? "正在保存…" : "确认并保存 ZIP 样片包"}
                   </Button>
                 </fieldset>
               )}

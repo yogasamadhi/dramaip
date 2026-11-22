@@ -2,10 +2,13 @@
 export interface PiTextProvider {
   /** Native Pi provider id; absent only for a manually configured endpoint. */
   piProviderId?: string;
+  hosted?: true;
   providerKind: "openai" | "anthropic" | "google";
   model: string;
   baseUrl?: string;
-  secret: string;
+  secret?: string;
+  /** Pi AuthStorage file for a subscription-backed provider. */
+  piAuthPath?: string;
 }
 
 /** One model request with no tools, filesystem access, or session state. */

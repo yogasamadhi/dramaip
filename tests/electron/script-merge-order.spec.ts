@@ -155,17 +155,11 @@ test("真实剧本块正文与排序分别确认，已成功丢回复的原请�
       capture.waitForEvent("close"),
       capture.getByRole("button", { name: "安全保存", exact: true }).click(),
     ]);
-    await page
-      .getByLabel("模型服务商 本地受控剧本合并接口", { exact: true })
-      .getByRole("button", { name: "设为智能助手模型", exact: true })
-      .click();
-    await expect(page.getByText(/本地受控剧本合并接口：.*已/)).toBeVisible();
-
-    await page
-      .getByRole("button", { name: "保存全局默认值", exact: true })
-      .click();
+    // Saving a language model connects it and makes it the default.
     await expect(
-      page.getByText("全局默认模型已保存", { exact: true }),
+      page.getByText(
+        "已连接「本地受控剧本合并接口」，现在可以开始用 AI 写作了。",
+      ),
     ).toBeVisible();
     const { project } = await request<{ project: { id: string } }>("projects", {
       title: "完整稳定块合并",

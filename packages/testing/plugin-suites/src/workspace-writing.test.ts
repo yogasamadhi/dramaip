@@ -3644,34 +3644,73 @@ afterEach(async () => {
 
 describe("Portal Java v5 project transfer", () => {
   it("previews the real Java fixture, imports independently and continues local editing", async () => {
-    const content = await readFile(new URL("../../../../tests/fixtures/project-packages/studio-v5.json", import.meta.url), "utf8");
+    const content = await readFile(
+      new URL(
+        "../../../../tests/fixtures/project-packages/studio-v5.json",
+        import.meta.url,
+      ),
+      "utf8",
+    );
     const packet = JSON.parse(content);
-    const runtime = await fixture({ readGrantedText: async () => ({ name: "portal-project.json", content }) } as unknown as DesktopHost);
-    const previewResponse = await runtime.request("/api/v2/project-packages/preview", { method: "POST", body: JSON.stringify({ capabilityToken: crypto.randomUUID() }) });
-    expect(previewResponse.status, await previewResponse.clone().text()).toBe(201);
+    const runtime = await fixture({
+      readGrantedText: async () => ({ name: "portal-project.json", content }),
+    } as unknown as DesktopHost);
+    const previewResponse = await runtime.request(
+      "/api/v2/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: crypto.randomUUID() }),
+      },
+    );
+    expect(previewResponse.status, await previewResponse.clone().text()).toBe(
+      201,
+    );
     const preview = await previewResponse.json();
-    expect(preview).toMatchObject({ projectTitle: packet.project.title, chapterCount: 1, resourceCount: 1 });
+    expect(preview).toMatchObject({
+      projectTitle: packet.project.title,
+      chapterCount: 1,
+      resourceCount: 1,
+    });
     const before = await runtime.request("/api/v2/projects");
     expect(await before.json()).toHaveLength(0);
-    const response = await runtime.request(`/api/v2/project-packages/${preview.id}/commit`, { method: "POST", body: JSON.stringify({ title: "独立本地续写" }) });
+    const response = await runtime.request(
+      `/api/v2/project-packages/${preview.id}/commit`,
+      { method: "POST", body: JSON.stringify({ title: "独立本地续写" }) },
+    );
     expect(response.status, await response.clone().text()).toBe(201);
     const result = await response.json();
     expect(result.project.id).not.toBe(packet.lineage.sourceProject.id);
     expect(result.chaptersCreated).toBe(1);
-    const chaptersResponse = await runtime.request(`/api/v2/projects/${result.project.id}/chapters`);
+    const chaptersResponse = await runtime.request(
+      `/api/v2/projects/${result.project.id}/chapters`,
+    );
     expect(chaptersResponse.status).toBe(200);
     const chapters = await chaptersResponse.json();
     expect(chapters).toHaveLength(1);
-    expect(chapters[0]).toMatchObject({ title: "第一章", content: "雨夜，来信到了。", summary: "测试摘要" });
+    expect(chapters[0]).toMatchObject({
+      title: "第一章",
+      content: "雨夜，来信到了。",
+      summary: "测试摘要",
+    });
     expect(chapters[0].volumeId).toBeTruthy();
     expect(chapters[0].volumeId).not.toBe(packet.chapters[0].volumeId);
-    const edited = await runtime.request(`/api/v2/chapters/${chapters[0].id}`, { method: "PATCH", body: JSON.stringify({ version: chapters[0].version, content: "雨夜，来信到了。她决定出发。" }) });
+    const edited = await runtime.request(`/api/v2/chapters/${chapters[0].id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        version: chapters[0].version,
+        content: "雨夜，来信到了。她决定出发。",
+      }),
+    });
     expect(edited.status, await edited.clone().text()).toBe(200);
     expect((await edited.json()).content).toContain("她决定出发");
-    const exported = await runtime.request(`/api/v2/exports/projects/${result.project.id}/json`);
+    const exported = await runtime.request(
+      `/api/v2/exports/projects/${result.project.id}/json`,
+    );
     expect(exported.status, await exported.clone().text()).toBe(200);
     const localPacket = JSON.parse((await exported.json()).content);
-    expect(JSON.stringify(localPacket)).toContain(packet.lineage.sourceProject.id);
+    expect(JSON.stringify(localPacket)).toContain(
+      packet.lineage.sourceProject.id,
+    );
     expect(JSON.stringify(localPacket)).toContain("研究笔记");
   });
 });
@@ -27317,7 +27356,7 @@ describe("persistent AI creation workflow", () => {
     const rejected = await until(runtime, (await createMemory()).id, [
       "failed",
     ]);
-    expect(rejected.error).toContain("已保存模型配置尚未恢复");
+    expect(rejected.error).toContain("AI 模型设置还没生效");
     expect(sessions).toBe(2);
     expect(prompts).toHaveLength(modelCalls);
     expect(

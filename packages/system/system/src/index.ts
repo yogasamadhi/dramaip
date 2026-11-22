@@ -15,6 +15,11 @@ import {
   DRAMAIP_RUNTIME_VERSION,
 } from "@dramaip/contracts";
 import type { DesktopHost } from "@dramaip/host-contracts";
+import type {
+  PiSubscriptionAction,
+  PiSubscriptionAnswer,
+  PiSubscriptionStatus,
+} from "@dramaip/host-contracts/pi-subscription";
 import {
   Remote,
   RemoteError,
@@ -28,6 +33,7 @@ import type {} from "@dramaip/plugin-api/internal";
 import { runtimeCapabilityDescriptors } from "./capabilities.ts";
 import { redactDiagnostics } from "./diagnostics.ts";
 import type {
+  SystemCloudAiSummary,
   SystemCredentialCaptureInput,
   SystemCredentialSession,
   SystemCredentialStatus,
@@ -494,6 +500,62 @@ export class SystemController extends TypertRemoteService {
     kind: SystemLocalModelRuntimeKind,
   ): Promise<SystemLocalModelRuntime> {
     return this.host().localModelRuntime(kind);
+  }
+
+  /** Read the signed-in account and hosted model catalogue. */
+  @Remote
+  async cloudAiSummary(): Promise<SystemCloudAiSummary> {
+    return (
+      (await this.ctx.get("desktopHost")?.cloudAiSummary?.()) ?? {
+        available: false,
+        signedIn: false,
+        pending: false,
+        models: [],
+      }
+    );
+  }
+
+  /** Start a browser authorization flow in the Desktop Host. */
+  @Remote
+  async cloudAiSignIn(): Promise<void> {
+    const host = this.host();
+    if (!host.cloudAiSignIn)
+      throw new RemoteError(
+        "system/host-unavailable",
+        "Cloud AI is unavailable",
+        {},
+      );
+    await host.cloudAiSignIn();
+  }
+
+  /** Revoke the Desktop cloud session. */
+  @Remote
+  async cloudAiSignOut(): Promise<void> {
+    const host = this.host();
+    if (!host.cloudAiSignOut)
+      throw new RemoteError(
+        "system/host-unavailable",
+        "Cloud AI is unavailable",
+        {},
+      );
+    await host.cloudAiSignOut();
+  }
+
+  /** Run a Pi provider authorization interaction. */
+  @Remote
+  async piSubscription(
+    provider: string,
+    action: PiSubscriptionAction,
+    answer: PiSubscriptionAnswer | undefined,
+  ): Promise<PiSubscriptionStatus> {
+    const host = this.host();
+    if (!host.piSubscription)
+      throw new RemoteError(
+        "system/host-unavailable",
+        "Pi 订阅登录暂不可用",
+        {},
+      );
+    return host.piSubscription(provider, action, answer);
   }
 
   /** The Desktop Host, or the structured refusal of a Profile without one. */

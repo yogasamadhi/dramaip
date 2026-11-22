@@ -113,7 +113,7 @@ test("A07 schema and Host reject leaked bodies, changed request lineage, lost ph
       v.execution.usage[0].page.items[0].sessionId = "foreign-session";
     },
     (v) => {
-      v.execution.usage[0].page.items[0].engineKind = "pi";
+      v.execution.usage[0].page.items[0].engineKind = "codex";
     },
     (v) => {
       v.execution.usage[0].page.items[0].projectId = crypto.randomUUID();
@@ -179,7 +179,7 @@ test("A07 normal view keeps all four phase IDs, original requested model, formal
     "输出 未报告",
     "缓存读取 报告值无效",
     "不是本次运行用量",
-    "引擎报告费用估值：0",
+    "AI 服务报告的费用估值：0",
     "EUR",
     "请求配置",
     "模型来源未知",
@@ -275,7 +275,7 @@ test("A07 exact-attempt statistics group original engine/model/provider/profile,
     /observationCount|inputTokens|totalTokens|totalCost|adoptionRate|qualityState|currency/u,
   );
 });
-test("A07 configuration grouping separates engines, missing IDs, profile/provider changes and delimiter-bearing model IDs", () => {
+test("A07 configuration grouping separates missing IDs, profile/provider changes and delimiter-bearing model IDs", () => {
   const value = creativeExecutionLedgerFixture();
   const runs = recorded(value).receipt.runs;
   const configured = runs.map((r) => {
@@ -296,18 +296,11 @@ test("A07 configuration grouping separates engines, missing IDs, profile/provide
     delete run.execution.model[key];
     if (key !== "modelId") expect(measured(changed).groups).toHaveLength(2);
   }
-  configured[1]!.execution.engineKind = "pi";
-  recorded(value).usage[1] = {
-    state: "unavailable",
-    runId: configured[1]!.runId,
-  };
-  expect(measured(value).groups).toHaveLength(2);
   configured[0]!.execution.model = {
     status: "recorded",
     modelId: "a|b",
     providerId: "c",
   };
-  configured[1]!.execution.engineKind = "pi";
   configured[1]!.execution.model = {
     status: "recorded",
     modelId: "a",

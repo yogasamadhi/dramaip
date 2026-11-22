@@ -75,15 +75,15 @@ test("剧本入口直达本地规则检查，示例时间线与内部审片反�
   await page.reload();
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("link", { name: "雨夜归来" }).click();
-  await openProjectTool(page, "试制计划");
+  await openProjectTool(page, "样片计划");
 
-  const fixturePilot = page.getByLabel("试制向导");
+  const fixturePilot = page.getByLabel("样片向导");
   await expect(fixturePilot.getByRole("checkbox").first()).toBeChecked();
-  await fixturePilot.getByRole("button", { name: "建立试制计划" }).click();
+  await fixturePilot.getByRole("button", { name: "建立样片计划" }).click();
   await fixturePilot
     .getByRole("button", { name: "确认来源并生成首集" })
     .click();
-  await expect(fixturePilot).toContainText("当前阶段：采用试制剧本");
+  await expect(fixturePilot).toContainText("当前阶段：采用样片剧本");
 
   await page.getByRole("link", { name: "制作", exact: true }).click();
   await selectWorkspaceObject(page, "项目", {

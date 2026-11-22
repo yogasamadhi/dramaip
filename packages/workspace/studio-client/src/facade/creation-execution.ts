@@ -62,7 +62,7 @@ export function createCreationExecutionClient(
       const run = receipt.runs.find((item) => item.runId === runId);
       if (run?.state !== "recorded" || !run.execution.contextSnapshotId)
         throw new Error(
-          "原阶段未记录上下文快照；实际输入未知，不补用首次或最近运行。",
+          "原阶段未记录参考资料；实际输入未知，不补用首次或最近运行。",
         );
       const snapshot = AgentContextSnapshotSchema.parse(
         await request(
@@ -74,7 +74,7 @@ export function createCreationExecutionClient(
         snapshot.id !== run.execution.contextSnapshotId ||
         snapshot.projectId !== workflow.input.projectId
       )
-        throw new Error("上下文快照与原运行或项目不一致。");
+        throw new Error("参考资料与原运行或项目不一致。");
       const sha256 = async (value: string) =>
         Array.from(
           new Uint8Array(

@@ -10,6 +10,9 @@ export interface PiProviderCatalog {
     protocol: string;
     baseUrl?: string;
     apiKeyUrl?: string;
+    subscriptionLabel?: string;
+    subscriptionLoginLabel?: string;
+    subscriptionOnly?: boolean;
     sourceUrl: string;
     models: Array<{
       id: string;

@@ -349,6 +349,17 @@ test("助手提供模型切换，并按设置中的引擎和服务商创建会�
   );
 });
 
+test("助手显示已保存的失败原因，即使模型从未开始回复", async () => {
+  const error = "云 AI 尚未开通额度，请在尽意官网的套餐页开通 Free 套餐后重试。";
+  client.assistantConversations.list.mockResolvedValue([conversation]);
+  client.assistantConversations.get.mockResolvedValue({
+    ...detail(),
+    turns: [{ id: "failed-turn", userMessage: "你好", status: "failed", error }],
+  });
+  mount();
+  expect((await screen.findByRole("alert")).textContent).toBe(error);
+});
+
 test("已有对话切换模型时保留输入和历史，在发送时创建新会话", async () => {
   client.assistantConversations.list.mockImplementation(async ({ archived }) =>
     archived ? [] : [conversation],

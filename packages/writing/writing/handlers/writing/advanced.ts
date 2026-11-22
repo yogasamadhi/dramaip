@@ -25,9 +25,11 @@ import {
   ContentVersionSchema,
   ContinueChapterAgentRunInputSchema,
   ContinueChapterAgentRunStartSchema,
+  WRITING_RESOURCE_SERVICE,
   type Chapter,
   type WritingChapterService,
 } from "@dramaip/contracts/writing";
+import { chapterOutlineFor } from "./chapter-plan.js";
 import {
   defineRouteContribution,
   type PluginContext,
@@ -434,10 +436,18 @@ export function writingAdvancedRoutes(
             );
           const all = chapters.list(source.projectId);
           const at = new Date().toISOString();
+          // The next chapter follows the chapter outline planned for it.
+          const planned = chapterOutlineFor(
+            optionalService(context, WRITING_RESOURCE_SERVICE)?.list(
+              "outlines",
+              source.projectId,
+            ) ?? [],
+            all.length,
+          );
           const proposal: Chapter = {
             id: crypto.randomUUID(),
             projectId: source.projectId,
-            title: `第 ${all.length + 1} 章`,
+            title: planned?.title.trim() || `第 ${all.length + 1} 章`,
             orderIndex:
               all.reduce(
                 (max, chapter) => Math.max(max, chapter.orderIndex),
@@ -466,9 +476,12 @@ export function writingAdvancedRoutes(
             baseVersion: target.version,
             engineKind: input.data.engineKind,
             model: input.data.model,
+            // The chapter prompt adds the planned outline as 本章要点.
             instruction:
               input.data.prompt ||
-              "承接上一章结尾与全书规划，推进新的剧情，生成下一章完整候选正文。",
+              (planned
+                ? "承接上一章结尾，按本章要点推进剧情，生成这一章完整候选正文。"
+                : "承接上一章结尾与全书规划，推进新的剧情，生成下一章完整候选正文。"),
             wordGoal: input.data.wordGoal,
             sourceIds: [],
             // Without an explicit selection the chapter workflow picks the

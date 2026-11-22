@@ -35,11 +35,14 @@ const OUTPUT_TAIL_BYTES = 8_192;
 export interface EngineProviderConfiguration {
   /** Native Pi provider id; custom endpoints leave this unset. */
   piProviderId?: string;
+  hosted?: true;
   providerKind: "openai" | "anthropic" | "google";
   providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
   model: string;
   baseUrl?: string;
-  secret: string;
+  secret?: string;
+  /** Pi AuthStorage file for a subscription-backed provider. */
+  piAuthPath?: string;
 }
 
 /** How to launch one sidecar. */
@@ -455,7 +458,7 @@ export class EngineSidecar {
       pending.resolve({ available: false, message });
     }
     for (const channel of this.streams.values())
-      channel.finish({ type: "error", message: "智能引擎进程异常退出。" });
+      channel.finish({ type: "error", message: "AI 服务进程异常退出。" });
     this.streams.clear();
   }
 

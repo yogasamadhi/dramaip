@@ -144,15 +144,75 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   ).toBeVisible();
   await page.getByRole("link", { name: "设置", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "智能助手模型", exact: true }),
+    page.getByRole("heading", { name: "选择模型服务商", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Pi", { exact: true }).first()).toBeVisible();
+  // The engine behind the AI stays out of sight; the defaults fold away.
+  await expect(page.getByText("Pi", { exact: true })).toHaveCount(0);
   await expect(page.getByText("测试版", { exact: true })).toHaveCount(0);
   await expect(
-    page.getByLabel("智能引擎状态").locator("article > div > p"),
-  ).toHaveText(["Pi"]);
+    page.getByRole("heading", { name: "默认模型", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", { name: "设为默认 AI 模型" }),
+  ).toBeChecked();
   await expect(page.getByLabel("全局默认引擎")).toHaveCount(0);
   await expect(page.getByLabel("项目默认引擎")).toHaveCount(0);
+});
+
+test("AI 模型设置分开 API Key 和 Pi 的全部订阅，并接收原生授权提示", async () => {
+  await page.getByRole("link", { name: "设置", exact: true }).click();
+  const apiKeyTab = page.getByRole("tab", { name: "API Key", exact: true });
+  await apiKeyTab.click();
+  const apiKeyPanel = page.getByRole("tabpanel", { name: "API Key" });
+  const apiKeyProvider = apiKeyPanel.getByRole("combobox", {
+    name: "服务商",
+    exact: true,
+  });
+  await expect(apiKeyProvider.locator('option[value="anthropic"]')).toHaveCount(
+    1,
+  );
+  await expect(
+    apiKeyProvider.locator('option[value="openai-codex"]'),
+  ).toHaveCount(0);
+  await expect(apiKeyProvider.locator('option[value="other"]')).toHaveCount(1);
+  await page.getByRole("tab", { name: "订阅登录", exact: true }).click();
+  const piPanel = page.getByRole("tabpanel", { name: "订阅登录", exact: true });
+  const provider = piPanel.getByRole("combobox", {
+    name: "订阅服务商",
+    exact: true,
+  });
+  for (const id of [
+    "anthropic",
+    "github-copilot",
+    "kimi-coding",
+    "meta",
+    "openai",
+    "openai-codex",
+    "xai",
+  ]) {
+    await expect(provider.locator(`option[value="${id}"]`)).toHaveCount(1);
+  }
+  await expect(provider.locator("option")).toHaveCount(7);
+  await expect(
+    piPanel.getByText("接口密钥（API Key）", { exact: true }),
+  ).toHaveCount(0);
+  await provider.selectOption("github-copilot");
+  await expect(
+    page.getByRole("combobox", { name: "认证方式", exact: true }),
+  ).toHaveCount(0);
+  const signIn = piPanel.getByRole("button", {
+    name: "GitHub Copilot",
+    exact: true,
+  });
+  await signIn.click();
+  await expect(
+    page.getByRole("textbox", {
+      name: "GitHub Enterprise URL/domain (blank for github.com)",
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(signIn).toBeVisible();
+  await apiKeyTab.click();
 });
 
 test("Preload 只暴露壳的启动握手", async () => {
@@ -629,7 +689,7 @@ test("系列长篇把用户修改后的章节、季和每季集数持久化", as
   await page.getByRole("button", { name: "创建系列长篇" }).click();
 
   await expect(page).toHaveURL(/\/projects\/[^/]+$/);
-  const projectId = page.url().split("/").at(-1)!;
+  const projectId = page.url().split("/").at(-1)!.split("?")[0]!;
   const project = await runtimeJson<{
     modeConfig: Record<string, unknown>;
     productionBrief?: string;
@@ -724,18 +784,20 @@ test("项目外导入预览不创建项目，确认后才创建并导入", async
     .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
     .check();
   await page.getByRole("button", { name: "创建单季短剧" }).click();
-  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  // An imported novel goes straight on to the adaptation guide.
+  await expect(page).toHaveURL(/\/adapt\?.*projectId=/);
   const afterCommit =
     await runtimeJson<Array<{ id: string }>>("/api/v2/projects");
   expect(afterCommit).toHaveLength(before.length + 1);
-  const projectId = page.url().split("/").at(-1)!;
+  const projectId = new URLSearchParams(
+    new URL(page.url()).hash.split("?")[1],
+  ).get("projectId")!;
   const chapters = await runtimeJson<Array<{ title: string }>>(
     `/api/v2/projects/${projectId}/chapters`,
   );
   expect(chapters.map((chapter) => chapter.title)).toEqual([
     "第一章 雨夜来信",
     "第二章 失联电话",
-    "单季故事母稿",
   ]);
 });
 
@@ -829,7 +891,7 @@ test("只填作品名即可创建小说、首章并进入写作", async () => {
   const contextPanel = page.locator('aside[aria-label="章节辅助栏"]');
   await expect(contextPanel).toBeVisible();
   await expect(
-    contextPanel.getByRole("button", { name: "生成并检查本章正文" }),
+    contextPanel.getByRole("button", { name: "写这一章" }),
   ).toBeVisible();
   await expect(
     contextPanel.getByRole("button", { name: "续写本章" }),
@@ -928,16 +990,31 @@ test("小说默认 AI 工作台且窄屏辅助栏无溢出", async () => {
       .click();
   }
   const novelNavigation = page.getByLabel("小说创作入口");
-  for (const label of ["正文", "大纲", "人物", "设定", "故事圣经"])
+  for (const label of ["构思", "正文", "大纲", "资料", "工具"])
     await expect(
       novelNavigation.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
-  await expect(
-    novelNavigation.getByRole("button", {
-      name: "长篇工具",
-      exact: true,
-    }),
-  ).toBeVisible();
+  for (const label of ["人物", "设定", "故事记忆"])
+    await expect(
+      novelNavigation.getByRole("button", { name: label, exact: true }),
+    ).toHaveCount(0);
+  await novelNavigation
+    .getByRole("button", { name: "资料", exact: true })
+    .click();
+  const libraryTabs = page.getByRole("navigation", { name: "资料分类" });
+  for (const label of ["人物", "设定", "故事记忆"])
+    await expect(
+      libraryTabs.getByRole("button", { name: label, exact: true }),
+    ).toBeVisible();
+  await libraryTabs
+    .getByRole("button", { name: "故事记忆", exact: true })
+    .click();
+  for (const label of ["章节摘要", "人物现状", "时间线", "伏笔"])
+    await expect(
+      page
+        .getByRole("navigation", { name: "故事记忆分类" })
+        .getByRole("button", { name: label, exact: true }),
+    ).toBeVisible();
   await novelNavigation
     .getByRole("button", { name: "正文", exact: true })
     .click();
@@ -956,9 +1033,7 @@ test("小说默认 AI 工作台且窄屏辅助栏无溢出", async () => {
   await panel
     .getByLabel("AI 创作要求")
     .fill("承接上章结尾，突出林夏的动机，保持第三人称。");
-  await expect(
-    panel.getByRole("button", { name: "生成并检查本章正文" }),
-  ).toBeVisible();
+  await expect(panel.getByRole("button", { name: "写这一章" })).toBeVisible();
   const [editorBox, panelBox] = await Promise.all([
     editor.boundingBox(),
     panel.boundingBox(),
@@ -984,21 +1059,15 @@ test("小说默认 AI 工作台且窄屏辅助栏无溢出", async () => {
   await page.setViewportSize({ width: 1440, height: 920 });
 
   await novelNavigation
-    .getByRole("button", { name: "长篇工具", exact: true })
+    .getByRole("button", { name: "工具", exact: true })
     .click();
-  for (const label of [
-    "章节记忆",
-    "人物状态",
-    "时间线",
-    "伏笔",
-    "视觉档案",
-    "一致性",
-    "创作分析",
-    "编剧室",
-  ])
+  for (const label of ["一致性", "创作分析", "编剧室"])
     await expect(
       page.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "视觉档案", exact: true }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "本地规则检查", exact: true }),
   ).toBeVisible();
@@ -1013,9 +1082,14 @@ test("小说默认 AI 工作台且窄屏辅助栏无溢出", async () => {
 
 test("模型服务商置顶、模型级联并通过独立安全窗口采集密钥", async () => {
   await page.getByRole("link", { name: "设置", exact: true }).click();
-  const providerHeading = page.getByText("模型服务商", { exact: true }).first();
+  await page.getByRole("tab", { name: "API Key", exact: true }).click();
+  const providerHeading = page.getByRole("heading", {
+    name: "选择模型服务商",
+    exact: true,
+  });
+  // The default model sits under 高级, after the provider list.
   const engineHeading = page.getByRole("heading", {
-    name: "智能助手模型",
+    name: "默认模型",
     exact: true,
   });
   const [providerBox, engineBox] = await Promise.all([
@@ -1081,10 +1155,15 @@ test("模型服务商置顶、模型级联并通过独立安全窗口采集密�
       .getByRole("button", { name: "安全保存", exact: true })
       .click(),
   ]);
+  // Saving also connects it and makes it the default AI model.
   await expect(
-    page.getByText("已保存 DeepSeek", { exact: false }),
+    page.getByText(/已(保存|连接)「?DeepSeek/u).first(),
   ).toBeVisible();
-  await expect(page.getByText(originalModel, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByLabel("模型服务商 DeepSeek", { exact: true })
+      .getByText(originalModel, { exact: true }),
+  ).toBeVisible();
 
   const deepseekProvider = page.getByLabel("模型服务商 DeepSeek", {
     exact: true,
@@ -1130,7 +1209,7 @@ test("模型服务商置顶、模型级联并通过独立安全窗口采集密�
     version: number;
     payload: Record<string, unknown>;
   }>(`/api/v2/providers/${savedProvider!.id}`);
-  expect(updatedProvider.version).toBe(savedProvider!.version + 1);
+  expect(updatedProvider.version).toBeGreaterThan(savedProvider!.version);
   expect(updatedProvider.payload["模型名称"]).toBe(revisedModel);
   expect(updatedProvider.payload["凭据引用"]).toBe(
     savedProvider!.payload["凭据引用"],

@@ -1,4 +1,8 @@
-import type { ScreenplayDocument } from "@dramaip/contracts/production";
+import type {
+  ScreenplayDocument,
+  ScreenplayExportFormat,
+  ScreenplayExportSaveResult,
+} from "@dramaip/contracts/production";
 import {
   createMediaReviewClient,
   type MediaReviewClient,
@@ -1045,7 +1049,14 @@ export interface StudioClient {
       input: CreativeIssueAcknowledgementInput,
     ): Promise<CreativeIssueAcknowledgement>;
   };
-  screenplays: { get(id: string): Promise<ScreenplayDocument> };
+  screenplays: {
+    get(id: string): Promise<ScreenplayDocument>;
+    /** Asks where to save the script in that format and saves it. */
+    saveExport(
+      id: string,
+      format: ScreenplayExportFormat,
+    ): Promise<ScreenplayExportSaveResult>;
+  };
   resources: {
     list(
       domain: string,
@@ -2597,6 +2608,11 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     screenplays: {
       get: (id) =>
         request(`/api/v2/scripts/${encodeURIComponent(id)}/screenplay`),
+      saveExport: (id, format) =>
+        request(
+          `/api/v2/scripts/${encodeURIComponent(id)}/screenplay/export/${format}/save`,
+          { method: "POST" },
+        ),
     },
     resources: {
       list: (domain, projectId, parentId) =>

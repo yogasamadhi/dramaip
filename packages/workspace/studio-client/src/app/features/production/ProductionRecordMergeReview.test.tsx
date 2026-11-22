@@ -141,7 +141,7 @@ test("author shot-plan comparison displays new and retiring identities readonly 
       onChoice={() => {}}
     />,
   );
-  expect(html).toContain("字段合并冻结镜头计划");
+  expect(html).toContain("字段合并锁定镜头计划");
   expect(html).toContain(newId);
   expect(html).toContain("退役镜头 shot");
   expect(html).toContain("新增镜头没有旧实际字段");
@@ -214,7 +214,7 @@ test("actual-field selectors require an explicit side for true conflicts and dis
   expect(html.match(/<select/gu)).toHaveLength(report.units.length);
   expect(html).toContain("请明确选择真实冲突");
   expect(html).toContain("保留当前人工值");
-  expect(html).toContain("使用冻结草稿值");
+  expect(html).toContain("使用锁定草稿值");
   expect(html).toContain("真实原字段 &lt;旧&gt;");
   expect(html).not.toContain("<button");
 });

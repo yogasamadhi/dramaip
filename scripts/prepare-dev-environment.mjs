@@ -38,10 +38,18 @@ export function vendorSubmoduleSpecs() {
 
 /** Agent runtimes the Desktop shell starts on demand. */
 export function runtimeSpecs() {
+  const pi = JSON.parse(
+    readFileSync(join(desktopRoot, "vendor/pi.lock.json"), "utf8"),
+  );
   return [
     {
-      label: "Pi 1.5.0",
+      label: `Pi ${pi.version}`,
       entry: join(studioRoot, "build", "pi", "runtime-manifest.json"),
+      manifest: {
+        version: pi.version,
+        sourceTreeSha256: pi.sourceTreeSha256,
+        modelDataSha256: pi.modelData.sha256,
+      },
       buildScript: "build:pi",
       verifyScript: "verify:pi",
     },
@@ -239,13 +247,22 @@ export function ensureDependencies(pnpm, check) {
 /** Builds the agent runtimes the Desktop shell starts on demand. */
 export function ensureAgentRuntimes(pnpm, check, rebuildRuntimes) {
   for (const runtime of runtimeSpecs()) {
+    let current = false;
+    try {
+      const manifest = JSON.parse(readFileSync(runtime.entry, "utf8"));
+      current = Object.entries(runtime.manifest).every(
+        ([key, value]) => manifest[key] === value,
+      );
+    } catch {
+      // A missing or invalid manifest requires a build.
+    }
     if (check) {
-      if (!existsSync(runtime.entry))
+      if (!current)
         throw new Error(`${runtime.label} Runtime 未就绪：${runtime.entry}`);
       ok(`${runtime.label} Runtime 就绪`);
       continue;
     }
-    if (existsSync(runtime.entry) && !rebuildRuntimes) {
+    if (current && !rebuildRuntimes) {
       ok(`${runtime.label} Runtime 已就绪`);
       continue;
     }

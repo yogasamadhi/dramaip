@@ -5,19 +5,13 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { sidecarParentPort } from "./sidecar-port";
 import type {
+  PiTextProvider,
   PiTextRequest,
   PiTextResponse,
   PiCompactionResult,
 } from "./pi-text-runtime";
 
-type PiProviderConfiguration = {
-  /** Native Pi provider id; custom endpoints leave this unset. */
-  piProviderId?: string;
-  providerKind: "openai" | "anthropic" | "google";
-  model: string;
-  baseUrl?: string;
-  secret: string;
-};
+type PiProviderConfiguration = PiTextProvider;
 
 type StartCommand = {
   type: "start";
@@ -138,7 +132,7 @@ async function start(command: StartCommand): Promise<void> {
     providerGeneration = provider ? 1 : 0;
     parentPort!.postMessage({
       type: "ready",
-      version: "1.5.0",
+      version: "1.5.2",
       configured: Boolean(provider),
     });
   } catch (error) {
@@ -164,7 +158,7 @@ async function configure(command: ConfigureCommand): Promise<void> {
       type: "configured",
       requestId: command.requestId,
       available: true,
-      version: "1.5.0",
+      version: "1.5.2",
     });
   } catch (error) {
     parentPort!.postMessage({
@@ -198,7 +192,7 @@ async function perform(
   payload: Record<string, unknown>,
 ): Promise<unknown> {
   if (operation === "health")
-    return { available: Boolean(provider), version: "1.5.0" };
+    return { available: Boolean(provider), version: "1.5.2" };
   if (operation === "createSession") {
     if (!provider) throw new Error("Pi 模型尚未配置");
     const id = randomUUID();
@@ -209,7 +203,9 @@ async function perform(
       ...(typeof payload.chapterId === "string"
         ? { chapterId: payload.chapterId }
         : {}),
-      ...(selectedModel(payload) ? { model: selectedModel(payload) } : {}),
+      ...(!provider.hosted && !provider.piAuthPath && selectedModel(payload)
+        ? { model: selectedModel(payload) }
+        : {}),
     });
     await persistSession(sessions.get(id)!);
     return { id };
@@ -290,8 +286,11 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   }
   if (session.activeRunId) throw new Error("Pi 会话正在执行另一项任务");
   const requestedModel = selectedModel(payload);
-  const model = requestedModel ?? session.model ?? activeProvider.model;
-  if (requestedModel) session.model = requestedModel;
+  const useProviderModel = activeProvider.hosted || activeProvider.piAuthPath;
+  const model = useProviderModel
+    ? activeProvider.model
+    : (requestedModel ?? session.model ?? activeProvider.model);
+  if (requestedModel && !useProviderModel) session.model = requestedModel;
   const capabilityGrant = capabilityGrantFrom(payload);
   if (capabilityGrant) session.capabilityGrant = capabilityGrant;
   await persistSession(session);
@@ -549,7 +548,10 @@ function selectedModel(payload: Record<string, unknown>): string | undefined {
 function validateProvider(value: PiProviderConfiguration): void {
   if (!value || !["openai", "anthropic", "google"].includes(value.providerKind))
     throw new Error("Pi 服务商类型无效");
-  if (!value.model.trim() || !value.secret.trim())
+  if (
+    !value.model.trim() ||
+    (value.piAuthPath ? !value.piProviderId : !value.secret?.trim())
+  )
     throw new Error("Pi 模型或凭据为空");
 }
 
@@ -557,8 +559,20 @@ function publicMessage(error: unknown): string {
   let message = error instanceof Error ? error.message : String(error);
   for (const secret of [provider?.secret ?? "", startCommand?.mcp.token ?? ""])
     if (secret) message = message.split(secret).join("[REDACTED]");
-  if (/401|unauthorized|authentication|credential|api.?key/i.test(message))
-    return "Pi 模型调用失败：API Key 无效或已失效";
+  if (message.includes("CLOUD_AI_SIGN_IN_REQUIRED"))
+    return "云 AI 需要登录尽意账号。";
+  if (message.includes("QUOTA_ACCOUNT_NOT_FOUND"))
+    return "云 AI 尚未开通额度，请在尽意官网的套餐页开通 Free 套餐后重试。";
+  if (message.includes("QUOTA_INSUFFICIENT"))
+    return "云 AI 配额不足，请查看尽意账号的剩余额度。";
+  if (
+    /401|unauthorized|authentication|credential|api.?key|not configured/i.test(
+      message,
+    )
+  )
+    return provider?.piAuthPath
+      ? "Pi 订阅授权不可用，请在 AI 模型设置中重新登录。"
+      : "Pi 模型调用失败：API Key 无效或已失效";
   if (/404|unknown model|model.*not found/i.test(message))
     return "Pi 模型调用失败：服务地址或模型名称不匹配";
   if (/429|rate.?limit|quota|balance/i.test(message))

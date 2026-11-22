@@ -34,7 +34,7 @@ const PROJECT_MODES: readonly {
   outcome: string;
 }[] = [
   { id: "series_longform", label: "系列长篇", outcome: "第一章与长篇故事骨架" },
-  { id: "single_season", label: "单季短剧", outcome: "母稿、人物、季纲与首集" },
+  { id: "single_season", label: "单季短剧", outcome: "故事、人物、季纲与首集" },
   {
     id: "personal_theater",
     label: "我的 AI 小剧场",

@@ -251,7 +251,7 @@ test("v4 no-original-fields comparison is readonly, shows explicit new and retir
   const html = renderToStaticMarkup(
     <ProductionRecordComparisonView report={report} />,
   );
-  expect(html).toContain("字段合并冻结场景拓扑计划");
+  expect(html).toContain("字段合并锁定场景拓扑计划");
   expect(html).toContain("此次没有复用可编辑旧字段");
   expect(html).toContain("明确退役场景");
   expect(html).toContain(newScene);
@@ -444,7 +444,7 @@ test("topology candidate labels the original and new double-formal identities in
     },
   } as unknown as CreationWorkflow;
   const html = renderToStaticMarkup(<EpisodeCandidate workflow={candidate} />);
-  expect(html).toContain("冻结作者场景拓扑计划");
+  expect(html).toContain("锁定作者场景拓扑计划");
   expect(html).toContain("新正式大纲");
   expect(html).toContain("专用 v4 协议");
   expect(html).not.toContain("场景结构、时长、来源与既有资产不变");

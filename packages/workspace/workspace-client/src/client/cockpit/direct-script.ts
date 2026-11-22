@@ -157,16 +157,16 @@ export function deriveDirectScriptCockpit(
           ? "stale"
           : "pending",
     sourceReady
-      ? `正式意图 v${intent!.version} · 已批准故事圣经`
-      : "实际来源、正式意图或故事圣经待确认",
-    `${first ? `当前首集 ${first.title}（${first.id}）v${first.version}` : "无可核验的实际分集"}；${entryPath === "script" ? `${first?.scripts.length ?? 0} 份有正文的实际原稿` : "实际创意简报"}。${sourceReady ? "明确采用意图与批准故事圣经，不补小说、诊断或季纲" : "旧字段、空稿和候选不等于正式采用"}；权利声明不是授权证明核验。`,
+      ? `正式意图 v${intent!.version} · 已确认的故事记忆`
+      : "实际来源、正式意图或故事记忆待确认",
+    `${first ? `当前首集 ${first.title}（${first.id}）v${first.version}` : "无可核验的实际分集"}；${entryPath === "script" ? `${first?.scripts.length ?? 0} 份有正文的实际原稿` : "实际创意简报"}。${sourceReady ? "明确采用意图与批准故事记忆，不补小说、诊断或季纲" : "旧字段、空稿和候选不等于正式采用"}；权利声明不是授权证明核验。`,
     !catalogValid
       ? "核对直写正式来源"
       : !actualSourceReady
         ? "补充实际直写来源"
         : !intentReady
           ? "确认直写作者意图"
-          : "采用正式故事圣经",
+          : "采用故事记忆",
     !catalogValid
       ? tool("author-intent", { intentId: intent?.id })
       : !actualSourceReady
@@ -374,9 +374,9 @@ export function deriveDirectScriptCockpit(
   if (saved)
     add(
       "ready",
-      "内部试制包已保存 · 非发行就绪",
+      "样片包已保存 · 非发行就绪",
       `分镜 v${storyboard.value!.version} → 内部包 v${saved.version}；${saved.receipt!.byteSize} 字节保存回执与摘要一致。语义质量、授权证明、费用及媒体可能仍未核验；保存不是发行批准。`,
-      "查看内部试制包回执",
+      "查看样片包回执",
       packageTo,
     );
   else if (storyboardReady)
@@ -387,12 +387,12 @@ export function deriveDirectScriptCockpit(
           ? "needs-human"
           : "pending",
       preview?.status === "saving"
-        ? "内部试制包正在保存"
+        ? "样片包正在保存"
         : preview?.status === "failed"
-          ? "内部试制包保存失败"
+          ? "样片包保存失败"
           : "正式分镜已采用，内部包待保存",
       "核对实际清单、阻断项与权利声明，并取得 Host 保存回执；预览、取消或保存失败不代表交付。未知项不标通过，不要求生成媒体。",
-      "核验并保存内部试制包",
+      "核验并保存样片包",
       packageTo,
     );
   else
@@ -505,7 +505,7 @@ export function deriveDirectScriptCockpit(
       status,
       statusLabel:
         index < 0
-          ? "内部试制包已保存，发行仍待核验"
+          ? "样片包已保存，发行仍待核验"
           : `${gate!.label} · ${gate!.statusLabel}`,
       primaryAction: index < 0 ? actions[3]! : actions[index]!,
       blockers: index < 0 ? [] : [gate!.detail],

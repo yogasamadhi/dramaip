@@ -23,6 +23,7 @@ import type {
 } from "@dramaip/host-shell-bridge/protocol";
 import { migrateLegacyUserData } from "@dramaip/host-migration";
 import { dramaipHomePath } from "@dramaip/infra-home-paths";
+import { withDesktopSystemProxy } from "./system-proxy.ts";
 
 const NAME = "dramaip";
 
@@ -76,8 +77,9 @@ async function main(): Promise<void> {
   }
   const profile = loadProfile(NAME, "desktop", INSTALL_ANCHOR);
   reportSkippedBundles(NAME, profile);
+  const environment = await withDesktopSystemProxy(loadLayeredEnv(NAME));
   const application = runProfile({
-    environment: loadLayeredEnv(NAME),
+    environment,
     profile: "desktop",
     resolvedProfile: { profile, installAnchor: INSTALL_ANCHOR },
     patchFiles: overlayArguments(process.argv.slice(2)),

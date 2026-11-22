@@ -326,6 +326,36 @@
 }
 
 .link,
+.libraryTabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.libraryTab,
+.libraryTabOn {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.libraryTab:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: inherit;
+}
+
+.libraryTabOn {
+  background: var(--dsw-alias-state-business-tertiary);
+  color: var(--dsw-alias-state-business-primary);
+  font-weight: 500;
+}
+
 .toolsLink {
   font-size: 14px;
   font-weight: 500;

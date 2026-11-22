@@ -273,7 +273,7 @@ test("AI 创作按钮与候选：操作要求、聊天草稿、采用和运行�
     pending = false;
     const input = panel.getByLabel("AI 创作要求");
     const generate = panel.getByRole("button", {
-      name: "生成并检查本章正文",
+      name: "写这一章",
       exact: true,
     });
     await input.fill("保留人物动机，调整节奏。");

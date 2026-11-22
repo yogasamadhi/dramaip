@@ -167,7 +167,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
     )
       await summary.click();
     await expect(
-      workbench().getByLabel("本轮冻结叙事解释", { exact: true }),
+      workbench().getByLabel("本轮锁定叙事解释", { exact: true }),
     ).toBeVisible();
   };
   try {
@@ -199,16 +199,11 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
       capture.waitForEvent("close"),
       capture.getByRole("button", { name: "安全保存", exact: true }).click(),
     ]);
-    await page
-      .getByLabel("模型服务商 叙事索引本地受控验收", { exact: true })
-      .getByRole("button", { name: "设为智能助手模型", exact: true })
-      .click();
-
-    await page
-      .getByRole("button", { name: "保存全局默认值", exact: true })
-      .click();
+    // Saving a language model connects it and makes it the default.
     await expect(
-      page.getByText("全局默认模型已保存", { exact: true }),
+      page.getByText(
+        "已连接「叙事索引本地受控验收」，现在可以开始用 AI 写作了。",
+      ),
     ).toBeVisible();
     const { project } = await api<{ project: { id: string } }>(
       "projects",
@@ -594,7 +589,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
       );
     });
     await workbench()
-      .getByRole("button", { name: "生成并检查本章正文", exact: true })
+      .getByRole("button", { name: "写这一章", exact: true })
       .click();
     const response = await legacyResponseOf(await responsePromise);
     expect(response.status(), response.text()).toBe(200);
@@ -628,7 +623,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
       expect(prompt).not.toContain("PRIVATE SECOND");
       expect(prompt).not.toContain(pending.input.statement);
     }
-    const frozen = workbench().getByLabel("本轮冻结叙事解释", { exact: true });
+    const frozen = workbench().getByLabel("本轮锁定叙事解释", { exact: true });
     await openFrozen();
     await expect(frozen).toContainText("本轮冻结叙事解释 4 条");
     const runSnapshots = [];
@@ -706,7 +701,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
     );
     await openFrozen();
     await expect(
-      workbench().getByLabel("本轮冻结叙事解释", { exact: true }),
+      workbench().getByLabel("本轮锁定叙事解释", { exact: true }),
     ).toContainText(`declaration ${declaration.id} v${declaration.version}`);
     await openContext();
     await expect(storyPanel()).toContainText("已撤回");
@@ -737,7 +732,7 @@ test("来源叙事目录的后台明确选择／当前owner失败保护／实际
     expect(dialogs).toBe(0);
     await hidden();
     await workbench()
-      .getByLabel("本轮冻结叙事解释", { exact: true })
+      .getByLabel("本轮锁定叙事解释", { exact: true })
       .screenshot({
         path: test.info().outputPath("story-index-restart-original-frozen.png"),
       });

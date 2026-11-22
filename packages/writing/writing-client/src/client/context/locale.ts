@@ -48,16 +48,16 @@ export const zh = {
     "只使用本轮确认范围的实际表达；每章须直接选择原文/章节摘要/段落，或由明确高层摘要覆盖。",
   "picker.note.next":
     "续章默认只承接当前章完整原文；可在启动前明确改选摘要、段落或其他前文。",
-  "picker.note.prior": "本章原文会冻结。",
+  "picker.note.prior": "本章原文会锁定。",
   "picker.note":
     "未选前文不自动纳入，不取固定前几章或旧摘要；摘要不是原文或语义保证。原章节禁止外发时，摘要与片段同样不能发送。",
   "picker.scope.quality": "本轮范围",
   "picker.scope.prior": "当前前文",
   "picker.budget":
-    "{scope} {total} 章，未选 {unselected} 章没有直接表达；高层摘要的实际覆盖另行列明，不重复计算。这里只是预算估算，生成时还会核对实际冻结结果；不静默裁剪。",
+    "{scope} {total} 章，未选 {unselected} 章没有直接表达；高层摘要的实际覆盖另行列明，不重复计算。这里只是预算估算，生成时还会核对实际锁定结果；不静默裁剪。",
   "picker.higher.label": "小说高层摘要来源",
   "picker.higher.note":
-    "可明确选择已采用的卷／故事弧／全书冻结范围摘要，并搭配所选原文或段落。",
+    "可明确选择已采用的卷／故事弧／全书锁定范围摘要，并搭配所选原文或段落。",
   "picker.higher.note.quality":
     "摘要全部覆盖章节必须位于本轮确认范围，不能拆掉范围外章节。",
   "picker.higher.note.prior":
@@ -68,7 +68,7 @@ export const zh = {
   "picker.higher.failed": "高层摘要未核全：{message}",
   "picker.higher.none":
     "没有实际采用摘要；生成 AI 草稿和目录节点不升级为来源。",
-  "picker.higher.previous": "先前所选冻结范围",
+  "picker.higher.previous": "先前所选锁定范围",
   "picker.higher.mismatch": "实际摘要目录项目无法核对。",
   "picker.empty.production":
     "请先明确选择制作范围，不自动补入原文或摘要；不使用正文须另行确认。",
@@ -79,14 +79,14 @@ export const zh = {
 
   "higher.label": "高层摘要来源 {title}",
   "higher.legend": "{title} · 采用范围快照",
-  "higher.read": "读取此摘要的冻结范围",
+  "higher.read": "读取此摘要的锁定范围",
   "higher.include.label": "纳入高层摘要 {id}",
   "higher.include": "纳入本轮摘要（不自动纳入原文）",
   "higher.meta":
-    "冻结 {count} 章；摘要 v{version}{selected}；文字估算 {tokens} token；实际冻结还含引用标识，usage／费用未知。",
+    "锁定 {count} 章；摘要 v{version}{selected}；文字估算 {tokens} token；实际锁定还含引用标识，usage／费用未知。",
   "higher.meta.selected": "／本轮所选 v{version}",
   "higher.stale":
-    "当前完整范围已变化；这里只可使用原冻结范围，不声称覆盖当前整卷或全书。",
+    "当前完整范围已变化；这里只可使用本次参考的范围，不声称覆盖当前整卷或全书。",
   "higher.notPrior": "含当前章、后文或旧版本，不能拆掉部分摘要使用。",
   "higher.notEligible": "不是当前来源有效的所选采用头，请清除并重新明确选择。",
   "higher.chapters": "此摘要的实际章节版本",
@@ -121,7 +121,7 @@ export const zh = {
   "sources.note":
     "这是来源锚定的作者解释目录，不是模型语义认证。AI 草稿、过期与撤回历史保留；旧手工图仍单独维护，不自动升级。章节／卷／故事弧归属沿当前目录核对，不把声明数量当作全书质量或阅读覆盖。",
   "sources.note.select":
-    "只有勾选的当前正式声明才进入本轮输入：声明文本、实际端点名称／版本和来源身份；不附带冻结引文、原文或端点摘要。原章、段落、中间资料和声明自身的禁止策略均继承。每条声明的全部来源须在本轮允许范围；不扩大原文／摘要覆盖。",
+    "只有勾选的当前正式声明才进入本轮输入：声明文本、实际端点名称／版本和来源身份；不附带锁定引文、原文或端点摘要。原章、段落、中间资料和声明自身的禁止策略均继承。每条声明的全部来源须在本轮允许范围；不扩大原文／摘要覆盖。",
   "sources.read": "读取人物／因果／认知来源目录",
   "sources.failed": "叙事索引未完整核对：{message}；旧缓存不作为本次选择依据。",
   "sources.loading": "正在读取当前 owner 目录，未计为已检查。",
@@ -194,7 +194,7 @@ export const zh = {
     "当前章节／卷／故事弧归属未完整核对，不沿旧缓存分组，不认定为空范围；原声明与原参考内容保留。",
   "hierarchy.title": "当前全书／卷／显式故事弧目录",
   "hierarchy.note":
-    "这是当前目录归属，不是原声明冻结时的归属或模型阅读覆盖。未绑定／失效故事弧保留原身份，不猜测起止章号。",
+    "这是当前目录归属，不是原声明锁定时的归属或模型阅读覆盖。未绑定／失效故事弧保留原身份，不猜测起止章号。",
   "hierarchy.group": "{label} · {state} · {count} 个目录引用（不是阅读覆盖）",
   "hierarchy.state.current": "当前目录",
   "hierarchy.state.stale": "原范围失效",

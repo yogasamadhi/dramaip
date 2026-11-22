@@ -43,7 +43,7 @@ export function deriveAdaptationCockpit(
     "独立改编策略",
     "整季分集方案",
     "首集剧本",
-    "首集分镜试制包",
+    "首集分镜样片包",
   ];
   const gates: Gate[] = [];
   const actions: ProjectCockpitAction[] = [];
@@ -476,9 +476,9 @@ export function deriveAdaptationCockpit(
   if (storyboardReady && !saved && preview) {
     add(
       preview.status === "saving" ? "working" : "needs-human",
-      preview.status === "saving" ? "内部试制包正在保存" : "内部试制包等待确认",
+      preview.status === "saving" ? "样片包正在保存" : "样片包等待确认",
       "已有正式分镜，返回实际清单核对阻断项、范围与权利声明；预览、取消和保存失败均不代表交付。未知质量／授权不标通过。",
-      "核验并保存内部试制包",
+      "核验并保存样片包",
       packageTo,
     );
   } else {
@@ -488,14 +488,14 @@ export function deriveAdaptationCockpit(
       Boolean(storyboard.value),
       Boolean(storyboard.value && !storyboardReady),
       packageReady
-        ? "内部试制包已保存 · 非发行就绪"
+        ? "样片包已保存 · 非发行就绪"
         : storyboardReady
-          ? "正式分镜已采用，试制包待保存"
-          : "首集分镜试制包尚未就绪",
+          ? "正式分镜已采用，样片包待保存"
+          : "首集分镜样片包尚未就绪",
       packageReady
-        ? `分镜 v${storyboard.value!.version} · 试制包 v${saved!.version} · ${saved!.receipt!.byteSize} 字节回执／摘要核对。语义质量、授权证明、费用及媒体仍可能未核验；保存不等于发行批准。`
+        ? `分镜 v${storyboard.value!.version} · 样片包 v${saved!.version} · ${saved!.receipt!.byteSize} 字节回执／摘要核对。语义质量、授权证明、费用及媒体仍可能未核验；保存不等于发行批准。`
         : `${storyboard.value ? `分镜正式版本 v${storyboard.value.version}。` : ""}分镜必须继承当前首集正式剧本与稳定块，再明确确认并取得 Host 保存回执；不要求先生成静帧、音频或视频。${issues(storyboard.value)}`,
-      storyboardReady ? "核验并保存内部试制包" : "开发首集分镜包",
+      storyboardReady ? "核验并保存样片包" : "开发首集分镜包",
       packageTo,
       episodeWorkflow("storyboard-package"),
       Boolean(scriptReady),
@@ -612,12 +612,12 @@ export function deriveAdaptationCockpit(
       status,
       statusLabel:
         index < 0
-          ? "内部试制包已保存，发行仍待核验"
+          ? "样片包已保存，发行仍待核验"
           : `${gate!.label} · ${gate!.statusLabel}`,
       primaryAction:
         index < 0
           ? {
-              label: "查看内部试制包回执",
+              label: "查看样片包回执",
               description: gates.at(-1)!.detail,
               to: gates.at(-1)!.to,
             }

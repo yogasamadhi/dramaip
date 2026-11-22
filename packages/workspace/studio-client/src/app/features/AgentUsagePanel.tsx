@@ -67,7 +67,7 @@ export function AgentUsageObservationView({
             </p>
             <p>
               {item.costEstimate
-                ? `引擎报告费用估值：${item.costEstimate.amount.status === "reported" ? item.costEstimate.amount.value : item.costEstimate.amount.status === "invalid" ? "报告值无效" : "金额未报告"} · ${item.costEstimate.currency.status === "reported" ? item.costEstimate.currency.value : item.costEstimate.currency.status === "invalid" ? "币种报告无效" : "币种未报告"}；不是报价、账单或结算，不按 Token／当前单价补算或合计。`
+                ? `AI 服务报告的费用估值：${item.costEstimate.amount.status === "reported" ? item.costEstimate.amount.value : item.costEstimate.amount.status === "invalid" ? "报告值无效" : "金额未报告"} · ${item.costEstimate.currency.status === "reported" ? item.costEstimate.currency.value : item.costEstimate.currency.status === "invalid" ? "币种报告无效" : "币种未报告"}；不是报价、账单或结算，不按 Token／当前单价补算或合计。`
                 : "本条没有已记录的费用估值；不补造历史金额或币种，结算未知。"}
             </p>
             <p className={styles.c4}>
@@ -131,7 +131,7 @@ export function AgentUsagePanel(props: {
               item.engineKind !== props.expectedEngineKind),
         )
       ) {
-        setError("用量会话或引擎不属于原阶段；未显示外来报告。");
+        setError("用量会话或 AI 服务不属于原阶段；未显示外来报告。");
         return;
       }
       if (

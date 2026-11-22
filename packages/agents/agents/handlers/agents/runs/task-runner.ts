@@ -13,7 +13,6 @@ import { type PluginContext } from "@dramaip/plugin-api/internal";
 import {
   activeAgentProviderId,
   configuredProvider,
-  engineDefinitions,
   findProvider,
   hostEngineHealth,
   modelSelection,
@@ -207,22 +206,19 @@ export function createAgentTaskRunner(
         throw new Error(
           "模型配置无效；仅支持 providerId、modelId、profileId，不会忽略其他参数。",
         );
-      if (!host)
-        throw new Error(
-          "当前 Runtime 未连接 Desktop Host，无法调用本地智能引擎。",
-        );
+      if (!host) throw new Error("桌面服务未连接，AI 暂时不能使用。");
       let health = hostEngineHealth(
         await host.engineHealth(input.engineKind).catch(() => undefined),
       );
       if (!health.available || !health.healthy)
-        throw new Error(
-          `${engineDefinitions[input.engineKind].name} 引擎当前不可用。`,
-        );
+        throw new Error("AI 服务当前不可用，请稍候再试。");
       const activeProvider = activeAgentProviderId(pluginContext);
       if (!activeProvider)
-        throw new Error("请先将一项模型服务设为智能助手模型。");
+        throw new Error(
+          "还没有设置 AI 模型，请先在「设置 AI 模型」里添加一个。",
+        );
       if (model?.providerId && model.providerId !== activeProvider)
-        throw new Error("所选模型不属于当前启用的智能模型服务商。");
+        throw new Error("所选模型不属于当前的默认 AI 模型服务商。");
       // A healthy transport can precede saved provider reconciliation after
       // Desktop restart. Restore only the explicitly active provider before
       // creating a session; never switch engines/models or invoke an
@@ -230,14 +226,14 @@ export function createAgentTaskRunner(
       if (!health.configured) {
         if (!(await restoreActiveAgentProvider(pluginContext, host)))
           throw new Error(
-            "已保存模型配置尚未恢复到引擎，请检查凭据与引擎状态后重试。",
+            "AI 模型设置还没生效，请稍候再试，或重新保存一次模型设置。",
           );
         health = hostEngineHealth(
           await host.engineHealth(input.engineKind).catch(() => undefined),
         );
         if (!health.available || !health.healthy || !health.configured)
           throw new Error(
-            "所选引擎尚未接受已保存模型配置，不会换用其他引擎或模型。",
+            "AI 模型设置还没生效，请稍候再试，或重新保存一次模型设置。",
           );
       }
       const sessionId = crypto.randomUUID();
@@ -282,6 +278,19 @@ export function createAgentTaskRunner(
       if (!contextSnapshot) throw new Error("AI 上下文预览在模型调用前失效。");
       if (contextSnapshot.projectId !== input.projectId)
         throw new Error("上下文快照不属于当前项目。");
+      const destination = contextSnapshot.destination.provider;
+      if (destination !== activeProvider) {
+        const previousAuth = findProvider(pluginContext, destination)?.payload[
+          "认证方式"
+        ];
+        if (
+          provider?.authentication === "hosted" ||
+          provider?.authentication === "piSubscription" ||
+          previousAuth === "hosted" ||
+          previousAuth === "piSubscription"
+        )
+          throw new Error("AI 模型服务已切换，请重新预览本次创作的上下文。");
+      }
       const engineSession = await runtime.createSession({
         sessionId,
         title: input.taskType,
@@ -421,7 +430,7 @@ export function createAgentTaskRunner(
         );
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "智能引擎拒绝了运行。";
+          error instanceof Error ? error.message : "AI 服务拒绝了运行。";
         pluginContext.uow.execute((transaction) => {
           const failedAt = new Date().toISOString();
           transaction.run(
@@ -659,7 +668,7 @@ export function createAgentTaskRunner(
           }
           const response = engineResponseText(output) ?? content.trim();
           if (canceled) return;
-          if (!response) throw new Error("智能引擎未返回可验证的文本结果。");
+          if (!response) throw new Error("AI 服务未返回可验证的文本结果。");
           const completedAt = new Date().toISOString();
           pluginContext.uow.execute((transaction) =>
             transaction.run(
@@ -760,7 +769,7 @@ export function createAgentTaskRunner(
         } catch (error) {
           if (canceled) return;
           const message =
-            error instanceof Error ? error.message : "智能引擎运行失败。";
+            error instanceof Error ? error.message : "AI 服务运行失败。";
           const failedAt = new Date().toISOString();
           pluginContext.uow.execute((transaction) => {
             transaction.run(

@@ -159,16 +159,9 @@ async function configureModel(
     capture.waitForEvent("close"),
     capture.getByRole("button", { name: "安全保存", exact: true }).click(),
   ]);
-  await page
-    .getByLabel("模型服务商 本地受控构思接口", { exact: true })
-    .getByRole("button", { name: "设为智能助手模型", exact: true })
-    .click();
-  await expect(page.getByText(/本地受控构思接口：.*已/)).toBeVisible();
-  await page
-    .getByRole("button", { name: "保存全局默认值", exact: true })
-    .click();
+  // Saving a language model connects it and makes it the default.
   await expect(
-    page.getByText("全局默认模型已保存", { exact: true }),
+    page.getByText("已连接「本地受控构思接口」，现在可以开始用 AI 写作了。"),
   ).toBeVisible();
 }
 
@@ -250,7 +243,11 @@ test("新建小说后和 AI 对话完成设定、人物、大纲，再开始写�
       page.getByRole("button", { name: "当前项目：未命名小说" }),
     ).toBeVisible();
     const sections = page.getByRole("navigation", { name: "小说创作入口" });
-    await sections.getByRole("button", { name: "设定", exact: true }).click();
+    await sections.getByRole("button", { name: "资料", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "资料分类" })
+      .getByRole("button", { name: "设定", exact: true })
+      .click();
     await expect(page.getByLabel("核心钩子", { exact: true })).toHaveValue(
       "能读心的旧书店",
     );
@@ -289,7 +286,11 @@ test("设定页一句话生成故事设定，采用后写入项目字段且不�
     await configureModel(application, page, model.url);
     await quickCreateProject(page, "写小说");
     const sections = page.getByRole("navigation", { name: "小说创作入口" });
-    await sections.getByRole("button", { name: "设定", exact: true }).click();
+    await sections.getByRole("button", { name: "资料", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "资料分类" })
+      .getByRole("button", { name: "设定", exact: true })
+      .click();
 
     await page.getByRole("button", { name: /智能补全项目设定/ }).click();
     await page

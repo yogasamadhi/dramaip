@@ -128,7 +128,7 @@ test("作者意图未保存编辑跨项目与后台重启恢复原基准，来�
     for (const [label, value] of Object.entries(values))
       await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
     const panel = page.getByLabel("正式作者意图工作台", { exact: true });
-    await expect(panel).toContainText(`冻结项目版本 ${first.version}`);
+    await expect(panel).toContainText(`锁定项目版本 ${first.version}`);
     await expect(panel.getByRole("alert")).toContainText("来源已变化");
     expect(
       (await json<AuthorIntentCurrent>(`projects/${first.id}/author-intent`))

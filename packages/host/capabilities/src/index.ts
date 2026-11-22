@@ -8,13 +8,14 @@
  * @module @dramaip/host-capabilities
  */
 
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import z from "@deepseek-ai/schemastery";
 import type { DesktopHost } from "@dramaip/host-contracts";
 import type {} from "@dramaip/host-shell-bridge";
 import { dramaipHomePath } from "@dramaip/infra-home-paths";
 import type { Engines } from "@dramaip/seams-engines";
+import { CloudAi } from "./cloud-ai.ts";
 import { HostCredentials } from "./credentials.ts";
 import { HostFiles } from "./files.ts";
 import { HostMedia } from "./media.ts";
@@ -57,6 +58,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     join(config.dataDir, "credentials"),
     shell,
   );
+  const cloudAi = new CloudAi(config.dataDir, credentials, async (url) => {
+    await shell.request("shell.openExternal", { url });
+  });
   const media = new HostMedia(
     {
       dataDir: config.dataDir,
@@ -69,23 +73,25 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     files,
     credentials,
   );
+  const host = new DesktopHostService({
+    shell,
+    files,
+    credentials,
+    cloudAi,
+    media,
+    piAuthPath: resolve(config.dataDir, "pi", "auth.json"),
+    engines: () => ctx.get("engines") as Engines | undefined,
+  });
   ctx.effect(() => {
     const stopServing = credentials.serve();
     return async () => {
       stopServing();
+      cloudAi.dispose();
+      await host.closePiLogin();
       await credentials.dispose();
       await media.dispose();
     };
   }, "host-capabilities: vault and media");
   await media.start();
-  ctx.provide(
-    "desktopHost",
-    new DesktopHostService({
-      shell,
-      files,
-      credentials,
-      media,
-      engines: () => ctx.get("engines") as Engines | undefined,
-    }),
-  );
+  ctx.provide("desktopHost", host);
 }

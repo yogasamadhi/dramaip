@@ -3,9 +3,13 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { verifyPiSubscriptions } from "./verify-pi-subscriptions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = resolve(here, "..");
+const engineLock = JSON.parse(
+  await readFile(join(desktop, "../../vendor/pi.lock.json"), "utf8"),
+);
 const root = resolve(
   process.env.DRAMAIP_PI_RUNTIME_ROOT || join(desktop, "build/pi"),
 );
@@ -14,8 +18,10 @@ const manifest = JSON.parse(
 );
 if (
   manifest.engine !== "pi" ||
-  manifest.version !== "1.5.0" ||
-  manifest.node !== ">=22.19.0" ||
+  manifest.version !== engineLock.version ||
+  manifest.node !== engineLock.node ||
+  manifest.sourceTreeSha256 !== engineLock.sourceTreeSha256 ||
+  manifest.modelDataSha256 !== engineLock.modelData.sha256 ||
   !/^[a-f0-9]{64}$/.test(manifest.runtimeSha256 ?? "")
 )
   throw new Error("Pi Runtime 清单无效");
@@ -23,6 +29,7 @@ const runtimeEntry = join(root, manifest.entry);
 if (!existsSync(runtimeEntry)) throw new Error("Pi Runtime 缺少入口");
 
 const expectedText = "真实 Pi Runtime 已完成";
+const minimaxModel = "MiniMax-M3";
 const mcpToken = "runtime-pi-mcp-token";
 const providerToken = "runtime-pi-provider-token";
 let mcpAuthorized = false;
@@ -107,7 +114,7 @@ const llmServer = createServer(async (request, response) => {
     const body = await requestBody(request);
     if (
       request.headers["x-api-key"] !== providerToken ||
-      body.model !== "MiniMax-M2.7" ||
+      body.model !== minimaxModel ||
       body.tools?.length
     ) {
       response.writeHead(400).end();
@@ -356,11 +363,11 @@ try {
     rejected = /401/.test(String(error));
   }
   if (!rejected) throw new Error("Pi 文本接口未传播认证失败");
+  await verifyPiSubscriptions(runtime, runtimeEntry);
   const catalog = runtime.getPiProviderCatalog();
   if (
-    catalog.release !== "Pi 1.5.0" ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(catalog.updatedAt) ||
-    catalog.updatedAt <= "2026-08-11"
+    catalog.release !== `Pi ${engineLock.version}` ||
+    catalog.updatedAt !== engineLock.modelData.generatedAt.slice(0, 10)
   )
     throw new Error("Pi 原生模型目录版本或日期不正确");
   if (
@@ -377,7 +384,7 @@ try {
   if (
     minimax?.baseUrl !== "https://api.minimax.io/anthropic" ||
     !minimax.models.some(
-      (model) => model.id === "MiniMax-M2.7" && model.recommended,
+      (model) => model.id === minimaxModel && model.recommended,
     )
   )
     throw new Error("MiniMax 未使用 Pi 服务商端点和默认模型");
@@ -385,7 +392,7 @@ try {
     provider: {
       ...textProvider,
       piProviderId: "minimax",
-      model: "MiniMax-M2.7",
+      model: minimaxModel,
       baseUrl: `http://127.0.0.1:${llmPort}/anthropic`,
     },
     system: "仅返回文本",
@@ -475,7 +482,7 @@ try {
   await Promise.all([close(mcpServer), close(llmServer)]);
 }
 
-process.stdout.write("Pi 1.5.0 Runtime 与只读工具边界验证通过\n");
+process.stdout.write(`Pi ${manifest.version} Runtime 与只读工具边界验证通过\n`);
 
 function listen(server) {
   return new Promise((resolvePromise, reject) => {

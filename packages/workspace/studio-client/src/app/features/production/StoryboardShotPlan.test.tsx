@@ -178,7 +178,7 @@ test("non-pending candidate retains readonly new and reused identities without a
     episodeDevelopmentBasis: { storyboardRedo: receipt },
   } as unknown as CreationWorkflow;
   const html = renderToStaticMarkup(<EpisodeCandidate workflow={workflow} />);
-  expect(html).toContain("冻结作者镜头计划");
+  expect(html).toContain("锁定作者镜头计划");
   expect(html).toContain("复用 old-shot");
   expect(html).toContain(`新增 ${newId}`);
   expect(html).toContain("实际记录尚未采用创建");

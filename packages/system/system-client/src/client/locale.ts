@@ -2,7 +2,7 @@
 export const zh = {
   "page.title": "设置中心",
   "page.description":
-    "先配置模型服务商，再查看 Pi 状态、管理备份、诊断和外部连接。",
+    "先配置模型服务商，再查看 AI 服务状态、管理备份、诊断和外部连接。",
   "page.nav": "设置分类",
   "appearance.nav": "外观与编辑",
   "appearance.title": "外观、字体与语言",
@@ -37,7 +37,7 @@ export const zh = {
 export const en: Record<keyof typeof zh, string> = {
   "page.title": "Settings",
   "page.description":
-    "Set up a model provider first, then check Pi status and manage backups, diagnostics and external connections.",
+    "Set up a model provider first, then check AI service status and manage backups, diagnostics and external connections.",
   "page.nav": "Settings sections",
   "appearance.nav": "Appearance and editing",
   "appearance.title": "Appearance, fonts and language",

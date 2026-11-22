@@ -254,11 +254,23 @@ export function ImportTool(props: ToolProps) {
       );
       setImportId(undefined);
       setPreview(undefined);
+      const novel =
+        preview.contentKind === "novel" && result.createdChapters > 0;
+      const project = novel
+        ? await value(workspace.projectsGet(projectId)).catch(() => undefined)
+        : undefined;
+      // A novel goes on to the AI breakdown: 构思 for a novel project, the
+      // adaptation guide for a novel being turned into a script.
+      const landing = !novel
+        ? `/projects/${projectId}/tools/review`
+        : project?.mode === "series_longform"
+          ? `/projects/${projectId}?section=plan`
+          : `/adapt?${new URLSearchParams({ projectId, stage: "adaptations" })}`;
       void props.reload().then(() => {
         // The author may have opened another tool while the import ran;
-        // only then is the suggested review left unopened.
+        // only then is the suggested next step left unopened.
         if (window.location.hash === `#/projects/${projectId}/tools/import`)
-          props.navigate(`/projects/${projectId}/tools/review`);
+          props.navigate(landing);
       });
     } catch (cause) {
       setNotice(refusal(cause));

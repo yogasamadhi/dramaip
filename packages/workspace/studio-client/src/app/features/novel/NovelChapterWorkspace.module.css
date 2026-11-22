@@ -2180,3 +2180,40 @@
   inherits: false;
   initial-value: 0 0 transparent;
 }
+
+.mentionHost {
+  position: relative;
+}
+
+.mentionHost :global(.novel-character-mention) {
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
+}
+
+.mentionCard {
+  position: absolute;
+  z-index: 20;
+  max-width: 280px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.mentionCard p {
+  margin: 4px 0 0;
+}
+
+.mentionCard span {
+  margin-right: 6px;
+  opacity: 0.65;
+}
+
+.openingLink {
+  margin-left: auto;
+  white-space: nowrap;
+}

@@ -90,8 +90,9 @@ for (const packagedNotice of [
   );
 
 const rootNotice = readFileSync(join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
-for (const component of ["Pi 1.5.0"])
-  assert.ok(rootNotice.includes(component), `notice omits ${component}`);
+const piLock = JSON.parse(readFileSync(join(root, "vendor/pi.lock.json"), "utf8"));
+const piComponent = `Pi ${piLock.version}`;
+assert.ok(rootNotice.includes(piComponent), `notice omits ${piComponent}`);
 
 // DeepSeek Harness copies (MIT): provenance, license, notice, and a
 // THIRD_PARTY_NOTICES entry per package; each copied file must map to a file

@@ -201,7 +201,7 @@ test("来源未读取、旧目录与任意媒体计数不能完成直写 Gate", 
 test("来源、正式意图与批准 Bible 缺失定位到实际第一步，不能跳过上游", () => {
   const e = fixture();
   e.sources.storyBibleCount = 0;
-  expect(derive(e).primaryAction.label).toBe("采用正式故事圣经");
+  expect(derive(e).primaryAction.label).toBe("采用故事记忆");
   expect(derive(e).primaryAction.to).toContain("episodeId=first");
   expect(derive(e).gates!.every((item) => item.status !== "ready")).toBe(true);
   e.sources.storyBibleCount = 1;
@@ -470,7 +470,7 @@ test("只有当前内部包的实际摘要字节回执和权利确认才标保�
     mutate(e);
     expect(derive(e).status).not.toBe("delivered");
     expect(derive(e).gates![3]!.status).not.toBe("ready");
-    expect(derive(e).primaryAction.label).toBe("核验并保存内部试制包");
+    expect(derive(e).primaryAction.label).toBe("核验并保存样片包");
   }
 });
 

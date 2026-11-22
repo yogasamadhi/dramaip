@@ -328,7 +328,7 @@ test("已采用分层摘要失效独立于工作流进入 attention，完整范�
   expect(items[0]).toMatchObject({
     objectId: frozenSummary.id,
     category: "attention",
-    status: "完整范围已变化，原冻结范围仍可使用",
+    status: "完整范围已变化，本次参考的范围仍可使用",
   });
   expect(items[0]!.to).toBe(
     `/projects/${project.id}/tools/quality-review?summaryId=summary-original&summaryWorkflowId=summary-run`,
@@ -343,7 +343,7 @@ test("已采用分层摘要失效独立于工作流进入 attention，完整范�
         },
       ],
     })[0]!.status,
-  ).toBe("冻结摘要来源不可用，需复核");
+  ).toBe("锁定摘要来源不可用，需复核");
   expect(
     derive({
       ...base,

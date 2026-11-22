@@ -31,12 +31,12 @@ const value: EpisodeUpstreamConstraints = {
 test("constraint view distinguishes absent legacy projection from an actual empty approved collection", () => {
   const absent = renderToStaticMarkup(<EpisodeConstraintObservations />);
   expect(absent).toContain("此原清单未提供正式约束明细");
-  expect(absent).not.toContain("冻结 0 份");
+  expect(absent).not.toContain("锁定 0 份");
   expect(absent).not.toContain("<table");
   const actual = renderToStaticMarkup(
     <EpisodeConstraintObservations value={value} />,
   );
-  expect(actual).toContain("冻结 0 份");
+  expect(actual).toContain("锁定 0 份");
   expect(actual).toContain("本次实际集合已读取");
 });
 test("constraint view presents exact metadata and stale source without treating same identity or missing hash/document as content proof", () => {

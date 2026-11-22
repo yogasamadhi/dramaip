@@ -36,7 +36,7 @@ export const zh = {
   "app/creative-intent.5": "完整故事预设：",
   "app/creative-intent.6": "AI 本次建议",
   "app/creative-intent.7": "查看用户已确认的项目设定",
-  "app/features/AgentUsagePanel.1": "引擎用量观测",
+  "app/features/AgentUsagePanel.1": "AI 用量",
   "app/features/AgentUsagePanel.2": "原运行 ",
   "app/features/AgentUsagePanel.3": " · 当前读取时共 ",
   "app/features/AgentUsagePanel.4": " 条观测",
@@ -50,7 +50,7 @@ export const zh = {
   "app/features/AgentUsagePanel.12": "输入口径：",
   "app/features/AgentUsagePanel.13": "· 保存时间 ",
   "app/features/AgentUsagePanel.14":
-    "仅为引擎自行报告，覆盖可能不完整，未合计为本次运行总量。运行来源分类未知，费用与结算未知；不是实际付费、提效或文学质量证明。",
+    "仅为 AI 服务自行报告，覆盖可能不完整，未合计为本次运行总量。运行来源分类未知，费用与结算未知；不是实际付费、提效或文学质量证明。",
   "app/features/AgentUsagePanel.15": "运行用量只读记录",
   "app/features/AgentUsagePanel.16":
     " 上次记录仅作历史查看，不自动换运行或重试。",
@@ -83,7 +83,7 @@ export const zh = {
   "app/features/CreationExecutionPanel.7": " · 原运行",
   "app/features/CreationExecutionPanel.8":
     "原运行尚未建立或已缺失；模型、时间和用量未知。不换成最近运行。",
-  "app/features/CreationExecutionPanel.9": "实际引擎 ",
+  "app/features/CreationExecutionPanel.9": "实际 AI 服务 ",
   "app/features/CreationExecutionPanel.10": " · 持久状态",
   "app/features/CreationExecutionPanel.11": "持久模型：",
   "app/features/CreationExecutionPanel.12": "运行起止（含准备阶段）：",
@@ -98,7 +98,7 @@ export const zh = {
   "app/features/CreationIssueEvidence.5":
     "仅记录逐字匹配，不证明模型判断正确；位置标签仍是 AI 审阅意见。字符位置为从 0 开始、末位不含的 UTF-16 区间。",
   "app/features/CreationIssueEvidence.6": "检查时候选 SHA-256：",
-  "app/features/CreationRunContextPanel.1": "原阶段上下文快照",
+  "app/features/CreationRunContextPanel.1": "原阶段参考资料",
   "app/features/CreationRunContextPanel.2": "原运行 ",
   "app/features/CreationRunContextPanel.3": " · 原快照 ",
   "app/features/CreationRunContextPanel.4": "完整提示估算 ",
@@ -115,13 +115,13 @@ export const zh = {
   "app/features/CreationRunContextPanel.13": " v",
   "app/features/CreationRunContextPanel.14": " · 估算 ",
   "app/features/CreationRunContextPanel.15": "token",
-  "app/features/CreationRunContextPanel.16": "查看此条原冻结表达",
+  "app/features/CreationRunContextPanel.16": "查看此条本次参考的表达",
   "app/features/CreationRunContextPanel.17":
     "查看此阶段完整原提示（可能包含本地私有正文或 AI 草稿）",
   "app/features/CreationRunContextPanel.18":
     " 本次读取未成功；不显示旧缓存，不补造已读或覆盖率。",
-  "app/features/FrozenNarrativeStorySources.1": "本轮冻结叙事解释",
-  "app/features/FrozenNarrativeStorySources.2": "本轮冻结叙事解释 ",
+  "app/features/FrozenNarrativeStorySources.1": "本轮锁定叙事解释",
+  "app/features/FrozenNarrativeStorySources.2": "本轮锁定叙事解释 ",
   "app/features/FrozenNarrativeStorySources.3": " 条",
   "app/features/FrozenNarrativeStorySources.4":
     "保留原声明／采用绑定、来源范围与实际输入指纹，不跟随最新目录换源。这里只纳入作者明确采用的解释和端点名称，未附带引文、正文或端点摘要；不增加整章表达覆盖，也不证明模型读过或理解原著。",
@@ -132,18 +132,18 @@ export const zh = {
   "app/features/FrozenNarrativeStorySources.9": "原章节 ",
   "app/features/FrozenNarrativeStorySources.10": "原剧本 ",
   "app/features/NarrativeQualitySourceCoverage.1":
-    "冻结章节覆盖未提供；范围未知，不以空目录或 0 冒充已核全。",
+    "锁定章节覆盖未提供；范围未知，不以空目录或 0 冒充已核全。",
   "app/features/NarrativeSourceCoverage.1": "（摘要／片段不是全文阅读）",
   "app/features/NarrativeSourceCoverage.2": " v",
-  "app/features/NarrativeSourceCoverage.3": "高层摘要原冻结身份与章节版本",
-  "app/features/NarrativeSourceCoverage.4": " · 冻结时完整范围",
+  "app/features/NarrativeSourceCoverage.3": "高层摘要本次参考的身份与章节版本",
+  "app/features/NarrativeSourceCoverage.4": " · 锁定时完整范围",
   "app/features/NarrativeSourceCoverage.5": "；使用原覆盖，不扩大范围。",
-  "app/features/NarrativeSourceCoverage.6": "实际冻结引用与输入指纹（",
+  "app/features/NarrativeSourceCoverage.6": "实际锁定引用与输入指纹（",
   "app/features/NarrativeSourceCoverage.7": " 条）",
   "app/features/NarrativeSourceCoverage.8":
-    "仅列原冻结表达身份，不读取最新正文、改选来源或证明模型已经理解。",
+    "仅列本次参考的表达身份，不读取最新正文、改选来源或证明模型已经理解。",
   "app/features/NarrativeSourceCoverage.9": "SHA-256 ",
-  "app/features/NarrativeSourceCoverage.10": "本冻结允许范围内未纳入的章节（",
+  "app/features/NarrativeSourceCoverage.10": "本锁定允许范围内未纳入的章节（",
   "app/features/NarrativeSourceCoverage.11": " 章）",
   "app/features/NarrativeSourceCoverage.12":
     "这里只是本次编译的允许范围，不是全书目录；范围外章节数量不能由本列表推断。",
@@ -278,13 +278,13 @@ export const zh = {
     "本次来源与版本已保存；AI 草稿采用时再次核对。",
   "app/features/creation-workbench.27":
     "原明确允许范围与实际表达；未读取完整目录，不将解释来源章或所选段落计作全文已读。",
-  "app/features/creation-workbench.28": "制作原冻结范围：",
+  "app/features/creation-workbench.28": "制作本次参考的范围：",
   "app/features/creation-workbench.29":
-    "新来源选择不改变此运行；原输入重试仍用原冻结表达，采用或复检完成时核对实际来源。",
+    "新来源选择不改变此运行；原输入重试仍用本次参考的表达，采用或复检完成时核对实际来源。",
   "app/features/creation-workbench.30": "完整首次提示估算",
   "app/features/creation-workbench.31": "token / 预算",
   "app/features/creation-workbench.32": "token；实际 usage 与费用未知。",
-  "app/features/creation-workbench.33": "规划原冻结范围：",
+  "app/features/creation-workbench.33": "规划本次参考的范围：",
   "app/features/creation-workbench.34": "；实际覆盖",
   "app/features/creation-workbench.35": " 章， 未纳入",
   "app/features/creation-workbench.36":
@@ -296,27 +296,27 @@ export const zh = {
   "app/features/creation-workbench.41": "章采用摘要，",
   "app/features/creation-workbench.42":
     "章所选段落。 摘要与片段不代表完整原文，覆盖不等于语义质量。",
-  "app/features/creation-workbench.43": "冻结上下文估算",
-  "app/features/creation-workbench.44": "高层摘要的原冻结章节版本",
+  "app/features/creation-workbench.43": "锁定上下文估算",
+  "app/features/creation-workbench.44": "高层摘要的本次参考的章节版本",
   "app/features/creation-workbench.45": "高层采用摘要：",
   "app/features/creation-workbench.46": " v",
-  "app/features/creation-workbench.47": "； 原冻结覆盖 ",
+  "app/features/creation-workbench.47": "； 本次参考的覆盖 ",
   "app/features/creation-workbench.48": "章，不是当前全书原文。",
   "app/features/creation-workbench.49": "编辑区新选择不改变这个运行。",
-  "app/features/creation-workbench.50": "实际冻结摘要范围：",
+  "app/features/creation-workbench.50": "实际锁定摘要范围：",
   "app/features/creation-workbench.51": "；完整纳入 ",
   "app/features/creation-workbench.52": "个非空章节， 空章",
   "app/features/creation-workbench.53": "个不算已读。 原文",
   "app/features/creation-workbench.54": "章， 已采用摘要",
   "app/features/creation-workbench.55":
-    "章； 编辑区新选择不改变这一运行的原冻结来源，引用与覆盖不保证语义概括正确。",
+    "章； 编辑区新选择不改变这一运行的本次参考的来源，引用与覆盖不保证语义概括正确。",
   "app/features/creation-workbench.56": "质量评议实际表达：原文",
   "app/features/creation-workbench.57": "章、章节摘要",
   "app/features/creation-workbench.58": "章、段落",
   "app/features/creation-workbench.59": "章、高层摘要",
   "app/features/creation-workbench.60":
     "条；覆盖并集不重复计章，摘要与段落不是全文评议。",
-  "app/features/creation-workbench.61": "质量摘要冻结身份与逐章版本",
+  "app/features/creation-workbench.61": "质量摘要锁定身份与逐章版本",
   "app/features/creation-workbench.62": "来源 ",
   "app/features/creation-workbench.63": " · 版本 ",
   "app/features/creation-workbench.64": "查看采用后的原问题复检",
@@ -327,7 +327,7 @@ export const zh = {
   "app/features/creation-workbench.69": "停止生成",
   "app/features/creation-workbench.70": "请在",
   "app/features/creation-workbench.71": "采用",
-  "app/features/creation-workbench.72": "采用并生成下一章",
+  "app/features/creation-workbench.72": "采用并写下一章",
   "app/features/creation-workbench.73": "放弃 AI 草稿",
   "app/features/creation-workbench.74": "生成并检查",
   "app/features/creation-workbench.75": "解决版本冲突",
@@ -464,7 +464,7 @@ export const zh = {
   "app/features/creative/NarrativeLocalQualityPanel.40":
     "本次原本地记录尚未成功读取；不使用历史缓存替代。",
   "app/features/creative/NarrativeLocalQualityPanel.41":
-    "原记录的新状态已经读取；旧操作基准冻结，请明确查看新状态。",
+    "原记录的新状态已经读取；旧操作基准锁定，请明确查看新状态。",
   "app/features/creative/NarrativeLocalQualityPanel.42": "查看原记录新状态",
   "app/features/creative/NarrativeLocalQualityPanel.43": "· v",
   "app/features/creative/NarrativeLocalQualityPanel.44":
@@ -509,7 +509,7 @@ export const zh = {
   "app/features/creative/NarrativeQualityPanel.28": "选择全部非空章节",
   "app/features/creative/NarrativeQualityPanel.29": "清空章节选择",
   "app/features/creative/NarrativeQualityPanel.30":
-    "所选原文、正式意图和可信设定必须完整纳入冻结预算；超限或被隐私排除会阻断，不用摘要冒充读过正文。",
+    "所选原文、正式意图和可信设定必须完整纳入锁定预算；超限或被隐私排除会阻断，不用摘要冒充读过正文。",
   "app/features/creative/NarrativeQualityPanel.31": "质量评议使用明确混合表达",
   "app/features/creative/NarrativeQualityPanel.32":
     "明确选择原文／摘要／段落（不代表全文评议）",
@@ -520,7 +520,7 @@ export const zh = {
   "app/features/creative/NarrativeQualityPanel.36": "已确认",
   "app/features/creative/NarrativeQualityPanel.37": " 章",
   "app/features/creative/NarrativeQualityPanel.38":
-    " · 顺序及逐章版本已冻结，不自动扩大范围。",
+    " · 顺序及逐章版本已锁定，不自动扩大范围。",
   "app/features/creative/NarrativeQualityPanel.39":
     "已确认实际保存来源 SHA-256 ",
   "app/features/creative/NarrativeQualityPanel.40":
@@ -529,16 +529,16 @@ export const zh = {
     "查看本项目待确认与质量问题",
   "app/features/creative/NarrativeQualityPanel.42": "质量报告 · v",
   "app/features/creative/NarrativeQualityPanel.43": "目标 ",
-  "app/features/creative/NarrativeQualityPanel.44": "引擎 ",
+  "app/features/creative/NarrativeQualityPanel.44": "AI 服务 ",
   "app/features/creative/NarrativeQualityPanel.45": " · 检查范围：",
   "app/features/creative/NarrativeQualityPanel.46":
     "· 实际 token/费用未提供（未知，不是零）",
-  "app/features/creative/NarrativeQualityPanel.47": "冻结上下文估算 ",
+  "app/features/creative/NarrativeQualityPanel.47": "锁定上下文估算 ",
   "app/features/creative/NarrativeQualityPanel.48": " token / 预算",
   "app/features/creative/NarrativeQualityPanel.49":
     "；这是估算，不是实际 usage 或费用。",
   "app/features/creative/NarrativeQualityPanel.50":
-    "实际保存来源与原块身份（只读冻结基准）",
+    "实际保存来源与原块身份（只读锁定基准）",
   "app/features/creative/NarrativeQualityPanel.51": " · SHA-256",
   "app/features/creative/NarrativeQualityPanel.52": "原记录 SHA-256",
   "app/features/creative/NarrativeQualityPanel.53":
@@ -550,13 +550,13 @@ export const zh = {
   "app/features/creative/NarrativeQualityPanel.58": " · SHA-256 ",
   "app/features/creative/NarrativeQualityPanel.59": "（不代表父正文已读）",
   "app/features/creative/NarrativeQualityPanel.60":
-    "质量高层摘要的原冻结范围 · ",
+    "质量高层摘要的本次参考的范围 · ",
   "app/features/creative/NarrativeQualityPanel.61": "摘要 ",
   "app/features/creative/NarrativeQualityPanel.62": "；覆盖",
   "app/features/creative/NarrativeQualityPanel.63": " 章，不是已读原文。",
   "app/features/creative/NarrativeQualityPanel.64": "质量报告实际章节覆盖",
   "app/features/creative/NarrativeQualityPanel.65": "本轮实际纳入 ",
-  "app/features/creative/NarrativeQualityPanel.66": " · 冻结目录",
+  "app/features/creative/NarrativeQualityPanel.66": " · 锁定目录",
   "app/features/creative/NarrativeQualityPanel.67": " 章 · 未读/空章",
   "app/features/creative/NarrativeQualityPanel.68":
     "章。完整纳入与模型覆盖声明不证明实际阅读理解或语义正确。",
@@ -588,7 +588,7 @@ export const zh = {
   "app/features/creative/NarrativeStoryHierarchy.10":
     "当前全书／卷／显式故事弧目录",
   "app/features/creative/NarrativeStoryHierarchy.11":
-    "这是当前目录归属，不是原声明冻结时的归属或模型阅读覆盖。未绑定／失效故事弧保留原身份，不猜测起止章号。",
+    "这是当前目录归属，不是原声明锁定时的归属或模型阅读覆盖。未绑定／失效故事弧保留原身份，不猜测起止章号。",
   "app/features/creative/NarrativeStoryHierarchy.12":
     " 个目录引用（不是阅读覆盖）",
   "app/features/creative/NarrativeStoryHierarchy.13":
@@ -613,7 +613,7 @@ export const zh = {
   "app/features/creative/NarrativeStorySources.3":
     "这是来源锚定的作者解释目录，不是模型语义认证。AI 草稿、过期与撤回历史保留；旧手工图仍单独维护，不自动升级。章节／卷／故事弧归属沿当前目录核对，不把声明数量当作全书质量或阅读覆盖。",
   "app/features/creative/NarrativeStorySources.4":
-    "只有勾选的当前正式声明才进入本轮输入：声明文本、实际端点名称／版本和来源身份；不附带冻结引文、原文或端点摘要。原章、段落、中间资料和声明自身的禁止策略均继承。每条声明的全部来源须在本轮允许范围；不扩大原文／摘要覆盖。",
+    "只有勾选的当前正式声明才进入本轮输入：声明文本、实际端点名称／版本和来源身份；不附带锁定引文、原文或端点摘要。原章、段落、中间资料和声明自身的禁止策略均继承。每条声明的全部来源须在本轮允许范围；不扩大原文／摘要覆盖。",
   "app/features/creative/NarrativeStorySources.5":
     "读取人物／因果／认知来源目录",
   "app/features/creative/NarrativeStorySources.6": "叙事索引未完整核对：",
@@ -686,7 +686,7 @@ export const zh = {
     "；摘要不替代原文或语义质量评议。",
   "app/features/creative/NarrativeSummaryPanel.12": "纳入 ",
   "app/features/creative/NarrativeSummaryPanel.13": " 个非空章节；空章",
-  "app/features/creative/NarrativeSummaryPanel.14": "个。冻结估算 ",
+  "app/features/creative/NarrativeSummaryPanel.14": "个。锁定估算 ",
   "app/features/creative/NarrativeSummaryPanel.15":
     " token；实际 usage／费用未知。",
   "app/features/creative/NarrativeSummaryPanel.16": "逐章来源与逐字依据",
@@ -699,7 +699,7 @@ export const zh = {
   "app/features/creative/NarrativeSummaryPanel.23": "卷／故事弧／全书派生摘要",
   "app/features/creative/NarrativeSummaryPanel.24": "分层摘要工作台",
   "app/features/creative/NarrativeSummaryPanel.25":
-    "指定摘要原版本只读复核；不改读最新 AI 草稿，不自动重新生成或扩大原冻结范围。",
+    "指定摘要原版本只读复核；不改读最新 AI 草稿，不自动重新生成或扩大本次参考的范围。",
   "app/features/creative/NarrativeSummaryPanel.26":
     "返回分层摘要工作台（另行确认来源）",
   "app/features/creative/NarrativeSummaryPanel.27":
@@ -778,7 +778,7 @@ export const zh = {
   "app/features/creative/StoryAssertionPanel.19":
     "给关系或认知单独绑定实际来源",
   "app/features/creative/StoryAssertionPanel.20":
-    "节点证据不自动证明关系／认知。保存时冻结所选原文与实际节点版本，双重审阅后才采用；作者顺序与置信估计不是自动语义结论、时间定位或概率证明。不改原稿、不调用模型。",
+    "节点证据不自动证明关系／认知。保存时锁定所选原文与实际节点版本，双重审阅后才采用；作者顺序与置信估计不是自动语义结论、时间定位或概率证明。不改原稿、不调用模型。",
   "app/features/creative/StoryAssertionPanel.21": "节点读取失败：",
   "app/features/creative/StoryAssertionPanel.22":
     "；旧节点缓存不作为当前依据。",
@@ -796,8 +796,8 @@ export const zh = {
   "app/features/creative/StoryAssertionPanel.34": " · 来源 ",
   "app/features/creative/StoryAssertionPanel.35": "解释：",
   "app/features/creative/StoryAssertionPanel.36": "；作者审阅不是语义证明。",
-  "app/features/creative/StoryAssertionPanel.37": "冻结指纹 ",
-  "app/features/creative/StoryAssertionPanel.38": "冻结节点 ",
+  "app/features/creative/StoryAssertionPanel.37": "锁定指纹 ",
+  "app/features/creative/StoryAssertionPanel.38": "锁定节点 ",
   "app/features/creative/StoryAssertionPanel.39": "实际来源 ",
   "app/features/creative/StoryAssertionPanel.40": "实际锚点 ",
   "app/features/creative/StoryAssertionPanel.41": " · 引文 hash",
@@ -805,7 +805,7 @@ export const zh = {
   "app/features/creative/StoryAssertionPanel.43":
     "已核对关系认知原文与节点版本",
   "app/features/creative/StoryAssertionPanel.44":
-    "已核对原文、实际锚点与冻结节点版本",
+    "已核对原文、实际锚点与锁定节点版本",
   "app/features/creative/StoryAssertionPanel.45":
     "已审阅关系认知解释与不确定性",
   "app/features/creative/StoryAssertionPanel.46":
@@ -857,8 +857,8 @@ export const zh = {
   "app/features/creative/StoryDeclarationPanel.30": "正在读取原声明 ID…",
   "app/features/creative/StoryDeclarationPanel.31": " · 来源",
   "app/features/creative/StoryDeclarationPanel.32": "原声明 ID：",
-  "app/features/creative/StoryDeclarationPanel.33": "；冻结指纹：",
-  "app/features/creative/StoryDeclarationPanel.34": "冻结来源：",
+  "app/features/creative/StoryDeclarationPanel.33": "；锁定指纹：",
+  "app/features/creative/StoryDeclarationPanel.34": "锁定来源：",
   "app/features/creative/StoryDeclarationPanel.35": "原文引文：",
   "app/features/creative/StoryDeclarationPanel.36": "实际位置：",
   "app/features/creative/StoryDeclarationPanel.37":
@@ -936,10 +936,10 @@ export const zh = {
   "app/features/creative/StoryIntelligencePanel.44": "明确创建新声明快照",
   "app/features/creative/StoryIntelligencePanel.45":
     "原快照／推演无法核对，不自动换到最新来源：",
-  "app/features/creative/StoryIntelligencePanel.46": "冻结人工声明快照",
+  "app/features/creative/StoryIntelligencePanel.46": "锁定人工声明快照",
   "app/features/creative/StoryIntelligencePanel.47": "快照 ",
   "app/features/creative/StoryIntelligencePanel.48": " · 指纹 ",
-  "app/features/creative/StoryIntelligencePanel.49": "冻结人工确认节点 ",
+  "app/features/creative/StoryIntelligencePanel.49": "锁定人工确认节点 ",
   "app/features/creative/StoryIntelligencePanel.50": "／关系",
   "app/features/creative/StoryIntelligencePanel.51": "／认知声明 ",
   "app/features/creative/StoryIntelligencePanel.52": "。候选未混入。",
@@ -968,9 +968,9 @@ export const zh = {
   "app/features/creative/StoryRuleReview.1": "历史规则边界",
   "app/features/creative/StoryRuleReview.2":
     "旧快照只有历史文本规则，未回填新版定位；需核对后明确创建新快照。历史文本不升级为原文、语义或质量证明。",
-  "app/features/creative/StoryRuleReview.3": "原冻结规则定位",
+  "app/features/creative/StoryRuleReview.3": "本次参考的规则定位",
   "app/features/creative/StoryRuleReview.4": "规则 ",
-  "app/features/creative/StoryRuleReview.5": " · 当前冻结声明范围：节点",
+  "app/features/creative/StoryRuleReview.5": " · 当前锁定声明范围：节点",
   "app/features/creative/StoryRuleReview.6": "／关系 ",
   "app/features/creative/StoryRuleReview.7": "／认知",
   "app/features/creative/StoryRuleReview.8":
@@ -980,8 +980,8 @@ export const zh = {
   "app/features/creative/StoryRuleReview.10":
     "本规则集未发现结构复核线索；不等于故事无矛盾、原文已核验或质量通过。",
   "app/features/creative/StoryRuleReview.11": "待人工复核 · ",
-  "app/features/creative/StoryRuleReview.12": "查看原冻结记录与版本（",
-  "app/features/creative/StoryRuleReview.13": " · 冻结 v",
+  "app/features/creative/StoryRuleReview.12": "查看本次参考的记录与版本（",
+  "app/features/creative/StoryRuleReview.13": " · 锁定 v",
   "app/features/creative/StoryRuleReview.14":
     "位置只绑定此快照的原记录和版本，不读取最新替代。提示没有自动通过、忽略、改稿或采用入口。",
   "app/features/creative/StorySourceLifecycleReview.1": "来源声明撤回与替换",
@@ -1017,7 +1017,7 @@ export const zh = {
   "app/features/creative/StorySourceLifecycleReview.25": "实际新来源引文：",
   "app/features/creative/StorySourceLifecycleReview.26": "精确位置：",
   "app/features/creative/StorySourceLifecycleReview.27": "实际新节点 ",
-  "app/features/creative/StorySourceLifecycleReview.28": "新冻结指纹：",
+  "app/features/creative/StorySourceLifecycleReview.28": "新锁定指纹：",
   "app/features/creative/StorySourceLifecycleReview.29":
     "；禁止外发依赖完整继承，不由此次替换放宽。",
   "app/features/creative/StorySourceLifecycleReview.30":
@@ -1043,7 +1043,7 @@ export const zh = {
   "app/features/media/AssetDeclarationStatus.2": "费用 / 服务",
   "app/features/media/AssetDeclarationStatus.3": "结算费用未知",
   "app/features/media/AssetMediaPreview.1":
-    "重新核对会释放旧文件，明确读取当前实际版本；不自动加载、播放、采用或确认，也不改变冻结音轨的来源。",
+    "重新核对会释放旧文件，明确读取当前实际版本；不自动加载、播放、采用或确认，也不改变锁定音轨的来源。",
   "app/features/media/AudioResolutionPanel.1": " · 片段 ",
   "app/features/media/AudioResolutionPanel.2": "起点 ",
   "app/features/media/AudioResolutionPanel.3": " 帧 · 时长 ",
@@ -1082,16 +1082,16 @@ export const zh = {
   "app/features/media/AudioResolutionPanel.33": "明确移除理由",
   "app/features/media/AudioResolutionPanel.34":
     "本时间线没有引用音轨的音频／字幕片段；不会处理普通视频或猜测关联。",
-  "app/features/media/AudioResolutionPanel.35": "冻结人工换源差异预览",
+  "app/features/media/AudioResolutionPanel.35": "锁定人工换源差异预览",
   "app/features/media/AudioResolutionPanel.36": "清空未确认选择并重新核对",
   "app/features/media/AudioResolutionPanel.37":
     "时间线已经变化，旧编辑基准不会自动换成最新版本。请明确清空未确认选择后重新审查；已保存预览仍保留。",
   "app/features/media/AudioResolutionPanel.38": "换源／移除历史",
   "app/features/media/AudioResolutionPanel.39": "差异 ",
-  "app/features/media/AudioResolutionPanel.40": "冻结预览 ",
+  "app/features/media/AudioResolutionPanel.40": "锁定预览 ",
   "app/features/media/AudioResolutionPanel.41": "明确处理 ",
   "app/features/media/AudioResolutionPanel.42": " 个片段 · 原时间线 v",
-  "app/features/media/AudioResolutionPanel.43": "原时间线片段冻结快照",
+  "app/features/media/AudioResolutionPanel.43": "原时间线片段锁定快照",
   "app/features/media/AudioResolutionPanel.44":
     "原音轨参考内容（不是当前有效性声明）",
   "app/features/media/AudioResolutionPanel.45": "换源后保留人工参数",
@@ -1115,7 +1115,7 @@ export const zh = {
   "app/features/media/AudioRevisionPanel.6": " · 素材 ",
   "app/features/media/AudioRevisionPanel.7": " · 音色",
   "app/features/media/AudioRevisionPanel.8":
-    "没有与项目归属及冻结版本一致的实际音频；不能用当前素材冒充原音频。请另行审阅实际文件，未审阅时不要确认。",
+    "没有与项目归属及锁定版本一致的实际音频；不能用当前素材冒充原音频。请另行审阅实际文件，未审阅时不要确认。",
   "app/features/media/AudioRevisionPanel.9":
     "这是文本片段，不代表已生成或试听音频。",
   "app/features/media/AudioRevisionPanel.10": "修订自 ",
@@ -1144,7 +1144,7 @@ export const zh = {
   "app/features/media/AudioRevisionPanel.30": "修订文本",
   "app/features/media/AudioRevisionPanel.31": "从草稿移除此片段",
   "app/features/media/AudioRevisionPanel.32": "新增草稿片段",
-  "app/features/media/AudioRevisionPanel.33": "冻结音轨修订预览",
+  "app/features/media/AudioRevisionPanel.33": "锁定音轨修订预览",
   "app/features/media/AudioRevisionPanel.34":
     "原轨版本已变化。请收起并重新进入此分集，核对新版本后重新编辑；不会静默重绑编辑基准。",
   "app/features/media/AudioRevisionPanel.35":
@@ -1155,8 +1155,8 @@ export const zh = {
   "app/features/media/AudioRevisionPanel.39": " 项 · 明确删除",
   "app/features/media/AudioRevisionPanel.40": " 项 · 新增",
   "app/features/media/AudioRevisionPanel.41": " 项",
-  "app/features/media/AudioRevisionPanel.42": "原轨冻结快照 · ",
-  "app/features/media/AudioRevisionPanel.43": "候选冻结快照 · ",
+  "app/features/media/AudioRevisionPanel.42": "原轨锁定快照 · ",
+  "app/features/media/AudioRevisionPanel.43": "候选锁定快照 · ",
   "app/features/media/AudioRevisionPanel.44": "候选明确移除的旧片段：",
   "app/features/media/AudioRevisionPanel.45": "（原轨／时间线未删除）",
   "app/features/media/AudioRevisionPanel.46": "确认修订并生成新草稿",
@@ -1222,7 +1222,7 @@ export const zh = {
   "app/features/media/MediaDeliveryEvidencePanel.24": "原证据未核全：",
   "app/features/media/MediaDeliveryEvidencePanel.25":
     "；不展示旧结果或换最新版本。",
-  "app/features/media/MediaPlaybackPanel.1": "实际媒体 · 冻结版本 ",
+  "app/features/media/MediaPlaybackPanel.1": "实际媒体 · 锁定版本 ",
   "app/features/media/MediaPlaybackPanel.2": "（不是质量、权利或已审阅声明）",
   "app/features/media/MediaPlaybackPanel.3": "停止并释放媒体",
   "app/features/media/MediaPlaybackPanel.4":
@@ -1247,16 +1247,16 @@ export const zh = {
   "app/features/media/MediaSourceReviewPanel.4": " · 当前镜头版本",
   "app/features/media/MediaSourceReviewPanel.5": " · 原绑定镜头版本",
   "app/features/media/MediaSourceReviewPanel.6":
-    "实际身份或冻结版本尚未核对，不能读取其他对象替代原媒体；元数据不代替实际素材审阅。",
+    "实际身份或锁定版本尚未核对，不能读取其他对象替代原媒体；元数据不代替实际素材审阅。",
   "app/features/media/MediaSourceReviewPanel.7": "实际镜头：",
   "app/features/media/MediaSourceReviewPanel.8": "建立来源复核预览",
   "app/features/media/MediaSourceReviewPanel.9": "复核历史",
   "app/features/media/MediaSourceReviewPanel.10": "选择复核预览",
   "app/features/media/MediaSourceReviewPanel.11": "· 镜头版本 ",
-  "app/features/media/MediaSourceReviewPanel.12": "冻结素材版本 ",
+  "app/features/media/MediaSourceReviewPanel.12": "锁定素材版本 ",
   "app/features/media/MediaSourceReviewPanel.13": " / 镜头版本",
   "app/features/media/MediaSourceReviewPanel.14":
-    "当前内容与冻结版本不一致，不能确认这份旧预览。",
+    "当前内容与锁定版本不一致，不能确认这份旧预览。",
   "app/features/media/MediaSourceReviewPanel.15": "确认来源复核",
   "app/features/media/MediaSourceReviewPanel.16": "放弃复核预览",
   "app/features/media/NleMediaCopyPanel.1": "原任务 ",
@@ -1320,12 +1320,12 @@ export const zh = {
   "app/features/media/NleMediaVerificationPanel.6": "本次完整字节核验",
   "app/features/media/NleMediaVerificationPanel.7":
     "；不是 NLE 媒体包或质量／授权通过。",
-  "app/features/media/TimelinePlaybackPanel.1": "预览主时钟 · 实际冻结媒体",
+  "app/features/media/TimelinePlaybackPanel.1": "预览主时钟 · 实际锁定媒体",
   "app/features/media/TimelinePlaybackPanel.2": "停止并释放预览",
   "app/features/media/TimelinePlaybackPanel.3":
-    "明确载入全部文件、核对冻结版本并解码后，才启用左侧播放。单文件 128 MiB、合计 256 MiB；不自动播放或确认媒体质量／权利。",
+    "明确载入全部文件、核对锁定版本并解码后，才启用左侧播放。单文件 128 MiB、合计 256 MiB；不自动播放或确认媒体质量／权利。",
   "app/features/media/TimelinePlaybackPanel.4": "静音预览（不修改轨道）",
-  "app/features/media/TimelinePlaybackPanel.5": "冻结时间线的实际图像",
+  "app/features/media/TimelinePlaybackPanel.5": "锁定时间线的实际图像",
   "app/features/media/TimelineRenderPanel.1": "本地实验混音渲染",
   "app/features/media/TimelineRenderPanel.2":
     "1080×1920／25 fps；按参考内容与音量／淡入淡出／降配乐控制合成 AAC，muted／solo 排除的音轨不参与。没有实际可听来源时才输出已知静音；混音超幅会拒绝，不自动改音量。字幕必须明确选择不烧录，或选择原字体烧录完整原文；不证明内容质量、人物／声音／字体发行权或费用。只读打开不创建时间线、不自动选择策略、渲染或播放。",
@@ -1356,13 +1356,13 @@ export const zh = {
   "app/features/media/TimelineRenderPanel.24":
     "此为旧版静音输出；不能通过重试切换为混音，需重新预检并创建独立新任务。",
   "app/features/media/TimelineRenderPanel.25":
-    "历史冻结任务，不代表当前时间线成片；不会自动替换来源。",
+    "历史锁定任务，不代表当前时间线成片；不会自动替换来源。",
   "app/features/media/TimelineRenderPanel.26":
     "历史任务没有参考内容证明，不按最新来源补齐或重试。",
   "app/features/media/TimelineRenderPanel.27": "实际失败：",
   "app/features/media/TimelineRenderPanel.28": "明确取消此任务",
   "app/features/media/TimelineRenderPanel.29":
-    "历史输出没有冻结结果记录身份，不能推测最新素材或提供替代播放器。",
+    "历史输出没有锁定结果记录身份，不能推测最新素材或提供替代播放器。",
   "app/features/media/TimelineRenderSubtitleControls.1": "字幕输出策略",
   "app/features/media/TimelineRenderSubtitleControls.2": "尚未选择，不创建任务",
   "app/features/media/TimelineRenderSubtitleControls.3": "明确不烧录字幕",
@@ -1666,6 +1666,8 @@ export const zh = {
     "保存结果尚未确定；先核对原保存窗口与文件，不要重复提交。",
   "app/features/novel/ManuscriptExportDialog.24": "重新选择范围与生成预览",
   "app/features/novel/ManuscriptExportDialog.25": "关闭稿件预览",
+  "app/features/novel/ManuscriptExportDialog.30":
+    "Word 文件按章节排版：书名页、每章另起一页的标题和正文。保存后用 Word 或 WPS 打开查看。",
   "app/features/novel/NarrativePlanningWorkbench.1": "本轮规划来源确认",
   "app/features/novel/NarrativePlanningWorkbench.2": "规划正文目录尚未核全：",
   "app/features/novel/NarrativePlanningWorkbench.3": "；暂不启动新规划。",
@@ -1728,18 +1730,18 @@ export const zh = {
   "app/features/novel/NovelChapterWorkspace.39": "向 AI 提出修改",
   "app/features/novel/NovelChapterWorkspace.40": "实时字数 ",
   "app/features/novel/NovelChapterWorkspace.41": "建议范围 ",
-  "app/features/novel/NovelChapterWorkspace.42": "受控修订预览",
+  "app/features/novel/NovelChapterWorkspace.42": "修改稿对比",
   "app/features/novel/NovelChapterWorkspace.43":
     "AI 草稿内容会先保存为可审阅预览，确认后才写入正文并建立版本记录。",
   "app/features/novel/NovelChapterWorkspace.44": "AI 草稿修订正文",
-  "app/features/novel/NovelChapterWorkspace.45": "修订依据",
-  "app/features/novel/NovelChapterWorkspace.46": "修订依据（可选）",
+  "app/features/novel/NovelChapterWorkspace.45": "修改说明",
+  "app/features/novel/NovelChapterWorkspace.46": "修改说明（可选）",
   "app/features/novel/NovelChapterWorkspace.47": "当前正文",
   "app/features/novel/NovelChapterWorkspace.48": "AI 草稿修订",
   "app/features/novel/NovelChapterWorkspace.49": "确认提交修订",
   "app/features/novel/NovelChapterWorkspace.50": "保存预览",
   "app/features/novel/NovelChapterWorkspace.51": "章节辅助栏",
-  "app/features/novel/NovelChapterWorkspace.52": "故事圣经",
+  "app/features/novel/NovelChapterWorkspace.52": "故事记忆",
   "app/features/novel/NovelChapterWorkspace.53": "缩窄右栏",
   "app/features/novel/NovelChapterWorkspace.54": "加宽右栏",
   "app/features/novel/NovelChapterWorkspace.55": "折叠",
@@ -1768,7 +1770,7 @@ export const zh = {
   "app/features/novel/NovelChapterWorkspace.76": "润色所选 · ",
   "app/features/novel/NovelChapterWorkspace.77": "续写下一章",
   "app/features/novel/NovelChapterWorkspace.78": "剧情与风格强化",
-  "app/features/novel/NovelChapterWorkspace.79": "智能引擎",
+  "app/features/novel/NovelChapterWorkspace.79": "AI 服务",
   "app/features/novel/NovelChapterWorkspace.80":
     "本次模型（留空使用项目默认模型）",
   "app/features/novel/NovelChapterWorkspace.81": "使用项目默认模型",
@@ -1814,7 +1816,7 @@ export const zh = {
   "app/features/novel/NovelChapterWorkspace.118": "目标约 ",
   "app/features/novel/NovelChapterWorkspace.119": " 字，首稿为 ",
   "app/features/novel/NovelChapterWorkspace.120":
-    "字。旧版的三种处理方式均已保留，你可以直接保留，也可以让智能引擎基于首稿调整。",
+    "字。旧版的三种处理方式均已保留，你可以直接保留，也可以让 AI 基于首稿调整。",
   "app/features/novel/NovelChapterWorkspace.121": "保留首稿并保存",
   "app/features/novel/NovelChapterWorkspace.122": "基于首稿调整字数",
   "app/features/novel/NovelChapterWorkspace.123": "放弃首稿，恢复生成前草稿",
@@ -1834,10 +1836,10 @@ export const zh = {
     "未选前文不自动纳入，不取固定前几章或旧摘要；摘要不是原文或语义保证。原章节禁止外发时，摘要与片段同样不能发送。",
   "app/features/novel/NovelContextPicker.4": " 章，未选",
   "app/features/novel/NovelContextPicker.5":
-    "章没有直接表达；高层摘要的实际覆盖另行列明，不重复计算。这里只是预算估算，生成时还会核对实际冻结结果；不静默裁剪。",
+    "章没有直接表达；高层摘要的实际覆盖另行列明，不重复计算。这里只是预算估算，生成时还会核对实际锁定结果；不静默裁剪。",
   "app/features/novel/NovelContextPicker.6": "小说高层摘要来源",
   "app/features/novel/NovelContextPicker.7":
-    "可明确选择已采用的卷／故事弧／全书冻结范围摘要，并搭配所选原文或段落。",
+    "可明确选择已采用的卷／故事弧／全书锁定范围摘要，并搭配所选原文或段落。",
   "app/features/novel/NovelContextPicker.8":
     "新增目录不扩大旧摘要范围，源变化或采用换头须重新选择；完整原文和中间摘要的禁止外发均继承。",
   "app/features/novel/NovelContextPicker.9": "读取卷／故事弧／全书采用头",
@@ -1845,15 +1847,15 @@ export const zh = {
   "app/features/novel/NovelContextPicker.11":
     "没有实际采用摘要；生成 AI 草稿和目录节点不升级为来源。",
   "app/features/novel/NovelContextPicker.12": " · 采用范围快照",
-  "app/features/novel/NovelContextPicker.13": "读取此摘要的冻结范围",
+  "app/features/novel/NovelContextPicker.13": "读取此摘要的锁定范围",
   "app/features/novel/NovelContextPicker.14": "纳入本轮摘要（不自动纳入原文）",
-  "app/features/novel/NovelContextPicker.15": "冻结 ",
+  "app/features/novel/NovelContextPicker.15": "锁定 ",
   "app/features/novel/NovelContextPicker.16": " 章；摘要 v",
   "app/features/novel/NovelContextPicker.17": "；文字估算",
   "app/features/novel/NovelContextPicker.18":
-    "token；实际冻结还含引用标识，usage／费用未知。",
+    "token；实际锁定还含引用标识，usage／费用未知。",
   "app/features/novel/NovelContextPicker.19":
-    "当前完整范围已变化；这里只可使用原冻结范围，不声称覆盖当前整卷或全书。",
+    "当前完整范围已变化；这里只可使用本次参考的范围，不声称覆盖当前整卷或全书。",
   "app/features/novel/NovelContextPicker.20": "此摘要的实际章节版本",
   "app/features/novel/NovelContextPicker.21": " v",
   "app/features/novel/NovelContextPicker.22": " · 当前正文版本 ",
@@ -1881,19 +1883,18 @@ export const zh = {
     "至少明确选择一个原文段落后才能生成。",
   "app/features/novel/NovelContextPicker.41": "清除此章来源选择",
   "app/features/novel/NovelProjectSections.1": "人物",
-  "app/features/novel/NovelProjectSections.2": "更多创作工具",
+  "app/features/novel/NovelProjectSections.2": "写作工具",
   "app/features/novel/NovelProjectSections.3":
-    "旧版的长篇记忆、人物状态、时间线、伏笔、一致性、创作分析和编剧室全部保留，但按使用目的分组，不再挤进章节编辑器。",
+    "让 AI 检查一致性、分析文字或组织编剧室评议。结果只给你参考，不会改动正文；AI 自动整理的故事记忆在「资料 › 故事记忆」。",
   "app/features/novel/NovelProjectSections.4": "长篇创作工具",
   "app/features/novel/NovelProjectSections.5": "补充已有",
-  "app/features/novel/NovelProjectSections.6": "旧方案与生成记录",
   "app/features/novel/NovelProjectSections.7": "编辑",
   "app/features/novel/NovelProjectSections.8": "删除",
   "app/features/novel/NovelProjectSections.9": "还没有",
   "app/features/novel/NovelProjectSections.10":
     "。提出创作目标，AI 会生成可审阅的完整方案。",
   "app/features/novel/NovelProjectSections.11": "取消",
-  "app/features/novel/NovelProjectSections.12": "本次使用的智能引擎",
+  "app/features/novel/NovelProjectSections.12": "本次使用的 AI",
   "app/features/novel/NovelProjectSections.13": "补充分析要求（可选）",
   "app/features/novel/NovelProjectSections.14":
     "例如：重点检查第 1–10 章的人物动机和时间线。",
@@ -1903,16 +1904,6 @@ export const zh = {
   "app/features/novel/NovelProjectSections.17": "整个项目",
   "app/features/novel/NovelProjectSections.18": "中断本次任务",
   "app/features/novel/NovelProjectSections.19": "保存到项目",
-  "app/features/novel/NovelProjectSections.20":
-    "补充你的想法或要求；留空也可以直接生成。",
-  "app/features/novel/NovelProjectSections.21": "前往设置",
-  "app/features/novel/NovelProjectSections.22": "查看完整过程",
-  "app/features/novel/NovelProjectSections.23": "待采用内容",
-  "app/features/novel/NovelProjectSections.24": "共 ",
-  "app/features/novel/NovelProjectSections.25":
-    "项，采用后一次性写入；内容变化时会阻止覆盖。",
-  "app/features/novel/NovelProjectSections.26": "放弃",
-  "app/features/novel/NovelProjectSections.27": "确认采用",
   "app/features/novel/NovelStoryPresetPicker.1": "完整故事预设",
   "app/features/novel/NovelStoryPresetPicker.2": "完整故事预设（可选）",
   "app/features/novel/NovelStoryPresetPicker.3": "改用普通题材",
@@ -1949,6 +1940,8 @@ export const zh = {
   "app/features/production/AdaptationPipeline.1": "独立创作主流程",
   "app/features/production/AdaptationPipeline.2": "先确认来源并进行改编诊断 →",
   "app/features/production/AdaptationPipeline.3": "打开独立单集开发 →",
+  "app/features/production/AdaptationPipeline.4": "下一步：{p1}",
+  "app/features/production/AdaptationPipeline.5": "改编向导",
   "app/features/production/ConfirmedSourceTransitionView.1":
     "本次实际来源确认链",
   "app/features/production/ConfirmedSourceTransitionView.2":
@@ -1981,13 +1974,13 @@ export const zh = {
   "app/features/production/EpisodeConstraintObservations.8":
     "此原清单未提供正式约束明细；不能把缺失当作空集合或已核全，也不读取最新成果补足。",
   "app/features/production/EpisodeConstraintObservations.9":
-    "已批准故事圣经：冻结 ",
+    "已确认的故事记忆：锁定 ",
   "app/features/production/EpisodeConstraintObservations.10": " 份 → 当前 ",
   "app/features/production/EpisodeConstraintObservations.11": " 份；",
   "app/features/production/EpisodeConstraintObservations.12":
-    "原冻结与当前实际正式约束的脱敏版本比较",
+    "本次参考的与当前实际正式约束的脱敏版本比较",
   "app/features/production/EpisodeConstraintObservations.13": "约束与实际变化",
-  "app/features/production/EpisodeConstraintObservations.14": "原冻结",
+  "app/features/production/EpisodeConstraintObservations.14": "本次参考的",
   "app/features/production/EpisodeConstraintObservations.15": "当前实际",
   "app/features/production/EpisodeDevelopmentPanel.1": "逐场实际引文",
   "app/features/production/EpisodeDevelopmentPanel.2":
@@ -2016,15 +2009,15 @@ export const zh = {
   "app/features/production/EpisodeDevelopmentPanel.21":
     "核对稳定标识与场景映射",
   "app/features/production/EpisodeDevelopmentPanel.22": "选中镜头局部候选",
-  "app/features/production/EpisodeDevelopmentPanel.23": "冻结实际字段选择",
+  "app/features/production/EpisodeDevelopmentPanel.23": "锁定实际字段选择",
   "app/features/production/EpisodeDevelopmentPanel.24":
-    "原请求及完整字段指纹已冻结，仅复检此选择；标题／场景动作独立于镜头文字，采用前须核对一致性。私有自定义字段保留，语义质量尚未验证。",
+    "原请求及完整字段指纹已锁定，仅复检此选择；标题／场景动作独立于镜头文字，采用前须核对一致性。私有自定义字段保留，语义质量尚未验证。",
   "app/features/production/EpisodeDevelopmentPanel.25":
     "机械范围不是语义安全证明。",
-  "app/features/production/EpisodeDevelopmentPanel.26": "冻结块结构映射",
+  "app/features/production/EpisodeDevelopmentPanel.26": "锁定块结构映射",
   "app/features/production/EpisodeDevelopmentPanel.27": " · 原块：",
   "app/features/production/EpisodeDevelopmentPanel.28": " · 新块：",
-  "app/features/production/EpisodeDevelopmentPanel.29": "冻结作者场景拓扑计划",
+  "app/features/production/EpisodeDevelopmentPanel.29": "锁定作者场景拓扑计划",
   "app/features/production/EpisodeDevelopmentPanel.30": "原大纲",
   "app/features/production/EpisodeDevelopmentPanel.31": "v",
   "app/features/production/EpisodeDevelopmentPanel.32": "→ 新正式大纲",
@@ -2032,8 +2025,8 @@ export const zh = {
   "app/features/production/EpisodeDevelopmentPanel.34": "· 已核拓扑人工确认",
   "app/features/production/EpisodeDevelopmentPanel.35": "步",
   "app/features/production/EpisodeDevelopmentPanel.36":
-    "原实际选择、版本和祖先指纹已冻结。这里只展示 AI 草稿，不证明语义、安全、权利、收费或媒体已完成。",
-  "app/features/production/EpisodeDevelopmentPanel.37": "冻结作者镜头计划",
+    "原实际选择、版本和祖先指纹已锁定。这里只展示 AI 草稿，不证明语义、安全、权利、收费或媒体已完成。",
+  "app/features/production/EpisodeDevelopmentPanel.37": "锁定作者镜头计划",
   "app/features/production/EpisodeDevelopmentPanel.38": " · 实际 ",
   "app/features/production/EpisodeDevelopmentPanel.39": " 秒 · 资产",
   "app/features/production/EpisodeDevelopmentPanel.40": "原选",
@@ -2051,7 +2044,7 @@ export const zh = {
   "app/features/production/EpisodeDevelopmentPanel.51": "字幕 ",
   "app/features/production/EpisodeDevelopmentPanel.52": "；缓解：",
   "app/features/production/EpisodeDevelopmentPanel.53":
-    "未选部分继承冻结原包；局部风险不是报价，未列风险不等于无风险。",
+    "未选部分继承锁定原包；局部风险不是报价，未列风险不等于无风险。",
   "app/features/production/EpisodeDevelopmentPanel.54":
     "AI 草稿结构尚未通过，保留原输出供修复；不显示为正式结果。",
   "app/features/production/EpisodeDevelopmentPanel.55": "单集开发工作台",
@@ -2120,7 +2113,7 @@ export const zh = {
   "app/features/production/EpisodeDevelopmentPanel.99": " · 原关联",
   "app/features/production/EpisodeDevelopmentPanel.100": "· 观察",
   "app/features/production/EpisodeDevelopmentPanel.101":
-    "。恢复只开放原冻结请求与原候选核对，不批准新来源、不自动重发或调用模型。",
+    "。恢复只开放本次参考的请求与原候选核对，不批准新来源、不自动重发或调用模型。",
   "app/features/production/EpisodeDevelopmentPanel.102":
     "恢复本机原来源审阅请求（不换基准）",
   "app/features/production/EpisodeDevelopmentPanel.103":
@@ -2141,13 +2134,13 @@ export const zh = {
     "人工确认正式快照 · 无模型工作流或运行 · 语义由作者声明，未独立验证",
   "app/features/production/EpisodeDevelopmentPanel.115": "本集映射 ",
   "app/features/production/EpisodeDevelopmentPanel.116":
-    " 章；实际冻结输入表达",
+    " 章；实际锁定输入表达",
   "app/features/production/EpisodeDevelopmentPanel.117": " 章，二者不混计。",
   "app/features/production/EpisodeDevelopmentPanel.118": " 个完整场景映射",
   "app/features/production/EpisodeDevelopmentPanel.119": "打开实际剧本与导出",
   "app/features/production/EpisodeDevelopmentPanel.120": "打开实际场景与分镜",
-  "app/features/production/EpisodeDevelopmentPanel.121": "预览内部试制包",
-  "app/features/production/EpisodeDevelopmentPanel.122": "试制交付历史",
+  "app/features/production/EpisodeDevelopmentPanel.121": "预览样片包",
+  "app/features/production/EpisodeDevelopmentPanel.122": "样片交付历史",
   "app/features/production/EpisodeDevelopmentPanel.123":
     "保存回执证明当时文件写入；来源失效后保留历史，不自动重导出或采用。",
   "app/features/production/EpisodeDevelopmentPanel.124": "打开交付记录",
@@ -2170,7 +2163,7 @@ export const zh = {
     "影响清单读取失败，旧缓存不能作为本轮核对结果；请明确重读同一成果。",
   "app/features/production/EpisodeImpactPanel.13":
     "影响清单与指定成果、项目、分集或版本不符；不能使用旧缓存或最新结果代替。",
-  "app/features/production/EpisodeImpactPanel.14": "冻结剧本文档 v",
+  "app/features/production/EpisodeImpactPanel.14": "锁定剧本文档 v",
   "app/features/production/EpisodeImpactPanel.15": " → 实际 v",
   "app/features/production/EpisodeImpactPanel.16": " 个稳定块变化",
   "app/features/production/EpisodeImpactPanel.17": "来源门：",
@@ -2213,7 +2206,7 @@ export const zh = {
     "本集持久化人工确认历史（含重启恢复）",
   "app/features/production/EpisodeScriptRevisionPanel.22": "文档 v",
   "app/features/production/EpisodeScriptRevisionPanel.23":
-    "冻结人工剧本确认预览",
+    "锁定人工剧本确认预览",
   "app/features/production/EpisodeScriptRevisionPanel.24": " · 实际文档 v",
   "app/features/production/EpisodeScriptRevisionPanel.25": "原正式版本 ",
   "app/features/production/EpisodeScriptRevisionPanel.26": " v",
@@ -2232,12 +2225,12 @@ export const zh = {
   "app/features/production/EpisodeSourceRevisionPanel.6":
     "重读原成果、实际文档与来源",
   "app/features/production/EpisodeSourceRevisionPanel.7":
-    "正在读取本次实际状态；操作暂时冻结，不把首次缓存当作来源。",
+    "正在读取本次实际状态；操作暂时锁定，不把首次缓存当作来源。",
   "app/features/production/EpisodeSourceRevisionPanel.8": "来源确认原请求恢复",
   "app/features/production/EpisodeSourceRevisionPanel.9":
     "存在尚未收取可靠回复的原",
   "app/features/production/EpisodeSourceRevisionPanel.10":
-    "请求。新请求冻结；只重放完整原输入／原状态／原审阅和同一键，不换来源。",
+    "请求。新请求锁定；只重放完整原输入／原状态／原审阅和同一键，不换来源。",
   "app/features/production/EpisodeSourceRevisionPanel.11": "原键 ",
   "app/features/production/EpisodeSourceRevisionPanel.12": " · 保存于 ",
   "app/features/production/EpisodeSourceRevisionPanel.13":
@@ -2292,11 +2285,11 @@ export const zh = {
   "app/features/production/EpisodeSourceRevisionPanel.50": "原预览 ",
   "app/features/production/EpisodeSourceRevisionPanel.51": " · 状态 ",
   "app/features/production/EpisodeSourceRevisionPanel.52": " · 来源 ",
-  "app/features/production/EpisodeSourceRevisionPanel.53": "完整冻结来源 ",
+  "app/features/production/EpisodeSourceRevisionPanel.53": "完整锁定来源 ",
   "app/features/production/EpisodeSourceRevisionPanel.54":
     "；内容／来源／Prompt 哈希已由正式 owner 核对。规则逐字核验不等于语义正确。",
   "app/features/production/EpisodeSourceRevisionPanel.55":
-    "本次完整来源、覆盖与冻结引用",
+    "本次完整来源、覆盖与锁定引用",
   "app/features/production/EpisodeSourceRevisionPanel.56":
     "本次完整来源正文读取失败：",
   "app/features/production/EpisodeSourceRevisionPanel.57":
@@ -2335,7 +2328,7 @@ export const zh = {
     "作者场景拓扑双正式确认",
   "app/features/production/EpisodeTopologyRevisionPanel.3": "作者场景结构修订",
   "app/features/production/EpisodeTopologyRevisionPanel.4":
-    "先编辑完整大纲与实际正文，再保存实际文档、冻结预览、明确确认两份正式版本。保留原来源与历史；不调用模型、不自动重做分镜。结构核对不证明语义质量。",
+    "先编辑完整大纲与实际正文，再保存实际文档、锁定预览、明确确认两份正式版本。保留原来源与历史；不调用模型、不自动重做分镜。结构核对不证明语义质量。",
   "app/features/production/EpisodeTopologyRevisionPanel.5":
     "从原正式大纲与实际文档开始修订",
   "app/features/production/EpisodeTopologyRevisionPanel.6": "实际剧本文档标题",
@@ -2366,7 +2359,7 @@ export const zh = {
     "须逐一明确完整实际块组与新大纲场景的顺序和唯一映射，不能自动换源或跨场猜测。",
   "app/features/production/EpisodeTopologyRevisionPanel.25": "保存实际拓扑正文",
   "app/features/production/EpisodeTopologyRevisionPanel.26":
-    "冻结双正式确认预览",
+    "锁定双正式确认预览",
   "app/features/production/EpisodeTopologyRevisionPanel.27":
     "原场景拓扑确认预览",
   "app/features/production/EpisodeTopologyRevisionPanel.28": "预览 ",
@@ -2374,7 +2367,7 @@ export const zh = {
   "app/features/production/EpisodeTopologyRevisionPanel.30": " · 原大纲 ",
   "app/features/production/EpisodeTopologyRevisionPanel.31": " · 原剧本",
   "app/features/production/EpisodeTopologyRevisionPanel.32":
-    "冻结的新完整大纲与实际场景映射",
+    "锁定的新完整大纲与实际场景映射",
   "app/features/production/EpisodeTopologyRevisionPanel.33": "大纲 SHA-256 ",
   "app/features/production/EpisodeTopologyRevisionPanel.34": " · 剧本 SHA-256",
   "app/features/production/EpisodeTopologyRevisionPanel.35":
@@ -2398,14 +2391,14 @@ export const zh = {
   "app/features/production/NativeScreenplayPreview.5": "保留：",
   "app/features/production/NativeScreenplayPreview.6": "完整原稿块预览",
   "app/features/production/NativeScreenplayPreview.7":
-    "核对全部导入块及稳定标识（导入时冻结内容）",
+    "核对全部导入块及稳定标识（导入时锁定内容）",
   "app/features/production/NativeScreenplayPreview.8": "块 ",
-  "app/features/production/PilotPackageDialog.1": "内部试制交付预览",
-  "app/features/production/PilotPackageDialog.2": "核验并保存内部试制包",
+  "app/features/production/PilotPackageDialog.1": "样片包预览",
+  "app/features/production/PilotPackageDialog.2": "核验并保存样片包",
   "app/features/production/PilotPackageDialog.3":
-    "冻结已采用大纲、剧本与分镜的实际版本。仅供内部试制审阅，不是叙事质量、授权证明或发行就绪保证；导出不生成媒体、不授权费用。",
+    "锁定已采用大纲、剧本与分镜的实际版本。仅供内部审看，不是叙事质量、授权证明或发行就绪保证；导出不生成媒体、不授权费用。",
   "app/features/production/PilotPackageDialog.4":
-    "当前读取或操作尚未核对，已显示的冻结版本仅供历史查看，不能确认保存；请明确刷新同一试制包。",
+    "当前读取或操作尚未核对，已显示的锁定版本仅供历史查看，不能确认保存；请明确刷新同一样片包。",
   "app/features/production/PilotPackageDialog.5": "正式分镜 ",
   "app/features/production/PilotPackageDialog.6": " · v",
   "app/features/production/PilotPackageDialog.7":
@@ -2414,7 +2407,7 @@ export const zh = {
     "明确附所选三正式阶段的原工作流脱敏谱系（不含指令、正文或 AI 草稿；缺失保留未知，人工确认不当新模型运行）",
   "app/features/production/PilotPackageDialog.9":
     "可选：明确已采用的逐镜头关联",
-  "app/features/production/PilotPackageDialog.10": "试制包明确镜头关联",
+  "app/features/production/PilotPackageDialog.10": "样片包明确镜头关联",
   "app/features/production/PilotPackageDialog.11":
     "不附逐镜头关联（默认；场景继承不冒充镜头归因）",
   "app/features/production/PilotPackageDialog.12": "原明确选择未核对／已失效：",
@@ -2424,7 +2417,7 @@ export const zh = {
     "明确所选版本另行重读后才创建预览；关联文件仅含引用／hash／位置／实际覆盖，不导出私人理由、引文或节点正文，不证明语义和权利通过。",
   "app/features/production/PilotPackageDialog.16":
     "关联目录本次读取失败，不显示旧缓存。无关联选择仍可预览内部包；已有明确选择不自动取消。",
-  "app/features/production/PilotPackageDialog.17": "生成统一试制包预览",
+  "app/features/production/PilotPackageDialog.17": "生成统一样片包预览",
   "app/features/production/PilotPackageDialog.18": " 个文件 · ZIP ",
   "app/features/production/PilotPackageDialog.19": "字节 · ",
   "app/features/production/PilotPackageDialog.20": " 秒分镜方案（不是成片）",
@@ -2436,7 +2429,7 @@ export const zh = {
     "；没有小说、诊断或季纲版本。",
   "app/features/production/PilotPackageDialog.26":
     "来源已变化，此包只代表历史版本，不能证明当前版本已交付。",
-  "app/features/production/PilotPackageDialog.27": "试制交付预检",
+  "app/features/production/PilotPackageDialog.27": "样片交付预检",
   "app/features/production/PilotPackageDialog.28": "交付预检与未核验事项",
   "app/features/production/PilotPackageDialog.29": "v",
   "app/features/production/PilotPackageDialog.30": " · 已核对",
@@ -2458,19 +2451,19 @@ export const zh = {
   "app/features/production/PilotPackageDialog.44": "缺失项与外部依赖",
   "app/features/production/PilotPackageDialog.45": "查看实际文件",
   "app/features/production/PilotPackageDialog.46": "文件 SHA-256：",
-  "app/features/production/PilotPackageDialog.47": "实际试制文件内容",
+  "app/features/production/PilotPackageDialog.47": "实际样片文件内容",
   "app/features/production/PilotPackageDialog.48": "明确确认用途与权利",
   "app/features/production/PilotPackageDialog.49": "权利依据",
   "app/features/production/PilotPackageDialog.50": "权利范围说明",
   "app/features/production/PilotPackageDialog.51":
     "说明来源、用途与限制；声明不替代授权证明核验。",
   "app/features/production/PilotPackageDialog.52":
-    "我确认这些正式版本，并有权导出这份试制包",
+    "我确认这些正式版本，并有权导出这份样片包",
   "app/features/production/PilotPackageDialog.53":
-    "我确认此包仅用于内部试制审阅，不作为发行就绪证明",
+    "我确认此包仅用于内部审看，不作为发行就绪证明",
   "app/features/production/PilotPackageDialog.54":
     "我已知悉质量、授权范围、费用与上述缺失项尚未全部核验",
-  "app/features/production/PilotPackageDialog.55": "试制包已保存并核验。",
+  "app/features/production/PilotPackageDialog.55": "样片包已保存并核验。",
   "app/features/production/PilotPackageDialog.56":
     "字节。回执只证明当时保存成功，不监控文件之后的移动、修改或删除。",
   "app/features/production/PilotPackageDialog.57":
@@ -2521,7 +2514,7 @@ export const zh = {
   "app/features/production/ProductionRecordBaselines.5": "个字段基准一致 ·",
   "app/features/production/ProductionRecordBaselines.6": "个变化或未核全",
   "app/features/production/ProductionRecordBaselines.7": "实际记录 ",
-  "app/features/production/ProductionRecordBaselines.8": " · 冻结 v",
+  "app/features/production/ProductionRecordBaselines.8": " · 锁定 v",
   "app/features/production/ProductionRecordBaselines.9": " → 实际",
   "app/features/production/ProductionRecordBaselines.10": "基准保存于正式结果 ",
   "app/features/production/ProductionRecordBaselines.11": " · v",
@@ -2535,12 +2528,12 @@ export const zh = {
   "app/features/production/ProductionRecordMergeReview.1":
     "实际创作字段三方比较",
   "app/features/production/ProductionRecordMergeReview.2":
-    " 个真实字段冲突 · 原实际记录／当前人工记录／冻结候选。比较不写入；明确选择可另行冻结复检，不直接采用。语义质量尚未验证。",
+    " 个真实字段冲突 · 原实际记录／当前人工记录／锁定候选。比较不写入；明确选择可另行锁定复检，不直接采用。语义质量尚未验证。",
   "app/features/production/ProductionRecordMergeReview.3":
-    "自定义字段留在本域；归属和稳定身份不可迁移。顺序、时长、资产及来源结构只能采用原 AI 草稿已冻结的专用计划，不能按创作字段重解释。",
-  "app/features/production/ProductionRecordMergeReview.4": "字段合并冻结块映射",
+    "自定义字段留在本域；归属和稳定身份不可迁移。顺序、时长、资产及来源结构只能采用原 AI 草稿已锁定的专用计划，不能按创作字段重解释。",
+  "app/features/production/ProductionRecordMergeReview.4": "字段合并锁定块映射",
   "app/features/production/ProductionRecordMergeReview.5":
-    "已确认块结构专用协议；仅采用原 AI 草稿已冻结的原／新映射，不能用字段选择重写来源。",
+    "已确认块结构专用协议；仅采用原 AI 草稿已锁定的原／新映射，不能用字段选择重写来源。",
   "app/features/production/ProductionRecordMergeReview.6": "正式剧本 ",
   "app/features/production/ProductionRecordMergeReview.7": " v",
   "app/features/production/ProductionRecordMergeReview.8": " · 实际文档 v",
@@ -2548,7 +2541,7 @@ export const zh = {
   "app/features/production/ProductionRecordMergeReview.10": " · 新块：",
   "app/features/production/ProductionRecordMergeReview.11": "结构指纹：",
   "app/features/production/ProductionRecordMergeReview.12":
-    "字段合并冻结镜头计划",
+    "字段合并锁定镜头计划",
   "app/features/production/ProductionRecordMergeReview.13":
     "作者镜头计划专用协议；身份、顺序、时长和资产方案引用只读。新增镜头没有旧实际字段，不补造三方比较；退役镜头保留当前历史原值。",
   "app/features/production/ProductionRecordMergeReview.14": "场景 ",
@@ -2560,11 +2553,11 @@ export const zh = {
   "app/features/production/ProductionRecordMergeReview.19": "退役镜头 ",
   "app/features/production/ProductionRecordMergeReview.20": " → 当前 v",
   "app/features/production/ProductionRecordMergeReview.21":
-    "；仅冻结指纹，不显示私有历史正文。",
+    "；仅锁定指纹，不显示私有历史正文。",
   "app/features/production/ProductionRecordMergeReview.22":
-    "字段合并冻结场景拓扑计划",
+    "字段合并锁定场景拓扑计划",
   "app/features/production/ProductionRecordMergeReview.23":
-    "双正式人工确认场景拓扑专用协议。新增场景／镜头没有旧实际字段；退役记录只冻结当前指纹，不覆盖历史正文。语义仍未验证。",
+    "双正式人工确认场景拓扑专用协议。新增场景／镜头没有旧实际字段；退役记录只锁定当前指纹，不覆盖历史正文。语义仍未验证。",
   "app/features/production/ProductionRecordMergeReview.24": "正式大纲 ",
   "app/features/production/ProductionRecordMergeReview.25": " · 正式剧本",
   "app/features/production/ProductionRecordMergeReview.26": " · 文档 v",
@@ -2586,7 +2579,7 @@ export const zh = {
   "app/features/production/ProductionRecordMergeReview.39":
     "原实际字段（非模型重建）",
   "app/features/production/ProductionRecordMergeReview.40": "当前人工记录",
-  "app/features/production/ProductionRecordMergeReview.41": "冻结草稿",
+  "app/features/production/ProductionRecordMergeReview.41": "锁定草稿",
   "app/features/production/ProductionRecordMergeReview.42":
     "未冲突字段的拟议默认：",
   "app/features/production/ProductionRecordMergeReview.43": "；尚未写入。",
@@ -2594,16 +2587,16 @@ export const zh = {
   "app/features/production/ProductionRecordMergeReview.45":
     "请明确选择真实冲突",
   "app/features/production/ProductionRecordMergeReview.46": "保留当前人工值",
-  "app/features/production/ProductionRecordMergeReview.47": "使用冻结草稿值",
+  "app/features/production/ProductionRecordMergeReview.47": "使用锁定草稿值",
   "app/features/production/ProductionRecordMergeReview.48": "本次完整核对指纹",
   "app/features/production/ProductionRecordMergeReview.49":
     "正式场景镜头字段比较",
   "app/features/production/ProductionRecordMergeReview.50":
-    "只读核对原基准、当前人工记录和冻结 AI 草稿；不调用模型、不改稿、不解除原采用的版本保护。历史缺原基准不自动升级。",
+    "只读核对原基准、当前人工记录和锁定 AI 草稿；不调用模型、不改稿、不解除原采用的版本保护。历史缺原基准不自动升级。",
   "app/features/production/ProductionRecordMergeReview.51":
     "字段比较读取失败，旧缓存不能作为本轮核对。",
   "app/features/production/ProductionRecordMergeReview.52":
-    "比较不属于当前客户端、AI 草稿或冻结基准；不补最新结果。",
+    "比较不属于当前客户端、AI 草稿或锁定基准；不补最新结果。",
   "app/features/production/ProductionRecordMergeReview.53":
     " 原请求保留；不会自动换字段或幂等键。",
   "app/features/production/ProductionRecordMergeReview.54":
@@ -2613,12 +2606,12 @@ export const zh = {
   "app/features/production/ProductionRecordMergeReview.56": "放弃本地原请求",
   "app/features/production/ProductionRecordMergeReview.57": "字段合并实际回执",
   "app/features/production/ProductionRecordMergeReview.58":
-    "合并已冻结，另行复检／审阅，不自动采用。实际运行",
+    "合并已锁定，另行复检／审阅，不自动采用。实际运行",
   "app/features/production/ProductionRecordMergeReview.59": "打开字段合并草稿",
   "app/features/production/ProductionRecordMergeReview.60":
     "我已逐项核对；明确同意将所选创作文字与原参考内容发给本次原配置模型复检。标题和场景动作独立选择，须核对与镜头一致性；不含私有自定义字段，不直接写入正式稿。",
   "app/features/production/ProductionRecordMergeReview.61":
-    "冻结字段选择并复检",
+    "锁定字段选择并复检",
   "app/features/production/ScreenplayImportPanel.1": "原生剧本导入",
   "app/features/production/ScreenplayImportPanel.2":
     "导入本集原稿 · 原生剧本文件",
@@ -2679,7 +2672,7 @@ export const zh = {
   "app/features/production/StoryboardAttributionImpactView.21": "原段落 ",
   "app/features/production/StoryboardAttributionImpactView.22": "正式稳定块 ",
   "app/features/production/StoryboardAttributionImpactView.23": "记录",
-  "app/features/production/StoryboardAttributionImpactView.24": " · 冻结 v",
+  "app/features/production/StoryboardAttributionImpactView.24": " · 锁定 v",
   "app/features/production/StoryboardAttributionImpactView.25": " → 实际 v",
   "app/features/production/StoryboardAttributionImpactView.26": "原节点 ",
   "app/features/production/StoryboardAttributionImpactView.27": "；原声明",
@@ -2816,7 +2809,7 @@ export const zh = {
     "模型未列出，仍需专业核验。",
   "app/features/production/StoryboardShotPlanEditor.1": "作者场景镜头计划",
   "app/features/production/StoryboardShotPlanEditor.2":
-    "按场景完整选择。复用镜头保持实际身份；新增镜头使用新身份。增删、顺序、秒数和既有资产引用都须在生成前明确冻结。各场总时长须仍等于正式大纲；不能增删场景、跨场移镜或补造新资产。退役只保留历史，不删除素材。",
+    "按场景完整选择。复用镜头保持实际身份；新增镜头使用新身份。增删、顺序、秒数和既有资产引用都须在生成前明确锁定。各场总时长须仍等于正式大纲；不能增删场景、跨场移镜或补造新资产。退役只保留历史，不删除素材。",
   "app/features/production/StoryboardShotPlanEditor.3": "纳入场景 ",
   "app/features/production/StoryboardShotPlanEditor.4": " 的全部原镜头 · ",
   "app/features/production/StoryboardShotPlanEditor.5": "新计划 ",
@@ -2855,13 +2848,13 @@ export const zh = {
   "app/features/production/StoryboardSourceReviewComposer.14":
     "保留（不是语义安全保证）",
   "app/features/production/StoryboardSourceReviewComposer.15":
-    "冻结本次完整来源审阅",
+    "锁定本次完整来源审阅",
   "app/features/production/StoryboardSourceReviewComposer.16":
-    "完整来源审阅已冻结；确认本轮基准前还会读取同一原关联与全部实际观察，不自动换版本。",
+    "完整来源审阅已锁定；确认本轮基准前还会读取同一原关联与全部实际观察，不自动换版本。",
   "app/features/production/StoryboardSourceReviewComposer.17":
     "尚未满足全部镜头明确决定、完整范围与五项独立审阅；未知或不符范围仍拒绝。",
   "app/features/production/StoryboardSourceReviewReceiptView.1":
-    "冻结完整来源审阅",
+    "锁定完整来源审阅",
   "app/features/production/StoryboardSourceReviewReceiptView.2":
     "原关联与全部镜头的参考内容审阅（语义未认证）",
   "app/features/production/StoryboardSourceReviewReceiptView.3": "原分镜 ",
@@ -2879,7 +2872,7 @@ export const zh = {
   "app/features/production/StoryboardSourceReviewReceiptView.13": " v",
   "app/features/production/StoryboardSourceReviewReceiptView.14": "· 明确",
   "app/features/production/StoryboardTopologyPlanEditor.1":
-    "冻结场景拓扑元数据",
+    "锁定场景拓扑元数据",
   "app/features/production/StoryboardTopologyPlanEditor.2": "场景 ",
   "app/features/production/StoryboardTopologyPlanEditor.3": " 秒 ·",
   "app/features/production/StoryboardTopologyPlanEditor.4": "镜头 ",
@@ -3004,21 +2997,30 @@ export const zh = {
   "app/features/production/impl.76": "改进建议",
   "app/features/production/impl.77":
     "剧本正文尚未创作。补充本集目标，生成、审阅并采用 AI 草稿，或在资料管理中保存你自己的剧本。",
-  "app/features/settings/impl.1": "智能创作准备",
+  "app/features/production/ScriptExportMenu.1": "导出剧本",
+  "app/features/production/ScriptExportMenu.2": "Word（.docx）",
+  "app/features/production/ScriptExportMenu.3": "Fountain",
+  "app/features/production/ScriptExportMenu.4": "Final Draft（.fdx）",
+  "app/features/production/ScriptExportMenu.5": "JSON（结构化）",
+  "app/features/production/ScriptExportMenu.6": "已保存「{p1}」",
+  "app/features/production/ScriptExportMenu.7": "已取消保存",
+  "app/features/production/ScriptExportMenu.8": "导出失败：{p1}",
+  "app/features/production/ScriptExportMenu.9": "正在导出…",
+  "app/features/settings/impl.1": "设置 AI 模型",
   "app/features/settings/impl.2": "完成配置后返回原动作",
   "app/features/settings/impl.3":
-    "原页面、项目、章节和未提交输入已保留。这里不会自动调用模型；返回后仍需由你再次确认原动作。",
-  "app/features/settings/impl.4": "唯一下一步",
+    "原来的页面和没写完的内容都还在。设置好后返回，再点一次原来的按钮即可。",
+  "app/features/settings/impl.4": "下一步",
   "app/features/settings/impl.5":
-    "完成后这里会刷新为下一步；连接或激活失败时不会清除已有安全配置。",
-  "app/features/settings/impl.6": "已刷新确认 ",
-  "app/features/settings/impl.7": "可以运行。正式内容仍未修改，可以安全返回。",
+    "完成后这里会自动刷新；设置失败也不会丢掉已保存的配置。",
+  "app/features/settings/impl.6": "AI 模型已就绪，",
+  "app/features/settings/impl.7": "可以返回继续写了。你的内容没有任何改动。",
   "app/features/settings/impl.8": "返回继续创作",
   "app/features/settings/impl.9":
     "原创作草稿和项目内容是安全的；连接失败不会覆盖任何正式内容。",
-  "app/features/settings/impl.10": "重新检查引擎状态",
+  "app/features/settings/impl.10": "重新检查",
   "app/features/settings/impl.11": "取消配置并返回",
-  "app/features/studio-widgets.1": "故事圣经",
+  "app/features/studio-widgets.1": "故事记忆",
   "app/features/studio-widgets.2": "可审查的章节记忆更新",
   "app/features/studio-widgets.3":
     "基于已保存的章节正文生成摘要草案。采用前不会写入资料；采用后只创建可追溯的章节记忆，正文更新会使旧草案标记为待复核。",
@@ -3168,7 +3170,7 @@ export const zh = {
     "仅支持已明确选择的“开发剧本 · 单季短剧”；首次创建使用当前已填写简报。断线恢复只读，不继承两个勾选。",
   "app/features/workspace/NativeScriptIntakePanel.23": "已确认目标：",
   "app/features/workspace/NativeScriptIntakePanel.24":
-    " · 已有剧本单季开发；继续初始化沿用这份冻结输入，不使用后来修改的表单，也不另建项目。",
+    " · 已有剧本单季开发；继续初始化沿用这份锁定输入，不使用后来修改的表单，也不另建项目。",
   "app/features/workspace/NativeScriptIntakePanel.25": "实际回执：项目 ",
   "app/features/workspace/NativeScriptIntakePanel.26": " v",
   "app/features/workspace/NativeScriptIntakePanel.27": " · 分集",
@@ -3256,7 +3258,7 @@ export const zh = {
   "app/features/workspace/impl.55": "创作目标与工作区",
   "app/features/workspace/impl.56": "更换目标",
   "app/features/workspace/impl.57":
-    "原普通导入已冻结；编辑／换稿已禁用。下面是原输入，原勾选仅为当时的权利声明；明确继续将核验／恢复同一次导入，不换键或重复创建内容。",
+    "原普通导入已锁定；编辑／换稿已禁用。下面是原输入，原勾选仅为当时的权利声明；明确继续将核验／恢复同一次导入，不换键或重复创建内容。",
   "app/features/workspace/impl.58": "填写名称并创建",
   "app/features/workspace/impl.59": "只需填写必填项；其他设置可以创建后再调整",
   "app/features/workspace/impl.60": "项目名称 ",
@@ -3272,7 +3274,7 @@ export const zh = {
   "app/features/workspace/impl.70": "智能助手",
   "app/features/workspace/impl.71": "获取灵感，再回来创建项目。",
   "app/features/workspace/impl.72":
-    "可以直接粘贴（按 Fountain 识别剧本块），也可以在下方导入结构化剧本 JSON。不会创建小说母稿；非标准排版请在剧本页核对。",
+    "可以直接粘贴（按 Fountain 识别剧本块），也可以在下方导入结构化剧本 JSON。不会创建小说；非标准排版请在剧本页核对。",
   "app/features/workspace/impl.73":
     "我确认拥有此剧本的使用权，或已经取得必要授权。",
   "app/features/workspace/impl.74":
@@ -3352,7 +3354,7 @@ export const zh = {
   "app/features/workspace/impl.139": "来源 ",
   "app/features/workspace/impl.140": "查看来源",
   "app/features/workspace/impl.141": "当前范围没有可关联的 Story Bible 条目。",
-  "app/features/workspace/impl.142": "当前章节变更集",
+  "app/features/workspace/impl.142": "当前章节更新草案",
   "app/features/workspace/impl.143": "章节版本 ",
   "app/features/workspace/impl.144": "冲突：",
   "app/features/workspace/impl.145": "查看字段差异并选择采用",
@@ -3490,13 +3492,32 @@ export const zh = {
   "app/features/media/impl.237": "选择片段：{p1}",
   "app/features/novel/NarrativePlanningWorkbench.16": "规划范围 {p1}",
   "app/features/novel/NovelChapterWorkspace.131": "选择{p1}",
+  "app/features/novel/NovelChapterWorkspace.132": "采用后正在自动整理本章记忆",
+  "app/features/novel/NovelChapterWorkspace.133": "记忆整理中",
+  "app/features/novel/NovelChapterWorkspace.134":
+    "本章记忆需要你在「待确认」里确认后才会写入",
+  "app/features/novel/NovelChapterWorkspace.135": "记忆需确认",
+  "app/features/novel/NovelChapterWorkspace.136": "角色定位",
+  "app/features/novel/NovelChapterWorkspace.137": "简介",
+  "app/features/novel/NovelChapterWorkspace.138": "当前状态",
+  "app/features/novel/NovelChapterWorkspace.139": "开篇检查 →",
   "app/features/novel/NovelContextPicker.42": "高层摘要来源 {p1}",
   "app/features/novel/NovelContextPicker.43": "纳入高层摘要 {p1}",
   "app/features/novel/NovelContextPicker.44": "前文来源 {p1}",
   "app/features/novel/NovelContextPicker.45": "前文表达 {p1}",
   "app/features/novel/NovelContextPicker.46": "上下文段落 {p1} {p2}",
-  "app/features/novel/NovelProjectSections.28": "智能{p1}",
   "app/features/novel/NovelProjectSections.29": "{p1}编辑窗口",
+  "app/features/novel/NovelProjectSections.30": "故事记忆",
+  "app/features/novel/NovelProjectSections.31":
+    "每写完并采用一章，AI 会自动整理这一章的摘要、人物现状、时间线和伏笔，后面的章节会参考这些内容。这里只用来查看，不需要手动填写。",
+  "app/features/novel/NovelProjectSections.32": "故事记忆分类",
+  "app/features/novel/NovelProjectSections.33":
+    "还没有{p1}。写完一章并采用后，AI 会自动整理。",
+  "app/features/novel/NovelProjectSections.34": "正在读取…",
+  "app/features/novel/NovelProjectSections.35": "检查 AI 模型设置",
+  "app/features/novel/NovelProjectSections.36": "已保存的{p1}",
+  "app/features/novel/NovelProjectSections.37": "开篇问题",
+  "app/features/novel/NovelProjectSections.38": "按建议修改",
   "app/features/novel/WritingVolumesPanel.20": "卷归属章节 {p1}",
   "app/features/production/EpisodeDevelopmentPanel.125": "正式{p1} v{p2}",
   "app/features/production/EpisodeScriptRevisionPanel.31": "人工剧本块 {p1}",

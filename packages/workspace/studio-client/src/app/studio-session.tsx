@@ -20,6 +20,7 @@ import {
   type ProjectCreationSource,
 } from "./project-intake";
 import { useStudioClient } from "./runtime-connection";
+import { useAiSetup } from "./ai-setup";
 export { hasExactObjectReference } from "./exact-object-navigation";
 import { hasExactObjectReference } from "./exact-object-navigation";
 import { productionContextKeys } from "./production-object-context";
@@ -716,10 +717,15 @@ export function AiSettingsLink(props: {
   input?: string;
   returnTo?: string;
   className?: string;
+  /** A model was set up in place; the page can carry on. */
+  onReady?: () => void;
   children: ReactNode;
 }) {
   const location = useLocation();
   const session = useStudioSession();
+  const queryClient = useQueryClient();
+  const renderSetup = useAiSetup();
+  const [open, setOpen] = useState(false);
   const projectId =
     props.projectId ??
     projectIdFromLocation({
@@ -727,25 +733,44 @@ export function AiSettingsLink(props: {
       search: location.search,
     }) ??
     session.activeProjectId;
+  const close = () => {
+    session.clearPendingIntent();
+    setOpen(false);
+  };
   return (
-    <Link
-      className={props.className}
-      to="/settings?setup=ai"
-      onClick={() =>
-        session.savePendingIntent({
-          kind: "ai-action",
-          returnTo:
-            safeLocalRoute(
-              props.returnTo ?? `${location.pathname}${location.search}`,
-            ) ?? "/",
-          ...(projectId ? { projectId } : {}),
-          ...(props.chapterId ? { chapterId: props.chapterId } : {}),
-          actionId: props.actionId,
-          ...(props.input ? { input: props.input } : {}),
-        })
-      }
-    >
-      {props.children}
-    </Link>
+    <>
+      <Link
+        className={props.className}
+        to="/settings?setup=ai"
+        onClick={(event) => {
+          // The settings page reads this intent when it has to take over.
+          session.savePendingIntent({
+            kind: "ai-action",
+            returnTo:
+              safeLocalRoute(
+                props.returnTo ?? `${location.pathname}${location.search}`,
+              ) ?? "/",
+            ...(projectId ? { projectId } : {}),
+            ...(props.chapterId ? { chapterId: props.chapterId } : {}),
+            actionId: props.actionId,
+            ...(props.input ? { input: props.input } : {}),
+          });
+          if (!renderSetup) return;
+          event.preventDefault();
+          setOpen(true);
+        }}
+      >
+        {props.children}
+      </Link>
+      {renderSetup?.({
+        open,
+        onClose: close,
+        onReady: () => {
+          close();
+          void queryClient.invalidateQueries({ queryKey: ["agent-engines"] });
+          props.onReady?.();
+        },
+      })}
+    </>
   );
 }

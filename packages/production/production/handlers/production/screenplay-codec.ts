@@ -1,4 +1,9 @@
 import { DOMParser } from "@xmldom/xmldom";
+import {
+  buildDocx,
+  type DocxParagraph,
+  type DocxStyle,
+} from "@dramaip/production-delivery/handlers/docx";
 import type {
   ScreenplayBlock,
   ScreenplayLossReport,
@@ -259,4 +264,63 @@ export function exportFdx(blocks: readonly ScreenplayBlock[]): string {
     })
     .join("");
   return `<?xml version="1.0" encoding="UTF-8"?><FinalDraft DocumentType="Script" Template="No" Version="1"><Content>${paragraphs}</Content></FinalDraft>`;
+}
+
+const DOCX_STYLE = {
+  scene_heading: "SceneHeading",
+  action: "Action",
+  character: "Character",
+  dialogue: "Dialogue",
+  parenthetical: "Parenthetical",
+  transition: "Transition",
+  note: "Action",
+} as const satisfies Record<
+  Exclude<ScreenplayBlock["type"], "page_break">,
+  DocxStyle
+>;
+
+/**
+ * A screenplay as a Word document in screenplay layout: a title page,
+ * then each block in its own style; page breaks start a new page.
+ */
+export function exportDocx(
+  title: string,
+  blocks: readonly ScreenplayBlock[],
+): Uint8Array {
+  const paragraphs: DocxParagraph[] = [{ text: title, style: "Title" }];
+  let breakNext = true;
+  for (const item of blocks) {
+    if (item.type === "page_break") {
+      breakNext = true;
+      continue;
+    }
+    const text =
+      item.type === "note"
+        ? `（${item.text}）`
+        : item.type === "scene_heading" && item.sceneNumber
+          ? `${item.sceneNumber}. ${item.text}`
+          : item.text;
+    paragraphs.push({
+      text,
+      style: DOCX_STYLE[item.type],
+      ...(breakNext ? { pageBreak: true } : {}),
+    });
+    breakNext = false;
+  }
+  return buildDocx(title, paragraphs);
+}
+
+/** The structured blocks, without editor-only source locations. */
+export function exportJson(
+  title: string,
+  blocks: readonly ScreenplayBlock[],
+): string {
+  return `${JSON.stringify(
+    {
+      title,
+      blocks: blocks.map(({ sourceLocation: _location, ...item }) => item),
+    },
+    null,
+    2,
+  )}\n`;
 }

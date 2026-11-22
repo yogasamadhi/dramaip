@@ -315,7 +315,7 @@ test("正式分镜须继承当前首集剧本及真实生产记录；媒体不�
   expect(derive(e).gates![4]!.status).toBe("stale");
   e.episodes[2] = fixture().episodes[2]!;
   e.packages = [];
-  expect(derive(e).primaryAction.label).toBe("核验并保存内部试制包");
+  expect(derive(e).primaryAction.label).toBe("核验并保存样片包");
   expect(derive(e).primaryAction.description).toContain("不要求先生成静帧");
 });
 

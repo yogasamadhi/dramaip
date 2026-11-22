@@ -34,7 +34,7 @@ export const outcomesZh = {
   "outcomes.kind.strategyAdopted": "独立改编策略明确单选版本",
   "outcomes.kind.seasonPlanAdopted": "季纲采用版本",
   "outcomes.kind.scriptAdopted": "标准剧本采用版本",
-  "outcomes.kind.pilotExported": "已保存的内部试制包版本集合",
+  "outcomes.kind.pilotExported": "已保存的样片包版本集合",
   "outcomes.metric.chapter": "小说章节",
   "outcomes.metric.diagnosis": "改编诊断",
   "outcomes.metric.strategy": "独立改编策略",
@@ -42,7 +42,7 @@ export const outcomesZh = {
   "outcomes.metric.script": "标准分集剧本",
   "outcomes.chapters.aria": "全书章节集合变化证据",
   "outcomes.chapters.counts":
-    "Writing 全书非空章节完整目录：冻结 {frozen} 项 → 实际核对 {current} 项（不是目录版本）",
+    "Writing 全书非空章节完整目录：锁定 {frozen} 项 → 实际核对 {current} 项（不是目录版本）",
   "outcomes.chapters.added": "进入该范围的章节引用：{ids}",
   "outcomes.chapters.left": "退出该范围的章节引用：{ids}",
   "outcomes.chapters.note":
@@ -141,7 +141,7 @@ export const outcomesZh = {
   "outcomes.first.conflict.owner":
     "专用拒绝所有者 production · 对象类型 {type} · 决定状态版本 {version}（不是内容或工作流版本）",
   "outcomes.first.conflict.change":
-    "来源 {kind} · 冻结 {frozenId}@{frozenVersion} → 实际核对 {currentId}@{currentVersion}",
+    "来源 {kind} · 锁定 {frozenId}@{frozenVersion} → 实际核对 {currentId}@{currentVersion}",
   "outcomes.first.conflict.at":
     "历史拒绝发生于 {at}，不读取正文，不重新采用或认证当前来源。",
   "outcomes.first.accepted": "首个有记录的正式采用：{mode}",
@@ -255,14 +255,14 @@ export const outcomesZh = {
   "outcomes.exec.phase.rechecking": "复检",
   "outcomes.exec.stats.title": "原尝试配置分组与运行统计",
   "outcomes.exec.stats.intro":
-    "仅此原工作流的阶段，按原引擎及请求模型／服务／配置档精确归组；不是实际模型版本分组或项目成功率。耗时范围只含有原起止时间的阶段，不是工作流总耗时；未结束、缺失和异常不补零。",
+    "仅此原工作流的阶段，按原 AI 服务及请求模型／服务／配置档精确归组；不是实际模型版本分组或项目成功率。耗时范围只含有原起止时间的阶段，不是工作流总耗时；未结束、缺失和异常不补零。",
   "outcomes.exec.stats.none": "{state}；没有统计分母。",
   "outcomes.exec.stats.counts":
     "回执运行身份 {runs} · 已记录阶段 {recorded} · 缺失身份 {missing} · 已记录修订阶段 {revisions}（不等于达到采用所需的局部修订次数）",
   "outcomes.exec.stats.noRuns": "此尝试尚无运行身份，不视为成功。",
   "outcomes.exec.stats.missingRun": "缺失原运行 {id}：阶段、配置和耗时未知。",
   "outcomes.exec.group.aria": "原请求配置组 {index}",
-  "outcomes.exec.group.line": "组 {index} · 引擎 {engine} · {model}",
+  "outcomes.exec.group.line": "组 {index} · AI 服务 {engine} · {model}",
   "outcomes.exec.group.model":
     "请求模型 {model} · 原服务 {provider} · 原配置档 {profile}",
   "outcomes.exec.group.model.invalid": "原模型配置无效",
@@ -290,7 +290,7 @@ export const outcomesZh = {
   "outcomes.exec.run.missing": "原运行 {runId}：{state}；未推测阶段或成功。",
   "outcomes.exec.run.aria": "原{phase}阶段",
   "outcomes.exec.run.line":
-    "{phase} · 原运行 {runId} · 会话 {sessionId} · 引擎 {engine} · 实际状态 {status}",
+    "{phase} · 原运行 {runId} · 会话 {sessionId} · AI 服务 {engine} · 实际状态 {status}",
   "outcomes.exec.run.context": "原上下文 {context} · 请求模型 {model}",
   "outcomes.exec.run.model": "{model}（原服务 {provider}）",
   "outcomes.exec.run.timing": "阶段耗时：{timing}",
@@ -321,7 +321,7 @@ export const outcomesZh = {
   "outcomes.usage.scope.unspecified": "计量口径未指定",
   "outcomes.usage.token.invalid": "报告值无效",
   "outcomes.usage.token.unreported": "未报告",
-  "outcomes.usage.aria": "引擎用量观测",
+  "outcomes.usage.aria": "AI 用量",
   "outcomes.usage.run": "原运行 {runId} · 当前读取时共 {count} 条观测",
   "outcomes.usage.scopeLine":
     "发生时范围：{scope}；对话后来绑定项目不会改写旧报告归属。",
@@ -332,7 +332,7 @@ export const outcomesZh = {
   "outcomes.usage.item.tokens":
     "输入 {input} · 输出 {output} · 缓存读取 {cached}",
   "outcomes.usage.cost":
-    "引擎报告费用估值：{amount} · {currency}；不是报价、账单或结算，不按 Token／当前单价补算或合计。",
+    "AI 服务报告的费用估值：{amount} · {currency}；不是报价、账单或结算，不按 Token／当前单价补算或合计。",
   "outcomes.usage.amount.invalid": "报告值无效",
   "outcomes.usage.amount.unreported": "金额未报告",
   "outcomes.usage.currency.invalid": "币种报告无效",
@@ -344,13 +344,13 @@ export const outcomesZh = {
   "outcomes.usage.accounting.excludes": "不包含缓存",
   "outcomes.usage.accounting.unspecified": "缓存包含关系未指定",
   "outcomes.usage.note":
-    "仅为引擎自行报告，覆盖可能不完整，未合计为本次运行总量。运行来源分类未知，费用与结算未知；不是实际付费、提效或文学质量证明。",
+    "仅为 AI 服务自行报告，覆盖可能不完整，未合计为本次运行总量。运行来源分类未知，费用与结算未知；不是实际付费、提效或文学质量证明。",
   "outcomes.usage.panel": "运行用量只读记录",
   "outcomes.usage.load.pending": "正在读取用量报告…",
   "outcomes.usage.load.again": "重新读取原运行用量报告",
   "outcomes.usage.load.first": "查看原运行用量报告",
   "outcomes.usage.error": "{error} 上次记录仅作历史查看，不自动换运行或重试。",
-  "outcomes.usage.foreign": "用量会话或引擎不属于原阶段；未显示外来报告。",
+  "outcomes.usage.foreign": "用量会话或 AI 服务不属于原阶段；未显示外来报告。",
   "outcomes.usage.changed": "原分页身份已变化，请明确重新读取该运行。",
   "outcomes.usage.older": "读取更早用量观测",
   "outcomes.funnel.state.missing": "最初原工作流回执缺失",
@@ -369,7 +369,7 @@ export const outcomesZh = {
   "outcomes.funnel.group.line": "组 {index} · {family} · {configuration}",
   "outcomes.funnel.family.planning": "独立小说规划",
   "outcomes.funnel.family.creation": "小说章节／改编",
-  "outcomes.funnel.configuration": "原生成引擎 {engine} · 请求模型 {model}",
+  "outcomes.funnel.configuration": "原 AI 服务 {engine} · 请求模型 {model}",
   "outcomes.funnel.row.head":
     "{name} · 原请求 {requests} · 目标 {targets} · 最初请求未记录 {unobserved}",
   "outcomes.funnel.row.first":
@@ -413,7 +413,7 @@ export const outcomesZh = {
   "outcomes.revision.grouped.empty": "没有已记录章节目标；不是历史零修订。",
   "outcomes.revision.grouped.aria": "原配置章节修订组 {index}",
   "outcomes.revision.grouped.configuration": "最初生成配置：{configuration}",
-  "outcomes.revision.grouped.engine": "引擎 {engine} · 请求模型 {model}",
+  "outcomes.revision.grouped.engine": "AI 服务 {engine} · 请求模型 {model}",
   "outcomes.revision.grouped.unknown": "配置未知（{state}）",
   "outcomes.revision.grouped.summary":
     "已可核采用 {measured} / 目标 {targets} · 已采用历史未知 {unknown} · 尚未采用 {pending}",
@@ -438,8 +438,7 @@ export const outcomesZh = {
   "outcomes.delivery.coverage.aria.novel": "小说章节版本交付",
   "outcomes.delivery.coverage.aria.adaptation": "改编剧本版本交付",
   "outcomes.delivery.coverage.title.novel": "小说章节版本 → 已保存稿件",
-  "outcomes.delivery.coverage.title.adaptation":
-    "改编剧本版本 → 已保存内部试制包",
+  "outcomes.delivery.coverage.title.adaptation": "改编剧本版本 → 已保存样片包",
   "outcomes.delivery.coverage.counts":
     "已记录正式采用 {adopted} · 同版本采用后保存 {delivered} · 尚无匹配保存 {notSaved}",
   "outcomes.delivery.coverage.ratio":
@@ -452,7 +451,7 @@ export const outcomesZh = {
   "outcomes.delivery.coverage.item":
     "原版本 {id} v{version} · 采用 {adoption} · 保存 {saved} · 独立保存版本集合 {units}",
   "outcomes.delivery.coverage.note":
-    "仅按已记录owner事件顺序关联同一正式版本；重复保存、换格式不增加采用版本分子。旧版保存不能替代新版，保存时缺此前采用不补关联。不是当前有效性、质量、授权、实际投稿或发行通过；小说不要求改编／媒体，改编试制包不要求媒体。",
+    "仅按已记录owner事件顺序关联同一正式版本；重复保存、换格式不增加采用版本分子。旧版保存不能替代新版，保存时缺此前采用不补关联。不是当前有效性、质量、授权、实际投稿或发行通过；小说不要求改编／媒体，改编样片包不要求媒体。",
   "outcomes.delivery.window.result": "七天交付与采用后保存耗时",
   "outcomes.delivery.window.head":
     "固定UTC观察窗 {from} → {to}（含边界，不是自然周）",

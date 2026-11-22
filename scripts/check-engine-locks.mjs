@@ -30,12 +30,12 @@ if (
 )
   throw new Error("Pi 单引擎不应包含额外的图编排 SDK 依赖");
 if (
-  dsh.version !== "0.2.2-alpha.3" ||
+  dsh.version !== "0.2.2-rc.3" ||
   dsh.license !== "MIT" ||
   dsh.packageManager !== "pnpm@11.28.5" ||
   dsh.lockfile !== "pnpm-lock.yaml"
 )
-  throw new Error("DSH 固定版本必须为 0.2.2-alpha.3（MIT，pnpm 11.28.5）");
+  throw new Error("DSH 固定版本必须为 0.2.2-rc.3（MIT，pnpm 11.28.5）");
 const dshRoot = join(repositoryRoot, "vendor/deepseek-harness");
 const dshManifest = await readJson(join(dshRoot, "package.json"));
 if (
@@ -146,12 +146,12 @@ const piRoot = join(repositoryRoot, "vendor/pi");
 const piManifest = await readJson(join(piRoot, "packages/agent/package.json"));
 if (
   pi.package !== "@earendil-works/pi-agent-core" ||
-  pi.version !== "1.5.0" ||
+  pi.version !== "1.5.2" ||
   pi.license !== "MIT" ||
   pi.node !== ">=22.19.0" ||
   pi.lockfile !== "package-lock.json"
 )
-  throw new Error("Pi 固定版本必须为 1.5.0（MIT，Node >=22.19.0）");
+  throw new Error("Pi 固定版本必须为 1.5.2（MIT，Node >=22.19.0）");
 if (
   piManifest.name !== pi.package ||
   piManifest.version !== pi.version ||

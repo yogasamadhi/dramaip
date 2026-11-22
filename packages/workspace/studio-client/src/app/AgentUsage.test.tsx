@@ -48,7 +48,7 @@ describe("readonly exact run usage observations", () => {
     let html = renderToStaticMarkup(
       <AgentUsageObservationView pages={[value]} />,
     );
-    expect(html).toContain("引擎报告费用估值：0");
+    expect(html).toContain("AI 服务报告的费用估值：0");
     expect(html).toContain("币种未报告");
     expect(html).toContain("不是报价、账单或结算");
     expect(html).not.toContain("USD");
@@ -62,7 +62,7 @@ describe("readonly exact run usage observations", () => {
       <AgentUsageObservationView pages={[page()]} />,
     );
     expect(legacy).toContain("本条没有已记录的费用估值");
-    expect(legacy).not.toContain("引擎报告费用估值：0");
+    expect(legacy).not.toContain("AI 服务报告的费用估值：0");
   });
   test("SDK binds project, run, order, pagination and strict fields, and sends only a GET", async () => {
     const calls: string[] = [];

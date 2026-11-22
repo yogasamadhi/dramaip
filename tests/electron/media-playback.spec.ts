@@ -644,7 +644,7 @@ test("实际受控媒体与冻结 Timeline 同步播放／seek；同页重查、
       version: audio.version,
     });
     await expect(page!.getByTestId("audio-revision-diff")).toContainText(
-      "没有与项目归属及冻结版本一致的实际音频",
+      "没有与项目归属及锁定版本一致的实际音频",
       { timeout: 15_000 },
     );
     await expect(page!.getByTestId(`media-playback-${audio.id}`)).toHaveCount(
@@ -728,7 +728,7 @@ test("实际受控媒体与冻结 Timeline 同步播放／seek；同页重查、
     await card
       .getByRole("button", { name: "重新核对本地记录", exact: true })
       .click();
-    await expect(imagePlayer).toContainText(`冻结版本 ${updatedImage.version}`);
+    await expect(imagePlayer).toContainText(`锁定版本 ${updatedImage.version}`);
     await expect(imagePlayer.locator("img")).toHaveCount(0);
     expect(
       await page!.evaluate(async (url) => {
@@ -810,7 +810,7 @@ test("实际受控媒体与冻结 Timeline 同步播放／seek；同页重查、
     await card
       .getByRole("button", { name: "重新核对本地记录", exact: true })
       .click();
-    await expect(imagePlayer).toContainText(`冻结版本 ${updatedImage.version}`);
+    await expect(imagePlayer).toContainText(`锁定版本 ${updatedImage.version}`);
     await expect(imagePlayer.locator("img")).toHaveCount(0);
     expect(await client!.mediaSources.record(image.id)).toEqual(
       actualImageRecord,

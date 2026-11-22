@@ -198,7 +198,7 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
       return;
     try {
       await client.storyBible.apply(item.id, {});
-      setNotice("已采用变更集，并保留可撤销记录。");
+      setNotice("已采用更新草案，并保留可撤销记录。");
       await refresh();
     } catch (cause) {
       setNotice(message(cause));
@@ -208,13 +208,13 @@ export function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
   const undo = async (item: StoryBibleChangeSet) => {
     if (
       !(await confirmDialog(
-        "撤销只会删除该变更集创建的章节记忆，不会影响原有资料。确定撤销吗？",
+        "撤销只会删除该更新草案创建的章节记忆，不会影响原有资料。确定撤销吗？",
       ))
     )
       return;
     try {
       await client.storyBible.undo(item.id);
-      setNotice("已撤销此变更集创建的资料。");
+      setNotice("已撤销此更新草案创建的资料。");
       await refresh();
     } catch (cause) {
       setNotice(message(cause));
@@ -1381,7 +1381,7 @@ export function changeTargetLabel(kind: string): string {
       chapter: "章节",
       character: "角色",
       outline: "故事大纲",
-      story_bible: "故事圣经",
+      story_bible: "故事记忆",
       episode: "分集",
       script: "剧本",
       scene: "场景",
@@ -1566,7 +1566,7 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
   },
   "story-bible": {
     description: "维护跨章节的一致性变更、冲突和采用记录。",
-    titleLabel: "变更集名称",
+    titleLabel: "更新草案名称",
     fields: [
       shortText("关联章节", "关联章节"),
       shortText("状态", "状态", "草案、待确认或已采用"),
@@ -1575,15 +1575,15 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     ],
   },
   "story-bible-settings": {
-    description: "控制故事圣经的更新策略与人工确认规则。",
-    titleLabel: "故事圣经设置名称",
+    description: "控制故事记忆的更新策略与人工确认规则。",
+    titleLabel: "故事记忆设置名称",
     fields: [
       shortText("更新方式", "更新方式", "手动确认或自动建议"),
       longText("更新规则", "更新规则"),
     ],
   },
   "story-bible-stale": {
-    description: "记录章节变化后需要重新检查的故事圣经和诊断结果。",
+    description: "记录章节变化后需要重新检查的故事记忆和诊断结果。",
     titleLabel: "待更新提醒名称",
     fields: [
       shortText("关联章节", "关联章节"),
@@ -1910,7 +1910,7 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
   },
   providers: {
     description:
-      "配置厂商 API 或开源模型服务。图片调用协议可填“OpenAI 兼容”或“Stable Diffusion WebUI”；若供智能助手使用，服务类型填“智能模型”，调用协议填“OpenAI 兼容文本”、Anthropic 或 Google。密钥仅保存凭据引用，保存后可测试连接或设为智能助手模型。",
+      "配置厂商 API 或开源模型服务。图片调用协议可填“OpenAI 兼容”或“Stable Diffusion WebUI”；用于写作时，服务类型填“智能模型”，调用协议填“OpenAI 兼容文本”、Anthropic 或 Google。密钥只保存在本机安全存储里，保存后会自动设为默认 AI 模型。",
     titleLabel: "服务商名称",
     projectRequired: false,
     fields: [

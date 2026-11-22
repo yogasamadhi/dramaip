@@ -33,6 +33,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:*",
     "@dramaip/agents-agents": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
     "@dramaip/infra-locale": "workspace:*",
     "@dramaip/infra-remotes": "workspace:*",
     "@dramaip/infra-ui-primitives": "workspace:*",

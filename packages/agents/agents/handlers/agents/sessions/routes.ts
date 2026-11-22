@@ -22,7 +22,6 @@ import {
 import {
   activeAgentProviderId,
   configuredProvider,
-  engineDefinitions,
   globalAgentSettings,
   hostEngineHealth,
   isAgentEngineKind,
@@ -593,7 +592,7 @@ export function assistantConversationRoutes(
               context,
               400,
               "VALIDATION_ERROR",
-              "智能引擎类型无效。",
+              "AI 服务类型无效。",
             );
           const kind = isAgentEngineKind(body.engineKind)
             ? body.engineKind
@@ -615,14 +614,14 @@ export function assistantConversationRoutes(
               context,
               400,
               "VALIDATION_ERROR",
-              "所选模型不属于当前启用的智能模型服务商。",
+              "所选模型不属于当前的默认 AI 模型服务商。",
             );
           if (!host)
             return problem(
               context,
               503,
               "CAPABILITY_UNAVAILABLE",
-              "当前 Runtime 未连接 Desktop Host，无法创建本地智能会话。",
+              "桌面服务未连接，AI 暂时不能使用。",
             );
           const health = hostEngineHealth(
             await host.engineHealth(kind).catch(() => undefined),
@@ -632,14 +631,14 @@ export function assistantConversationRoutes(
               context,
               503,
               "ENGINE_UNAVAILABLE",
-              `${engineDefinitions[kind].name} 引擎当前不可用。`,
+              "AI 服务当前不可用，请稍候再试。",
             );
           if (!activeProvider)
             return problem(
               context,
               409,
               "CONFLICT",
-              "请先将一项智能模型设为智能助手模型。",
+              "还没有设置 AI 模型，请先在「设置 AI 模型」里添加一个。",
             );
           const title = text(body.title)?.slice(0, 200) ?? "新对话";
           const requestedWebAccess =
@@ -671,7 +670,7 @@ export function assistantConversationRoutes(
               context,
               503,
               "ENGINE_UNAVAILABLE",
-              "智能引擎无法创建会话，请检查引擎状态后重试。",
+              "AI 服务无法创建会话，请稍候重试。",
             );
           }
           const conversation = pluginContext.uow.execute((transaction) => {
@@ -966,7 +965,7 @@ export function assistantConversationRoutes(
                 context,
                 503,
                 "CAPABILITY_UNAVAILABLE",
-                "当前 Runtime 未连接 Desktop Host，无法调用本地智能引擎。",
+                "桌面服务未连接，AI 暂时不能使用。",
               );
             const activeRun = pluginContext.uow.execute((transaction) =>
               transaction.get<{ id: string }>(
@@ -1167,7 +1166,6 @@ export function assistantConversationRoutes(
                 ? "已将消息交由当前项目的智能会话处理。"
                 : "未绑定项目，按通用聊天处理。",
             };
-            const model = modelSelection(jsonValue(session.model_json));
             const providerId = activeAgentProviderId(pluginContext);
             const providerEntity = providerId
               ? findProvider(pluginContext, providerId)
@@ -1175,6 +1173,11 @@ export function assistantConversationRoutes(
             const provider = providerEntity
               ? configuredProvider(providerEntity)
               : undefined;
+            const model =
+              provider?.authentication === "hosted" ||
+              provider?.authentication === "piSubscription"
+                ? { providerId: provider.id, modelId: provider.model }
+                : modelSelection(jsonValue(session.model_json));
             const basePrompt =
               session.surface === "inspiration"
                 ? inspirationPrompt(pluginContext, session, message)
@@ -1347,6 +1350,7 @@ export function assistantConversationRoutes(
               );
               let streamedItemId: string | undefined;
               let streamedContent = "";
+              let engineFailure: string | undefined;
               const toolCallItems = new Map<string, string>();
               const recordToolEvent = (event: {
                 cursor: number;
@@ -1561,12 +1565,14 @@ export function assistantConversationRoutes(
                   if (event.type === "content.delta") recordDelta(event.delta);
                   if (event.type === "tool") recordToolEvent(event);
                   if (event.type === "result") output = event.result;
-                  if (event.type === "error") throw new Error(event.message);
+                  if (event.type === "error") {
+                    engineFailure = event.message;
+                    throw new Error(engineFailure);
+                  }
                 }
                 const response =
                   engineResponseText(output) ?? streamedContent.trim();
-                if (!response)
-                  throw new Error("智能引擎未返回可显示的文本结果");
+                if (!response) throw new Error("AI 服务未返回可显示的文本结果");
                 pluginContext.uow.execute((transaction) =>
                   transaction.run(
                     `UPDATE agent_assistant_runs
@@ -1671,7 +1677,7 @@ export function assistantConversationRoutes(
                 const failed = pluginContext.uow.execute((transaction) => {
                   const now = new Date().toISOString();
                   const error =
-                    "智能引擎调用失败，请检查模型配置和引擎状态后重试。";
+                    engineFailure || "AI 服务调用失败，请检查 AI 模型设置后重试。";
                   transaction.run(
                     `UPDATE agent_assistant_turns SET status = 'failed', error = ?, updated_at = ? WHERE id = ?`,
                     error,
@@ -1850,10 +1856,7 @@ export function typedAgentSessionRoutes(
     const session = findSession(run.session_id);
     if (!session)
       throw new Error("Agent session disappeared while stopping its run.");
-    if (!host)
-      throw new Error(
-        "当前 Runtime 未连接 Desktop Host，无法停止本地智能引擎。",
-      );
+    if (!host) throw new Error("桌面服务未连接，暂时不能停止 AI。");
     const runtime = createHostAgentRuntime(
       host,
       session.engine_kind as AgentEngineKind,
@@ -1945,16 +1948,65 @@ export function typedAgentSessionRoutes(
               "VALIDATION_ERROR",
               "运行提示不能为空或过长。",
             );
+          const sessionId = context.req.param("id");
+          if (isRecord(body) && typeof body.model !== "undefined") {
+            const model = modelSelection(body.model);
+            if (!model)
+              return problem(
+                context,
+                400,
+                "VALIDATION_ERROR",
+                "模型配置格式无效。",
+              );
+            if (
+              model.providerId &&
+              model.providerId !== activeAgentProviderId(pluginContext)
+            )
+              return problem(
+                context,
+                400,
+                "VALIDATION_ERROR",
+                "所选模型不属于当前的默认 AI 模型服务商。",
+              );
+            const session = findSession(sessionId);
+            if (
+              session &&
+              JSON.stringify(modelSelection(jsonValue(session.model_json))) !==
+                JSON.stringify(model)
+            )
+              pluginContext.uow.execute((transaction) =>
+                transaction.run(
+                  "UPDATE agent_assistant_sessions SET model_json = ?, updated_at = ? WHERE id = ?",
+                  JSON.stringify(model),
+                  new Date().toISOString(),
+                  sessionId,
+                ),
+              );
+          }
+          // The run carries what the assistant message would: the target and
+          // the chapter it works on, so the run reads the same context.
+          const forwarded = isRecord(body)
+            ? Object.fromEntries(
+                (
+                  [
+                    "taskType",
+                    "target",
+                    "selection",
+                    "chapterId",
+                    "chapterBaseVersion",
+                  ] as const
+                )
+                  .filter(
+                    (key) => body[key] !== undefined && body[key] !== null,
+                  )
+                  .map((key) => [key, body[key]]),
+              )
+            : {};
           const response = await invokeAssistant(
             assistantHandlers.sendMessage,
             context,
-            {
-              message: prompt,
-              ...(isRecord(body) && body.taskType
-                ? { taskType: body.taskType }
-                : {}),
-            },
-            { id: context.req.param("id") },
+            { message: prompt, ...forwarded },
+            { id: sessionId },
           );
           if (!response.ok) return response;
           const started = (await response.json()) as unknown;
@@ -2125,7 +2177,7 @@ export function typedAgentSessionRoutes(
               context,
               503,
               "CAPABILITY_UNAVAILABLE",
-              "当前 Runtime 未连接 Desktop Host，无法引导本地智能引擎。",
+              "桌面服务未连接，AI 暂时不能启动。",
             );
           try {
             await createHostAgentRuntime(
@@ -2204,7 +2256,7 @@ export function typedAgentSessionRoutes(
               context,
               503,
               "CAPABILITY_UNAVAILABLE",
-              "当前 Runtime 未连接 Desktop Host，无法恢复本地智能引擎。",
+              "桌面服务未连接，AI 暂时不能恢复。",
             );
           try {
             const restored = await createHostAgentRuntime(
@@ -2266,7 +2318,7 @@ export function typedAgentSessionRoutes(
               context,
               503,
               "CAPABILITY_UNAVAILABLE",
-              "当前 Runtime 未连接 Desktop Host，无法复制本地智能会话。",
+              "桌面服务未连接，暂时不能复制这段对话。",
             );
           try {
             const id = crypto.randomUUID();
@@ -2493,7 +2545,7 @@ export function typedAgentSessionRoutes(
               context,
               503,
               "CAPABILITY_UNAVAILABLE",
-              "当前 Runtime 未连接 Desktop Host，无法释放本地智能会话。",
+              "桌面服务未连接，暂时不能关闭这段对话。",
             );
           try {
             await createHostAgentRuntime(

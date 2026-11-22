@@ -32,6 +32,7 @@ import { PluginResourceWorkspace, recordPayload } from "../studio-widgets";
 import { StoryBibleSidecar } from "../workspace/impl";
 import { AdaptationPipeline } from "./AdaptationPipeline";
 import { LegacyEpisodeCompatibility } from "./LegacyEpisodeCompatibility";
+import { ScriptExportMenu } from "./ScriptExportMenu";
 import {
   ProductionContextBoundary,
   WorkspaceObjectControls,
@@ -383,6 +384,9 @@ function AdaptationWorkspaceInstance(props: {
           shots.find((record) => record.id === shotId)?.title,
         ].filter((title): title is string => Boolean(title))}
       >
+        {selectedScript && !awaitingOriginalScript ? (
+          <ScriptExportMenu scriptId={selectedScript.id} />
+        ) : null}
         <ScriptContextControls
           context={directScriptContext}
           projectTitle={selectedProject?.title}

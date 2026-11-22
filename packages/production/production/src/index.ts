@@ -128,6 +128,7 @@ import type {
   ScreenplayIntakesPreviewInput,
   ScreenplayIntakesPreviewResult,
   ScreenplaysExportResult,
+  ScreenplaysSaveExportResult,
   ScreenplaysGetResult,
   ScreenplaysUpdateInput,
   ScreenplaysUpdateResult,
@@ -1357,7 +1358,7 @@ export class ProductionController extends TypertRemoteService {
   @Remote
   screenplaysExport(
     id: string,
-    format: "fountain" | "fdx",
+    format: "fountain" | "fdx" | "docx" | "json",
   ): Promise<ScreenplaysExportResult> {
     return this.run("screenplaysExport", id, format);
   }
@@ -1370,6 +1371,20 @@ export class ProductionController extends TypertRemoteService {
   @Remote
   screenplaysGet(id: string): Promise<ScreenplaysGetResult> {
     return this.run("screenplaysGet", id);
+  }
+
+  /**
+   * Runs `POST /api/v2/scripts/{id}/screenplay/export/{format}/save`.
+   * @replaces screenplays.saveExport
+   * @param id - the `id` path parameter.
+   * @param format - the `format` path parameter.
+   */
+  @Remote
+  screenplaysSaveExport(
+    id: string,
+    format: "fountain" | "fdx" | "docx" | "json",
+  ): Promise<ScreenplaysSaveExportResult> {
+    return this.run("screenplaysSaveExport", id, format);
   }
 
   /**

@@ -1,13 +1,13 @@
 {
   "repository": "https://github.com/deepseek-ai/deepseek-harness",
-  "version": "0.2.2-alpha.3",
+  "version": "0.2.2-rc.3",
   "license": "MIT",
   "packageManager": "pnpm@11.28.5",
   "lockfile": "pnpm-lock.yaml",
-  "pnpmLockSha256": "ab20983e243e61c282f4f8b7bb4e1d2e038c50baa9505740c990ce63516283ec",
+  "pnpmLockSha256": "c24a38565023f08480f3832a554a676ad7479d36c0868063c85ad66ba6d3e68a",
   "sourceTreeAlgorithm": "sha256(path + NUL + sha256(content-or-link-target) + LF), sorted by UTF-16 code unit",
-  "sourceTreeFileCount": 20531,
-  "sourceTreeSha256": "34c1a7d8a07e22b61a18d002830a2e04b0f601af7abe026395a428d393766049",
+  "sourceTreeFileCount": 21066,
+  "sourceTreeSha256": "6e4efe5996f5f8922a21682bb02d89d288ae1d8eb92e89ce2490a82e272628f5",
   "excludedDirectories": [
     ".git",
     "node_modules",
@@ -20,5 +20,5 @@
     "python/sdk-runtime/src/deepseek_harness_runtime/runtime/node"
   ],
   "excludedFiles": [".DS_Store", "*.tsbuildinfo"],
-  "revision": "8bd073392eef6f54e921a093b95076248eb08cbb"
+  "revision": "38a6a5c965aa99ab525161efb7cc5cf1fe62fced"
 }

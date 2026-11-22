@@ -1211,13 +1211,22 @@ export function creationRuntime(context: PluginContext) {
       // Only factual sync derived from an already explicitly adopted chapter
       // inherits that adoption. A standalone author-requested memory run is a
       // candidate and must be reviewed/committed, even with no model issues.
+      // The author's own text (imported or written by hand, never an AI
+      // chapter draft) is adopted by being the author's, so its memory is
+      // recorded the same way.
       context.uow.execute((tx) =>
-        tx.get(
-          "SELECT id FROM automation_creation_workflows WHERE stage = 'applied' AND json_extract(value_json, '$.input.operation') = 'chapter' AND json_extract(value_json, '$.memoryWorkflowId') = ? AND json_extract(value_json, '$.input.projectId') = ? AND json_extract(value_json, '$.input.targetId') = ?",
-          value.id,
-          value.input.projectId,
-          value.input.targetId,
-        ),
+        value.input.memoryTrigger === "imported"
+          ? !tx.get(
+              "SELECT id FROM automation_creation_workflows WHERE json_extract(value_json, '$.input.operation') = 'chapter' AND json_extract(value_json, '$.input.projectId') = ? AND json_extract(value_json, '$.input.targetId') = ?",
+              value.input.projectId,
+              value.input.targetId,
+            )
+          : tx.get(
+              "SELECT id FROM automation_creation_workflows WHERE stage = 'applied' AND json_extract(value_json, '$.input.operation') = 'chapter' AND json_extract(value_json, '$.memoryWorkflowId') = ? AND json_extract(value_json, '$.input.projectId') = ? AND json_extract(value_json, '$.input.targetId') = ?",
+              value.id,
+              value.input.projectId,
+              value.input.targetId,
+            ),
       )
     ) {
       adapter(context, value.input).apply(value);

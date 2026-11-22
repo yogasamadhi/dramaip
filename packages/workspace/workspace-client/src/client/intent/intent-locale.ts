@@ -31,7 +31,7 @@ export const intentZh = {
 
   "intent.edit.title": "编辑下一份意图草稿",
   "intent.edit.basis":
-    "冻结项目版本 {version} · {source}；每条约束单独一行。编辑区按项目仅存本机，不是正式版本；恢复不自动换成最新来源，也不代表重新同意或采用。",
+    "锁定项目版本 {version} · {source}；每条约束单独一行。编辑区按项目仅存本机，不是正式版本；恢复不自动换成最新来源，也不代表重新同意或采用。",
   "intent.edit.source.legacy": "旧字段待确认",
   "intent.edit.source.manual": "作者手工填写",
   "intent.draft.label": "作者意图本地草稿状态",
@@ -66,7 +66,7 @@ export const intentZh = {
   "intent.adopt.title": "采用作者意图",
   "intent.adopt.accept": "确认采用",
   "intent.adopt.description":
-    "正式采用作者意图 v{version}？这会改变正式意图版本；不会改写章节、剧本或旧意图，也不会自动触发生成。新的小说、剧本、改编诊断与整季方案会冻结正式版本，旧意图或无正式意图的未采用 AI 草稿将不能直接采用。",
+    "正式采用作者意图 v{version}？这会改变正式意图版本；不会改写章节、剧本或旧意图，也不会自动触发生成。新的小说、剧本、改编诊断与整季方案会锁定正式版本，旧意图或无正式意图的未采用 AI 草稿将不能直接采用。",
   "intent.adopt.done": "已正式采用作者意图 v{version}。",
   "intent.discard.title": "放弃作者意图候选",
   "intent.discard.accept": "确认放弃",
@@ -102,7 +102,7 @@ export const intentZh = {
   "intent.legacyFields": "查看原样保存的旧项目来源（不是正式意图）",
   "intent.provenance": "查看 AI 意图实际参考内容与运行身份",
   "intent.provenance.run":
-    "工作流 {workflowId} · 原快照 {snapshotId} · 引擎 {engine} · 运行 {runs}",
+    "工作流 {workflowId} · 原快照 {snapshotId} · AI 服务 {engine} · 运行 {runs}",
   "intent.provenance.runs.separator": "、",
   "intent.provenance.scope":
     "只使用项目简报、当时的正式意图与明确选择的 {count} 份来源；未选材料未读。模型建议不是作者确认。",
@@ -161,12 +161,12 @@ export const intentZh = {
   "intent.ai.error.sources":
     "来源确认无效；最多明确选择 100 份完整来源，请调整范围，不会裁剪或声称覆盖全书。",
   "intent.ai.frozen":
-    "本次冻结项目 v{version} · {scope} {count} 份 · {base}；各阶段、失败重试和重启保留同一基准。",
+    "本次锁定项目 v{version} · {scope} {count} 份 · {base}；各阶段、失败重试和重启保留同一基准。",
   "intent.ai.frozen.context":
-    "所选允许来源（实际表达另行冻结，不代表全文已读）",
+    "所选允许来源（实际表达另行锁定，不代表全文已读）",
   "intent.ai.frozen.complete": "所选完整来源",
   "intent.ai.frozen.base": "绑定原正式意图头",
-  "intent.ai.frozen.base.none": "冻结当时尚无正式意图",
+  "intent.ai.frozen.base.none": "锁定当时尚无正式意图",
   "intent.ai.stale":
     "原项目、正式意图头或选定来源已变化。原运行与 AI 草稿保留，重试仍使用旧快照；不能直接采用为当前方向。新运行请明确重新确认来源。",
   "intent.ai.instruction":

@@ -16,6 +16,12 @@ export type ScreenplaysExportResult = {
   };
 };
 
+/** Answer of `production/screenplaysSaveExport` (`screenplays.saveExport`). */
+export type ScreenplaysSaveExportResult = {
+  saved: boolean;
+  fileName: string;
+};
+
 /** Answer of `production/screenplaysGet` (`screenplays.get`). */
 export type ScreenplaysGetResult = {
   id: string;

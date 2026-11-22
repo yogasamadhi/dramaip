@@ -129,8 +129,20 @@ export const CreationInputSchema = z
     productionNarrativeRequest: ProductionNarrativeRequestSchema.optional(),
     narrativeSummaryRequest: NarrativeSummaryRequestSchema.optional(),
     authorIntentRequest: AuthorIntentCreationRequestSchema.optional(),
+    /**
+     * Chapter memory of text the author brought in (an imported book or a
+     * hand-written chapter), which no AI chapter draft ever touched. Like
+     * memory after an adopted draft, it is recorded without a review.
+     */
+    memoryTrigger: z.literal("imported").optional(),
   })
   .superRefine((input, check) => {
+    if (input.memoryTrigger && input.operation !== "chapter-memory")
+      check.addIssue({
+        code: "custom",
+        path: ["memoryTrigger"],
+        message: "导入正文的记忆标记只用于章节记忆。",
+      });
     if (
       input.productionNarrativeRequest &&
       (!ProductionNarrativeOperationSchema.safeParse(input.operation).success ||
@@ -975,6 +987,7 @@ export function creationOperationForTask(
   task: string,
 ): CreationInput["operation"] | undefined {
   const map: Record<string, CreationInput["operation"]> = {
+    generate_project: "story-setup",
     generate_characters: "characters",
     generate_book_outline: "book-outline",
     generate_chapter_outline: "chapter-outline",

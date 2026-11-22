@@ -776,6 +776,17 @@ export const productionLegacyRoutes = {
       args: [{ from: "param", name: "id" }],
     },
     {
+      operationId: "screenplays.saveExport",
+      method: "POST",
+      path: "/api/v2/scripts/{id}/screenplay/export/{format}/save",
+      status: 200,
+      remote: "screenplaysSaveExport",
+      args: [
+        { from: "param", name: "id" },
+        { from: "param", name: "format" },
+      ],
+    },
+    {
       operationId: "screenplays.update",
       method: "PATCH",
       path: "/api/v2/scripts/{id}/screenplay",

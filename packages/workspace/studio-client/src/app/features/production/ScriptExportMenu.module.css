@@ -1,0 +1,41 @@
+.menu {
+  position: relative;
+  display: inline-block;
+}
+
+.summary {
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.item {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.notice,
+.error {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}

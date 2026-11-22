@@ -529,20 +529,13 @@ export function projectInputFromStoryPreset(
       input.productionBrief,
       `故事预设：${preset.label}`,
       modeConfig?.mode === "single_season"
-        ? "初始化内容：单季故事母稿、4 个角色槽位、第一季季纲和第 1 集结构节点"
+        ? "初始化内容：预设人物、第一季季纲和第 1 集结构节点"
         : "初始化内容：4 个角色槽位、1 份全书大纲、3 个阶段故事弧、第 1 章结构节点",
     ]
       .filter(Boolean)
       .join("\n"),
   };
 }
-
-const SINGLE_SEASON_CHARACTER_SLOTS = [
-  ["主角槽位（待命名）", "推动单季故事主线的核心人物"],
-  ["核心关系人物（待命名）", "与主角形成主要情感或利益关系"],
-  ["对立角色（待命名）", "制造核心阻力并迫使主角选择"],
-  ["关键配角（待命名）", "承担信息、转折或情绪支点"],
-] as const;
 
 export async function initializeSingleSeasonMaterials(
   client: StudioClient,
@@ -552,7 +545,7 @@ export async function initializeSingleSeasonMaterials(
     targetEpisodeCount: number;
     preset?: NovelStoryPreset;
   },
-): Promise<Chapter> {
+): Promise<Chapter | undefined> {
   const idea = input.idea.trim();
   const preset = input.preset;
   const storyOutline = preset
@@ -570,38 +563,17 @@ export async function initializeSingleSeasonMaterials(
       client.resources.list("characters", projectId),
       client.resources.list("adaptations", projectId),
     ]);
-  const chapter =
-    existingChapters.find((item) => item.title === "单季故事母稿") ??
-    (await client.chapters.create({
-      projectId,
-      title: "单季故事母稿",
-      summary: preset?.summary ?? idea,
-      outline: storyOutline || "待完善单季故事结构",
-      content: "",
-      mainConflict: preset?.openingChapter.mainConflict,
-      hook: preset?.openingChapter.hook,
-      highlight: preset?.openingChapter.highlight,
-      reversal: preset?.openingChapter.reversal,
-      cliffhanger: preset?.openingChapter.cliffhanger,
-    }));
+  // A novel turned into a script starts from the imported novel: no empty
+  // placeholder chapter and no 「待命名」 character slots. A chosen story
+  // preset still brings its own characters.
+  const chapter = [...existingChapters].sort(
+    (a, b) => a.orderIndex - b.orderIndex,
+  )[0];
   const characterInputs = preset
     ? resourceInputsFromStoryPreset(projectId, preset, idea).filter(
         (resource) => resource.domain === "characters",
       )
-    : SINGLE_SEASON_CHARACTER_SLOTS.map(([title, role]) => ({
-        domain: "characters" as const,
-        input: {
-          projectId,
-          title,
-          payload: {
-            角色定位: role,
-            身份背景: "待完善",
-            欲望与目标: "待完善",
-            人物关系: "待完善",
-            视觉描述: "待完善",
-          },
-        },
-      }));
+    : [];
   for (const resource of characterInputs) {
     if (existingCharacters.some((item) => item.title === resource.input.title))
       continue;

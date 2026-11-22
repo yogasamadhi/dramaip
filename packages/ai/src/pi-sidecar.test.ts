@@ -26,6 +26,7 @@ export async function createPiSession(options) {
       if (prompt === "hang") {
         return new Promise((_resolve, reject) => { rejectActive = reject; });
       }
+      if (prompt === "missing quota") throw new Error("404 QUOTA_ACCOUNT_NOT_FOUND");
       const text = options.provider.model + ":" + prompt;
       onEvent({ type: "content.delta", delta: text });
       onEvent({ type: "usage", inputTokens: 2, outputTokens: 1, cachedTokens: 0 });
@@ -107,7 +108,7 @@ export async function createPiSession(options) {
       },
     });
     const ready = await next((message) => message.type === "ready");
-    expect(ready.version).toBe("1.5.0");
+    expect(ready.version).toBe("1.5.2");
 
     send({
       type: "request",
@@ -241,6 +242,51 @@ export async function createPiSession(options) {
       text: "model-two:again",
     });
 
+    send({
+      type: "request",
+      requestId: "saved-model-run",
+      operation: "run",
+      payload: {
+        engineSessionId: sessionId,
+        runId: "saved-model-run",
+        prompt: "remember model",
+        model: { modelId: "saved-project-model" },
+      },
+    });
+    expect(
+      (await next((message) => message.requestId === "saved-model-run")).result,
+    ).toEqual({ text: "saved-project-model:remember model" });
+    send({
+      type: "configure",
+      requestId: "hosted",
+      provider: {
+        providerKind: "openai",
+        model: "hosted-model",
+        hosted: true,
+        secret: "hosted-local-secret",
+      },
+    });
+    await next((message) => message.requestId === "hosted");
+    expect(
+      (await run("hosted-existing-session", "hosted request")).result,
+    ).toEqual({ text: "hosted-model:hosted request" });
+    expect((await run("hosted-missing-quota", "missing quota")).error).toBe(
+      "云 AI 尚未开通额度，请在尽意官网的套餐页开通 Free 套餐后重试。",
+    );
+    send({
+      type: "configure",
+      requestId: "restore-byok",
+      provider: {
+        providerKind: "openai",
+        model: "model-two",
+        secret: "next-provider-secret",
+      },
+    });
+    await next((message) => message.requestId === "restore-byok");
+    expect(
+      (await run("restored-existing-session", "byok request")).result,
+    ).toEqual({ text: "saved-project-model:byok request" });
+
     void run("hanging", "hang");
     await new Promise((resolve) => setTimeout(resolve, 30));
     send({
@@ -259,7 +305,7 @@ export async function createPiSession(options) {
     );
     expect(String(interrupted.error)).toContain("已中断");
     expect((await run("resumed", "resume")).result).toEqual({
-      text: "model-two:resume",
+      text: "saved-project-model:resume",
     });
 
     send({
@@ -274,7 +320,7 @@ export async function createPiSession(options) {
     const forkId = String((forked.result as Record<string, unknown>).id);
     expect(forkId).not.toBe(sessionId);
     expect((await run("fork-run", "branch", forkId)).result).toEqual({
-      text: "model-two:branch",
+      text: "saved-project-model:branch",
     });
 
     send({ type: "stop" });

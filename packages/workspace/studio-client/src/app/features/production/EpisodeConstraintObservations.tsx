@@ -11,7 +11,7 @@ const kinds: Record<EpisodeUpstreamConstraint["kind"], string> = {
   "adaptation-diagnosis": "改编诊断",
   "adaptation-strategy": "独立策略",
   "author-intent": "作者意图",
-  "story-bible": "已批准故事圣经",
+  "story-bible": "已确认的故事记忆",
   "episode-outline": "正式单集大纲",
   "episode-script": "正式标准剧本",
   "direct-project": "直写项目简报",

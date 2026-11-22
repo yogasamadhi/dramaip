@@ -88,7 +88,7 @@ export class SidecarEngine implements EngineProvider {
         code: "ENGINE_OPERATION_FAILED",
         engine,
         operation,
-        message: "智能引擎拒绝了此操作，请检查认证、模型和引擎状态。",
+        message: "AI 服务拒绝了此操作，请检查 AI 模型设置和密钥。",
       };
     }
   }
@@ -98,7 +98,7 @@ export class SidecarEngine implements EngineProvider {
     signal: AbortSignal,
   ): AsyncIterable<HostEngineStreamEvent> {
     if (!this.sidecar.isHealthy) {
-      yield { type: "error", message: "智能引擎未启动或未通过健康检查。" };
+      yield { type: "error", message: "AI 服务未启动或未通过健康检查。" };
       return;
     }
     const runId = payload.runId;

@@ -18,20 +18,35 @@ import { RouteLink } from "./WritingHomePage.tsx";
 import css from "./Writing.module.css";
 
 /** The sections, in the order the header offers them. */
-const SECTIONS: readonly LegacyNovelSection[] = [
+const NAV_SECTIONS: readonly LegacyNovelSection[] = [
   "plan",
   "chapters",
   "outlines",
+  "library",
+  "more",
+];
+/** The parts of 资料, in the order its tabs offer them. */
+const LIBRARY_SECTIONS: readonly LegacyNovelSection[] = [
   "characters",
   "settings",
   "story-bible",
-  "more",
 ];
+/** Every section an address may name; old deep links keep working. */
+const SECTIONS: readonly LegacyNovelSection[] = [
+  ...NAV_SECTIONS,
+  ...LIBRARY_SECTIONS,
+];
+
+/** The section a body is laid out for: 资料 opens on its first part. */
+const shownSection = (section: LegacyNovelSection): LegacyNovelSection =>
+  section === "library" ? "characters" : section;
 const OUTLINE_MODES: readonly LegacyOutlineMode[] = ["book", "chapter", "arc"];
 
 /** What the import and export menu exports, in its order. */
 const EXPORTS = [
   "markdown",
+  "novel-txt",
+  "novel-docx",
   "submission-markdown",
   "submission-json",
   "json",
@@ -40,6 +55,21 @@ const EXPORTS = [
   "delivery",
 ] as const;
 type ExportFormat = (typeof EXPORTS)[number];
+/** Script and video material: not offered for a novel-only project. */
+const DOWNSTREAM_EXPORTS: ReadonlySet<ExportFormat> = new Set([
+  "script",
+  "storyboard",
+  "delivery",
+]);
+/** Exports made through the checked manuscript dialog, by its format. */
+const MANUSCRIPT_EXPORTS: Partial<
+  Record<ExportFormat, "markdown" | "json" | "txt" | "docx">
+> = {
+  "novel-txt": "txt",
+  "novel-docx": "docx",
+  "submission-markdown": "markdown",
+  "submission-json": "json",
+};
 
 /** Full component props of the `/projects/:projectId` page. */
 export type NovelWorkspacePageProps = PropsRuntime<"studio.route"> &
@@ -95,7 +125,11 @@ function NovelWorkspace(
   const requestedSection = pick(SECTIONS, query.get("section"));
   const requestedOutline = pick(OUTLINE_MODES, query.get("outlineMode"));
   const manuscriptId = query.get("manuscriptId");
-  const [section, setSection] = useState(requestedSection ?? "chapters");
+  const [chosen, setSection] = useState<LegacyNovelSection>(
+    requestedSection ?? "chapters",
+  );
+  const section = shownSection(chosen);
+  const inLibrary = LIBRARY_SECTIONS.includes(section);
   const [outlineMode, setOutlineMode] = useState(requestedOutline ?? "book");
   useEffect(() => {
     if (requestedSection) setSection(requestedSection);
@@ -103,7 +137,9 @@ function NovelWorkspace(
   useEffect(() => {
     if (requestedOutline) setOutlineMode(requestedOutline);
   }, [requestedOutline]);
-  const [manuscript, setManuscript] = useState<"markdown" | "json">();
+  const [manuscript, setManuscript] = useState<
+    "markdown" | "json" | "txt" | "docx"
+  >();
   useEffect(() => {
     if (manuscriptId) setManuscript("markdown");
   }, [manuscriptId]);
@@ -117,10 +153,13 @@ function NovelWorkspace(
     setSection(next);
   };
   const exportProject = async (format: ExportFormat) => {
-    if (format === "submission-markdown" || format === "submission-json") {
-      setManuscript(format === "submission-markdown" ? "markdown" : "json");
+    const manuscriptFormat = MANUSCRIPT_EXPORTS[format];
+    if (manuscriptFormat) {
+      setManuscript(manuscriptFormat);
       return;
     }
+    // The manuscript dialog makes these; the project export never does.
+    if (format === "novel-txt" || format === "novel-docx") return;
     setExporting(format);
     setExportNotice(undefined);
     const document = await workspace.exportsProject(project.id, format);
@@ -183,23 +222,27 @@ function NovelWorkspace(
           </p>
         </div>
         <nav aria-label={t("workspace.nav")} className={css.sections}>
-          {SECTIONS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-current={section === value ? "page" : undefined}
-              className={section === value ? css.sectionOn : css.section}
-              onClick={() => setSection(value)}
-            >
-              {t(`section.${value}`)}
-            </button>
-          ))}
+          {NAV_SECTIONS.map((value) => {
+            const on = section === value || (value === "library" && inLibrary);
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-current={on ? "page" : undefined}
+                className={on ? css.sectionOn : css.section}
+                onClick={() => setSection(value)}
+              >
+                {t(`section.${value}`)}
+              </button>
+            );
+          })}
         </nav>
         <RouteLink navigate={navigate} to={tools} className={css.toolsLink}>
           {t("workspace.tools")}
         </RouteLink>
         <IoMenu
           t={t}
+          novelOnly={project.mode === "series_longform"}
           exporting={exporting}
           onImport={() => navigate(`${tools}/import`)}
           onTools={() => navigate(tools)}
@@ -234,6 +277,23 @@ function NovelWorkspace(
       ) : (
         <div className={css.sectionBody}>
           <div className={css.sectionInner}>
+            {inLibrary && (
+              <nav aria-label={t("library.nav")} className={css.libraryTabs}>
+                {LIBRARY_SECTIONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-current={section === value ? "page" : undefined}
+                    className={
+                      section === value ? css.libraryTabOn : css.libraryTab
+                    }
+                    onClick={() => setSection(value)}
+                  >
+                    {t(`section.${value}`)}
+                  </button>
+                ))}
+              </nav>
+            )}
             {renderSlot("writing.section", owner, { entryKey: section })}
           </div>
         </div>
@@ -245,6 +305,8 @@ function NovelWorkspace(
 /** The import and export menu of the workspace header. */
 function IoMenu(props: {
   t: NovelWorkspacePageProps["t"];
+  /** A novel-only project is not offered script or video material. */
+  novelOnly: boolean;
   exporting: ExportFormat | undefined;
   onImport(): void;
   onTools(): void;
@@ -304,7 +366,9 @@ function IoMenu(props: {
           >
             {t("io.tools")}
           </button>
-          {EXPORTS.map((format) => (
+          {EXPORTS.filter(
+            (format) => !props.novelOnly || !DOWNSTREAM_EXPORTS.has(format),
+          ).map((format) => (
             <button
               key={format}
               type="button"

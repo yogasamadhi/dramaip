@@ -271,7 +271,7 @@ describe("the narrative context picker", () => {
     expect(
       screen.queryByRole("group", { name: "高层摘要来源 未采用" }),
     ).toBeNull();
-    fireEvent.click(screen.getByText("读取此摘要的冻结范围"));
+    fireEvent.click(screen.getByText("读取此摘要的锁定范围"));
     const include = (await screen.findByLabelText(
       "纳入高层摘要 head-1",
     )) as HTMLInputElement;
@@ -283,7 +283,7 @@ describe("the narrative context picker", () => {
       summaries: [{ id: "head-1", version: 4 }],
     });
     // A summary that also covers the target cannot be cut down to prior text.
-    fireEvent.click(screen.getByText("读取此摘要的冻结范围"));
+    fireEvent.click(screen.getByText("读取此摘要的锁定范围"));
     await screen.findByText("含当前章、后文或旧版本，不能拆掉部分摘要使用。");
     expect(include.disabled).toBe(true);
     view.unmount();

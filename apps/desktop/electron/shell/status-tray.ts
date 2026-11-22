@@ -16,15 +16,15 @@ export function createStatusTray(
 
   // The Template PNG and its @2x companion adapt to light/dark menu bars.
   const image = nativeImage.createFromPath(options.iconPath);
-  if (image.isEmpty()) throw new Error("无法加载尽意 DramaIP 菜单栏图标");
+  if (image.isEmpty()) throw new Error("无法加载 DramaIP 菜单栏图标");
   image.setTemplateImage(true);
   const tray = new Tray(image);
-  tray.setToolTip("尽意 DramaIP");
+  tray.setToolTip("DramaIP");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "显示尽意 DramaIP", click: options.showWindow },
+      { label: "显示 DramaIP", click: options.showWindow },
       { type: "separator" },
-      { label: "退出尽意 DramaIP", click: options.quit },
+      { label: "退出 DramaIP", click: options.quit },
     ]),
   );
   return tray;

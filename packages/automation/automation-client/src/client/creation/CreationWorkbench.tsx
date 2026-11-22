@@ -1,3 +1,4 @@
+import type {} from "@dramaip/agents-agents-client/client/contract";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Context } from "@deepseek-ai/cordis";
 import { Button } from "@dramaip/infra-ui-primitives";
@@ -371,6 +372,38 @@ function reviewLink(
         hint: "review.diagnosis.hint",
       };
   }
+}
+
+/**
+ * The way to the AI model settings: a dialog in place, with the settings
+ * page kept for a modified click.
+ */
+function SetupLink(props: {
+  className: string | undefined;
+  renderFactorySlot: RenderFactorySlot;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <a
+        className={props.className}
+        href="#/settings?setup=ai"
+        onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+          event.preventDefault();
+          setOpen(true);
+        }}
+      >
+        {props.children}
+      </a>
+      {props.renderFactorySlot("agents.provider-setup", {
+        open,
+        onClose: () => setOpen(false),
+        onReady: () => setOpen(false),
+      })}
+    </>
+  );
 }
 
 function CreationWorkbenchInstance(props: CreationWorkbenchViewProps) {
@@ -1107,9 +1140,12 @@ function CreationWorkbenchInstance(props: CreationWorkbenchViewProps) {
                     : "workbench.failure.kept",
                 )}
               </p>
-              <a className={css.link} href="#/settings?setup=ai">
+              <SetupLink
+                className={css.link}
+                renderFactorySlot={props.renderFactorySlot}
+              >
                 {t("workbench.checkConnection")}
-              </a>
+              </SetupLink>
             </div>
           )}
           {value && (running || ENDED.has(value.stage)) && (

@@ -1530,8 +1530,9 @@ function CreationWorkbenchInstance(props: CreationWorkbenchProps) {
                 }
                 onClick={() => void start()}
               >
-                {copyText("app/features/creation-workbench.74")}
-                {resultLabel}
+                {props.operation === "chapter" && !props.resultLabel
+                  ? "写这一章"
+                  : `${copyText("app/features/creation-workbench.74")}${resultLabel}`}
               </Button>
             )}
             {preview.data?.status === "conflicted" &&

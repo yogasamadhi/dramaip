@@ -41,7 +41,7 @@ export function createPilotPackageClient(
       (id && value.id !== id) ||
       (projectId && value.manifest.projectId !== projectId)
     )
-      throw new Error("返回的试制包不是指定身份，未使用最新包或其他项目替代。");
+      throw new Error("返回的样片包不是指定身份，未使用最新包或其他项目替代。");
     return value;
   };
   return {
@@ -64,7 +64,7 @@ export function createPilotPackageClient(
         JSON.stringify(value.manifest.adopted.shotAttribution ?? null) !==
           JSON.stringify(checked.shotAttribution ?? null)
       )
-        throw new Error("返回的试制包不属于明确确认的项目／分镜版本。");
+        throw new Error("返回的样片包不属于明确确认的项目／分镜版本。");
       return value;
     },
     get: async (id) => exact(await request(item(id)), id),
@@ -81,7 +81,7 @@ export function createPilotPackageClient(
           page.items.length ||
         (page.nextCursor && page.nextCursor !== page.items.at(-1)?.id)
       )
-        throw new Error("试制包分页身份或游标无法核对，未作为空成功返回。");
+        throw new Error("样片包分页身份或游标无法核对，未作为空成功返回。");
       return page;
     },
     save: async (id, input, key) => {

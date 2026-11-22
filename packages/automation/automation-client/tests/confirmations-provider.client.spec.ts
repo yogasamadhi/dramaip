@@ -172,7 +172,7 @@ test("M1费用完整扫描拒绝重复、错项目、循环游标和正文，不
     projectId,
   });
   expect(legacy.unavailable).toContainEqual({
-    source: "内部试制包权利确认",
+    source: "样片包权利确认",
     projectId,
   });
 });

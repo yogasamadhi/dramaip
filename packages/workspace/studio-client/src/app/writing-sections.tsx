@@ -13,6 +13,7 @@ import { NovelChapterWorkspace } from "./features/novel/NovelChapterWorkspace";
 import {
   NovelCharactersSection,
   NovelLongformToolsSection,
+  StoryMemoryView,
   NovelOutlineSection,
   type NovelOutlineMode,
 } from "./features/novel/NovelProjectSections";
@@ -460,7 +461,12 @@ export function NovelSectionBody(
         />
       );
     case "story-bible":
-      return <StoryBibleChangeSetPanel projectId={project.id} />;
+      return (
+        <div className={styles.c5}>
+          <StoryMemoryView client={client} projectId={project.id} />
+          <StoryBibleChangeSetPanel projectId={project.id} />
+        </div>
+      );
     case "more":
       return (
         <div className={styles.c5}>
@@ -555,7 +561,7 @@ export function StoryPresetBanner(props: NovelSectionProps) {
 /** The manuscript export dialog of the novel workspace. */
 export function NovelManuscriptDialog(props: {
   projectId: string;
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "txt" | "docx";
   previewId?: string | undefined;
   onSaved(): void;
   onClose(): void;

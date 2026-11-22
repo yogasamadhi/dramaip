@@ -23,7 +23,7 @@ export const ManuscriptPreviewInputSchema = z
       )
       .min(1)
       .max(10_000),
-    format: z.enum(["markdown", "json"]),
+    format: z.enum(["markdown", "json", "txt", "docx"]),
   })
   .strict();
 export const ManuscriptSaveInputSchema = z
@@ -50,7 +50,7 @@ export const ManuscriptManifestSchema = z.object({
       }),
     )
     .min(1),
-  format: z.enum(["markdown", "json"]),
+  format: z.enum(["markdown", "json", "txt", "docx"]),
   fileName: z.string(),
   contentSha256: z.string().regex(/^[a-f0-9]{64}$/u),
   byteSize: z.number().int().nonnegative(),
