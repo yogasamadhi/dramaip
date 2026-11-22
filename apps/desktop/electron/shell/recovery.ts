@@ -89,7 +89,7 @@ export function recoveryDocument(
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
-<title>尽意 DramaIP 需要恢复</title><style>
+<title>DramaIP 需要恢复</title><style>
 body{margin:0;background:#f7f6f2;color:#252420;font:14px system-ui;padding:28px}h1{font-size:18px;margin:0 0 8px}p{color:#67635b;line-height:1.6;margin:0 0 12px}pre{background:#fff;border:1px solid #d8d4ca;border-radius:8px;padding:10px;max-height:160px;overflow:auto;font-size:12px;white-space:pre-wrap}div{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}button{padding:9px 14px;border:1px solid #bbb6aa;border-radius:8px;background:white;cursor:pointer}button[data-choice=restart]{background:#252420;color:white;border-color:#252420}
 </style></head><body>
 <h1>本地服务意外停止</h1>

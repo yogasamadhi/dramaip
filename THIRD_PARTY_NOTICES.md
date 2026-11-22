@@ -6,7 +6,7 @@ corresponding notice and license material under `third-party-notices/`.
 
 Bundled runtime components:
 
-- Pi 1.5.0 — MIT License. Source snapshot: `vendor/pi`; packaged notice:
+- Pi 1.5.2 — MIT License. Source snapshot: `vendor/pi`; packaged notice:
   `apps/desktop/pi-adapter/THIRD_PARTY_NOTICES.md`.
 - Tailwind CSS 4.1 — MIT License (Copyright (c) Tailwind Labs, Inc.). The
   theme and base layers at the top of `packages/app/src/styles.css`, and the
@@ -14,13 +14,13 @@ Bundled runtime components:
   frozen when the app's utility classes moved into CSS Modules; Tailwind
   itself is no longer a dependency.
 
-- DSH 0.2.2-alpha.3 supplies nine MIT-licensed framework packages from the pinned
+- DSH 0.2.2-rc.3 supplies nine MIT-licensed framework packages from the pinned
   `vendor/deepseek-harness/vendor` source tree:
-  `@deepseek-ai/cordis` 4.0.6-alpha.2, `@deepseek-ai/cosmokit` 1.8.7-alpha.2,
-  `@deepseek-ai/schemastery` 3.18.6-alpha.2, `@deepseek-ai/cordis-plugin-loader` 1.0.7-alpha.2,
-  `@deepseek-ai/cordis-plugin-include` 1.0.11-alpha.2, `@deepseek-ai/cordis-plugin-group` 1.0.6-alpha.2,
-  `@deepseek-ai/cordis-plugin-timer` 1.1.8-alpha.2, `@deepseek-ai/cordis-plugin-hmr` 1.0.21-alpha.2,
-  and `@deepseek-ai/cordis-plugin-logger-console` 1.0.6-alpha.2.
+  `@deepseek-ai/cordis` 4.1.0, `@deepseek-ai/cosmokit` 1.9.0,
+  `@deepseek-ai/schemastery` 3.19.0, `@deepseek-ai/cordis-plugin-loader` 1.1.0,
+  `@deepseek-ai/cordis-plugin-include` 1.1.0, `@deepseek-ai/cordis-plugin-group` 1.1.0,
+  `@deepseek-ai/cordis-plugin-timer` 1.2.0, `@deepseek-ai/cordis-plugin-hmr` 1.1.0,
+  and `@deepseek-ai/cordis-plugin-logger-console` 1.1.0.
   Each unmodified source license is included at `runtime/framework/<package>/LICENSE`
   in the packaged application resources. Desktop's build manifests are generated
   separately; the vendor snapshot is not modified.

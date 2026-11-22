@@ -181,7 +181,7 @@ test("小说驾驶舱精确返回较早未决运行，后台重启不换候选�
     const cockpitRoute = `/projects/${project.id}/tools/cockpit`;
     const exactRoute = `/tasks?projectId=${project.id}&taskId=${original.taskId}&workflowId=${original.id}`;
     const cockpit = () =>
-      page.getByRole("region", { name: "项目驾驶舱", exact: true });
+      page.getByRole("region", { name: "项目概览", exact: true });
     const primary = () =>
       cockpit().getByRole("article", { name: "唯一推荐下一步", exact: true });
     const object = () =>

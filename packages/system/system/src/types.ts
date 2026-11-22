@@ -184,3 +184,16 @@ export interface SystemLocalModelRuntime {
   /** Why it is unavailable or limited. */
   limitation?: string | undefined;
 }
+
+/** Public account state, with credentials confined to the Desktop Host. */
+export interface SystemCloudAiSummary {
+  available: boolean;
+  signedIn: boolean;
+  pending: boolean;
+  models: string[];
+  modelNames?: Record<string, string>;
+  accountUrl?: string;
+  email?: string;
+  remainingTokens?: number;
+  message?: string;
+}

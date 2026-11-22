@@ -363,7 +363,7 @@ test("script-only and empty-chapter projects remain independent; stale and unbou
     "失效弧",
     "原范围失效",
     "旧弧不绑定此当前版本",
-    "不是原声明冻结时的归属",
+    "不是原声明锁定时的归属",
   ])
     expect(html).toContain(expected);
   const empty = NarrativeStoryHierarchySchema.parse({

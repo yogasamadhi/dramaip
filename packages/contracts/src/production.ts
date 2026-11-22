@@ -99,7 +99,16 @@ export const ScreenplayExportDocumentSchema = z.object({
   lossReport: ScreenplayLossReportSchema,
 });
 
+export const ScreenplayExportSaveResultSchema = z.object({
+  saved: z.boolean(),
+  fileName: z.string(),
+});
+
 export type ScreenplayBlock = z.infer<typeof ScreenplayBlockSchema>;
+export type ScreenplayExportFormat = "fountain" | "fdx" | "docx" | "json";
+export type ScreenplayExportSaveResult = z.infer<
+  typeof ScreenplayExportSaveResultSchema
+>;
 export type ScreenplayDocument = z.infer<typeof ScreenplayDocumentSchema>;
 export type ScreenplayLossReport = z.infer<typeof ScreenplayLossReportSchema>;
 export type ScreenplayImportPreview = z.infer<

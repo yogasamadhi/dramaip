@@ -29,7 +29,7 @@ export function NovelStoryPresetPicker(props: {
           </h2>
           <p className={styles.c4}>
             {singleSeason
-              ? "选择后会初始化单季故事母稿、4 个角色槽位、季纲和首集节点，所有内容均可编辑。"
+              ? "选择后会加入预设人物、季纲和首集节点，所有内容均可编辑。"
               : "选择后会初始化项目设定、4 个角色槽位、全书大纲、3 个故事弧和首章节点，所有内容均可编辑。"}
           </p>
         </div>

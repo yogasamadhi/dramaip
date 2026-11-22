@@ -19,7 +19,7 @@ export class EngineEventChannel implements AsyncIterable<HostEngineStreamEvent> 
     ) {
       this.finish({
         type: "error",
-        message: "智能引擎事件流超过背压限制，任务已中断。",
+        message: "AI 返回内容过多过快，任务已中断，请重试。",
       });
       return;
     }

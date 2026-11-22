@@ -1,3 +1,4 @@
+import { DOCX_MIME } from "@dramaip/production-delivery/handlers/docx";
 import { registerProductionProjectLineage } from "./project-lineage.js";
 import { WRITING_RESOURCE_SERVICE } from "@dramaip/contracts/writing";
 import {
@@ -75,6 +76,7 @@ import {
   SeasonSchema,
   ScreenplayDocumentSchema,
   ScreenplayExportDocumentSchema,
+  ScreenplayExportSaveResultSchema,
   ScreenplayImportCommitSchema,
   ScreenplayImportPreviewInputSchema,
   ScreenplayImportPreviewSchema,
@@ -116,8 +118,10 @@ import {
 } from "@dramaip/plugin-api/internal";
 import { z, type ZodType } from "zod";
 import {
+  exportDocx,
   exportFdx,
   exportFountain,
+  exportJson,
   parseFdx,
   parseFountain,
 } from "./screenplay-codec.js";
@@ -607,8 +611,45 @@ function screenplayRoutes(
   const previewParams = z.object({ id: z.string().uuid() });
   const exportParams = z.object({
     id: z.string().uuid(),
-    format: z.enum(["fountain", "fdx"]),
+    format: z.enum(["fountain", "fdx", "docx", "json"]),
   });
+  const SCREENPLAY_MIME = {
+    fountain: "text/plain; charset=utf-8",
+    fdx: "application/xml",
+    json: "application/json",
+    docx: DOCX_MIME,
+  } as const;
+  /** The script in one export format; Word content is base64. */
+  const renderExport = (
+    id: string,
+    format: z.infer<typeof exportParams>["format"],
+  ) => {
+    const row = context.uow.execute((transaction) =>
+      transaction.get<ScreenplayDocumentRow>(
+        "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
+        id,
+      ),
+    );
+    if (!row) return undefined;
+    const document = screenplayDocument(row);
+    const lossReport = JSON.parse(row.loss_report_json) as ScreenplayLossReport;
+    const content =
+      format === "fdx"
+        ? exportFdx(document.blocks)
+        : format === "json"
+          ? exportJson(document.title, document.blocks)
+          : format === "docx"
+            ? Buffer.from(exportDocx(document.title, document.blocks)).toString(
+                "base64",
+              )
+            : exportFountain(document.blocks);
+    return {
+      fileName: `${document.title}.${format}`,
+      mimeType: SCREENPLAY_MIME[format],
+      content,
+      lossReport,
+    };
+  };
   const targetMatches = (
     projectId: string,
     parentId: string | null | undefined,
@@ -1158,34 +1199,73 @@ function screenplayRoutes(
             "VALIDATION_ERROR",
             "不支持的剧本导出格式。",
           );
-        const row = context.uow.execute((transaction) =>
-          transaction.get<ScreenplayDocumentRow>(
-            "SELECT * FROM screenplay_documents WHERE script_record_id = ?",
-            params.data.id,
-          ),
-        );
-        if (!row)
+        const exported = renderExport(params.data.id, params.data.format);
+        if (!exported)
           return problem(
             requestContext,
             404,
             "NOT_FOUND",
             "未找到结构化剧本。",
           );
-        const document = screenplayDocument(row);
-        const lossReport = JSON.parse(
-          row.loss_report_json,
-        ) as ScreenplayLossReport;
+        return requestContext.json(exported);
+      },
+    ),
+    route(
+      {
+        id: "production:screenplay-export-save",
+        pluginId: "production",
+        method: "post",
+        path: "/api/v2/scripts/{id}/screenplay/export/{format}/save",
+        operationId: "screenplays.saveExport",
+      },
+      openapi({
+        method: "post",
+        path: "/api/v2/scripts/{id}/screenplay/export/{format}/save",
+        operationId: "screenplays.saveExport",
+        params: exportParams,
+        response: ScreenplayExportSaveResultSchema,
+      }),
+      async (requestContext) => {
+        const params = exportParams.safeParse({
+          id: requestContext.req.param("id"),
+          format: requestContext.req.param("format"),
+        });
+        if (!params.success)
+          return problem(
+            requestContext,
+            400,
+            "VALIDATION_ERROR",
+            "不支持的剧本导出格式。",
+          );
+        if (!host)
+          return problem(
+            requestContext,
+            503,
+            "HOST_UNAVAILABLE",
+            "当前环境不能保存文件。",
+          );
+        const exported = renderExport(params.data.id, params.data.format);
+        if (!exported)
+          return problem(
+            requestContext,
+            404,
+            "NOT_FOUND",
+            "未找到结构化剧本。",
+          );
+        const result =
+          params.data.format === "docx"
+            ? await host.saveBinaryFile({
+                suggestedName: exported.fileName,
+                contentBase64: exported.content,
+                mimeType: DOCX_MIME,
+              })
+            : await host.saveTextFile({
+                suggestedName: exported.fileName,
+                content: exported.content,
+              });
         return requestContext.json({
-          fileName: `${document.title}.${params.data.format}`,
-          mimeType:
-            params.data.format === "fdx"
-              ? "application/xml"
-              : "text/plain; charset=utf-8",
-          content:
-            params.data.format === "fdx"
-              ? exportFdx(document.blocks)
-              : exportFountain(document.blocks),
-          lossReport,
+          saved: result.saved,
+          fileName: exported.fileName,
         });
       },
     ),

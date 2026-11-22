@@ -144,7 +144,7 @@ export const stagesZh = {
   "platform.archives.empty": "尚未创建提交资料归档。",
   "platform.archive.version": "v{version}",
   "platform.archive.meta": "{profile} · {at}",
-  "platform.archive.legacy": "旧资料：没有冻结预检，不升级为有效交付证据。",
+  "platform.archive.legacy": "旧资料：没有锁定预检，不升级为有效交付证据。",
   "platform.archive.frozen":
     "原标题：{title} · 元数据SHA {sha} · 不代表当前成片／发行通过",
   "platform.archive.export": "导出提交资料清单",
@@ -356,7 +356,7 @@ export const stagesZh = {
 
   "media.title": "整包审片的原版本保护",
   "media.description":
-    "冻结完整 NLE 轨道、字幕、片段、原素材和归档元数据。审片决定只适用于原包；不读取当前文件，不核验文学质量、合法授权或账单，也不批准成片／字体／发行。旧审片包不自动升级。",
+    "锁定完整 NLE 轨道、字幕、片段、原素材和归档元数据。审片决定只适用于原包；不读取当前文件，不核验文学质量、合法授权或账单，也不批准成片／字体／发行。旧审片包不自动升级。",
   "media.preview": "核对本轮整包来源",
   "media.preview.timeline":
     "原时间线 {id} · v{version} · {tracks} 轨／{shots} 镜头／{media} 素材",

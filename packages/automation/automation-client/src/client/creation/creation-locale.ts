@@ -47,7 +47,7 @@ export const creationZh = {
   "execution.run": "{index}. {phase} · 原运行 {runId}",
   "execution.missing":
     "原运行尚未建立或已缺失；模型、时间和用量未知。不换成最近运行。",
-  "execution.engine": "实际引擎 {engine} · 持久状态 {status}",
+  "execution.engine": "实际AI 服务 {engine} · 持久状态 {status}",
   "execution.model": "持久模型：{model}",
   "execution.model.invalid": "原记录无效",
   "execution.model.unrecorded": "未记录，不读当前默认模型补造",
@@ -61,7 +61,7 @@ export const creationZh = {
   "execution.pending": "正在核对原阶段记录…",
   "execution.read": "查看全部创作阶段执行记录",
   "execution.error": "{error} 原阶段读取失败，不使用旧缓存或换运行。",
-  "context.aria": "原阶段上下文快照",
+  "context.aria": "原阶段参考资料",
   "context.run": "原运行 {runId} · 原快照 {snapshotId}",
   "context.tokens":
     "完整提示估算 {estimated} token / 预算 {budget} token；不是实际用量。",
@@ -75,7 +75,7 @@ export const creationZh = {
   "context.included": "已纳入",
   "context.excluded": "未纳入",
   "context.entryReason": "{field} · {reason} · 估算 {tokens} token",
-  "context.entryValue": "查看此条原冻结表达",
+  "context.entryValue": "查看此条本次参考的表达",
   "context.prompt": "查看此阶段完整原提示（可能包含本地私有正文或 AI 草稿）",
   "context.panel": "阶段原上下文 {runId}",
   "context.pending": "正在读取原阶段上下文…",
@@ -103,8 +103,8 @@ export const creationZh = {
     "执行记录与指定原工作流版本、项目、操作或运行顺序不一致，请重新核对原运行。",
   "verify.context.foreignRun": "不能用其他运行替代本工作流原阶段上下文。",
   "verify.context.unrecorded":
-    "原阶段未记录上下文快照；实际输入未知，不补用首次或最近运行。",
-  "verify.context.foreign": "上下文快照与原运行或项目不一致。",
+    "原阶段未记录参考资料；实际输入未知，不补用首次或最近运行。",
+  "verify.context.foreign": "参考资料与原运行或项目不一致。",
   "verify.context.digest":
     "原上下文字节与记录的指纹不一致，不能作为本轮输入展示。",
   "verify.context.moved": "读取期间原阶段绑定已变化，请重新核对。",
@@ -119,7 +119,7 @@ export const creationZh = {
   "usage.scope.unspecified": "计量口径未指定",
   "usage.token.invalid": "报告值无效",
   "usage.token.unreported": "未报告",
-  "usage.aria": "引擎用量观测",
+  "usage.aria": "AI 用量",
   "usage.run": "原运行 {runId} · 当前读取时共 {count} 条观测",
   "usage.scopeLine":
     "发生时范围：{scope}；对话后来绑定项目不会改写旧报告归属。",
@@ -129,7 +129,7 @@ export const creationZh = {
   "usage.item.scope": "{scope} · 游标 {cursor}",
   "usage.item.tokens": "输入 {input} · 输出 {output} · 缓存读取 {cached}",
   "usage.cost":
-    "引擎报告费用估值：{amount} · {currency}；不是报价、账单或结算，不按 Token／当前单价补算或合计。",
+    "AI 服务报告的费用估值：{amount} · {currency}；不是报价、账单或结算，不按 Token／当前单价补算或合计。",
   "usage.amount.invalid": "报告值无效",
   "usage.amount.unreported": "金额未报告",
   "usage.currency.invalid": "币种报告无效",
@@ -140,7 +140,7 @@ export const creationZh = {
   "usage.accounting.excludes": "不包含缓存",
   "usage.accounting.unspecified": "缓存包含关系未指定",
   "usage.note":
-    "仅为引擎自行报告，覆盖可能不完整，未合计为本次运行总量。运行来源分类未知，费用与结算未知；不是实际付费、提效或文学质量证明。",
+    "仅为 AI 服务自行报告，覆盖可能不完整，未合计为本次运行总量。运行来源分类未知，费用与结算未知；不是实际付费、提效或文学质量证明。",
   "usage.panel": "运行用量只读记录",
   "usage.load.pending": "正在读取用量报告…",
   "usage.load.again": "重新读取原运行用量报告",
@@ -151,26 +151,26 @@ export const creationZh = {
   "coverage.form.original": "完整原文",
   "coverage.form.summary": "已采用章节摘要",
   "coverage.form.paragraphs": "所选原文段落",
-  "coverage.form.hierarchical": "高层冻结范围摘要",
+  "coverage.form.hierarchical": "高层锁定范围摘要",
   "coverage.title": "{label}（摘要／片段不是全文阅读）",
   "coverage.chapter": "{title} v{version}：{forms}",
-  "coverage.summary.title": "高层摘要原冻结身份与章节版本",
+  "coverage.summary.title": "高层摘要本次参考的身份与章节版本",
   "coverage.summary.current":
-    "{scope} · {id} v{version} · 冻结时完整范围有效；使用原覆盖，不扩大范围。",
+    "{scope} · {id} v{version} · 锁定时完整范围有效；使用原覆盖，不扩大范围。",
   "coverage.summary.changed":
-    "{scope} · {id} v{version} · 冻结时完整范围已变化；使用原覆盖，不扩大范围。",
-  "coverage.references": "实际冻结引用与输入指纹（{count} 条）",
+    "{scope} · {id} v{version} · 锁定时完整范围已变化；使用原覆盖，不扩大范围。",
+  "coverage.references": "实际锁定引用与输入指纹（{count} 条）",
   "coverage.references.note":
-    "仅列原冻结表达身份，不读取最新正文、改选来源或证明模型已经理解。",
-  "coverage.omitted": "本冻结允许范围内未纳入的章节（{count} 章）",
+    "仅列本次参考的表达身份，不读取最新正文、改选来源或证明模型已经理解。",
+  "coverage.omitted": "本锁定允许范围内未纳入的章节（{count} 章）",
   "coverage.omitted.note":
     "这里只是本次编译的允许范围，不是全书目录；范围外章节数量不能由本列表推断。",
   "coverage.omitted.empty": "{id} v{version} · 空章，未纳入表达",
   "coverage.omitted.unselected": "{id} v{version} · 明确未选，未纳入表达",
   "coverage.note":
     "完整纳入表达和引用声明不保证模型理解原著或语义判断正确；实际 usage／费用未提供时为未知。",
-  "coverage.story.aria": "本轮冻结叙事解释",
-  "coverage.story.title": "本轮冻结叙事解释 {count} 条",
+  "coverage.story.aria": "本轮锁定叙事解释",
+  "coverage.story.title": "本轮锁定叙事解释 {count} 条",
   "coverage.story.note":
     "保留原声明／采用绑定、来源范围与实际输入指纹，不跟随最新目录换源。这里只纳入作者明确采用的解释和端点名称，未附带引文、正文或端点摘要；不增加整章表达覆盖，也不证明模型读过或理解原著。",
   "coverage.story.record": "实际 {kind} {id} v{version}",
@@ -179,7 +179,7 @@ export const creationZh = {
   "coverage.story.chapter": "原章节 {id} v{version}",
   "coverage.story.script": "原剧本 {id} v{version}",
   "coverage.quality.unknown":
-    "冻结章节覆盖未提供；范围未知，不以空目录或 0 冒充已核全。",
+    "锁定章节覆盖未提供；范围未知，不以空目录或 0 冒充已核全。",
   "coverage.quality.label": "质量评议原参考内容表达",
   "evidence.unrecorded":
     "此历史意见未记录 AI 草稿引文位置，不从最新稿补造证据。",
@@ -218,7 +218,7 @@ export const creationZh = {
   "order.confirm": "我已逐项核对完整块顺序（含增删与位置）；不代表语义安全",
   "sources.title": "引用资料 · {count} 项",
   "sources.frozen": "本次来源与版本已保存；AI 草稿采用时再次核对。",
-  "sources.intent.adopted": "作者意图 · v{version}（冻结版本）",
+  "sources.intent.adopted": "作者意图 · v{version}（锁定版本）",
   "sources.intent.none":
     "本轮开始时尚无正式作者意图；后来首次采用也会使此 AI 草稿失效。",
   "sources.intent.scope":
@@ -229,31 +229,31 @@ export const creationZh = {
   "sources.scope.full": "确认时的完整非空正文目录",
   "sources.scope.partial": "明确局部范围",
   "sources.production.scope":
-    "制作原冻结范围：{scope}；{coverage}新来源选择不改变此运行；原输入重试仍用原冻结表达，采用或复检完成时核对实际来源。",
+    "制作本次参考的范围：{scope}；{coverage}新来源选择不改变此运行；原输入重试仍用本次参考的表达，采用或复检完成时核对实际来源。",
   "sources.production.unread":
     "正文目录未读取，章节总数和未纳入章数未知，不以 0 冒充完整覆盖。",
   "sources.production.read":
     "实际纳入 {included} 章，未纳入 {excluded} 章（目录共 {total} 章）。",
   "sources.production.label": "制作运行实际来源表达",
   "sources.planning.scope":
-    "规划原冻结范围：{scope}；实际覆盖 {included} 章，未纳入 {excluded} 章。新选择不改变这一运行；原输入重试不换成最新来源，采用时仍核对原基准。",
+    "规划本次参考的范围：{scope}；实际覆盖 {included} 章，未纳入 {excluded} 章。新选择不改变这一运行；原输入重试不换成最新来源，采用时仍核对原基准。",
   "sources.planning.label": "规划运行实际来源表达",
   "sources.budget":
     "完整首次提示估算 {estimated} token / 预算 {budget} token；实际 usage 与费用未知。",
   "sources.budget.frozen":
-    "冻结上下文估算 {estimated} token / 预算 {budget} token；实际 usage 与费用未知。",
+    "锁定上下文估算 {estimated} token / 预算 {budget} token；实际 usage 与费用未知。",
   "sources.context.coverage":
     "前文明确纳入 {included} 个不同章节，未纳入 {omitted} 章；直接表达中 {original} 章完整原文，{summary} 章采用摘要，{paragraphs} 章所选段落。摘要与片段不代表完整原文，覆盖不等于语义质量。",
-  "sources.context.summary": "高层摘要的原冻结章节版本",
+  "sources.context.summary": "高层摘要的本次参考的章节版本",
   "sources.context.summaryDetail":
-    "高层采用摘要：{title} · {id} v{version}；原冻结覆盖 {count} 章，不是当前全书原文。",
-  "sources.context.summaryStale": "完整范围已变化，仅保留所选冻结范围。",
+    "高层采用摘要：{title} · {id} v{version}；本次参考的覆盖 {count} 章，不是当前全书原文。",
+  "sources.context.summaryStale": "完整范围已变化，仅保留所选锁定范围。",
   "sources.context.summaryFrozen": "编辑区新选择不改变这个运行。",
   "sources.summary":
-    "实际冻结摘要范围：{title}；完整纳入 {references} 个非空章节，空章 {empty} 个不算已读。原文 {original} 章，已采用摘要 {summary} 章；编辑区新选择不改变这一运行的原冻结来源，引用与覆盖不保证语义概括正确。",
+    "实际锁定摘要范围：{title}；完整纳入 {references} 个非空章节，空章 {empty} 个不算已读。原文 {original} 章，已采用摘要 {summary} 章；编辑区新选择不改变这一运行的本次参考的来源，引用与覆盖不保证语义概括正确。",
   "sources.quality":
     "质量评议实际表达：原文 {original} 章、章节摘要 {summary} 章、段落 {paragraphs} 章、高层摘要 {summaries} 条；覆盖并集不重复计章，摘要与段落不是全文评议。",
-  "sources.quality.summary": "质量摘要冻结身份与逐章版本",
+  "sources.quality.summary": "质量摘要锁定身份与逐章版本",
   "sources.adaptation.label": "改编运行实际来源表达",
   "sources.entry.included": "{title} · 已纳入",
   "sources.entry.excluded": "{title} · 未纳入",
@@ -348,7 +348,7 @@ export const creationZh = {
   "workbench.listForeign":
     "创作运行目录的实际项目／目标或唯一身份无法核对，未选择最近 AI 草稿。",
   "workbench.workflowForeign":
-    "指定原运行的实际身份／项目／操作／原冻结请求不符，未打开其他 AI 草稿。",
+    "指定原运行的实际身份／项目／操作／本次参考的请求不符，未打开其他 AI 草稿。",
   "workbench.previewForeign":
     "指定原预览的实际身份／任务／目标不符，未显示可采用缓存。",
   "workbench.capabilityMissing":

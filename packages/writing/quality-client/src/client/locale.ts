@@ -1,7 +1,7 @@
 /** Copy of the creative quality client: the creative analysis page frame. */
 export const zh = {
   "page.title": "创作分析",
-  "page.description": "故事圣经、章节分析、人物关系和创意诊断集中在一处。",
+  "page.description": "故事记忆、章节分析、人物关系和创意诊断集中在一处。",
 } as const;
 
 /** English copy, key for key. */

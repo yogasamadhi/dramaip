@@ -41,15 +41,15 @@ test("原著路径可建立并恢复一集试制计划", async () => {
     .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
     .check();
   await page.getByRole("button", { name: "确认导入" }).click();
-  await openProjectTool(page, "试制计划");
-  await expect(page.getByLabel("试制向导")).toBeVisible();
-  await page.getByRole("button", { name: "建立试制计划" }).click();
+  await openProjectTool(page, "样片计划");
+  await expect(page.getByLabel("样片向导")).toBeVisible();
+  await page.getByRole("button", { name: "建立样片计划" }).click();
   await expect(
     page.getByRole("button", { name: "确认来源并生成首集" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "确认来源并生成首集" }).click();
   await expect(
-    page.getByText("当前阶段：采用试制剧本", { exact: true }),
+    page.getByText("当前阶段：采用样片剧本", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "前往唯一待办" })).toBeVisible();
 });

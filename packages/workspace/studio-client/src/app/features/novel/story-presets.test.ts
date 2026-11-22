@@ -154,16 +154,16 @@ test("预设初始化中途失败后重试只补缺失资料", async () => {
   expect(resources["story-arcs"]).toHaveLength(3);
 });
 
-test("单季原创初始化母稿、四个人物槽位、季纲和首集", async () => {
+test("小说改剧本只初始化季纲和首集，不建占位章节和人物槽位", async () => {
   const created: Array<{ domain: string; input: Record<string, unknown> }> = [];
   const selected: Array<{ projectId: string; adaptationId: string }> = [];
   const client = {
     chapters: {
       list: async () => [],
-      create: async (input: Record<string, unknown>) => ({
-        ...input,
-        id: "chapter-1",
-      }),
+      create: async (input: Record<string, unknown>) => {
+        created.push({ domain: "chapters", input });
+        return { ...input, id: "chapter-1" };
+      },
     },
     resources: {
       list: async () => [],
@@ -188,16 +188,18 @@ test("单季原创初始化母稿、四个人物槽位、季纲和首集", async
     targetEpisodeCount: 80,
   });
 
-  expect(chapter.title).toBe("单季故事母稿");
+  // No placeholder chapter or 「待命名」 slots: the novel is imported.
+  expect(chapter).toBeUndefined();
+  expect(created.filter((item) => item.domain === "chapters")).toHaveLength(0);
   expect(created.filter((item) => item.domain === "characters")).toHaveLength(
-    4,
+    0,
   );
   expect(created.filter((item) => item.domain === "adaptations")).toHaveLength(
     1,
   );
   expect(created.filter((item) => item.domain === "episodes")).toHaveLength(1);
   expect(selected).toEqual([
-    { projectId: "project-1", adaptationId: "adaptations-5" },
+    { projectId: "project-1", adaptationId: "adaptations-1" },
   ]);
 });
 

@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "pnpm run dev:raw",
     "dev:raw": "node ../../scripts/dev-desktop.mjs",
-    "build": "pnpm --filter @dramaip/web run build && electron-vite build && pnpm run build:runtime",
+    "build": "pnpm --workspace-root run build:infra && electron-vite build && pnpm run build:runtime",
     "build:release": "node ../../scripts/build-release.mjs",
     "preview": "electron-vite preview",
     "build:pi": "node scripts/prepare-pi-runtime.mjs",

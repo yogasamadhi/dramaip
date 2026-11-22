@@ -2,15 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { BareButton, Button, Textarea } from "@dramaip/infra-ui-primitives";
 import type { CreationWorkflow } from "@dramaip/contracts/creation";
-import type { DomainEntity, Project } from "@dramaip/contracts/product";
+import type {
+  Chapter,
+  DomainEntity,
+  Project,
+} from "@dramaip/contracts/product";
 import { useStudio, message as errorText } from "../../studio-shared";
 import { AiSettingsLink } from "../../studio-session";
 import { CREATION_STAGE_LABELS } from "../creation-workbench";
 import {
   ACTIVE_CREATION_STAGES as ACTIVE,
+  ALL_PLANNING_STEPS,
+  CHAPTER_PLAN_STEP,
   PLANNING_STEPS,
   SETUP_ORDER,
   fieldText,
+  importedExcerpt,
   nextPlanningStep,
   planningInstruction,
   planningProgress,
@@ -20,6 +27,7 @@ import {
   type PlanningStep,
   type PlanningStepKey,
 } from "./novel-planning";
+import { useImportedChapterMemory } from "./imported-memory";
 import styles from "./NovelPlanningGuide.module.css";
 
 /** The items of an AI draft as titled field lists. */
@@ -80,6 +88,9 @@ export function NovelPlanningGuide(props: {
   );
   const [characters, setCharacters] = useState<DomainEntity[]>();
   const [outlines, setOutlines] = useState<DomainEntity[]>();
+  // Chapters that already hold text (an imported book) are the source the
+  // planning drafts are extracted from.
+  const [imported, setImported] = useState<Chapter[]>([]);
   const [chosen, setChosen] = useState<PlanningStepKey>();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,17 +98,23 @@ export function NovelPlanningGuide(props: {
   const logRef = useRef<HTMLDivElement>(null);
 
   const loadMaterials = async () => {
-    const [characterItems, outlineItems] = await Promise.all([
+    const [characterItems, outlineItems, chapterItems] = await Promise.all([
       client.resources.list("characters", projectId),
       client.resources.list("outlines", projectId),
+      client.chapters.list(projectId).catch(() => []),
     ]);
     setCharacters(characterItems);
     setOutlines(outlineItems);
+    setImported(chapterItems.filter((chapter) => chapter.content.trim()));
   };
   useEffect(() => {
     void loadMaterials().catch((cause) => setNotice(errorText(cause)));
   }, [client, projectId]);
   useEffect(() => savePlanningMessages(projectId, messages), [messages]);
+  // Once the author asks to break an imported book down, its chapters also
+  // get their story memory recorded in the background, a few at a time.
+  const [memoryRequested, setMemoryRequested] = useState(false);
+  useImportedChapterMemory(client, projectId, imported, memoryRequested);
 
   // Read every draft the conversation refers to, and follow running ones.
   const ids = messages
@@ -141,7 +158,7 @@ export function NovelPlanningGuide(props: {
   });
   const next = nextPlanningStep(done);
   const step =
-    PLANNING_STEPS.find((item) => item.key === chosen) ?? next ?? undefined;
+    ALL_PLANNING_STEPS.find((item) => item.key === chosen) ?? next ?? undefined;
   const stepMessages = (key: PlanningStepKey) =>
     messages.filter((item) => item.step === key);
   const lastDraft = (key: PlanningStepKey) => {
@@ -187,6 +204,7 @@ export function NovelPlanningGuide(props: {
             ...(revising
               ? { previous: revising.output, feedback: feedback ?? "" }
               : {}),
+            ...(imported.length ? { source: importedExcerpt(imported) } : {}),
           }),
           sourceIds: [],
           engineKind: settings.defaultEngineKind,
@@ -240,7 +258,8 @@ export function NovelPlanningGuide(props: {
       }));
       await Promise.all([props.onProjectChanged(), loadMaterials()]);
       setChosen(undefined);
-      const after = PLANNING_STEPS[PLANNING_STEPS.indexOf(target) + 1];
+      const at = PLANNING_STEPS.findIndex((item) => item.key === target.key);
+      const after = at < 0 ? undefined : PLANNING_STEPS[at + 1];
       say({
         role: "ai",
         step: target.key,
@@ -252,7 +271,7 @@ export function NovelPlanningGuide(props: {
               : "大纲"
         }」里修改。`,
       });
-      if (after && !done[after.key])
+      if (after && !done[after.key] && !lastDraft(after.key))
         say({ role: "ai", step: after.key, text: after.ask });
     } catch (cause) {
       setNotice(errorText(cause));
@@ -285,6 +304,13 @@ export function NovelPlanningGuide(props: {
     }
   };
 
+  /** Drafts every unfinished planning step from the imported chapters. */
+  const breakdown = async () => {
+    setMemoryRequested(true);
+    for (const target of PLANNING_STEPS)
+      if (!done[target.key] && !lastDraft(target.key)) await draft(target);
+  };
+
   const latestDraftId = (key: PlanningStepKey) =>
     stepMessages(key)
       .map((item) => item.workflowId)
@@ -292,7 +318,7 @@ export function NovelPlanningGuide(props: {
       .at(-1);
 
   const renderDraft = (item: PlanningMessage) => {
-    const target = PLANNING_STEPS.find((value) => value.key === item.step)!;
+    const target = ALL_PLANNING_STEPS.find((value) => value.key === item.step)!;
     const workflow = item.workflowId ? workflows[item.workflowId] : undefined;
     if (!workflow)
       return (
@@ -373,7 +399,7 @@ export function NovelPlanningGuide(props: {
   const allDone = loaded && !next;
   // The conversation opens on the step it starts from: a project whose
   // setup was written by hand starts at the characters.
-  const opening = PLANNING_STEPS.find(
+  const opening = ALL_PLANNING_STEPS.find(
     (item) => item.key === (messages[0]?.step ?? next?.key),
   );
   return (
@@ -429,6 +455,22 @@ export function NovelPlanningGuide(props: {
             </p>
           </div>
         )}
+        {loaded && imported.length > 0 && !allDone && !messages.length && (
+          <div className={styles.ai}>
+            <p className={styles.bubble}>
+              {`已导入 ${imported.length} 章正文。AI 可以直接从原文整理出故事设定、主要人物和全书大纲，你逐项确认后保存。`}
+            </p>
+            <div className={styles.actions}>
+              <Button
+                size="sm"
+                disabled={busy || running}
+                onClick={() => void breakdown()}
+              >
+                {`从已导入的 ${imported.length} 章整理设定、人物和大纲`}
+              </Button>
+            </div>
+          </div>
+        )}
         {messages.map((item) => (
           <div
             key={item.id}
@@ -448,13 +490,32 @@ export function NovelPlanningGuide(props: {
         {allDone && !chosen && (
           <div className={styles.ai}>
             <p className={styles.bubble}>
-              构思完成！设定、人物和大纲都已保存，后面写每一章时 AI
-              都会参考它们。现在可以开始写第一章了。
+              {done["chapter-plan"]
+                ? "构思完成！设定、人物、大纲和章节大纲都已保存，写每一章时 AI 会按对应的章节大纲来写。现在可以开始写第一章了。"
+                : "构思完成！设定、人物和大纲都已保存，后面写每一章时 AI 都会参考它们。现在可以开始写第一章了，也可以先把前 10 章的章节大纲排出来。"}
             </p>
             <div className={styles.actions}>
               <Button size="sm" onClick={() => props.onOpen("chapters")}>
                 开始写第一章
               </Button>
+              {!done["chapter-plan"] && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy || running}
+                  onClick={() => {
+                    setChosen(CHAPTER_PLAN_STEP.key);
+                    say({
+                      role: "ai",
+                      step: CHAPTER_PLAN_STEP.key,
+                      text: CHAPTER_PLAN_STEP.ask,
+                    });
+                    void draft(CHAPTER_PLAN_STEP);
+                  }}
+                >
+                  先规划前 10 章章节大纲
+                </Button>
+              )}
             </div>
           </div>
         )}

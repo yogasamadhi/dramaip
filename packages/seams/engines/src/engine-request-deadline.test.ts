@@ -67,6 +67,9 @@ test("超时与服务商问题可区分，底层报文和凭据不会进入公�
     "频率受限",
   );
   expect(
+    publicEngineErrorMessage(new Error("云 AI 尚未开通额度 secret")),
+  ).toBe("云 AI 尚未开通额度，请在尽意官网的套餐页开通 Free 套餐后重试。");
+  expect(
     publicEngineErrorMessage(new Error("模型输出达到长度上限 secret")),
   ).toBe("模型输出达到长度上限，未返回完整结果，请缩小创作范围后重试。");
   expect(publicEngineErrorMessage(new Error("fetch failed secret"))).toContain(

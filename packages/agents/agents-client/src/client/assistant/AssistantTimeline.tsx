@@ -88,6 +88,11 @@ export function AssistantTimeline({
               </p>
             )}
             <StageSummary t={t} items={items} active={active} />
+            {turn.status === "failed" && turn.error && (
+              <p className={css.clarify} role="alert">
+                {turn.error}
+              </p>
+            )}
             {items
               .filter((item) => item.type === "tool_call")
               .map((item) => (

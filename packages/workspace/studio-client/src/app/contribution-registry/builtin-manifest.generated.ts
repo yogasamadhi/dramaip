@@ -185,7 +185,7 @@ export const BUILTIN_UI_MANIFEST = {
     kind: "inspector",
     metadata: {
       target: "chapter",
-      title: "故事圣经侧栏",
+      title: "故事记忆侧栏",
     },
     metadataHash:
       "86cae0f5c17f52e892bfaba28451405d22eeb2df7c070232a77af047f691236d",
@@ -195,7 +195,7 @@ export const BUILTIN_UI_MANIFEST = {
     kind: "panel",
     metadata: {
       slot: "writing.story-bible",
-      title: "故事圣经",
+      title: "故事记忆",
     },
     metadataHash:
       "fe5a8bb8f3bd8ec1bea458e8074704b453b488ba074e1076def61d10d2fd274e",

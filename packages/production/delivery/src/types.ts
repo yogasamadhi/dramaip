@@ -97,7 +97,7 @@ export type ManuscriptsGetResult = {
       orderIndex: number;
       contentSha256: string;
     }[];
-    format: "markdown" | "json";
+    format: "markdown" | "json" | "txt" | "docx";
     fileName: string;
     contentSha256: string;
     byteSize: number;
@@ -150,7 +150,7 @@ export type ManuscriptsListResult = {
         orderIndex: number;
         contentSha256: string;
       }[];
-      format: "markdown" | "json";
+      format: "markdown" | "json" | "txt" | "docx";
       fileName: string;
       contentSha256: string;
       byteSize: number;
@@ -186,7 +186,7 @@ export type ManuscriptsPreviewInput = {
     id: string;
     version: number;
   }[];
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "txt" | "docx";
 };
 
 /** Answer of `delivery/manuscriptsPreview` (`manuscripts.preview`). */
@@ -206,7 +206,7 @@ export type ManuscriptsPreviewResult = {
       orderIndex: number;
       contentSha256: string;
     }[];
-    format: "markdown" | "json";
+    format: "markdown" | "json" | "txt" | "docx";
     fileName: string;
     contentSha256: string;
     byteSize: number;
@@ -263,7 +263,7 @@ export type ManuscriptsSaveResult = {
       orderIndex: number;
       contentSha256: string;
     }[];
-    format: "markdown" | "json";
+    format: "markdown" | "json" | "txt" | "docx";
     fileName: string;
     contentSha256: string;
     byteSize: number;

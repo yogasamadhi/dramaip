@@ -67,7 +67,7 @@ describe("desktop launcher engine runtimes", () => {
     const labels = probe<string[]>(
       "launcher.runtimeSpecs().map((runtime) => runtime.label)",
     );
-    expect(labels).toEqual(["Pi 1.5.0"]);
+    expect(labels).toEqual(["Pi 1.5.2"]);
   });
 });
 

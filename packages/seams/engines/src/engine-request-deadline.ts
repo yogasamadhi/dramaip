@@ -6,9 +6,9 @@ export class EngineRequestTimeoutError extends Error {
   constructor(readonly reason: "control" | "idle" | "duration") {
     super(
       reason === "control"
-        ? "智能引擎未及时响应操作，请稍后重试。"
+        ? "AI 服务未及时响应操作，请稍后重试。"
         : reason === "idle"
-          ? "智能引擎连续 5 分钟未返回进展，已请求停止本次生成，请稍后重试。"
+          ? "AI 服务连续 5 分钟未返回进展，已请求停止本次生成，请稍后重试。"
           : "本次生成已超过 30 分钟，已请求停止，请缩小创作范围后重试。",
     );
     this.name = "EngineRequestTimeoutError";
@@ -59,6 +59,8 @@ export class EngineRequestDeadline {
 export function publicEngineErrorMessage(error: unknown): string {
   if (error instanceof EngineRequestTimeoutError) return error.message;
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("云 AI 尚未开通额度"))
+    return "云 AI 尚未开通额度，请在尽意官网的套餐页开通 Free 套餐后重试。";
   if (
     /输出达到长度上限|max[_ ]?(?:completion[_ ]?)?tokens|output.*limit/i.test(
       message,
@@ -77,5 +79,5 @@ export function publicEngineErrorMessage(error: unknown): string {
     /fetch failed|network|ECONN|ENOTFOUND|TLS|certificate|网络/i.test(message)
   )
     return "无法连接模型服务，请检查网络和服务地址后重试。";
-  return "智能引擎调用失败，请检查模型配置和引擎状态后重试。";
+  return "AI 服务调用失败，请检查 AI 模型设置后重试。";
 }

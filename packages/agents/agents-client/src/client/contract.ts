@@ -5,9 +5,15 @@
  */
 import type {} from "@dramaip/infra-ui-slots";
 import type {
+  ProviderSetupProps,
+  ProviderSetupRemotes,
+} from "./ProviderSetupDialog.tsx";
+import type {
   AgentTaskConfigProps,
   TaskConfigRemotes,
 } from "./task-config/TaskConfig.tsx";
+
+export type { ProviderSetupProps } from "./ProviderSetupDialog.tsx";
 
 export type {
   AgentTaskConfigProps,
@@ -28,6 +34,16 @@ declare module "@dramaip/infra-ui-slots" {
       scope: "root";
       props: AgentTaskConfigProps;
       inject: TaskConfigRemotes;
+      locale: "agents";
+    };
+    /**
+     * Set up an AI model in place: a dialog over the page that asked for
+     * one. Saving makes the model the default and calls `onReady`.
+     */
+    "agents.provider-setup": {
+      scope: "root";
+      props: ProviderSetupProps;
+      inject: ProviderSetupRemotes;
       locale: "agents";
     };
   }

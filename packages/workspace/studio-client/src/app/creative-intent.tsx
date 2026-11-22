@@ -31,7 +31,7 @@ function targetLabel(kind: string): string {
       chapter: "章节",
       character: "人物",
       outline: "故事大纲",
-      story_bible: "故事圣经",
+      story_bible: "故事记忆",
       episode: "分集",
       script: "剧本",
       scene: "场景",

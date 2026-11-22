@@ -197,7 +197,9 @@ export function TaskConfig({
   scope,
   intent,
   renderRun,
+  renderFactorySlot,
 }: AgentTaskConfigComponentProps) {
+  const [setupOpen, setSetupOpen] = useState(false);
   const [pathname = "", search = ""] = route.split("?");
   const query = new URLSearchParams(search);
   const requestedProjectId =
@@ -439,18 +441,34 @@ export function TaskConfig({
             <a
               className={css.link}
               href="#/settings?setup=ai"
-              onClick={() =>
+              onClick={(event) => {
                 intent.save({
                   returnTo: route,
                   ...(projectId ? { projectId } : {}),
                   ...(chapterId ? { chapterId } : {}),
                   actionId: action.actionId,
                   ...(prompt ? { input: prompt } : {}),
-                })
-              }
+                });
+                // The model is set up in place; the settings page stays
+                // the way there for a modified click.
+                if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+                event.preventDefault();
+                setSetupOpen(true);
+              }}
             >
               {t("task.fix.link")}
             </a>
+            {renderFactorySlot("agents.provider-setup", {
+              open: setupOpen,
+              onClose: () => {
+                intent.clear();
+                setSetupOpen(false);
+              },
+              onReady: () => {
+                intent.clear();
+                setSetupOpen(false);
+              },
+            })}
           </div>
         )}
         <Button

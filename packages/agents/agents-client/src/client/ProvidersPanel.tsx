@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import type { TranslateNS } from "@dramaip/infra-ui-slots";
-import { Button, Modal } from "@dramaip/infra-ui-primitives";
+import { Button, Modal, Tabs } from "@dramaip/infra-ui-primitives";
 import type {
   ProviderCatalogPreset,
   ProvidersCatalogResult,
@@ -18,6 +18,10 @@ import {
   type VaultState,
   unlockVault,
 } from "./ai-settings.ts";
+import {
+  PiSubscriptionControls,
+  usePiSubscription,
+} from "./PiSubscriptionControls.tsx";
 import css from "./AiSection.module.css";
 
 type Translate = TranslateNS<"agents">;
@@ -47,6 +51,12 @@ const DEFAULT_PROTOCOL = PROTOCOLS[0];
 /** A preset id, or `other` for a provider filled in by hand. */
 type Choice = string;
 
+const CONNECTION_MODES = [
+  ["apiKey", "providers.api.mode"],
+  ["subscription", "providers.pi.mode"],
+] as const;
+type ConnectionMode = (typeof CONNECTION_MODES)[number][0];
+
 const recommended = (preset: ProviderCatalogPreset | undefined) =>
   preset?.models.find((model) => model.recommended)?.id ??
   preset?.models[0]?.id ??
@@ -60,6 +70,8 @@ export interface ProvidersPanelProps {
   catalog: ProvidersCatalogResult | undefined;
   providers: readonly ProviderRecord[];
   vault: VaultState | undefined;
+  /** The provider the assistant uses now, when one is set. */
+  activeProviderId?: string | undefined;
   /** Read the providers again after a write. */
   reload: () => void;
   /** Read the vault state again after an unlock. */
@@ -70,13 +82,103 @@ export interface ProvidersPanelProps {
 }
 
 /**
- * The model providers: a form over the catalog presets (or a provider filled
- * in by hand) and the saved providers. Keys go through the shell's capture
- * window into the vault; the provider keeps only the reference.
+ * Make a language-model provider the assistant's and its model the default
+ * every project uses, so one save is enough to start writing with AI.
+ * @returns the activation's message.
  */
+export async function connectProvider(
+  agents: AgentsRemote,
+  provider: { id: string; model: string },
+): Promise<string> {
+  const verdict = await value<ProviderVerdict>(
+    agents.providersActivateForAgent(
+      provider.id,
+      undefined,
+      undefined,
+      crypto.randomUUID(),
+    ),
+  );
+  if (provider.model)
+    await value(
+      agents.enginesUpdateGlobalSettings(
+        { defaultEngineKind: "pi", defaultModel: { modelId: provider.model } },
+        undefined,
+        crypto.randomUUID(),
+      ),
+    );
+  return verdict.message;
+}
+
 export function ProvidersPanel(props: ProvidersPanelProps) {
-  const { t, agents, system, catalog, providers, vault } = props;
-  const presets = catalog?.providers ?? [];
+  const { t, catalog, providers, activeProviderId } = props;
+  const [selectedMode, setSelectedMode] = useState<ConnectionMode>();
+  const active = providers.find(({ id }) => id === activeProviderId);
+  const mode =
+    selectedMode ??
+    (active?.payload["认证方式"] === "piSubscription"
+      ? "subscription"
+      : "apiKey");
+
+  return (
+    <section className={clsx(css.card, css.flush)}>
+      <div className={css.banner}>
+        <div className={css.head}>
+          <div>
+            <p className={css.eyebrow}>{t("providers.step")}</p>
+            <h2 className={css.title}>{t("providers.title")}</h2>
+          </div>
+          {catalog && (
+            <span className={css.badge}>
+              {t("providers.catalog", {
+                date: catalog.updatedAt,
+                release: catalog.release,
+              })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <Tabs
+        value={mode}
+        onValueChange={(value) => setSelectedMode(value as ConnectionMode)}
+      >
+        <Tabs.List
+          aria-label={t("providers.authentication")}
+          className={css.connectionTabs}
+        >
+          {CONNECTION_MODES.map(([id, label]) => (
+            <Tabs.Trigger key={id} value={id}>
+              {t(label)}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
+        {CONNECTION_MODES.map(([id]) => (
+          <Tabs.Content key={id} value={id} forceMount hidden={mode !== id}>
+            <ProviderForm {...props} mode={id} visible={mode === id} />
+          </Tabs.Content>
+        ))}
+      </Tabs>
+    </section>
+  );
+}
+
+function ProviderForm(
+  props: ProvidersPanelProps & { mode: ConnectionMode; visible: boolean },
+) {
+  const { t, agents, system, catalog, vault, visible } = props;
+  const isSubscription = props.mode === "subscription";
+  const providers = props.providers.filter(({ payload }) =>
+    isSubscription
+      ? payload["认证方式"] === "piSubscription"
+      : payload["认证方式"] !== "piSubscription" &&
+        payload["认证方式"] !== "hosted",
+  );
+  const presets = (catalog?.providers ?? []).filter((preset) =>
+    isSubscription
+      ? Boolean(preset.subscriptionLabel)
+      : !preset.subscriptionOnly,
+  );
+  const defaultPreset = presets[0];
   const [choice, setChoice] = useState<Choice>("");
   const [modelId, setModelId] = useState("");
   const [refreshKey, setRefreshKey] = useState(false);
@@ -88,6 +190,7 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
   const [customProtocol, setCustomProtocol] =
     useState<string>(DEFAULT_PROTOCOL);
   const [editing, setEditing] = useState<ProviderRecord>();
+  const [makeDefault, setMakeDefault] = useState(true);
   const [saving, setSaving] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [removing, setRemoving] = useState<ProviderRecord>();
@@ -102,10 +205,10 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
 
   // The form starts on the first preset once the catalog arrives.
   useEffect(() => {
-    if (choice || !presets[0]) return;
-    setChoice(presets[0].id);
-    setModelId(recommended(presets[0]));
-  }, [choice, presets]);
+    if (choice || !defaultPreset) return;
+    setChoice(defaultPreset.id);
+    setModelId(recommended(defaultPreset));
+  }, [choice, defaultPreset]);
 
   useEffect(() => {
     if (!editing) return;
@@ -113,36 +216,61 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
     selectRef.current?.focus({ preventScroll: true });
   }, [editing]);
 
-  const preset =
-    choice === "other" ? undefined : presets.find(({ id }) => id === choice);
+  const preset = presets.find(({ id }) => id === choice);
+  const subscriptionProvider = isSubscription ? preset?.id : undefined;
+  const subscription = usePiSubscription(
+    system,
+    visible ? subscriptionProvider : undefined,
+  );
+  const accountModelIds = subscription.status?.signedIn
+    ? subscription.status.modelIds
+    : undefined;
+  useEffect(() => {
+    if (!accountModelIds || accountModelIds.includes(modelId)) return;
+    const recommendedId = preset?.models.find(
+      (model) => model.recommended && accountModelIds.includes(model.id),
+    )?.id;
+    setModelId(recommendedId ?? accountModelIds[0] ?? "");
+  }, [accountModelIds, modelId, preset]);
   const modelBaseUrl =
     preset?.models.find((model) => model.id === modelId)?.baseUrl ??
     preset?.baseUrl;
   const needsEndpoint = Boolean(
-    preset && (!modelBaseUrl || /[{}]/.test(modelBaseUrl)),
+    preset &&
+    !subscriptionProvider &&
+    (!modelBaseUrl || /[{}]/.test(modelBaseUrl)),
   );
   const editingPayload = editing?.payload ?? {};
-  const selectableModels = preset
-    ? [
-        ...preset.models.map((model) => ({
-          id: model.id,
-          label: model.recommended
-            ? t("providers.model.recommended", { label: model.label })
-            : model.label,
-        })),
-        ...providerDiscoveredModels(editingPayload)
-          .filter((id) => !preset.models.some((model) => model.id === id))
-          .map((id) => ({ id, label: t("providers.model.available", { id }) })),
-        ...(modelId && !preset.models.some((model) => model.id === modelId)
-          ? [
-              {
-                id: modelId,
-                label: t("providers.model.saved", { id: modelId }),
-              },
-            ]
-          : []),
-      ]
-    : [];
+  const selectableModels =
+    accountModelIds && preset
+      ? accountModelIds.map((id) => ({
+          id,
+          label: preset.models.find((model) => model.id === id)?.label ?? id,
+        }))
+      : preset
+        ? [
+            ...preset.models.map((model) => ({
+              id: model.id,
+              label: model.recommended
+                ? t("providers.model.recommended", { label: model.label })
+                : model.label,
+            })),
+            ...providerDiscoveredModels(editingPayload)
+              .filter((id) => !preset.models.some((model) => model.id === id))
+              .map((id) => ({
+                id,
+                label: t("providers.model.available", { id }),
+              })),
+            ...(modelId && !preset.models.some((model) => model.id === modelId)
+              ? [
+                  {
+                    id: modelId,
+                    label: t("providers.model.saved", { id: modelId }),
+                  },
+                ]
+              : []),
+          ]
+        : [];
 
   const select = (next: Choice) => {
     setChoice(next);
@@ -165,7 +293,7 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
 
   const edit = (provider: ProviderRecord) => {
     const payload = provider.payload;
-    const presetId = String(payload["预设服务商"] ?? "");
+    const presetId = providerPresetId(provider);
     setEditing(provider);
     setChoice(presets.some(({ id }) => id === presetId) ? presetId : "other");
     setModelId(String(payload["模型名称"] ?? ""));
@@ -179,12 +307,24 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
     setNotice(undefined);
   };
 
-  const reset = () => select(presets[0]?.id ?? "other");
+  const reset = () => select(defaultPreset?.id ?? "other");
+
+  function providerPresetId(provider: ProviderRecord): string {
+    const { payload } = provider;
+    return String(
+      (isSubscription
+        ? (payload["Pi服务商"] ?? payload["预设服务商"])
+        : payload["预设服务商"]) ?? "",
+    );
+  }
 
   const save = async () => {
+    if (isSubscription && !preset) return;
     const previousRef = String(editingPayload["凭据引用"] ?? "").trim();
     const model = preset ? modelId.trim() : customModel.trim();
-    const title = preset?.name ?? customName.trim();
+    const title =
+      (subscriptionProvider && preset?.subscriptionLabel) ||
+      (preset?.name ?? customName.trim());
     const protocol = preset?.protocol ?? customProtocol.trim();
     const serviceType = preset ? TEXT_MODEL : customServiceType.trim();
     const baseUrl =
@@ -195,11 +335,19 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
       setError(t("providers.incomplete"));
       return;
     }
-    if (preset && (!baseUrl || /[{}]/.test(baseUrl))) {
+    if (
+      subscriptionProvider &&
+      (!subscription.status?.signedIn || subscription.status.pending)
+    ) {
+      setError(t("providers.pi.signedOut"));
+      return;
+    }
+    if (preset && !subscriptionProvider && (!baseUrl || /[{}]/.test(baseUrl))) {
       setError(t("providers.endpointRequired"));
       return;
     }
-    const needsKey = !keyless && (!previousRef || refreshKey);
+    const needsKey =
+      !subscriptionProvider && !keyless && (!previousRef || refreshKey);
     if (needsKey && vault?.available !== true) {
       setError(t("providers.vaultRequired"));
       return;
@@ -239,6 +387,13 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
             }
           : { 预设服务商: "other", Pi服务商: undefined }),
       };
+      if (subscriptionProvider) {
+        payload["认证方式"] = "piSubscription";
+        delete payload["凭据引用"];
+        delete payload["服务地址"];
+        delete payload["本地运行时"];
+      }
+      let savedId = editing?.id;
       if (editing)
         await value(
           agents.providersUpdate(
@@ -249,20 +404,47 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
           ),
         );
       else
-        await value(
-          agents.providersCreate(
-            { title, payload } as never,
-            undefined,
-            crypto.randomUUID(),
-          ),
+        savedId = (
+          await value<ProviderRecord>(
+            agents.providersCreate(
+              { title, payload } as never,
+              undefined,
+              crypto.randomUUID(),
+            ),
+          )
+        ).id;
+      const replacedKey = newRef && previousRef !== newRef;
+      newRef = undefined;
+      if (previousRef && (replacedKey || subscriptionProvider))
+        await value(system.removeCredential(previousRef)).catch(
+          () => undefined,
         );
-      if (newRef && previousRef && previousRef !== newRef)
-        await value(system.removeCredential(previousRef));
       setRefreshKey(false);
       setEditing(undefined);
       setNotice(t("providers.saved", { name: title }));
       props.onSaved();
       props.reload();
+      // A new model becomes the default when asked; an edited one is
+      // applied again when it is the default already.
+      const connect =
+        serviceType === TEXT_MODEL &&
+        (editing ? editing.id === props.activeProviderId : makeDefault);
+      if (savedId && connect) {
+        try {
+          await connectProvider(agents, { id: savedId, model });
+          setNotice(t("providers.connected", { name: title }));
+          props.onActivated(savedId);
+        } catch (cause) {
+          setNotice(undefined);
+          setError(
+            t("providers.connectFailed", {
+              name: title,
+              message: messageOf(cause),
+            }),
+          );
+        }
+        props.reload();
+      }
     } catch (cause) {
       if (newRef)
         await value(system.removeCredential(newRef)).catch(() => undefined);
@@ -319,21 +501,16 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
     setError(undefined);
     setNotice(undefined);
     try {
-      const verdict = await value<ProviderVerdict>(
-        agents.providersActivateForAgent(
-          provider.id,
-          undefined,
-          undefined,
-          crypto.randomUUID(),
-        ),
-      );
-      setNotice(
-        t("ai.result", { name: provider.title, message: verdict.message }),
-      );
+      await connectProvider(agents, {
+        id: provider.id,
+        model: String(provider.payload["模型名称"] ?? "").trim(),
+      });
+      setNotice(t("providers.connected", { name: provider.title }));
       props.onActivated(provider.id);
     } catch (cause) {
       setError(messageOf(cause));
     }
+    props.reload();
   };
 
   const unlock = async () => {
@@ -353,49 +530,39 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
   };
 
   return (
-    <section className={clsx(css.card, css.flush)}>
-      <div className={css.banner}>
-        <div className={css.head}>
-          <div>
-            <p className={css.eyebrow}>{t("providers.step")}</p>
-            <h2 className={css.title}>{t("providers.title")}</h2>
-            <p className={css.muted}>{t("providers.description")}</p>
-          </div>
-          {catalog && (
-            <span className={css.badge}>
-              {t("providers.catalog", {
-                date: catalog.updatedAt,
-                release: catalog.release,
-              })}
-            </span>
-          )}
-        </div>
-      </div>
-
+    <>
       <div ref={formRef} className={css.body}>
         {editing && (
           <div className={css.editing} role="status" aria-live="polite">
             <p className={css.strong}>
               {t("providers.editing", { name: editing.title })}
             </p>
-            <p className={css.small}>{t("providers.editingHint")}</p>
+            {!isSubscription && (
+              <p className={css.small}>{t("providers.editingHint")}</p>
+            )}
           </div>
         )}
-        <div className={css.grid3}>
+        <div className={isSubscription ? css.grid2 : css.grid3}>
           <label className={css.field}>
-            {t("providers.preset")}
+            {t(isSubscription ? "providers.pi.provider" : "providers.preset")}
             <select
               ref={selectRef}
               className={css.control}
               value={choice}
+              disabled={isSubscription && !presets.length}
               onChange={(event) => select(event.target.value)}
             >
+              {isSubscription && !presets.length && (
+                <option value="">{t("providers.pi.unavailable")}</option>
+              )}
               {presets.map((entry) => (
                 <option key={entry.id} value={entry.id}>
                   {entry.name}
                 </option>
               ))}
-              <option value="other">{t("providers.other")}</option>
+              {!isSubscription && (
+                <option value="other">{t("providers.other")}</option>
+              )}
             </select>
           </label>
 
@@ -415,35 +582,47 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
               </select>
             </label>
           ) : (
-            <label className={css.field}>
-              {t("providers.name")}
-              <input
-                className={css.control}
-                placeholder={t("providers.name.placeholder")}
-                value={customName}
-                onChange={(event) => setCustomName(event.target.value)}
-              />
-            </label>
+            !isSubscription && (
+              <label className={css.field}>
+                {t("providers.name")}
+                <input
+                  className={css.control}
+                  placeholder={t("providers.name.placeholder")}
+                  value={customName}
+                  onChange={(event) => setCustomName(event.target.value)}
+                />
+              </label>
+            )
           )}
 
-          <div className={css.field}>
-            {t("providers.key")}
-            <button
-              type="button"
-              className={css.keyButton}
-              disabled={vault?.available !== true}
-              onClick={() => setRefreshKey(true)}
-            >
-              {t(
-                refreshKey
-                  ? "providers.key.refresh"
-                  : editing
-                    ? "providers.key.keep"
-                    : "providers.key.new",
-              )}
-            </button>
-          </div>
+          {!isSubscription && (
+            <div className={css.field}>
+              {t("providers.key")}
+              <button
+                type="button"
+                className={css.keyButton}
+                disabled={vault?.available !== true}
+                onClick={() => setRefreshKey(true)}
+              >
+                {t(
+                  refreshKey
+                    ? "providers.key.refresh"
+                    : editing
+                      ? "providers.key.keep"
+                      : "providers.key.new",
+                )}
+              </button>
+            </div>
+          )}
         </div>
+        {subscriptionProvider && (
+          <PiSubscriptionControls
+            key={subscriptionProvider}
+            t={t}
+            subscription={subscription}
+            loginLabel={preset?.subscriptionLoginLabel}
+          />
+        )}
 
         {needsEndpoint && (
           <label className={css.field}>
@@ -457,7 +636,7 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
           </label>
         )}
 
-        {!preset && (
+        {!isSubscription && !preset && (
           <div className={css.grid4}>
             <label className={css.field}>
               {t("providers.serviceType")}
@@ -508,9 +687,20 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
           </div>
         )}
 
+        {(preset || (!isSubscription && customServiceType === TEXT_MODEL)) &&
+          !editing && (
+            <label className={css.check}>
+              <input
+                type="checkbox"
+                checked={makeDefault}
+                onChange={(event) => setMakeDefault(event.target.checked)}
+              />
+              {t("providers.makeDefault")}
+            </label>
+          )}
         <div className={css.footer}>
           <div className={css.notes}>
-            {preset?.apiKeyUrl && (
+            {!isSubscription && preset?.apiKeyUrl && (
               <button
                 type="button"
                 className={css.link}
@@ -522,7 +712,7 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
                 {t("providers.keyPage")}
               </button>
             )}
-            <span>{t("providers.keyNote")}</span>
+            {!isSubscription && <span>{t("providers.keyNote")}</span>}
           </div>
           <div className={css.row}>
             {editing && (
@@ -532,7 +722,16 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
             )}
             <Button
               variant="primary"
-              disabled={saving}
+              disabled={
+                saving ||
+                Boolean(
+                  isSubscription &&
+                  (!subscription.status?.signedIn ||
+                    !accountModelIds?.includes(modelId) ||
+                    subscription.status.pending ||
+                    subscription.busy),
+                )
+              }
               onClick={() => void save()}
             >
               {t(
@@ -546,12 +745,17 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
           </div>
         </div>
 
-        {vault?.available === true && vault.message && (
+        {!isSubscription && vault === undefined && (
+          <p className={css.notice} role="status">
+            {t("providers.vaultLoading")}
+          </p>
+        )}
+        {!isSubscription && vault?.available === true && vault.message && (
           <p className={css.notice} role="status">
             {vault.message}
           </p>
         )}
-        {vault?.available === false && (
+        {!isSubscription && vault?.available === false && (
           <div className={css.warning}>
             <span>{vault.message ?? t("providers.vaultUnavailable")}</span>
             {vault.locked && vault.storage === "master_password" && (
@@ -564,6 +768,15 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
                 {t(unlocking ? "providers.unlocking" : "providers.unlock")}
               </Button>
             )}
+            {!vault.locked && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => props.reloadVault()}
+              >
+                {t("providers.vaultRetry")}
+              </Button>
+            )}
           </div>
         )}
         {notice && <p className={css.notice}>{notice}</p>}
@@ -572,6 +785,7 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
         <div className={css.grid2}>
           {providers.map((provider) => {
             const current = editing?.id === provider.id;
+            const active = props.activeProviderId === provider.id;
             return (
               <article
                 key={provider.id}
@@ -580,7 +794,14 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
               >
                 <div className={css.head}>
                   <div>
-                    <p className={css.strong}>{provider.title}</p>
+                    <p className={css.strong}>
+                      {provider.title}
+                      {active && (
+                        <span className={css.badge}>
+                          {t("providers.isDefault")}
+                        </span>
+                      )}
+                    </p>
                     <p className={css.muted}>
                       {String(
                         provider.payload["模型名称"] ?? t("providers.noModel"),
@@ -597,7 +818,13 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
                       variant="outline"
                       size="sm"
                       aria-pressed={current}
-                      disabled={current}
+                      disabled={
+                        current ||
+                        (isSubscription &&
+                          !presets.some(
+                            ({ id }) => id === providerPresetId(provider),
+                          ))
+                      }
                       onClick={() => edit(provider)}
                     >
                       {t(current ? "providers.editingNow" : "providers.edit")}
@@ -609,7 +836,7 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
                     >
                       {t("providers.test")}
                     </Button>
-                    {provider.payload["服务类型"] === TEXT_MODEL && (
+                    {provider.payload["服务类型"] === TEXT_MODEL && !active && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -655,6 +882,6 @@ export function ProvidersPanel(props: ProvidersPanelProps) {
           </>
         }
       />
-    </section>
+    </>
   );
 }

@@ -13,7 +13,10 @@ import { AiSection, type AiSectionProps } from "../src/client/AiSection.tsx";
 import type { ProviderRecord, VaultState } from "../src/client/ai-settings.ts";
 import { zh } from "../src/client/locale.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 // jsdom lays nothing out; the edit form scrolls itself into view.
 Element.prototype.scrollIntoView = () => {};
@@ -52,12 +55,30 @@ const catalog = {
       ],
     },
     {
+      id: "openai-codex",
+      name: "OpenAI Codex",
+      protocol: "Pi",
+      sourceUrl: "https://github.com/earendil-works/pi",
+      subscriptionLabel: "OpenAI (ChatGPT Plus/Pro)",
+      subscriptionOnly: true,
+      models: [{ id: "gpt-5.5", label: "GPT-5.5" }],
+    },
+    {
       id: "azure",
       name: "Azure",
       protocol: "Pi",
       baseUrl: "",
       sourceUrl: "https://github.com/earendil-works/pi",
       models: [{ id: "gpt-5.4", label: "GPT-5.4", recommended: true }],
+    },
+    {
+      id: "anthropic",
+      name: "Anthropic",
+      protocol: "Pi",
+      baseUrl: "https://api.anthropic.com",
+      sourceUrl: "https://github.com/earendil-works/pi",
+      subscriptionLabel: "Claude Pro/Max",
+      models: [{ id: "claude-sonnet", label: "Claude Sonnet" }],
     },
   ],
 };
@@ -83,9 +104,20 @@ const unlocked: VaultState = {
 };
 
 function mount(
-  options: { providers?: ProviderRecord[]; vault?: VaultState } = {},
+  options: {
+    providers?: ProviderRecord[];
+    vault?: VaultState;
+    activeProviderId?: string;
+    followActivation?: boolean;
+    cloudSignedIn?: boolean;
+    /** Vault reads answered in turn before the vault state. */
+    vaultReads?: Promise<unknown>[];
+  } = {},
 ) {
+  const vaultReads = [...(options.vaultReads ?? [])];
   const providers = options.providers ?? [];
+  let activeProviderId = options.activeProviderId;
+  let cloudSignedIn = options.cloudSignedIn ?? true;
   const agents = {
     providersCatalog: vi.fn(() => ok(catalog)),
     providersList: vi.fn(() => ok(providers)),
@@ -96,19 +128,69 @@ function mount(
     providersTestConnection: vi.fn((): Promise<unknown> =>
       ok({ ok: true, message: "connected" }),
     ),
-    providersActivateForAgent: vi.fn(() => ok({ message: "activated" })),
+    providersActivateForAgent: vi.fn((id: string): Promise<unknown> => {
+      if (options.followActivation) activeProviderId = id;
+      return ok({ message: "activated" });
+    }),
     enginesList: vi.fn(() =>
       ok([{ kind: "pi", name: "Pi", version: "1.0", status: "available" }]),
     ),
-    enginesGetGlobalSettings: vi.fn(() => ok({ defaultEngineKind: "pi" })),
+    enginesGetGlobalSettings: vi.fn(() =>
+      ok({
+        defaultEngineKind: "pi",
+        ...(activeProviderId ? { activeProviderId } : {}),
+      }),
+    ),
     enginesGetProjectSettings: vi.fn(() => ok({ defaultEngineKind: "pi" })),
     enginesUpdateGlobalSettings: vi.fn(
       (settings: { defaultEngineKind: string }) => ok(settings),
     ),
     enginesUpdateProjectSettings: vi.fn(() => ok(null)),
   };
+  let piPending = false;
+  let piSignedIn = false;
   const system = {
-    credentialStatus: vi.fn(() => ok(options.vault ?? unlocked)),
+    piSubscription: vi.fn((_provider: string, action: string) => {
+      if (action === "start") piPending = true;
+      if (action === "answer") {
+        piPending = false;
+        piSignedIn = true;
+      }
+      return ok({
+        signedIn: piSignedIn,
+        pending: piPending,
+        notices: [],
+        modelIds: piSignedIn ? ["gpt-5.5"] : [],
+        ...(piPending
+          ? {
+              prompt: {
+                id: "pi-prompt",
+                type: "manual_code",
+                message: "Paste callback",
+              },
+            }
+          : {}),
+        failed: false,
+      });
+    }),
+    cloudAiSummary: vi.fn(() =>
+      ok({
+        available: true,
+        pending: false,
+        signedIn: cloudSignedIn,
+        models: cloudSignedIn ? ["hosted-flash"] : [],
+        email: cloudSignedIn ? "writer@example.com" : undefined,
+      }),
+    ),
+    cloudAiSignIn: vi.fn(() => {
+      cloudSignedIn = true;
+      return ok(null);
+    }),
+
+    credentialStatus: vi.fn(
+      (): Promise<unknown> =>
+        vaultReads.shift() ?? ok(options.vault ?? unlocked),
+    ),
     createCredentialCaptureSession: vi.fn(() =>
       ok({
         captureSessionId: "capture-1",
@@ -139,13 +221,219 @@ function mount(
 }
 
 describe("the AI connection settings section", () => {
+  it("uses Pi authorization to save a Codex model without capturing an API key", async () => {
+    const { agents, system } = mount();
+    const api = within(
+      screen.getByRole("tabpanel", { name: "providers.api.mode" }),
+    );
+    await api.findByRole("option", { name: "Anthropic" });
+    expect(api.queryByRole("option", { name: "OpenAI Codex" })).toBeNull();
+    expect(api.getByRole("option", { name: "providers.other" })).toBeTruthy();
+    expect(system.piSubscription).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "providers.pi.mode" }), {
+      key: "Enter",
+    });
+    const pi = within(
+      screen.getByRole("tabpanel", { name: "providers.pi.mode" }),
+    );
+    expect(pi.getByRole("option", { name: "OpenAI Codex" })).toBeTruthy();
+    expect(pi.getByRole("option", { name: "Anthropic" })).toBeTruthy();
+    expect(pi.queryByRole("option", { name: "DeepSeek" })).toBeNull();
+    expect(pi.queryByRole("option", { name: "providers.other" })).toBeNull();
+    expect(pi.queryByRole("button", { name: "providers.key.new" })).toBeNull();
+    fireEvent.change(pi.getByLabelText("providers.pi.provider"), {
+      target: { value: "openai-codex" },
+    });
+    const save = screen.getByRole<HTMLButtonElement>("button", {
+      name: "providers.add",
+    });
+    expect(save.disabled).toBe(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "providers.pi.signIn" }),
+    );
+    await screen.findByText("providers.pi.pending");
+    fireEvent.click(screen.getByText("providers.pi.manual"));
+    fireEvent.change(screen.getByLabelText("providers.pi.code"), {
+      target: { value: "fixture-code" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "providers.pi.submit" }),
+    );
+    await screen.findByText("providers.pi.connected");
+    expect(system.piSubscription).toHaveBeenCalledWith(
+      "openai-codex",
+      "answer",
+      { promptId: "pi-prompt", value: "fixture-code" },
+    );
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await screen.findByText(
+      'providers.connected({"name":"OpenAI (ChatGPT Plus/Pro)"})',
+    );
+    expect(system.createCredentialCaptureSession).not.toHaveBeenCalled();
+    const [input] = agents.providersCreate.mock.calls[0] as unknown as [
+      { payload: Record<string, unknown> },
+    ];
+    expect(input.payload).toMatchObject({
+      Pi服务商: "openai-codex",
+      模型名称: "gpt-5.5",
+      认证方式: "piSubscription",
+    });
+    expect(input.payload).not.toHaveProperty("凭据引用");
+    expect(input.payload).not.toHaveProperty("服务地址");
+    expect(agents.providersActivateForAgent).toHaveBeenCalledOnce();
+  });
+
+  it("opens a saved subscription in its own tab and keeps API key settings separate", async () => {
+    const subscription = {
+      id: "provider-codex",
+      title: "Codex subscription",
+      version: 1,
+      payload: {
+        服务类型: "智能模型",
+        模型名称: "gpt-5.5",
+        Pi服务商: "openai-codex",
+        认证方式: "piSubscription",
+      },
+    };
+    mount({
+      providers: [saved, subscription],
+      activeProviderId: subscription.id,
+    });
+    const pi = within(
+      await screen.findByRole("tabpanel", { name: "providers.pi.mode" }),
+    );
+    const card = within(pi.getByRole("article", { name: /Codex subscription/u }));
+    expect(pi.queryByRole("article", { name: /DeepSeek/u })).toBeNull();
+    await pi.findByRole("option", { name: "OpenAI Codex" });
+    fireEvent.click(card.getByRole("button", { name: "providers.edit" }));
+
+    const apiTab = screen.getByRole("tab", { name: "providers.api.mode" });
+    fireEvent.keyDown(apiTab, { key: "Enter" });
+    const api = within(
+      screen.getByRole("tabpanel", { name: "providers.api.mode" }),
+    );
+    expect(api.getByRole("article", { name: /DeepSeek/u })).toBeTruthy();
+    expect(api.queryByRole("article", { name: /Codex subscription/u })).toBeNull();
+    expect(api.queryByRole("button", { name: "providers.saveEdit" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "providers.pi.mode" }), {
+      key: "Enter",
+    });
+    expect(pi.getByRole("button", { name: "providers.saveEdit" })).toBeTruthy();
+  });
+
+  it("starts cloud sign-in directly from the Cloud AI card", async () => {
+    const { agents, system } = mount({
+      providers: [saved],
+      activeProviderId: saved.id,
+      cloudSignedIn: false,
+    });
+    const cloud = within(screen.getByRole("region", { name: "cloud.title" }));
+    const signIn = await cloud.findByRole("button", { name: "cloud.signIn" });
+    expect(cloud.queryByRole("button", { name: "cloud.activate" })).toBeNull();
+    expect(
+      cloud.queryByRole("button", { name: "cloud.accountHeading" }),
+    ).toBeNull();
+    fireEvent.click(signIn);
+    expect(system.cloudAiSignIn).toHaveBeenCalledOnce();
+    expect(await screen.findByLabelText("cloud.model")).toBeTruthy();
+    const account = within(
+      screen.getByRole("region", { name: "cloud.accountHeading" }),
+    );
+    expect(account.getByText("writer@example.com")).toBeTruthy();
+    expect(agents.providersActivateForAgent).not.toHaveBeenCalled();
+    expect(
+      within(screen.getByRole("region", { name: "cloud.byok" })).getByText(
+        "cloud.active",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("uses a saved cloud model and switches back to the saved BYOK provider", async () => {
+    const cloud = {
+      id: "provider-cloud",
+      title: "Cloud AI",
+      version: 1,
+      payload: {
+        服务类型: "智能模型",
+        模型名称: "hosted-flash",
+        认证方式: "hosted",
+      },
+    };
+    const { agents, system, announce } = mount({
+      providers: [saved, cloud],
+      activeProviderId: saved.id,
+      followActivation: true,
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "cloud.accountHeading" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "cloud.activate" }),
+    );
+    await waitFor(() => expect(announce).toHaveBeenCalledWith(cloud.id));
+    expect(agents.providersActivateForAgent).toHaveBeenCalledWith(
+      cloud.id,
+      undefined,
+      undefined,
+      expect.any(String),
+    );
+    expect(agents.providersCreate).not.toHaveBeenCalled();
+    expect(system.createCredentialCaptureSession).not.toHaveBeenCalled();
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "cloud.title" })).getByText(
+          "cloud.active",
+        ),
+      ).toBeTruthy(),
+    );
+    const byok = await screen.findByRole("button", {
+      name: "cloud.activateByok",
+    });
+    fireEvent.click(byok);
+    await waitFor(() => expect(announce).toHaveBeenLastCalledWith(saved.id));
+    expect(agents.providersActivateForAgent).toHaveBeenLastCalledWith(
+      saved.id,
+      undefined,
+      undefined,
+      expect.any(String),
+    );
+    expect(agents.providersDelete).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "cloud.byok" })).getByText(
+          "cloud.active",
+        ),
+      ).toBeTruthy(),
+    );
+  });
+
+  it("saves a cloud model without switching away from BYOK", async () => {
+    const { agents } = mount({
+      providers: [saved],
+      activeProviderId: saved.id,
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "cloud.accountHeading" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "cloud.save" }));
+    await screen.findByText("cloud.saved");
+    expect(agents.providersActivateForAgent).not.toHaveBeenCalled();
+    expect(localStorage.getItem("dramaip.ai.cloud-model")).toBe("hosted-flash");
+  });
+
   it("authorizes and saves the selected model's native endpoint", async () => {
     const { agents, system } = mount();
-    fireEvent.change(await screen.findByLabelText("providers.model"), {
+    const api = within(
+      screen.getByRole("tabpanel", { name: "providers.api.mode" }),
+    );
+    fireEvent.change(await api.findByLabelText("providers.model"), {
       target: { value: "deepseek-reasoner" },
     });
     fireEvent.click(screen.getByRole("button", { name: "providers.add" }));
-    await screen.findByText('providers.saved({"name":"DeepSeek"})');
+    await screen.findByText('providers.connected({"name":"DeepSeek"})');
     expect(system.createCredentialCaptureSession).toHaveBeenCalledWith(
       expect.objectContaining({ allowedOrigin: "https://reasoning.example" }),
     );
@@ -174,7 +462,7 @@ describe("the AI connection settings section", () => {
       target: { value: "https://my-resource.openai.azure.com/openai/v1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "providers.add" }));
-    await screen.findByText('providers.saved({"name":"Azure"})');
+    await screen.findByText('providers.connected({"name":"Azure"})');
     expect(agents.providersCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({
@@ -193,11 +481,11 @@ describe("the AI connection settings section", () => {
       'providers.catalog({"date":"2026-11-04","release":"Pi 1.5.0"})',
     );
     expect(
-      ((await screen.findByLabelText("providers.model")) as HTMLSelectElement)
-        .value,
+      within(screen.getByRole("tabpanel", { name: "providers.api.mode" }))
+        .getByLabelText<HTMLSelectElement>("providers.model").value,
     ).toBe("deepseek-chat");
     fireEvent.click(screen.getByRole("button", { name: "providers.add" }));
-    await screen.findByText('providers.saved({"name":"DeepSeek"})');
+    await screen.findByText('providers.connected({"name":"DeepSeek"})');
     expect(system.createCredentialCaptureSession).toHaveBeenCalledWith(
       expect.objectContaining({
         purpose: "provider-authentication",
@@ -223,7 +511,68 @@ describe("the AI connection settings section", () => {
     expect(ifMatch).toBeUndefined();
     expect(typeof key).toBe("string");
     expect(announce).toHaveBeenCalledWith(undefined);
-    expect(agents.providersList).toHaveBeenCalledTimes(2);
+    // One save connects the model and makes it every project's default.
+    expect(agents.providersActivateForAgent).toHaveBeenCalledWith(
+      "provider-2",
+      undefined,
+      undefined,
+      expect.any(String),
+    );
+    expect(agents.enginesUpdateGlobalSettings).toHaveBeenCalledWith(
+      { defaultEngineKind: "pi", defaultModel: { modelId: "deepseek-chat" } },
+      undefined,
+      expect.any(String),
+    );
+    expect(announce).toHaveBeenLastCalledWith("provider-2");
+  });
+
+  it("saves without connecting when the default box is cleared", async () => {
+    const { agents } = mount();
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "providers.makeDefault" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "providers.add" }));
+    await screen.findByText('providers.saved({"name":"DeepSeek"})');
+    expect(agents.providersActivateForAgent).not.toHaveBeenCalled();
+    expect(agents.enginesUpdateGlobalSettings).not.toHaveBeenCalled();
+  });
+
+  it("explains a model that saved but could not be applied", async () => {
+    const { agents } = mount();
+    agents.providersActivateForAgent.mockImplementation(() =>
+      failed("service down"),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "providers.add" }),
+    );
+    await screen.findByText(
+      'providers.connectFailed({"name":"DeepSeek","message":"service down"})',
+    );
+  });
+
+  it("marks the default model and offers no activation on it", async () => {
+    mount({ providers: [saved], activeProviderId: "provider-1" });
+    const card = await screen.findByRole("article", {
+      name: 'providers.card({"name":"DeepSeek"})',
+    });
+    await within(card).findByText("providers.isDefault");
+    expect(
+      within(card).queryByRole("button", { name: "providers.activate" }),
+    ).toBeNull();
+  });
+
+  it("says the vault is being prepared, then retries a failed read", async () => {
+    const { system } = mount({ vaultReads: [failed("not yet")] });
+    await screen.findByText("providers.vaultLoading");
+    await waitFor(
+      () => expect(system.credentialStatus).toHaveBeenCalledTimes(2),
+      {
+        timeout: 3_000,
+      },
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("providers.vaultLoading")).toBeNull(),
+    );
   });
 
   it("refuses to ask for a key while the vault is unavailable", async () => {
@@ -285,8 +634,11 @@ describe("the AI connection settings section", () => {
     fireEvent.click(
       within(card).getByRole("button", { name: "providers.activate" }),
     );
-    await screen.findByText(
-      'ai.result({"name":"DeepSeek","message":"activated"})',
+    await screen.findByText('providers.connected({"name":"DeepSeek"})');
+    expect(agents.enginesUpdateGlobalSettings).toHaveBeenCalledWith(
+      { defaultEngineKind: "pi", defaultModel: { modelId: "deepseek-chat" } },
+      undefined,
+      expect.any(String),
     );
     expect(announce).toHaveBeenLastCalledWith("provider-1");
     await waitFor(() =>
@@ -336,8 +688,9 @@ describe("the AI connection settings section", () => {
   it("lists the engines and saves the global default", async () => {
     const { agents } = mount();
     const status = await screen.findByLabelText("engines.status");
-    await within(status).findByText("Pi");
-    expect(within(status).getByText("Pi")).toBeTruthy();
+    await within(status).findByText("engines.available");
+    // The engine behind the AI is not named.
+    expect(within(status).queryByText("Pi")).toBeNull();
     expect(within(status).getAllByRole("article")).toHaveLength(1);
     expect(screen.queryByLabelText("engines.globalEngine")).toBeNull();
     expect(screen.queryByLabelText("engines.projectEngine")).toBeNull();

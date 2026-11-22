@@ -31,21 +31,19 @@ test("默认上下文助手只展示推荐动作，高级模式保留完整控�
   await createSeriesProject(page, "LM6 上下文助手项目");
   // Creating the project opens its workspace when the Host answers; leave
   // only after that, or the late navigation takes the task page away.
-  await expect(
-    page.getByRole("button", { name: "章节目录", exact: true }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/#\/projects\/[^/?]+\?section=plan$/);
   await page.getByRole("link", { name: "任务", exact: true }).click();
   await page.getByRole("button", { name: "新建任务", exact: true }).click();
 
   const config = page.getByLabel("智能任务配置");
   await expect(config.getByLabel("当前页面推荐动作")).toBeVisible();
   await expect(config.getByRole("button", { name: "高级模式" })).toBeVisible();
-  await expect(config.getByLabel("智能引擎")).toHaveCount(0);
+  await expect(config.getByLabel("AI 服务")).toHaveCount(0);
   await expect(config.getByLabel("智能任务")).toHaveCount(0);
   await expect(config.getByLabel("盲测比较方式")).toHaveCount(0);
 
   await config.getByRole("button", { name: "高级模式" }).click();
-  await expect(config.getByLabel("智能引擎")).toHaveCount(0);
+  await expect(config.getByLabel("AI 服务")).toHaveCount(0);
   await expect(config.getByLabel("智能任务")).toBeVisible();
   await expect(config.getByLabel("盲测比较方式")).toHaveCount(0);
   await expect(
@@ -57,6 +55,6 @@ test("默认上下文助手只展示推荐动作，高级模式保留完整控�
 
   await config.getByRole("button", { name: "简洁模式" }).click();
   await expect(config.getByLabel("当前页面推荐动作")).toBeVisible();
-  await expect(config.getByLabel("智能引擎")).toHaveCount(0);
+  await expect(config.getByLabel("AI 服务")).toHaveCount(0);
   await expect(config.getByText("已切换为当前页面的简洁助手。")).toBeVisible();
 });

@@ -69,7 +69,7 @@ export const diagnosisZh = {
   "diagnosis.candidate.title": "{title} · v{version}",
   "diagnosis.candidate.untitled": "改编诊断",
   "diagnosis.candidate.note":
-    "AI 评估；引文已核对实际冻结表达，但不代表结论或制作成本经过人工验证。正式作者意图 v{version}。",
+    "AI 评估；引文已核对实际锁定表达，但不代表结论或制作成本经过人工验证。正式作者意图 v{version}。",
   "diagnosis.coverage": "诊断实际来源表达",
   "diagnosis.covered":
     "实际覆盖：{chapters} / {total} 章（{scope}），{episodes} 集 × {duration} 秒。采用不等于季纲已完成。",

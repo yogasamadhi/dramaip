@@ -908,3 +908,21 @@
   inherits: false;
   initial-value: 0 0 transparent;
 }
+
+.openingIssues {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.openingIssue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.5rem;
+}

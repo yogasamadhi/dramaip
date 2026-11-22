@@ -17,6 +17,15 @@ export function taskPrompt(taskType: string, userPrompt: string): string {
       "受众判断是带假设和不确定性的顾问意见，不得声称真实市场预测。",
       `用户要求：${userPrompt}`,
     ].join("\n");
+  if (taskType === "review_opening")
+    return [
+      "你是网文平台的资深编辑，正在按「黄金三章」标准检查这部小说的开篇。先用工具读取要检查的章节原文，只依据原文判断。",
+      "逐项检查：1. 前三段有没有冲突或悬念抓住读者；2. 主角的目标和代价是否尽早交代清楚；3. 每章结尾有没有让人想看下一章的钩子；4. 哪些段落节奏拖沓（引用原文）；5. 前三章是否形成付费卡点前的期待。",
+      "先用一句话给出总体判断。然后用编号列表列出问题，每条严格使用下面的格式，不要写其他内容：",
+      "1. 【第N章】问题概述\n原文：「引用原文中的一句或一段，必须一字不差」\n建议：具体怎么改",
+      "只报告真正影响追读的问题，按严重程度排序，最多 8 条。没有问题就直接说开篇已经达标。",
+      `用户要求：${userPrompt}`,
+    ].join("\n");
   if (taskType === "simulate_audience_reaction")
     return [
       "请使用至少三种版本化受众画像形成顾问报告。",
@@ -80,6 +89,7 @@ const labels = {
   enhance_episode_hook: "增强分集钩子",
   enhance_episode_visuals: "增强分集关键画面",
   analyze_first_10_episodes: "前十集分析",
+  review_opening: "开篇检查",
   generate_ai_drama_script: "生成 AI 短剧剧本",
   split_script_to_scenes: "拆分剧本场景",
   review_ai_drama_script: "剧本审稿",
@@ -178,6 +188,7 @@ const providerAction = new Set([
 ]);
 const reports = new Set([
   "chapter_diagnostic",
+  "review_opening",
   "analyze_first_10_episodes",
   "review_ai_drama_script",
   "review_shot_prompt",
@@ -241,7 +252,7 @@ export const AGENT_TASK_CATALOG: readonly AgentTaskDescriptor[] =
         ? "change-preview"
         : "readonly",
     allowedTools:
-      memory.has(id) || chapter.has(id)
+      memory.has(id) || chapter.has(id) || id === "review_opening"
         ? tools
         : tools.filter((tool) => tool !== "dramaip_analyze_continuity"),
   }));

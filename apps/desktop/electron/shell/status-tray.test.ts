@@ -40,7 +40,7 @@ describe("macOS status tray", () => {
     expect(createStatusTray(actions, "darwin")).toBe(mocks.tray);
     expect(mocks.createFromPath).toHaveBeenCalledWith(actions.iconPath);
     expect(mocks.image.setTemplateImage).toHaveBeenCalledWith(true);
-    expect(mocks.tray.setToolTip).toHaveBeenCalledWith("尽意 DramaIP");
+    expect(mocks.tray.setToolTip).toHaveBeenCalledWith("DramaIP");
     const menu = mocks.buildFromTemplate.mock.results[0]!.value;
     menu[0].click();
     menu[2].click();
@@ -68,7 +68,7 @@ describe("macOS status tray", () => {
   it("reports missing image resources instead of creating an invisible icon", () => {
     mocks.image.isEmpty.mockReturnValue(true);
     expect(() => createStatusTray(options(), "darwin")).toThrow(
-      "无法加载尽意 DramaIP 菜单栏图标",
+      "无法加载 DramaIP 菜单栏图标",
     );
     expect(mocks.createTray).not.toHaveBeenCalled();
   });

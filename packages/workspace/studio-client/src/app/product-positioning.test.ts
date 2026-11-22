@@ -25,6 +25,18 @@ test("应用与安装包元数据使用当前定位，保留品牌和版本契�
     ),
     "utf8",
   );
-  expect(builder).toContain("productName: 尽意 DramaIP");
+  // 安装包、可执行文件与系统界面只显示英文名称。
+  const productName = builder.match(/^productName: (.+)$/mu)?.[1];
+  expect(productName).toBe("DramaIP");
+  expect(productName).toMatch(/^[\x20-\x7e]+$/u);
+  // 运行时显示名必须与打包名称一致，否则菜单与关于面板会退回包名。
+  const application = await readFile(
+    new URL(
+      "../../../../../apps/desktop/electron/shell/application.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  expect(application).toContain(`app.setName("${productName}")`);
   expect(builder).not.toContain("v2 release gate");
 });

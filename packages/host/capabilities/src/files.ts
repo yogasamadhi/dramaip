@@ -9,6 +9,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import type {
   HostFileGrant,
   HostGrantedDocument,
+  HostBinaryFileMime,
   HostTextFileSaveResult,
   HostWriteDirectoryGrant,
 } from "@dramaip/host-contracts";
@@ -232,21 +233,35 @@ export class HostFiles {
   async saveBinaryFile(input: {
     suggestedName: string;
     contentBase64: string;
-    mimeType: "application/zip";
+    mimeType: HostBinaryFileMime;
   }): Promise<HostTextFileSaveResult> {
+    const word = input.mimeType !== "application/zip";
     const bytes = Buffer.from(input.contentBase64, "base64");
     if (
       bytes.length > 33_554_432 ||
       bytes.subarray(0, 4).toString("hex") !== "504b0304"
     )
-      throw new Error("试制包不是有效的受支持 ZIP 文件。");
+      throw new Error(
+        word ? "导出的 Word 文件无效。" : "样片包不是有效的受支持 ZIP 文件。",
+      );
     const { path } = await this.shell.request("dialog.save", {
-      title: "保存内部试制包",
-      defaultPath: safeSuggestedName(input.suggestedName, "DramaIP-pilot.zip"),
-      filters: [{ name: "ZIP 试制包", extensions: ["zip"] }],
+      title: word ? "导出 Word 文档" : "保存样片包",
+      defaultPath: safeSuggestedName(
+        input.suggestedName,
+        word ? "DramaIP-导出.docx" : "DramaIP-pilot.zip",
+      ),
+      filters: [
+        word
+          ? { name: "Word 文档", extensions: ["docx"] }
+          : { name: "ZIP 样片包", extensions: ["zip"] },
+      ],
     });
     if (path === null) return { saved: false };
-    return this.saveVerified(path, bytes, "试制包写入完整性校验失败。");
+    return this.saveVerified(
+      path,
+      bytes,
+      word ? "Word 文件写入完整性校验失败。" : "样片包写入完整性校验失败。",
+    );
   }
 
   async revealGrant(grantId: string): Promise<void> {

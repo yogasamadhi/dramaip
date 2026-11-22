@@ -56,10 +56,8 @@ export function SettingsAiPreparationSection(props: {
     navigate(returnTo);
   };
   const nextStep = !providers.length
-    ? "保存一个模型服务商"
-    : !testedProviderId
-      ? "对准备使用的服务商执行连接测试"
-      : `将${providers.find((provider) => provider.id === testedProviderId)?.title ?? "已测试的服务商"}设为智能助手模型`;
+    ? "在下面添加一个 AI 模型，保存后会自动设为默认"
+    : `在下面的模型卡片上点「设为默认 AI 模型」${testedProviderId ? `（${providers.find((provider) => provider.id === testedProviderId)?.title ?? ""}）` : ""}`;
   return (
     <section className={styles.c1}>
       <p className={styles.c2}>{copyText("app/features/settings/impl.1")}</p>
@@ -80,7 +78,7 @@ export function SettingsAiPreparationSection(props: {
         <div className={styles.c9}>
           <p>
             {copyText("app/features/settings/impl.6")}
-            {runnableEngine.name} {copyText("app/features/settings/impl.7")}
+            {copyText("app/features/settings/impl.7")}
           </p>
           <Button
             ref={returnButtonRef}
@@ -94,8 +92,8 @@ export function SettingsAiPreparationSection(props: {
         <div className={styles.c11}>
           <p>
             {isFetching
-              ? "正在刷新智能引擎状态…"
-              : "配置尚未达到可运行状态，请按上方顺序完成并重试。"}
+              ? "正在检查 AI 模型…"
+              : "AI 模型还没设置好，完成上面的一步后会自动刷新。"}
           </p>
           {failureReasons.length > 0 && (
             <ul className={styles.c12}>

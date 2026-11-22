@@ -12,6 +12,45 @@ import { useStudio } from "../../studio-shared";
 import styles from "./AdaptationPipeline.module.css";
 import { copyText } from "../../copy";
 
+const GUIDE_STEPS = [
+  {
+    title: "确认原著和改编想法",
+    text: "告诉 AI 这部小说想改成什么样的短剧：给谁看、多少集、哪些人物和情节一定要保留。",
+    action: "确认改编想法",
+  },
+  {
+    title: "AI 诊断原著",
+    text: "AI 通读原著，找出适合短剧的冲突和爽点，以及需要删减或合并的部分。",
+    action: "开始诊断",
+  },
+  {
+    title: "定改编策略",
+    text: "确定主线怎么收、人物怎么取舍、节奏多快，后面的分集都按这个来。",
+    action: "制定改编策略",
+  },
+  {
+    title: "排分集方案",
+    text: "把故事分到每一集，标出每集的开场钩子和结尾悬念。",
+    action: "排分集方案",
+  },
+  {
+    title: "写第 1 集剧本",
+    text: "按分集方案写出第 1 集的完整剧本，满意后再一集一集往下写。",
+    action: "写第 1 集剧本",
+  },
+  {
+    title: "第 1 集分镜（可选）",
+    text: "剧本已经可以导出交给下游。需要自己做视频时，再把剧本拆成分镜和样片包。",
+    action: "做第 1 集分镜",
+  },
+] as const;
+
+const GUIDE_DONE = {
+  title: "全部完成",
+  text: "第 1 集的剧本和分镜都已保存，可以继续写后面的集数，或导出交给下游。",
+  action: "查看成果",
+};
+
 /**
  * Adaptation main flow: the same formal gates as the project cockpit, shown as
  * an ordered pipeline with exactly one primary next step. Evidence is read
@@ -41,11 +80,42 @@ export function AdaptationPipeline(props: { project: Project }) {
     : adaptationEvidence.data &&
       deriveAdaptationCockpit(props.project, adaptationEvidence.data);
   const projectPath = `/projects/${encodeURIComponent(props.project.id)}`;
+  // The single next step of a novel being adapted, in plain words.
+  const nextIndex = cockpit?.gates?.findIndex(
+    (gate) => gate.status !== "ready",
+  );
+  const nextStep =
+    !direct && cockpit?.gates && nextIndex !== undefined
+      ? nextIndex < 0
+        ? { ...GUIDE_DONE, to: cockpit.primaryAction.to }
+        : {
+            ...GUIDE_STEPS[Math.min(nextIndex, GUIDE_STEPS.length - 1)]!,
+            to: cockpit.primaryAction.to,
+          }
+      : undefined;
   return (
     <section
       aria-label={copyText("app/features/production/AdaptationPipeline.1")}
       className={styles.c1}
     >
+      {nextStep && (
+        <div
+          className={styles.guide}
+          aria-label={copyText("app/features/production/AdaptationPipeline.5")}
+        >
+          <div>
+            <p className={styles.guideStep}>
+              {copyText("app/features/production/AdaptationPipeline.4", {
+                p1: nextStep.title,
+              })}
+            </p>
+            <p className={styles.guideText}>{nextStep.text}</p>
+          </div>
+          <Button asChild variant="primary" size="sm">
+            <Link to={nextStep.to}>{nextStep.action}</Link>
+          </Button>
+        </div>
+      )}
       <div className={styles.c2}>
         <div className={styles.c3}>
           <h2 className={styles.c4}>{direct ? "剧本开发进度" : "改编进度"}</h2>

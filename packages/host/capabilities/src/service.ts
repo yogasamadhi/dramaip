@@ -6,6 +6,12 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
+import {
+  type PiSubscriptionAction,
+  type PiSubscriptionAnswer,
+  type PiSubscriptionStatus,
+} from "@dramaip/host-contracts/pi-subscription";
 import type {
   AgentEngineKind,
   LocalModelRuntime,
@@ -35,6 +41,7 @@ import {
   type HostGrantedDocument,
   type HostManagedMedia,
   type HostManagedMediaReadInput,
+  type HostBinaryFileMime,
   type HostTextFileSaveResult,
   type HostTimelineRenderAudioPlan,
   type HostTimelineRenderInput,
@@ -49,6 +56,7 @@ import {
 } from "@dramaip/host-contracts";
 import type { ShellBridge } from "@dramaip/host-shell-bridge";
 import type { EngineOperation, Engines } from "@dramaip/seams-engines";
+import type { CloudAi } from "./cloud-ai.ts";
 import type { HostCredentials } from "./credentials.ts";
 import type { HostFiles } from "./files.ts";
 import type { HostMedia } from "./media.ts";
@@ -141,11 +149,23 @@ function bounded<T>(
   });
 }
 
+interface PiSubscriptionLogin {
+  act(
+    provider: string,
+    action: PiSubscriptionAction,
+    answer?: PiSubscriptionAnswer,
+  ): Promise<PiSubscriptionStatus>;
+  ready(provider: string, model: string): Promise<boolean>;
+  close(): Promise<void>;
+}
+
 /** What the service is built from. */
 export interface DesktopHostServiceParts {
   readonly shell: ShellBridge;
   readonly files: HostFiles;
   readonly credentials: HostCredentials;
+  readonly cloudAi?: CloudAi;
+  readonly piAuthPath?: string;
   readonly media: HostMedia;
   /** The engine registry, when the seam is composed. */
   engines(): Engines | undefined;
@@ -153,6 +173,7 @@ export interface DesktopHostServiceParts {
 
 /** The in-process Desktop Host. */
 export class DesktopHostService implements DesktopHost {
+  private piLogin?: Promise<PiSubscriptionLogin>;
   private readonly activeLocalModelRuntimes = new Set<LocalModelRuntimeKind>();
 
   /** @param parts - the capabilities behind it. */
@@ -595,14 +616,21 @@ export class DesktopHostService implements DesktopHost {
   saveBinaryFile(input: {
     suggestedName: string;
     contentBase64: string;
-    mimeType: "application/zip";
+    mimeType: HostBinaryFileMime;
   }): Promise<HostTextFileSaveResult> {
     return this.call(async () => {
       const request = body(input);
+      const extension =
+        request.mimeType === "application/zip"
+          ? ".zip"
+          : request.mimeType ===
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ? ".docx"
+            : undefined;
       if (
         typeof request.suggestedName !== "string" ||
-        !request.suggestedName.endsWith(".zip") ||
-        request.mimeType !== "application/zip" ||
+        !extension ||
+        !request.suggestedName.endsWith(extension) ||
         typeof request.contentBase64 !== "string" ||
         request.contentBase64.length > 44_739_244 ||
         request.contentBase64.length % 4 !== 0 ||
@@ -620,7 +648,7 @@ export class DesktopHostService implements DesktopHost {
       return this.parts.files.saveBinaryFile({
         suggestedName: request.suggestedName as string,
         contentBase64,
-        mimeType: "application/zip",
+        mimeType: request.mimeType as HostBinaryFileMime,
       });
     });
   }
@@ -751,18 +779,87 @@ export class DesktopHostService implements DesktopHost {
     );
   }
 
+  async cloudAiSummary() {
+    return (
+      this.parts.cloudAi?.summary() ?? {
+        available: false,
+        pending: false,
+        signedIn: false,
+        models: [],
+      }
+    );
+  }
+
+  async cloudAiSignIn(): Promise<void> {
+    await (this.parts.cloudAi ?? refuse(503)).signIn();
+  }
+
+  async cloudAiSignOut(): Promise<void> {
+    await (this.parts.cloudAi ?? refuse(503)).signOut();
+  }
+
+  private async loadPiLogin(): Promise<PiSubscriptionLogin> {
+    const path = this.parts.piAuthPath;
+    const modulePath = process.env.DRAMAIP_PI_RUNTIME_MODULE;
+    if (!path || !modulePath) throw new Error("Pi 订阅登录暂不可用");
+    const runtime = (await import(pathToFileURL(modulePath).href)) as {
+      createPiSubscriptionLogin?: (
+        path: string,
+        openBrowser: (url: string) => Promise<void>,
+      ) => PiSubscriptionLogin;
+    };
+    if (!runtime.createPiSubscriptionLogin)
+      throw new Error("Pi 运行时缺少订阅登录入口");
+    return runtime.createPiSubscriptionLogin(path, (url) =>
+      this.openExternal(url),
+    );
+  }
+
+  async piSubscription(
+    provider: string,
+    action: PiSubscriptionAction,
+    answer?: PiSubscriptionAnswer,
+  ) {
+    if (
+      typeof provider !== "string" ||
+      !provider.trim() ||
+      !["status", "start", "answer", "cancel", "logout"].includes(action)
+    )
+      refuse(400);
+    return (await (this.piLogin ??= this.loadPiLogin())).act(
+      provider,
+      action,
+      answer,
+    );
+  }
+
+  async closePiLogin() {
+    await (await this.piLogin?.catch(() => undefined))?.close();
+  }
+
   activateAgentProvider(
     input: AgentProviderActivationInput,
   ): Promise<AgentProviderActivationResult> {
     return this.call(async () => {
       const configuration = body(input);
       if (!isAgentProviderActivationInput(configuration)) refuse(400);
-      return this.activate(configuration as AgentProviderActivationInput);
+      return this.activate(configuration, true);
+    });
+  }
+
+  testAgentProvider(
+    input: AgentProviderActivationInput,
+  ): Promise<AgentProviderActivationResult> {
+    return this.call(async () => {
+      const configuration = body(input);
+      if (!isAgentProviderActivationInput(configuration)) refuse(400);
+      return this.activate(configuration, false);
     });
   }
 
   private async activate(
     configuration: AgentProviderActivationInput,
+    apply: boolean,
   ): Promise<AgentProviderActivationResult> {
     const defaultOrigins = {
       openai: "https://api.openai.com",
@@ -770,8 +867,31 @@ export class DesktopHostService implements DesktopHost {
       google: "https://generativelanguage.googleapis.com",
     } as const;
     let baseUrl = configuration.baseUrl;
-    let secret: string;
-    if (configuration.authentication === "none") {
+    let secret: string | undefined;
+    if (configuration.authentication === "piSubscription") {
+      const provider = configuration.piProviderId;
+      const ready =
+        typeof provider === "string" &&
+        (await (this.piLogin ??= this.loadPiLogin())
+          .then((login) => login.ready(provider, configuration.model))
+          .catch(() => false));
+      if (!ready)
+        return {
+          available: false,
+          message: "Pi 订阅或所选模型不可用，请在 AI 模型设置中检查授权。",
+        };
+    } else if (configuration.authentication === "hosted") {
+      try {
+        ({ baseUrl, secret } = await (
+          this.parts.cloudAi ?? refuse(503)
+        ).connection(configuration.model));
+      } catch (error) {
+        return {
+          available: false,
+          message: error instanceof Error ? error.message : "云 AI 暂不可用。",
+        };
+      }
+    } else if (configuration.authentication === "none") {
       const kind = configuration.localRuntimeKind!;
       const runtime = await discoverLocalModelRuntime(kind);
       if (runtime.state === "unavailable")
@@ -791,6 +911,7 @@ export class DesktopHostService implements DesktopHost {
       if (!secret)
         return { available: false, message: "智能助手模型的安全凭据不可用" };
     }
+    if (!apply) return { available: true };
     const answers =
       (await this.parts.engines()?.configure({
         ...(configuration.piProviderId
@@ -798,9 +919,12 @@ export class DesktopHostService implements DesktopHost {
           : {}),
         providerKind: configuration.providerKind,
         providerAdapter: configuration.providerAdapter,
+        ...(configuration.authentication === "hosted" ? { hosted: true } : {}),
         model: configuration.model,
         ...(baseUrl ? { baseUrl } : {}),
-        secret,
+        ...(secret === undefined && this.parts.piAuthPath
+          ? { piAuthPath: this.parts.piAuthPath }
+          : { secret: secret ?? "" }),
       })) ?? {};
     const pi = answers.pi ?? { available: false, message: "Pi Runtime 未启动" };
     return pi.available
@@ -908,7 +1032,7 @@ export class DesktopHostService implements DesktopHost {
           next = await events.next();
         } catch {
           finished = true;
-          yield { type: "error", message: "智能引擎流式连接中断，请重试。" };
+          yield { type: "error", message: "AI 服务流式连接中断，请重试。" };
           return;
         }
         if (next.done) {

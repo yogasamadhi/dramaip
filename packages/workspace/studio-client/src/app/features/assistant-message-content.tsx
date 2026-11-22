@@ -123,7 +123,7 @@ const TOOL_LABELS: Record<string, string> = {
   dramaip_get_chapter: "读取章节正文",
   dramaip_list_chapters: "读取章节目录",
   dramaip_list_characters: "读取人物资料",
-  dramaip_search_story_bible: "检索故事圣经",
+  dramaip_search_story_bible: "检索故事记忆",
   dramaip_analyze_continuity: "检查故事连续性",
   dramaip_search_project: "检索项目资料",
   dramaip_get_adaptation: "读取改编方案",

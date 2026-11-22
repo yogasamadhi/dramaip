@@ -1,4 +1,9 @@
 import {
+  type PiSubscriptionAction,
+  type PiSubscriptionAnswer,
+  type PiSubscriptionStatus,
+} from "./pi-subscription.js";
+import {
   validTimelineRenderAudioPlan,
   type HostTimelineRenderAudioPlan,
 } from "./timeline-audio.js";
@@ -64,11 +69,23 @@ export interface AgentProviderActivationInput {
   providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
   model: string;
   baseUrl?: string;
-  authentication: "apiKey" | "none";
+  authentication: "apiKey" | "none" | "hosted" | "piSubscription";
   localRuntimeKind?: LocalModelRuntimeKind;
   credentialRef?: string;
   environmentName?:
     "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "GOOGLE_GENERATIVE_AI_API_KEY";
+}
+
+export interface CloudAiSummary {
+  available: boolean;
+  signedIn: boolean;
+  pending: boolean;
+  models: string[];
+  modelNames?: Record<string, string>;
+  accountUrl?: string;
+  email?: string;
+  remainingTokens?: number;
+  message?: string;
 }
 
 export interface AgentProviderActivationResult {
@@ -106,6 +123,11 @@ export interface HostArchiveRemoteMediaInput {
 
 /** Additive receipt fields: legacy Host implementations remain readable,
  * but a formal Delivery export requires every verified receipt field. */
+/** Binary files the Host saves: a ZIP package or a Word document (also a ZIP). */
+export type HostBinaryFileMime =
+  | "application/zip"
+  | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 export interface HostTextFileSaveResult {
   saved: boolean;
   artifactRef?: string;
@@ -553,7 +575,7 @@ export interface DesktopHost {
   saveBinaryFile(input: {
     suggestedName: string;
     contentBase64: string;
-    mimeType: "application/zip";
+    mimeType: HostBinaryFileMime;
   }): Promise<HostTextFileSaveResult>;
   openExternal(url: string): Promise<void>;
   revealGrant(grantId: string): Promise<void>;
@@ -575,6 +597,17 @@ export interface DesktopHost {
   credentialCaptureStatus(
     captureSessionId: string,
   ): Promise<CredentialCaptureResult>;
+  cloudAiSummary?(): Promise<CloudAiSummary>;
+  cloudAiSignIn?(): Promise<void>;
+  cloudAiSignOut?(): Promise<void>;
+  piSubscription?(
+    provider: string,
+    action: PiSubscriptionAction,
+    answer?: PiSubscriptionAnswer,
+  ): Promise<PiSubscriptionStatus>;
+  testAgentProvider?(
+    input: AgentProviderActivationInput,
+  ): Promise<AgentProviderActivationResult>;
   activateAgentProvider(
     input: AgentProviderActivationInput,
   ): Promise<AgentProviderActivationResult>;
@@ -662,13 +695,39 @@ export function isAgentProviderActivationInput(
     typeof value.providerId !== "string" ||
     typeof value.runtimeProviderId !== "string" ||
     typeof value.model !== "string" ||
-    !["apiKey", "none"].includes(String(value.authentication)) ||
+    !["apiKey", "none", "hosted", "piSubscription"].includes(
+      String(value.authentication),
+    ) ||
     !["openai", "anthropic", "google"].includes(String(value.providerKind)) ||
     !["openai", "openai-compatible", "anthropic", "google"].includes(
       String(value.providerAdapter),
     )
   )
     return false;
+  if (value.authentication === "piSubscription")
+    return (
+      typeof value.piProviderId === "string" &&
+      Boolean(value.piProviderId.trim()) &&
+      (value.piProviderId === "anthropic"
+        ? value.providerKind === "anthropic" &&
+          value.providerAdapter === "anthropic"
+        : value.providerKind === "openai" &&
+          value.providerAdapter === "openai") &&
+      value.model.trim().length > 0 &&
+      value.baseUrl === undefined &&
+      value.credentialRef === undefined &&
+      value.localRuntimeKind === undefined
+    );
+  if (value.authentication === "hosted")
+    return (
+      value.providerKind === "openai" &&
+      value.providerAdapter === "openai-compatible" &&
+      value.model.trim().length > 0 &&
+      value.piProviderId === undefined &&
+      value.baseUrl === undefined &&
+      value.credentialRef === undefined &&
+      value.localRuntimeKind === undefined
+    );
   if (
     value.piProviderId !== undefined &&
     (typeof value.piProviderId !== "string" ||
@@ -812,7 +871,7 @@ export const AGENT_RUNTIME_DESCRIPTORS = {
     kind: "pi",
     role: "embedded-default",
     name: "Pi",
-    version: "1.5.0",
+    version: "1.5.2",
     capabilities: {
       prompt: true,
       streaming: true,

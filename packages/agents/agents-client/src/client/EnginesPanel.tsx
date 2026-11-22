@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import clsx from "clsx";
 import type { TranslateNS } from "@dramaip/infra-ui-slots";
 import { Button } from "@dramaip/infra-ui-primitives";
 import {
@@ -21,6 +22,8 @@ export interface EnginesPanelProps {
   workspace: WorkspaceRemote;
   /** Changes whenever an activation may have changed the engines. */
   revision: number;
+  /** Models the saved providers offer, suggested for the defaults. */
+  models?: readonly string[];
 }
 
 /** The agent engines, their status and global and project defaults. */
@@ -61,7 +64,7 @@ export function EnginesPanel(props: EnginesPanelProps) {
     return () => {
       live = false;
     };
-  }, [agents, workspace]);
+  }, [agents, workspace, props.revision]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -80,8 +83,6 @@ export function EnginesPanel(props: EnginesPanelProps) {
     };
   }, [agents, projectId]);
 
-  const nameOf = (kind: EngineSettings["defaultEngineKind"] | undefined) =>
-    rows.find((engine) => engine.kind === kind)?.name ?? kind ?? "";
   const settingsOf = (model: string) => ({
     defaultEngineKind: "pi" as const,
     ...(model.trim() ? { defaultModel: { modelId: model.trim() } } : {}),
@@ -129,29 +130,26 @@ export function EnginesPanel(props: EnginesPanelProps) {
       return t("engines.savedProject");
     });
 
+  const suggestions = props.models?.length ? "engine-model-suggestions" : "";
   return (
-    <section className={css.card}>
-      <div className={css.head}>
-        <div>
-          <p className={css.eyebrow}>{t("engines.step")}</p>
-          <h2 className={css.title}>{t("engines.title")}</h2>
-          <p className={css.small}>{t("engines.description")}</p>
+    <details className={clsx(css.card, css.advanced)}>
+      <summary>
+        <div className={css.head}>
+          <div>
+            <p className={css.eyebrow}>{t("engines.step")}</p>
+            <h2 className={css.title}>{t("engines.title")}</h2>
+            <p className={css.small}>{t("engines.description")}</p>
+          </div>
+          {global?.defaultModel?.modelId && (
+            <span className={css.badge}>
+              {t("engines.globalBadge", { name: global.defaultModel.modelId })}
+            </span>
+          )}
         </div>
-        <span className={css.badge}>
-          {t("engines.globalBadge", {
-            name: nameOf(global?.defaultEngineKind ?? "pi"),
-          })}
-        </span>
-      </div>
+      </summary>
       <div aria-label={t("engines.status")} className={css.engineStatus}>
         {rows.map((engine) => (
           <article key={engine.kind} className={css.engine}>
-            <div className={css.head}>
-              <p className={css.strong}>{engine.name}</p>
-            </div>
-            <p className={css.small}>
-              {t("engines.version", { version: engine.version })}
-            </p>
             <p
               className={engine.status === "available" ? css.success : css.warn}
             >
@@ -167,11 +165,19 @@ export function EnginesPanel(props: EnginesPanelProps) {
           </article>
         ))}
       </div>
+      {suggestions && (
+        <datalist id={suggestions}>
+          {props.models?.map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
+      )}
       <div className={css.gridGlobal}>
         <label className={css.field}>
           {t("engines.globalModel")}
           <input
             className={css.control}
+            list={suggestions || undefined}
             placeholder={t("engines.globalModel.placeholder")}
             value={globalModel}
             onChange={(event) => setGlobalModel(event.target.value)}
@@ -206,6 +212,7 @@ export function EnginesPanel(props: EnginesPanelProps) {
           {t("engines.projectModel")}
           <input
             className={css.control}
+            list={suggestions || undefined}
             placeholder={t("engines.projectModel.placeholder")}
             value={projectModel}
             onChange={(event) => setProjectModel(event.target.value)}
@@ -221,6 +228,6 @@ export function EnginesPanel(props: EnginesPanelProps) {
         </Button>
       </div>
       {notice && <p className={css.notice}>{notice}</p>}
-    </section>
+    </details>
   );
 }

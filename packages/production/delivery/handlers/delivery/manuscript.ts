@@ -22,12 +22,23 @@ import {
   type RouteContribution,
   type UnitOfWorkTransaction,
 } from "@dramaip/plugin-api/internal";
+import { DOCX_MIME, novelDocx } from "./docx.js";
+
+/** Chapter text without Markdown markers, for a plain-text export. */
+function plainText(content: string): string {
+  return content
+    .replace(/\r\n?/gu, "\n")
+    .replace(/^#{1,6}\s+/gmu, "")
+    .replace(/\*\*(.+?)\*\*/gu, "$1")
+    .replace(/^>\s?/gmu, "")
+    .trim();
+}
 
 export interface ManuscriptHost {
   saveBinaryFile?(input: {
     suggestedName: string;
     contentBase64: string;
-    mimeType: "application/zip";
+    mimeType: "application/zip" | typeof DOCX_MIME;
   }): Promise<{
     saved: boolean;
     artifactRef?: string;
@@ -89,7 +100,27 @@ interface RequestContext {
   header(name: string, value: string): void;
   json(value: unknown, status?: number): Response;
 }
-const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+const hash = (text: string | Uint8Array) =>
+  createHash("sha256").update(text).digest("hex");
+
+/** The bytes a manuscript document is saved as: Word is held as base64. */
+const documentBytes = (document: { content: string; mimeType: string }) =>
+  document.mimeType === DOCX_MIME
+    ? Buffer.from(document.content, "base64")
+    : Buffer.from(document.content, "utf8");
+
+const EXTENSIONS = {
+  markdown: "md",
+  json: "json",
+  txt: "txt",
+  docx: "docx",
+} as const;
+const MIME_TYPES = {
+  markdown: "text/markdown",
+  json: "application/json",
+  txt: "text/plain",
+  docx: DOCX_MIME,
+} as const;
 const projectParams = z.object({ projectId: z.string().uuid() });
 const idParams = z.object({ id: z.string().uuid() });
 const pageQuery = z.object({
@@ -339,23 +370,35 @@ export function manuscriptRoutes(
       const content =
         format === "markdown"
           ? `# ${project.title}\n\n${project.synopsis}\n\n${chapters.map((item) => `## ${item.title}\n\n${item.content}`).join("\n\n")}\n`
-          : JSON.stringify(
-              {
-                format: "dramaip-manuscript",
-                schemaVersion: 1,
-                title: project.title,
-                synopsis: project.synopsis,
-                scope: parsed.data.scope,
-                chapters: chapters.map(({ id, title, content, version }) => ({
-                  id,
-                  title,
-                  content,
-                  version,
-                })),
-              },
-              null,
-              2,
-            );
+          : format === "txt"
+            ? `${project.title}\n\n${project.synopsis ? `${project.synopsis}\n\n` : ""}${chapters.map((item) => `${item.title}\n\n${plainText(item.content)}`).join("\n\n\n")}\n`
+            : format === "docx"
+              ? Buffer.from(
+                  novelDocx({
+                    title: project.title,
+                    synopsis: project.synopsis,
+                    chapters,
+                  }),
+                ).toString("base64")
+              : JSON.stringify(
+                  {
+                    format: "dramaip-manuscript",
+                    schemaVersion: 1,
+                    title: project.title,
+                    synopsis: project.synopsis,
+                    scope: parsed.data.scope,
+                    chapters: chapters.map(
+                      ({ id, title, content, version }) => ({
+                        id,
+                        title,
+                        content,
+                        version,
+                      }),
+                    ),
+                  },
+                  null,
+                  2,
+                );
       const value: ManuscriptPreview = {
         id: crypto.randomUUID(),
         version: 0,
@@ -371,7 +414,7 @@ export function manuscriptRoutes(
           projectTitle: project.title,
           scope: parsed.data.scope,
           format,
-          fileName: `${project.title.replace(/[\\/:*?"<>|]/gu, "-").slice(0, 80)}-submission.${format === "markdown" ? "md" : "json"}`,
+          fileName: `${project.title.replace(/[\\/:*?"<>|]/gu, "-").slice(0, 80)}-submission.${EXTENSIONS[format]}`,
           chapters: chapters.map((item) => ({
             id: item.id,
             version: item.version,
@@ -379,14 +422,16 @@ export function manuscriptRoutes(
             orderIndex: item.orderIndex,
             contentSha256: hash(item.content),
           })),
-          contentSha256: hash(content),
-          byteSize: Buffer.byteLength(content, "utf8"),
+          contentSha256: hash(
+            documentBytes({ content, mimeType: MIME_TYPES[format] }),
+          ),
+          byteSize: documentBytes({ content, mimeType: MIME_TYPES[format] })
+            .byteLength,
           createdAt: now,
         },
         document: {
           content,
-          mimeType:
-            format === "markdown" ? "text/markdown" : "application/json",
+          mimeType: MIME_TYPES[format],
         },
       };
       context.uow.execute((tx) => {
@@ -526,7 +571,7 @@ export function manuscriptRoutes(
         );
       if (
         parsed.data.contentSha256 !== value.manifest.contentSha256 ||
-        hash(value.document.content) !== value.manifest.contentSha256
+        hash(documentBytes(value.document)) !== value.manifest.contentSha256
       )
         return problem(
           c,
@@ -562,10 +607,19 @@ export function manuscriptRoutes(
       });
       let final: ManuscriptPreview;
       try {
-        const result = await host.saveTextFile({
-          suggestedName: value.manifest.fileName,
-          content: value.document.content,
-        });
+        const result =
+          value.document.mimeType === DOCX_MIME
+            ? await (host.saveBinaryFile
+                ? host.saveBinaryFile({
+                    suggestedName: value.manifest.fileName,
+                    contentBase64: value.document.content,
+                    mimeType: DOCX_MIME,
+                  })
+                : Promise.reject(new Error("当前环境不能保存 Word 文件。")))
+            : await host.saveTextFile({
+                suggestedName: value.manifest.fileName,
+                content: value.document.content,
+              });
         if (!result.saved) final = { ...saving, status: "canceled" };
         else {
           const receipt = ManuscriptReceiptSchema.safeParse(result);

@@ -438,44 +438,14 @@ export function AgentSidePanel() {
       }
       const runIds = new Set(conversationRunIds.split("|").filter(Boolean));
       if (
-        event.type.startsWith("agent_item.") &&
-        typeof payload.runId === "string" &&
-        runIds.has(payload.runId)
-      ) {
-        if (event.type === "agent_item.delta") {
-          const delta = typeof payload.delta === "string" ? payload.delta : "";
-          setDetail((current) =>
-            current
-              ? {
-                  ...current,
-                  items: current.items.map((item) =>
-                    item.id === payload.itemId
-                      ? { ...item, content: `${item.content ?? ""}${delta}` }
-                      : item,
-                  ),
-                }
-              : current,
-          );
-        } else if (typeof payload.id === "string") {
-          const item = payload as unknown as AgentItem;
-          setDetail((current) =>
-            current
-              ? {
-                  ...current,
-                  items: upsertGlobalAgentItem(current.items, item),
-                }
-              : current,
-          );
-        }
-      }
-      if (
         [
-          "agent_run.completed",
-          "agent_run.failed",
-          "agent_run.interrupted",
-          "change_preview.created",
-          "provider_action_preview.created",
+          "agents.run-completed.v1",
+          "agents.run-failed.v1",
+          "agents.run-interrupted.v1",
+          "agents.run-canceled.v1",
         ].includes(event.type) &&
+        typeof payload.runId === "string" &&
+        runIds.has(payload.runId) &&
         conversationId
       )
         void loadDetail(conversationId).catch(() => undefined);
@@ -554,7 +524,7 @@ export function AgentSidePanel() {
     if (!selectedEngineCanRun) {
       setNotice(
         selectedEngine?.statusMessage ??
-          "智能引擎当前不可用，请前往设置检查配置。",
+          "AI 模型还没配置好，请先设置 AI 模型。",
       );
       return;
     }
@@ -1165,6 +1135,11 @@ export function GlobalAssistantTimeline(props: {
                 run && ["queued", "running"].includes(run.status),
               )}
             />
+            {turn.status === "failed" && turn.error && (
+              <p className={styles.c44} role="alert">
+                {turn.error}
+              </p>
+            )}
             {items
               .filter((item) => item.type === "tool_call")
               .map((item) => (

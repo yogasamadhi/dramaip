@@ -18,6 +18,7 @@
       "default": "./lib/typert.remote-client.js"
     },
     "./handlers/delivery": "./handlers/delivery/index.ts",
+    "./handlers/docx": "./handlers/delivery/docx.ts",
     "./package.json": "./package.json"
   },
   "files": [

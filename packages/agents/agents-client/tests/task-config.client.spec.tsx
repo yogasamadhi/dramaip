@@ -193,6 +193,9 @@ function mount(
     select: vi.fn(),
   };
   const renderRun = vi.fn((id: string) => <p>{`run card ${id}`}</p>);
+  const renderFactorySlot = vi.fn((_name: string, input: { open: boolean }) =>
+    input.open ? <p>inline model setup</p> : null,
+  );
   const props = {
     t,
     agents,
@@ -213,9 +216,10 @@ function mount(
     scope,
     intent,
     renderRun,
+    renderFactorySlot,
   } as unknown as AgentTaskConfigComponentProps;
   render(<TaskConfig {...props} />);
-  return { agents, intent, scope, renderRun };
+  return { agents, intent, scope, renderRun, renderFactorySlot };
 }
 
 const panel = () => screen.getByLabelText("智能任务配置");
@@ -229,12 +233,12 @@ describe("the new-task settings", () => {
     expect(
       within(recommended).getByText("任务 generate_revision_tasks"),
     ).toBeTruthy();
-    expect(within(panel()).queryByLabelText("智能引擎")).toBeNull();
+    expect(within(panel()).queryByLabelText("AI 服务")).toBeNull();
     // The diagnostic works on a chapter, so it waits for one.
     expect(
       within(recommended).getAllByText("为此动作选择一个章节").length,
     ).toBe(1);
-    expect(within(recommended).getAllByText("前往设置修复").length).toBe(1);
+    expect(within(recommended).getAllByText("设置 AI 模型").length).toBe(1);
   });
 
   it("saves the assistant mode with the project's settings", async () => {
@@ -252,7 +256,7 @@ describe("the new-task settings", () => {
       undefined,
       undefined,
     );
-    expect(screen.queryByLabelText("智能引擎")).toBeNull();
+    expect(screen.queryByLabelText("AI 服务")).toBeNull();
     expect(screen.queryByLabelText("盲测比较方式")).toBeNull();
     expect(screen.getByLabelText("本次模型（可选）")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "简洁模式" }));
@@ -327,12 +331,18 @@ describe("the new-task settings", () => {
 
   it("keeps the action for settings and resumes it on return", async () => {
     const first = mount();
-    fireEvent.click(await screen.findByText("前往设置修复"));
+    fireEvent.click(await screen.findByText("设置 AI 模型"));
     expect(first.intent.save).toHaveBeenCalledWith({
       returnTo: "/tasks",
       projectId: "p-1",
       actionId: "retry-diagnostic",
     });
+    // The model is set up in a dialog over the page.
+    expect(await screen.findByText("inline model setup")).toBeTruthy();
+    expect(first.renderFactorySlot).toHaveBeenCalledWith(
+      "agents.provider-setup",
+      expect.objectContaining({ open: true }),
+    );
     cleanup();
     const second = mount({
       intent: { actionId: "revision-plan", input: "补足动机" },

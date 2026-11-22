@@ -6,16 +6,14 @@
  * catalog edit cannot create a second definition of a task.
  */
 
-/** A page the assistant recommends actions for. */
-export type ContextPage =
-  | "project"
-  | "create"
-  | "adapt"
-  | "produce"
-  | "review"
-  | "tasks"
-  | "settings"
-  | "home";
+import {
+  CONTEXT_ACTIONS,
+  contextPage,
+  type ContextActionSpec as ActionSpec,
+  type ContextPage,
+} from "@dramaip/contracts/context-actions";
+
+export { CONTEXT_ACTIONS, contextPage, type ContextPage };
 
 /** One task of the catalog, as `enginesListTasks` answers it. */
 export interface TaskDefinition {
@@ -32,72 +30,8 @@ export interface EngineDescriptor {
   status: string;
 }
 
-interface ActionSpec {
-  /** Stable action id, also the copy key of its summary. */
-  readonly actionId: string;
-  readonly taskType: string;
-}
-
-/** The recommended actions of each page, in order. */
-export const CONTEXT_ACTIONS: Readonly<
-  Record<ContextPage, readonly ActionSpec[]>
-> = {
-  home: [
-    { actionId: "shape-project", taskType: "generate_project" },
-    { actionId: "find-hook", taskType: "analyze_trope_freshness" },
-  ],
-  project: [
-    { actionId: "diagnose-chapter", taskType: "chapter_diagnostic" },
-    { actionId: "propose-bible", taskType: "propose_story_bible_changes" },
-    { actionId: "build-outline", taskType: "generate_book_outline" },
-  ],
-  create: [
-    { actionId: "character-cards", taskType: "generate_characters" },
-    { actionId: "chapter-outline", taskType: "generate_chapter_outline" },
-    { actionId: "quality-gate", taskType: "run_quality_gate" },
-  ],
-  adapt: [
-    { actionId: "adaptation-strategy", taskType: "create_adaptation_strategy" },
-    { actionId: "episode-plan", taskType: "convert_novel_to_episodes" },
-    { actionId: "script-review", taskType: "review_ai_drama_script" },
-  ],
-  produce: [
-    { actionId: "video-assets", taskType: "generate_video_asset_drafts" },
-    { actionId: "image-plan", taskType: "plan_image_generation" },
-    { actionId: "video-plan", taskType: "plan_video_generation" },
-  ],
-  review: [
-    { actionId: "review-quality", taskType: "run_quality_gate" },
-    { actionId: "cost-risk", taskType: "analyze_video_cost_risk" },
-    { actionId: "audience-simulation", taskType: "simulate_audience_reaction" },
-  ],
-  tasks: [
-    { actionId: "retry-diagnostic", taskType: "chapter_diagnostic" },
-    { actionId: "revision-plan", taskType: "generate_revision_tasks" },
-  ],
-  settings: [
-    { actionId: "provider-check", taskType: "analyze_video_cost_risk" },
-  ],
-};
-
 /** A recommended action joined with its catalog task. */
 export type ContextAction = ActionSpec & TaskDefinition;
-
-/**
- * The page a route path belongs to.
- * @param pathname - the route path, without its query.
- */
-export function contextPage(pathname: string): ContextPage {
-  if (pathname.startsWith("/projects/")) return "project";
-  if (pathname.startsWith("/write") || pathname.startsWith("/create"))
-    return "create";
-  if (pathname.startsWith("/adapt")) return "adapt";
-  if (pathname.startsWith("/produce")) return "produce";
-  if (pathname.startsWith("/review")) return "review";
-  if (pathname.startsWith("/tasks")) return "tasks";
-  if (pathname.startsWith("/settings")) return "settings";
-  return "home";
-}
 
 /**
  * The page's recommended actions found in the catalog, and the task ids it

@@ -100,7 +100,7 @@ const props = (remotes: object) =>
 it("小说项目显示唯一下一步与结果 Gate，不出现改编、制作或试制入口，不读制作进度", async () => {
   const { remotes: fake, progress } = remotes();
   render(<CockpitTool {...props(fake)} />);
-  const cockpit = await screen.findByRole("region", { name: "项目驾驶舱" });
+  const cockpit = await screen.findByRole("region", { name: "项目概览" });
   const next = await within(cockpit).findByRole("article", {
     name: "唯一推荐下一步",
   });
@@ -114,7 +114,7 @@ it("小说项目显示唯一下一步与结果 Gate，不出现改编、制作�
     within(cockpit).queryByRole("navigation", { name: "项目四区导航" }),
   ).toBeNull();
   expect(
-    within(cockpit).queryByRole("link", { name: "打开试制计划" }),
+    within(cockpit).queryByRole("link", { name: "打开样片计划" }),
   ).toBeNull();
   expect(
     within(cockpit)
@@ -139,7 +139,7 @@ it("项目图读取失败时只显示失败原因", async () => {
   fake.production.graph = () => failed("图不可用") as never;
   render(<CockpitTool {...props(fake)} />);
   expect(
-    await screen.findByText("项目驾驶舱暂时无法读取真实状态：图不可用"),
+    await screen.findByText("项目概览暂时无法读取真实状态：图不可用"),
   ).toBeTruthy();
-  expect(screen.queryByRole("region", { name: "项目驾驶舱" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "项目概览" })).toBeNull();
 });

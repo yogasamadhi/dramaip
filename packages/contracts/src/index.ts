@@ -273,7 +273,7 @@ export interface ConfiguredProvider {
   title: string;
   serviceType: string;
   model: string;
-  authentication: "apiKey" | "none";
+  authentication: "apiKey" | "none" | "hosted" | "piSubscription";
   credentialRef?: string;
   localRuntimeKind?: "ollama" | "lm_studio";
   baseUrl?: string;

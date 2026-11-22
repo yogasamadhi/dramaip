@@ -1,3 +1,4 @@
+import { piSubscriptionRuntime } from "./pi-subscriptions.ts";
 import { Agent } from "../../../vendor/pi/packages/agent/src/agent.ts";
 import { McpClient } from "../../../vendor/pi/packages/mcp/src/client.ts";
 import { StreamableHttpTransport } from "../../../vendor/pi/packages/mcp/src/transports/streamable-http.ts";
@@ -42,6 +43,8 @@ import type {
   TranscriptContext,
 } from "../../../vendor/pi/packages/ai/src/types.ts";
 
+export { createPiSubscriptionLogin } from "./pi-subscriptions.ts";
+
 const models = builtinModels();
 const customProviderId = "dramaip-openai-compatible";
 models.setProvider(
@@ -63,15 +66,24 @@ export function getPiProviderCatalog() {
     providers: models
       .getProviders()
       .filter(
-        (provider) => provider.auth.apiKey && provider.getModels().length > 0,
+        (provider) =>
+          (provider.auth.apiKey || provider.auth.oauth?.isSubscription) &&
+          provider.getModels().length > 0,
       )
       .map((provider) => ({
         id: provider.id,
         name: provider.name,
         protocol: "Pi",
+        ...(provider.auth.oauth?.isSubscription
+          ? {
+              subscriptionLabel: provider.auth.oauth.name,
+              subscriptionLoginLabel:
+                provider.auth.oauth.loginLabel ?? provider.auth.oauth.name,
+              subscriptionOnly: !provider.auth.apiKey,
+            }
+          : {}),
         baseUrl: provider.baseUrl ?? provider.getModels()[0]?.baseUrl,
-        sourceUrl:
-          "https://github.com/earendil-works/pi/tree/v1.5.0/packages/ai",
+        sourceUrl: `https://github.com/earendil-works/pi/tree/v${PI_AI_VERSION}/packages/ai`,
         models: provider
           .getModels()
           .map((model) => ({
@@ -368,7 +380,15 @@ function createStreamFunction(
   ) => {
     const requestOptions: SimpleStreamOptions = {
       ...options,
-      apiKey: configuration.secret,
+      apiKey: configuration.piAuthPath ? undefined : configuration.secret,
+      ...(configuration.hosted && options?.sessionId
+        ? {
+            headers: {
+              ...options.headers,
+              "X-AI-Session-Id": options.sessionId,
+            },
+          }
+        : {}),
     };
     if (
       configuration.providerKind === "openai" &&
@@ -386,7 +406,10 @@ function createStreamFunction(
         };
       };
     }
-    return models.streamSimple(
+    const inference = configuration.piAuthPath
+      ? piSubscriptionRuntime(configuration.piAuthPath).models
+      : models;
+    return inference.streamSimple(
       model,
       { messages: context.messages },
       requestOptions,
@@ -405,6 +428,7 @@ function createModel(configuration: PiProviderConfiguration): Model<Api> {
       throw new Error(
         `Pi 模型目录未找到 ${configuration.piProviderId}/${configuration.model}`,
       );
+    if (configuration.piAuthPath) return model;
     if (!configuration.baseUrl)
       throw new Error("Pi 服务商缺少已授权的服务地址");
     return { ...model, baseUrl: configuration.baseUrl };

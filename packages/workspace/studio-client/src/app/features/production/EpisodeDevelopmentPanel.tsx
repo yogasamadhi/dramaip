@@ -2072,7 +2072,7 @@ export function EpisodeDevelopmentPanel({ projectId }: { projectId: string }) {
             projectId={projectId}
             operation="knowledge-plan"
             resultLabel="Story Bible"
-            defaultInstruction="根据作品作者意图和已采用内容制定故事圣经，区分事实与未来规划。"
+            defaultInstruction="根据作品作者意图和已采用内容制定故事记忆，区分事实与未来规划。"
             onApplied={refresh}
           />
         </div>

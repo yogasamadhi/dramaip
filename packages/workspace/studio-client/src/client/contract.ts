@@ -241,6 +241,7 @@ export type LegacyNovelSection =
   | "plan"
   | "chapters"
   | "outlines"
+  | "library"
   | "characters"
   | "settings"
   | "story-bible"
@@ -368,7 +369,7 @@ export interface WritingSectionOwnerProps {
 /** Owner share of the manuscript export dialog. */
 export interface WritingManuscriptOwnerProps {
   readonly projectId: string;
-  readonly format: "markdown" | "json";
+  readonly format: "markdown" | "json" | "txt" | "docx";
   /** The saved preview the address names, if any. */
   readonly previewId: string | undefined;
   onSaved(): void;

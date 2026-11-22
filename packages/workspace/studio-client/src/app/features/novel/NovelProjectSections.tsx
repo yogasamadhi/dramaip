@@ -1,18 +1,12 @@
 import { NarrativePlanningWorkbench } from "./NarrativePlanningWorkbench";
-import { useEffect, useRef, useState } from "react";
-import { Link } from "../../router";
+import { useEffect, useState } from "react";
 import type { StudioClient } from "../../../facade/index";
 import type {
-  AgentEngineDescriptor,
-  AgentEngineKind,
+  AgentItem,
   AgentTaskType,
-  ChangePreview,
   Chapter,
   DomainEntity,
-  Project,
-  Task,
 } from "@dramaip/contracts/product";
-import { ChangePreviewSchema, TaskSchema } from "@dramaip/contracts/automation";
 import {
   BareButton,
   Button,
@@ -23,7 +17,12 @@ import {
 } from "@dramaip/infra-ui-primitives";
 import { confirmDialog } from "../../controls";
 import { AiSettingsLink, useStudioSession } from "../../studio-session";
-import { CreativeIntentSummary } from "../../creative-intent";
+import { useNavigate, useSearchParams } from "../../router";
+import {
+  openingFixInstruction,
+  parseOpeningIssues,
+  type OpeningIssue,
+} from "./opening-check";
 import styles from "./NovelProjectSections.module.css";
 import { copyText } from "../../copy";
 import { clsx } from "clsx";
@@ -63,108 +62,6 @@ const ARC_FIELDS: readonly FieldDefinition[] = [
 ];
 
 const LONGFORM_TOOL_CONFIG = {
-  memory: {
-    label: "章节记忆",
-    domain: "chapter-memories",
-    title: "章节记忆",
-    description:
-      "把已完成章节的事件、人物变化、秘密和伏笔沉淀为后续写作可读取的长期记忆。",
-    itemName: "章节记忆",
-    titleLabel: "记忆名称",
-    taskType: "summarize_chapter",
-    resultField: "章节摘要",
-    fields: [
-      { key: "关联章节", label: "关联章节" },
-      { key: "章节摘要", label: "章节摘要", multiline: true },
-      { key: "重要事件", label: "重要事件", multiline: true },
-      { key: "人物变化与秘密", label: "人物变化与秘密", multiline: true },
-      { key: "新增或回收伏笔", label: "新增或回收伏笔", multiline: true },
-    ],
-  },
-  states: {
-    label: "人物状态",
-    domain: "character-states",
-    title: "人物状态",
-    description:
-      "按章节记录角色处境、情绪、关系、能力和秘密变化，避免人物前后矛盾。",
-    itemName: "人物状态",
-    titleLabel: "状态名称",
-    taskType: "update_character_state",
-    resultField: "当前状态",
-    fields: [
-      { key: "关联角色", label: "关联角色" },
-      { key: "关联章节", label: "关联章节" },
-      { key: "当前状态", label: "当前状态", multiline: true },
-      { key: "情绪与关系变化", label: "情绪与关系变化", multiline: true },
-      { key: "连续性备注", label: "连续性备注", multiline: true },
-    ],
-  },
-  timeline: {
-    label: "时间线",
-    domain: "story-events",
-    title: "故事时间线",
-    description:
-      "维护关键事件发生顺序、关联章节和人物，连续写作时会作为事实依据。",
-    itemName: "故事事件",
-    titleLabel: "事件标题",
-    taskType: "extract_story_events",
-    resultField: "事件描述",
-    fields: [
-      { key: "事件类型", label: "事件类型" },
-      { key: "关联章节", label: "关联章节" },
-      { key: "排序", label: "排序", number: true },
-      { key: "事件描述", label: "事件描述", multiline: true },
-      { key: "相关角色", label: "相关角色", multiline: true },
-    ],
-  },
-  foreshadowing: {
-    label: "伏笔",
-    domain: "foreshadowings",
-    title: "伏笔管理",
-    description:
-      "跟踪伏笔的完整生命周期、实际证据、观众认知和逾期状态，不让长篇线索无故消失。",
-    itemName: "伏笔",
-    titleLabel: "伏笔标题",
-    taskType: "extract_foreshadowing",
-    resultField: "伏笔说明",
-    fields: [
-      { key: "埋设章节", label: "埋设章节" },
-      { key: "回收章节", label: "回收章节" },
-      {
-        key: "状态",
-        label: "状态",
-        placeholder: "埋设、强化、误导、揭示、回收或废弃",
-      },
-      { key: "计划章节", label: "计划章节" },
-      { key: "逾期状态", label: "逾期状态", placeholder: "正常、临近或逾期" },
-      {
-        key: "观众认知",
-        label: "观众认知",
-        placeholder: "unknown、suspects、misbelieves 或 knows",
-      },
-      { key: "伏笔说明", label: "伏笔说明", multiline: true },
-      { key: "回收计划", label: "回收计划", multiline: true },
-      { key: "实际证据", label: "实际证据", multiline: true },
-    ],
-  },
-  visual: {
-    label: "视觉档案",
-    domain: "visual-profiles",
-    title: "人物视觉档案",
-    description:
-      "锁定人物外观、服装、发型、色彩和声线，供后续远程图片与视频 API 保持一致。",
-    itemName: "视觉档案",
-    titleLabel: "档案名称",
-    taskType: "generate_character_visual_profile",
-    resultField: "外观提示",
-    fields: [
-      { key: "关联角色", label: "关联角色" },
-      { key: "外观提示", label: "外观提示", multiline: true },
-      { key: "服装与发型", label: "服装与发型", multiline: true },
-      { key: "色彩与气质", label: "色彩与气质", multiline: true },
-      { key: "负面提示与声线", label: "负面提示与声线", multiline: true },
-    ],
-  },
   continuity: {
     label: "一致性",
     domain: "analysis",
@@ -175,6 +72,8 @@ const LONGFORM_TOOL_CONFIG = {
     titleLabel: "检查名称",
     taskType: "check_consistency",
     resultField: "发现",
+    prompt:
+      "检查已写章节里人物、时间线、世界规则、伏笔和章节衔接有没有前后矛盾。逐条列出问题，每条写明出现在哪一章、原文怎么写、和哪里冲突、建议怎么改。没有问题就直接说没有发现矛盾。",
     fields: [
       { key: "分析类型", label: "分析类型", placeholder: "一致性检查" },
       { key: "关联章节", label: "检查范围" },
@@ -193,12 +92,32 @@ const LONGFORM_TOOL_CONFIG = {
     titleLabel: "分析名称",
     taskType: "analyze_text_quality",
     resultField: "发现",
+    prompt:
+      "分析已写章节的文字质量、节奏、爽点、钩子和改编成短剧的潜力。先给一句总体评价，再逐条列出最值得改的地方，每条写明原文片段和具体修改建议。",
     fields: [
       { key: "分析类型", label: "分析类型" },
       { key: "关联章节", label: "分析范围" },
       { key: "评分", label: "评分", number: true },
       { key: "发现", label: "分析发现", multiline: true },
       { key: "建议", label: "优化建议", multiline: true },
+    ],
+  },
+  opening: {
+    label: "开篇检查",
+    domain: "analysis",
+    title: "开篇检查",
+    description:
+      "按网文「黄金三章」标准检查前三章：开场抓不抓人、主角目标是否清楚、章末钩子、拖沓段落和付费卡点。",
+    itemName: "开篇检查报告",
+    titleLabel: "检查名称",
+    taskType: "review_opening",
+    resultField: "发现",
+    prompt: "检查这部小说的第 1 到第 3 章（选了具体章节时只检查那一章）。",
+    fields: [
+      { key: "分析类型", label: "分析类型", placeholder: "开篇检查" },
+      { key: "关联章节", label: "检查范围" },
+      { key: "发现", label: "发现", multiline: true },
+      { key: "建议", label: "修改建议", multiline: true },
     ],
   },
   room: {
@@ -211,6 +130,8 @@ const LONGFORM_TOOL_CONFIG = {
     titleLabel: "纪要名称",
     taskType: "writing_room_review",
     resultField: "发现",
+    prompt:
+      "以主编、人物、冲突、世界逻辑、读者和视觉制作六个角度审读已写章节，列出各方意见和分歧，最后由主编整理成可执行的修改清单。",
     fields: [
       { key: "分析类型", label: "会议类型", placeholder: "编剧室审稿" },
       { key: "关联章节", label: "讨论范围" },
@@ -229,56 +150,62 @@ const LONGFORM_TOOL_CONFIG = {
     titleLabel: string;
     taskType: AgentTaskType;
     resultField: string;
+    prompt: string;
     fields: readonly FieldDefinition[];
   }
 >;
 
-const FIELD_LABELS: Record<string, string> = {
-  title: "项目名称",
-  targetAudience: "目标读者",
-  targetWordCount: "目标字数",
-  targetEpisodeCount: "目标集数",
-  coreHook: "核心钩子",
-  emotionalCore: "情绪主轴",
-  coreSellingPoint: "核心卖点",
-  synopsis: "故事梗概",
-  styleGuide: "创作规范",
-  visualStyleDirection: "视觉风格方向",
-  genreOpportunity: "题材机会",
-  productionBrief: "制作说明",
-};
+/**
+ * What AI keeps on its own as chapters are written: read here, never typed
+ * in by hand. Each entry lists the fields worth showing, in order.
+ */
+const STORY_MEMORY_VIEWS = [
+  {
+    domain: "chapter-memories",
+    label: "章节摘要",
+    fields: [
+      ["关联章节", "章节"],
+      ["章节摘要", "摘要"],
+      ["重要事件", "重要事件"],
+      ["人物变化与秘密", "人物变化"],
+      ["新增或回收伏笔", "伏笔"],
+    ],
+  },
+  {
+    domain: "character-states",
+    label: "人物现状",
+    fields: [
+      ["关联角色", "人物"],
+      ["关联章节", "截至章节"],
+      ["当前状态", "现状"],
+      ["情绪与关系变化", "关系变化"],
+    ],
+  },
+  {
+    domain: "story-events",
+    label: "时间线",
+    fields: [
+      ["关联章节", "章节"],
+      ["事件描述", "发生了什么"],
+      ["相关角色", "相关人物"],
+    ],
+  },
+  {
+    domain: "foreshadowings",
+    label: "伏笔",
+    fields: [
+      ["状态", "状态"],
+      ["埋设章节", "埋在"],
+      ["计划章节", "计划回收"],
+      ["伏笔说明", "说明"],
+    ],
+  },
+] as const;
 
 function payloadRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function targetPreview(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : { 内容: String(value ?? "") };
-}
-
-function previewFromTaskResult(value: unknown): ChangePreview | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return undefined;
-  const candidate = (value as Record<string, unknown>).changePreview;
-  return candidate && typeof candidate === "object" && !Array.isArray(candidate)
-    ? (candidate as ChangePreview)
-    : undefined;
-}
-
-function displayValue(value: unknown): string {
-  if (Array.isArray(value)) return value.map(displayValue).join("、");
-  if (value && typeof value === "object")
-    return Object.entries(value as Record<string, unknown>)
-      .map(
-        ([key, nested]) =>
-          `${FIELD_LABELS[key] ?? key}：${displayValue(nested)}`,
-      )
-      .join("\n");
-  return value === undefined || value === null ? "" : String(value);
 }
 
 export function NovelCharactersSection(props: {
@@ -410,7 +337,14 @@ export function NovelLongformToolsSection(props: {
   chapters: Chapter[];
 }) {
   type ToolKey = keyof typeof LONGFORM_TOOL_CONFIG;
-  const [tool, setTool] = useState<ToolKey>("memory");
+  // A chapter's 开篇检查 link opens this tab on that tool and chapter.
+  const [search] = useSearchParams();
+  const requested = search.get("tool");
+  const [tool, setTool] = useState<ToolKey>(
+    requested && requested in LONGFORM_TOOL_CONFIG
+      ? (requested as ToolKey)
+      : "continuity",
+  );
   const [refreshKey, setRefreshKey] = useState(0);
   const configuration = LONGFORM_TOOL_CONFIG[tool];
   return (
@@ -444,41 +378,156 @@ export function NovelLongformToolsSection(props: {
           ))}
         </nav>
       </section>
-      <NovelInsightRunner
-        key={`runner:${tool}`}
-        client={props.client}
-        projectId={props.projectId}
-        taskType={configuration.taskType}
-        title={copyText("app/features/novel/NovelProjectSections.28", {
-          p1: configuration.title,
-        })}
-        description={`${configuration.description} 生成结果只作为 AI 草稿，点击“保存到项目”后才会进入正式资料。`}
-        domain={configuration.domain}
-        itemName={configuration.itemName}
-        resultField={configuration.resultField}
-        chapters={props.chapters}
-        onSaved={() => setRefreshKey((value) => value + 1)}
-      />
-      <NovelResourceSection
-        key={`${tool}:${refreshKey}`}
-        client={props.client}
-        projectId={props.projectId}
-        domain={configuration.domain}
-        title={configuration.title}
-        description={configuration.description}
-        itemName={configuration.itemName}
-        titleLabel={configuration.titleLabel}
-        fields={configuration.fields}
-        filter={(item) => {
-          if (configuration.domain !== "analysis") return true;
-          const type = String(payloadRecord(item.payload)["分析类型"] ?? "");
-          if (tool === "continuity") return type.includes("一致性");
-          if (tool === "room") return type.includes("编剧室");
-          return !type.includes("一致性") && !type.includes("编剧室");
-        }}
-      />
+      <>
+        <NovelInsightRunner
+          key={`runner:${tool}`}
+          client={props.client}
+          projectId={props.projectId}
+          taskType={configuration.taskType}
+          title={configuration.title}
+          description={`${configuration.description} 结果先给你看，点“保存到项目”后才会留存。`}
+          prompt={configuration.prompt}
+          domain={configuration.domain}
+          itemName={configuration.itemName}
+          resultField={configuration.resultField}
+          chapters={props.chapters}
+          initialChapterId={
+            tool === requested ? (search.get("chapterId") ?? "") : ""
+          }
+          onSaved={() => setRefreshKey((value) => value + 1)}
+        />
+        <NovelResourceSection
+          key={`${tool}:${refreshKey}`}
+          client={props.client}
+          projectId={props.projectId}
+          domain={configuration.domain}
+          title={copyText("app/features/novel/NovelProjectSections.36", {
+            p1: configuration.itemName,
+          })}
+          description={configuration.description}
+          itemName={configuration.itemName}
+          titleLabel={configuration.titleLabel}
+          fields={configuration.fields}
+          filter={(item) => {
+            const type = String(payloadRecord(item.payload)["分析类型"] ?? "");
+            if (tool === "continuity") return type.includes("一致性");
+            if (tool === "room") return type.includes("编剧室");
+            if (tool === "opening") return type.includes("开篇");
+            return (
+              !type.includes("一致性") &&
+              !type.includes("编剧室") &&
+              !type.includes("开篇")
+            );
+          }}
+        />
+      </>
     </div>
   );
+}
+
+/** A read-only look at the story memory AI keeps as chapters are written. */
+export function StoryMemoryView(props: {
+  client: StudioClient;
+  projectId: string;
+}) {
+  const [view, setView] =
+    useState<(typeof STORY_MEMORY_VIEWS)[number]["domain"]>("chapter-memories");
+  const [items, setItems] = useState<DomainEntity[]>();
+  const [notice, setNotice] = useState<string>();
+  const current =
+    STORY_MEMORY_VIEWS.find((item) => item.domain === view) ??
+    STORY_MEMORY_VIEWS[0];
+  useEffect(() => {
+    let live = true;
+    setItems(undefined);
+    setNotice(undefined);
+    props.client.resources.list(view, props.projectId).then(
+      (next) => {
+        if (live) setItems(next);
+      },
+      (cause: unknown) => {
+        if (live)
+          setNotice(cause instanceof Error ? cause.message : String(cause));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [props.client, props.projectId, view]);
+  return (
+    <section
+      className={styles.c4}
+      aria-label={copyText("app/features/novel/NovelProjectSections.30")}
+    >
+      <div className={styles.c10}>
+        <h2 className={styles.c5}>
+          {copyText("app/features/novel/NovelProjectSections.30")}
+        </h2>
+        <p className={styles.c11}>
+          {copyText("app/features/novel/NovelProjectSections.31")}
+        </p>
+      </div>
+      <nav
+        className={styles.c7}
+        aria-label={copyText("app/features/novel/NovelProjectSections.32")}
+      >
+        {STORY_MEMORY_VIEWS.map((item) => (
+          <BareButton
+            key={item.domain}
+            className={clsx(
+              styles.c8,
+              view === item.domain ? styles.k3 : styles.k4,
+            )}
+            aria-pressed={view === item.domain}
+            onClick={() => setView(item.domain)}
+          >
+            {item.label}
+          </BareButton>
+        ))}
+      </nav>
+      {notice && <p className={styles.c15}>{notice}</p>}
+      <div className={styles.c16}>
+        {items?.map((item) => {
+          const payload = payloadRecord(item.payload);
+          return (
+            <article key={item.id} className={styles.c17}>
+              <h3 className={styles.c20}>{item.title}</h3>
+              <dl className={styles.c21}>
+                {current.fields
+                  .filter(([key]) => memoryText(payload[key]))
+                  .map(([key, label]) => (
+                    <div key={key}>
+                      <dt className={styles.c22}>{label}</dt>
+                      <dd className={styles.c23}>{memoryText(payload[key])}</dd>
+                    </div>
+                  ))}
+              </dl>
+            </article>
+          );
+        })}
+        {items && !items.length && (
+          <p className={styles.c27}>
+            {copyText("app/features/novel/NovelProjectSections.33", {
+              p1: current.label,
+            })}
+          </p>
+        )}
+        {!items && !notice && (
+          <p className={styles.c27}>
+            {copyText("app/features/novel/NovelProjectSections.34")}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function memoryText(value: unknown): string {
+  if (Array.isArray(value))
+    return value.map(memoryText).filter(Boolean).join("、");
+  if (value === undefined || value === null) return "";
+  if (typeof value === "object") return agentResultText(value);
+  return String(value).trim();
 }
 
 function NovelResourceSection(props: {
@@ -582,33 +631,20 @@ function NovelResourceSection(props: {
         </BareButton>
       </div>
       {props.generator && (
-        <>
-          <NarrativePlanningWorkbench
-            projectId={props.projectId}
-            operation={
-              props.generator.taskType === "generate_characters"
-                ? "characters"
-                : props.generator.taskType === "generate_story_arc_outline"
-                  ? "story-arc"
-                  : props.generator.taskType === "generate_chapter_outline"
-                    ? "chapter-outline"
-                    : "book-outline"
-            }
-            defaultInstruction={props.generator.defaultInstruction}
-            onApplied={load}
-          />
-          <details className={styles.c13}>
-            <summary className={styles.c14}>
-              {copyText("app/features/novel/NovelProjectSections.6")}
-            </summary>
-            <NovelArtifactGenerator
-              client={props.client}
-              projectId={props.projectId}
-              {...props.generator}
-              onCommitted={load}
-            />
-          </details>
-        </>
+        <NarrativePlanningWorkbench
+          projectId={props.projectId}
+          operation={
+            props.generator.taskType === "generate_characters"
+              ? "characters"
+              : props.generator.taskType === "generate_story_arc_outline"
+                ? "story-arc"
+                : props.generator.taskType === "generate_chapter_outline"
+                  ? "chapter-outline"
+                  : "book-outline"
+          }
+          defaultInstruction={props.generator.defaultInstruction}
+          onApplied={load}
+        />
       )}
       {notice && <p className={styles.c15}>{notice}</p>}
       <div className={styles.c16}>
@@ -754,105 +790,168 @@ function agentResultText(value: unknown): string {
   }
 }
 
+/** Run statuses after which the run may still produce its answer. */
+const ACTIVE_RUN_STATUSES = new Set([
+  "created",
+  "queued",
+  "preparing",
+  "running",
+  "waiting_approval",
+  "committing",
+]);
+
+/** The answer a finished run gave: its messages, else its structured output. */
+function runOutput(items: readonly AgentItem[]): string {
+  const ordered = [...items].sort((a, b) => a.sequence - b.sequence);
+  const messages = ordered
+    .filter((item) => item.type === "message" && item.content?.trim())
+    .map((item) => item.content!.trim());
+  if (messages.length) return messages.join("\n\n");
+  const structured = ordered.find((item) => item.type === "structured_output");
+  return structured
+    ? agentResultText(structured.content ?? structured.payload)
+    : "";
+}
+
 function NovelInsightRunner(props: {
   client: StudioClient;
   projectId: string;
   taskType: AgentTaskType;
   title: string;
   description: string;
+  /** What to ask when the author adds nothing; never empty. */
+  prompt: string;
   domain: string;
   itemName: string;
   resultField: string;
   chapters: Chapter[];
+  initialChapterId?: string;
   onSaved(): void;
 }) {
   const [instruction, setInstruction] = useState("");
-  const engineKind: AgentEngineKind = "pi";
-  const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
-  const [taskId, setTaskId] = useState<string>();
   const [runId, setRunId] = useState<string>();
-  const [chapterId, setChapterId] = useState("");
+  const [taskId, setTaskId] = useState<string>();
+  const [chapterId, setChapterId] = useState(props.initialChapterId ?? "");
+  const studioSession = useStudioSession();
+  const navigate = useNavigate();
   const [output, setOutput] = useState("");
   const [notice, setNotice] = useState<string>();
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const taskRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    void Promise.all([props.client.agentEngines.list()]).then(([items]) => {
-      setEngines(items);
+  const issues =
+    props.taskType === "review_opening" && output.trim()
+      ? parseOpeningIssues(output)
+      : [];
+  /** Opens the chapter with an instruction that fixes just this problem. */
+  const fix = (issue: OpeningIssue) => {
+    const ordered = [...props.chapters].sort(
+      (a, b) => a.orderIndex - b.orderIndex,
+    );
+    const chapter =
+      (issue.chapter ? ordered[issue.chapter - 1] : undefined) ??
+      ordered.find((item) => item.id === chapterId) ??
+      ordered[0];
+    if (!chapter) return;
+    const to = `/projects/${encodeURIComponent(props.projectId)}?section=chapters&chapterId=${encodeURIComponent(chapter.id)}`;
+    studioSession.savePendingIntent({
+      kind: "ai-action",
+      actionId: "novel-chapter:opening-fix",
+      projectId: props.projectId,
+      chapterId: chapter.id,
+      input: openingFixInstruction(issue),
+      returnTo: to,
     });
-  }, [props.client, props.projectId]);
-  useEffect(
-    () =>
-      props.client.events.subscribe((event) => {
-        if (
-          event.type !== "task.updated" ||
-          !event.payload ||
-          typeof event.payload !== "object"
-        )
-          return;
-        const parsed = TaskSchema.safeParse(event.payload);
-        if (!parsed.success) return;
-        const task = parsed.data;
-        if (task.id !== taskRef.current) return;
-        if (task.status === "failed") {
-          setBusy(false);
-          setNotice(task.error ?? "智能分析未能完成，请使用原引擎重试");
+    navigate(to);
+  };
+  useEffect(() => {
+    if (!runId) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (text: string, message: string, failure = false) => {
+      setBusy(false);
+      setOutput(text);
+      setNotice(message);
+      setFailed(failure);
+    };
+    const poll = async () => {
+      try {
+        const run = await props.client.agentSessions.getRun(runId);
+        if (!live) return;
+        if (ACTIVE_RUN_STATUSES.has(run.status)) {
+          timer = setTimeout(() => void poll(), 1_500);
           return;
         }
-        if (task.status === "canceled" || task.status === "interrupted") {
-          setBusy(false);
-          setNotice(
-            task.status === "canceled" ? "本次分析已取消" : "本次分析已中断",
+        if (run.status !== "completed") {
+          finish(
+            "",
+            run.status === "interrupted" || run.status === "aborted"
+              ? "本次分析已中断。"
+              : (run.error ?? "分析没有完成，请重试。"),
+            run.status !== "interrupted" && run.status !== "aborted",
           );
           return;
         }
-        if (task.status !== "succeeded") return;
-        const text = agentResultText(task.result);
-        setBusy(false);
-        setOutput(text);
-        setNotice(
-          text.trim()
-            ? "AI 草稿结果已经生成；核对后可以保存到项目。"
-            : "模型本次没有返回内容，可使用相同设置重试。",
+        const text = runOutput(
+          await props.client.agentSessions.listItems(runId),
         );
-      }),
-    [props.client],
-  );
-  const selectedEngine = engines.find((engine) => engine.kind === engineKind);
-  const canRun = selectedEngine
-    ? (selectedEngine.canRun ?? selectedEngine.status === "available")
-    : false;
+        if (!live) return;
+        finish(
+          text,
+          text.trim()
+            ? "分析完成，核对后可以保存到项目。"
+            : "AI 这次没有返回内容，请重试。",
+        );
+      } catch (cause) {
+        if (live)
+          finish(
+            "",
+            cause instanceof Error ? cause.message : String(cause),
+            true,
+          );
+      }
+    };
+    void poll();
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [props.client, runId]);
   const run = async () => {
-    if (!canRun) {
-      setNotice(
-        selectedEngine?.statusMessage ?? "所选智能引擎当前不能执行此任务",
-      );
-      return;
-    }
     setBusy(true);
     setOutput("");
-    setNotice("正在读取项目、章节和长篇资料…");
+    setFailed(false);
+    setNotice("正在阅读章节和资料…");
     try {
+      const settings = await props.client.agentEngines.getProjectSettings(
+        props.projectId,
+      );
+      const model = settings.defaultModel
+        ? { model: { ...settings.defaultModel } }
+        : {};
       const session = await props.client.agentSessions.create({
         projectId: props.projectId,
         ...(chapterId ? { chapterId } : {}),
-        engineKind,
+        engineKind: settings.defaultEngineKind,
         taskType: props.taskType,
         title: props.title,
+        ...model,
       });
       const started = await props.client.agentSessions.run(
         session.id,
         {
           taskType: props.taskType,
-          ...(instruction.trim() ? { prompt: instruction.trim() } : {}),
+          prompt: [props.prompt, instruction.trim()]
+            .filter(Boolean)
+            .join("\n\n补充要求：\n"),
+          ...model,
         },
         crypto.randomUUID(),
       );
-      taskRef.current = started.taskId;
       setTaskId(started.taskId);
       setRunId(started.runId);
     } catch (cause) {
       setBusy(false);
+      setFailed(true);
       setNotice(cause instanceof Error ? cause.message : String(cause));
     }
   };
@@ -872,16 +971,21 @@ function NovelInsightRunner(props: {
                 分析类型:
                   props.taskType === "check_consistency"
                     ? "一致性检查"
-                    : props.taskType.startsWith("writing_room")
-                      ? "编剧室审稿"
-                      : "创作分析",
+                    : props.taskType === "review_opening"
+                      ? "开篇检查"
+                      : props.taskType.startsWith("writing_room")
+                        ? "编剧室审稿"
+                        : "创作分析",
               }
             : {}),
-          来源: `${selectedEngine?.name ?? engineKind} · ${props.title}`,
+          关联章节:
+            props.chapters.find((chapter) => chapter.id === chapterId)?.title ??
+            "整个项目",
+          来源: props.title,
           任务标识: taskId ?? "",
         },
       });
-      setNotice("结果已保存到项目资料。后续智能写作会按上下文策略读取。 ");
+      setNotice("已保存到项目。");
       props.onSaved();
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : String(cause));
@@ -931,10 +1035,10 @@ function NovelInsightRunner(props: {
       <div className={styles.c41}>
         <BareButton
           className={styles.c42}
-          disabled={busy || !canRun}
+          disabled={busy}
           onClick={() => void run()}
         >
-          {busy ? "正在处理…" : "开始智能分析"}
+          {busy ? "正在分析…" : `开始${props.title}`}
         </BareButton>
         {busy && runId && (
           <BareButton
@@ -954,322 +1058,45 @@ function NovelInsightRunner(props: {
           </BareButton>
         )}
       </div>
-      {notice && <p className={styles.c45}>{notice}</p>}
-      {output.trim() && <div className={styles.c46}>{output}</div>}
-    </section>
-  );
-}
-
-export function NovelArtifactGenerator(props: {
-  client: StudioClient;
-  projectId: string;
-  taskType: AgentTaskType;
-  title: string;
-  description: string;
-  defaultInstruction?: string;
-  onCommitted(): void | Promise<void>;
-}) {
-  const studioSession = useStudioSession();
-  const actionId = `novel-artifact:${props.taskType}`;
-  const returnedFromSettings =
-    studioSession.pendingIntent?.actionId === actionId;
-  const [expanded, setExpanded] = useState(returnedFromSettings);
-  const [instruction, setInstruction] = useState(
-    () =>
-      (studioSession.pendingIntent?.actionId === actionId
-        ? studioSession.pendingIntent.input
-        : undefined) ??
-      props.defaultInstruction ??
-      "",
-  );
-  const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
-  const engineKind: AgentEngineKind = "pi";
-  const [task, setTask] = useState<Task>();
-  const [runId, setRunId] = useState<string>();
-  const [preview, setPreview] = useState<ChangePreview>();
-  const [intentProject, setIntentProject] = useState<Project>();
-  const [notice, setNotice] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const taskRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    void Promise.all([
-      props.client.agentEngines.list(),
-      props.client.projects.get(props.projectId),
-    ]).then(([items, project]) => {
-      setEngines(items);
-      setIntentProject(project);
-    });
-  }, [props.client, props.projectId]);
-  useEffect(
-    () =>
-      props.client.events.subscribe((event) => {
-        if (!event.payload || typeof event.payload !== "object") return;
-        const parsed = TaskSchema.safeParse(event.payload);
-        if (
-          event.type === "task.updated" &&
-          parsed.success &&
-          parsed.data.id === taskRef.current
-        ) {
-          const value = parsed.data;
-          setTask(value);
-          if (value.status === "failed") {
-            setBusy(false);
-            setNotice(value.error ?? "智能生成未能完成，请使用原引擎重试");
-          } else if (value.status === "succeeded") {
-            const generatedPreview = previewFromTaskResult(value.result);
-            if (generatedPreview) {
-              setPreview(generatedPreview);
-              setBusy(false);
-              setNotice("智能方案已生成，请核对后采用。");
-            } else {
-              setBusy(false);
-              setNotice("模型没有返回可采用的结构化方案，请使用相同设置重试。");
-            }
-          }
-        }
-        if (event.type === "change_preview.created") {
-          const preview = ChangePreviewSchema.safeParse(event.payload);
-          if (!preview.success) return;
-          const value = preview.data;
-          if (value.taskId !== taskRef.current) return;
-          void props.client.changePreviews.get(value.id).then((current) => {
-            setPreview(current);
-            setBusy(false);
-            setNotice("智能方案已生成，请核对后采用。");
-          });
-        }
-      }),
-    [props.client],
-  );
-  const selectedEngine = engines.find((item) => item.kind === engineKind);
-  const canRun = selectedEngine
-    ? (selectedEngine.canRun ?? selectedEngine.status === "available")
-    : false;
-  const run = async () => {
-    if (!canRun) {
-      setNotice(selectedEngine?.statusMessage ?? "所选智能引擎当前不能运行");
-      return;
-    }
-    if (returnedFromSettings) studioSession.clearPendingIntent();
-    setBusy(true);
-    setPreview(undefined);
-    setNotice(undefined);
-    try {
-      const session = await props.client.agentSessions.create({
-        projectId: props.projectId,
-        engineKind,
-        taskType: props.taskType,
-        title: props.title,
-      });
-      const started = await props.client.agentSessions.run(
-        session.id,
-        {
-          taskType: props.taskType,
-          ...(instruction.trim() ? { prompt: instruction.trim() } : {}),
-        },
-        crypto.randomUUID(),
-      );
-      taskRef.current = started.taskId;
-      setRunId(started.runId);
-      setTask({
-        id: started.taskId,
-        kind: `agent.${props.taskType}`,
-        status: "queued",
-        attentionStatus: "open",
-        resultStatus: "none",
-        title: props.title,
-        progress: 0,
-        projectId: props.projectId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      setNotice("正在读取项目上下文并生成方案…");
-    } catch (cause) {
-      setBusy(false);
-      setNotice(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
-  const commit = async () => {
-    if (!preview) return;
-    setBusy(true);
-    try {
-      await props.client.changePreviews.commit(preview.id, crypto.randomUUID());
-      setPreview(undefined);
-      setNotice("智能方案已经采用。");
-      await props.onCommitted();
-    } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const discard = async () => {
-    if (!preview) return;
-    setBusy(true);
-    try {
-      await props.client.changePreviews.discard(
-        preview.id,
-        crypto.randomUUID(),
-      );
-      setPreview(undefined);
-      setNotice("已放弃这次智能方案。");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className={styles.c47}>
-      <BareButton
-        className={styles.c48}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        <span className={styles.c19}>
-          <span className={styles.c49}>{props.title}</span>
-          <span className={styles.c50}>{props.description}</span>
-        </span>
-        <span className={styles.c51}>{expanded ? "收起" : "开始"}</span>
-      </BareButton>
-      {expanded && (
-        <div className={styles.c52}>
-          <textarea
-            className={styles.c53}
-            value={instruction}
-            disabled={busy}
-            onChange={(event) => setInstruction(event.target.value)}
-            placeholder={copyText("app/features/novel/NovelProjectSections.20")}
-          />
-          <div className={styles.c54}>
-            <BareButton
-              className={clsx(
-                styles.c56,
-                returnedFromSettings ? styles.k5 : "",
-              )}
-              disabled={busy || !canRun}
-              onClick={() => void run()}
-            >
-              {busy
-                ? "正在生成…"
-                : returnedFromSettings
-                  ? "配置已完成，确认继续"
-                  : "立即生成"}
-            </BareButton>
-          </div>
-          {!canRun && (
-            <p className={styles.c57}>
-              {selectedEngine?.statusMessage ?? "请先完成模型服务商配置。"}{" "}
+      {notice && (
+        <p className={styles.c45} role={failed ? "alert" : "status"}>
+          {notice}
+          {failed && (
+            <>
+              {" "}
               <AiSettingsLink
-                actionId={actionId}
+                actionId={`novel-tool:${props.taskType}`}
                 projectId={props.projectId}
-                input={instruction}
-                returnTo={`/projects/${encodeURIComponent(props.projectId)}?section=settings`}
-                className={styles.c58}
               >
-                {copyText("app/features/novel/NovelProjectSections.21")}
+                {copyText("app/features/novel/NovelProjectSections.35")}
               </AiSettingsLink>
-            </p>
+            </>
           )}
-          {task && (
-            <div className={styles.c59}>
-              <div className={styles.c60}>
-                <span>{task.title}</span>
-                <span className={styles.c61}>
-                  {task.status === "queued"
-                    ? "等待中"
-                    : task.status === "running"
-                      ? "生成中"
-                      : task.status === "succeeded"
-                        ? "已完成"
-                        : task.status === "failed"
-                          ? "失败"
-                          : "已中断"}
-                </span>
-              </div>
-              <div className={styles.c62}>
-                <div
-                  className={styles.c63}
-                  style={{ width: `${Math.max(3, task.progress * 100)}%` }}
-                />
-              </div>
-              {runId && (
-                <Link className={styles.c64} to="/tasks">
-                  {copyText("app/features/novel/NovelProjectSections.22")}
-                </Link>
-              )}
-            </div>
-          )}
-          {notice && <p className={styles.c65}>{notice}</p>}
-          {preview && (
-            <section className={styles.c66}>
-              <h3 className={styles.c67}>
-                {copyText("app/features/novel/NovelProjectSections.23")}
-              </h3>
-              <p className={styles.c68}>
-                {copyText("app/features/novel/NovelProjectSections.24")}
-                {preview.targets.length}{" "}
-                {copyText("app/features/novel/NovelProjectSections.25")}
-              </p>
-              {intentProject && (
-                <div className={styles.c69}>
-                  <CreativeIntentSummary
-                    project={intentProject}
-                    preview={preview}
-                    compact
-                  />
-                </div>
-              )}
-              <div className={styles.c70}>
-                {preview.targets.map((target, index) => {
-                  const value = targetPreview(
-                    target.displayDiff ?? target.patch,
-                  );
-                  return (
-                    <article
-                      key={`${target.id}-${index}`}
-                      className={styles.c71}
-                    >
-                      <p className={styles.c72}>
-                        {displayValue(
-                          value.title ?? value.name ?? `AI 草稿 ${index + 1}`,
-                        )}
-                      </p>
-                      <dl className={styles.c73}>
-                        {Object.entries(value)
-                          .filter(([key]) => !["title", "name"].includes(key))
-                          .map(([key, nested]) => (
-                            <div key={key} className={styles.c74}>
-                              <dt className={styles.c75}>
-                                {FIELD_LABELS[key] ?? key}
-                              </dt>
-                              <dd className={styles.c76}>
-                                {displayValue(nested)}
-                              </dd>
-                            </div>
-                          ))}
-                      </dl>
-                    </article>
-                  );
-                })}
-              </div>
-              <div className={styles.c77}>
-                <BareButton
-                  className={styles.c78}
-                  disabled={busy}
-                  onClick={() => void discard()}
-                >
-                  {copyText("app/features/novel/NovelProjectSections.26")}
-                </BareButton>
-                <BareButton
-                  className={styles.c56}
-                  disabled={busy}
-                  onClick={() => void commit()}
-                >
-                  {copyText("app/features/novel/NovelProjectSections.27")}
-                </BareButton>
-              </div>
-            </section>
-          )}
-        </div>
+        </p>
       )}
-    </div>
+      {output.trim() && <div className={styles.c46}>{output}</div>}
+      {issues.length > 0 && (
+        <ol
+          className={styles.openingIssues}
+          aria-label={copyText("app/features/novel/NovelProjectSections.37")}
+        >
+          {issues.map((issue, index) => (
+            <li key={index} className={styles.openingIssue}>
+              <p>
+                {issue.chapter ? `第 ${issue.chapter} 章 · ` : ""}
+                {issue.summary || issue.suggestion}
+              </p>
+              <BareButton
+                className={styles.c44}
+                disabled={busy}
+                onClick={() => fix(issue)}
+              >
+                {copyText("app/features/novel/NovelProjectSections.38")}
+              </BareButton>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }

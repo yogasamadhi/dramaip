@@ -44,7 +44,7 @@ export const inspirationZh = {
   "space.web.consent":
     "联网搜索会把本轮生成的搜索词，以及你要求读取的公开网址发送给第三方网络服务；不会自动发送项目文件、剧本全文或附件。是否允许？",
   "space.web.kept": "已保持关闭；这段灵感对话不会访问公开网络。",
-  "space.engine.none": "没有可用的 AI 引擎，请先在设置中完成配置。",
+  "space.engine.none": "还没有可用的 AI 模型，请先设置 AI 模型。",
   "space.rename.title": "重命名灵感对话",
   "space.rename.field": "新的灵感对话名称",
   "space.fork.done": "已从当前状态创建独立分支，原对话保持不变。",

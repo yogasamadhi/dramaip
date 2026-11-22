@@ -507,6 +507,9 @@ importers:
       '@dramaip/agents-agents':
         specifier: workspace:*
         version: link:../agents
+      '@dramaip/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
       '@dramaip/infra-locale':
         specifier: workspace:*
         version: link:../../infra/locale
@@ -2658,6 +2661,9 @@ importers:
       '@dramaip/plugin-api':
         specifier: workspace:*
         version: link:../../plugin-api
+      '@dramaip/production-delivery':
+        specifier: workspace:*
+        version: link:../delivery
       '@xmldom/xmldom':
         specifier: 0.8.13
         version: 0.8.13
@@ -2671,6 +2677,9 @@ importers:
       '@dramaip/infra-typert-registry':
         specifier: workspace:*
         version: link:../../infra/typert-registry
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
 
   packages/production/production-client:
     devDependencies:

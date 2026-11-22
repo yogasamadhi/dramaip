@@ -127,7 +127,7 @@ test("candidate exposes frozen old/new block identities without claiming semanti
     episodeDevelopmentBasis: { storyboardRedo: structured },
   } as unknown as CreationWorkflow;
   const html = renderToStaticMarkup(<EpisodeCandidate workflow={workflow} />);
-  expect(html).toContain("冻结块结构映射");
+  expect(html).toContain("锁定块结构映射");
   expect(html).toContain("原块：");
   expect(html).toContain(other);
   expect(html).toContain("新块：");
@@ -136,6 +136,6 @@ test("candidate exposes frozen old/new block identities without claiming semanti
   workflow.episodeDevelopmentBasis!.storyboardRedo =
     StoryboardRedoReceiptSchema.parse(fixed);
   const old = renderToStaticMarkup(<EpisodeCandidate workflow={workflow} />);
-  expect(old).not.toContain("冻结块结构映射");
+  expect(old).not.toContain("锁定块结构映射");
   expect(old).toContain("场景结构、时长、来源与既有资产不变");
 });

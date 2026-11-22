@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import {
+  isChapterHeading,
   parseImportedDocument,
   sourceImportMigrations,
 } from "./source-imports";
@@ -21,6 +22,32 @@ describe("source import document parsing", () => {
         "第二章",
       ]);
     }
+  });
+
+  test("splits a plain-text novel on 第X章 lines", () => {
+    const preview = parseImportedDocument({
+      name: "末世囤货.txt",
+      format: "txt",
+      size: 100,
+      content:
+        "第一章 灾变前夜\n林小雨醒来。\n第一章的事她记得清楚。\n\n第2章：囤货\n她去了超市。\n第十二回 再见\n雨停了。",
+    });
+    expect(preview.title).toBe("末世囤货");
+    expect(preview.chapters.map((chapter) => chapter.title)).toEqual([
+      "第一章 灾变前夜",
+      "第2章：囤货",
+      "第十二回 再见",
+    ]);
+    expect(preview.chapters[0]?.content).toBe(
+      "林小雨醒来。\n第一章的事她记得清楚。",
+    );
+  });
+
+  test("recognizes chapter heading lines only", () => {
+    expect(isChapterHeading("第三十五章")).toBe(true);
+    expect(isChapterHeading("Chapter 7 The Door")).toBe(true);
+    expect(isChapterHeading("第一章的事她记得清楚。")).toBe(false);
+    expect(isChapterHeading("第一次见面时，他还很年轻")).toBe(false);
   });
 
   test("normalizes structured script episodes and scene fallbacks", () => {

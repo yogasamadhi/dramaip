@@ -38,11 +38,13 @@
     "@dramaip/infra-typert-protocol": "workspace:*",
     "@dramaip/infra-values": "workspace:*",
     "@dramaip/plugin-api": "workspace:*",
+    "@dramaip/production-delivery": "workspace:*",
     "@xmldom/xmldom": "0.8.13",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:*",
-    "@dramaip/infra-typert-registry": "workspace:*"
+    "@dramaip/infra-typert-registry": "workspace:*",
+    "fflate": "0.8.3"
   }
 }

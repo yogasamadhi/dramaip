@@ -14,7 +14,7 @@ export const strategyZh = {
   "strategy.basis.required": "请先明确采用来源有效的诊断。",
   "strategy.basis.owner": "独立策略来源项目归属不符。",
   "strategy.frozen":
-    "本轮冻结诊断 v{version}；来源变化、失败重试与重启不自动重绑。{next}",
+    "本轮锁定诊断 v{version}；来源变化、失败重试与重启不自动重绑。{next}",
   "strategy.frozen.workflow": "正在读取原工作流请求。",
   "strategy.frozen.start": "确认本身不发送模型；生成时再核对。",
   "strategy.accepted": "当前独立策略 v{version} · {option} · {state} · ",
@@ -38,7 +38,7 @@ export const strategyZh = {
     "正在重核原运行／策略；以下为上次实际原快照，操作暂不可用。",
   "strategy.title": "独立策略 v{version} · {status}{current}",
   "strategy.basis":
-    "冻结诊断 v{version}；{chapters} 章身份，未读目录 {omitted} 章；生成来源 {engine}。实际 usage／结算费用另以运行记录／回执为准，未知不等于零。",
+    "锁定诊断 v{version}；{chapters} 章身份，未读目录 {omitted} 章；生成来源 {engine}。实际 usage／结算费用另以运行记录／回执为准，未知不等于零。",
   "strategy.coverage": "策略实际阅读表达",
   "strategy.stale": "来源已变化：{reasons}。保留原结果，不能覆盖当前方向。",
   "strategy.stale.separator": "；",

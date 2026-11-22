@@ -35,6 +35,8 @@ export interface EngineRow {
 export interface EngineSettings {
   defaultEngineKind: EngineKind;
   defaultModel?: { modelId: string };
+  /** The provider the assistant uses now (global settings only). */
+  activeProviderId?: string;
 }
 
 /** A connection test's or an activation's verdict. */

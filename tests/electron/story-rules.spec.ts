@@ -136,7 +136,7 @@ test("原冻结规则定位的准确方向／作者解释／完整证据、后�
     await panel
       .getByRole("button", { name: "明确创建新声明快照", exact: true })
       .click();
-    let frozen = panel.getByLabel("冻结人工声明快照", { exact: true });
+    let frozen = panel.getByLabel("锁定人工声明快照", { exact: true });
     await expect(frozen).toContainText(
       "冻结人工确认节点 3／关系 4／认知声明 2",
     );
@@ -151,7 +151,7 @@ test("原冻结规则定位的准确方向／作者解释／完整证据、后�
     expect(original.nodes.some((value) => value.id === candidate.id)).toBe(
       false,
     );
-    let review = frozen.getByLabel("原冻结规则定位", { exact: true });
+    let review = frozen.getByLabel("本次参考的规则定位", { exact: true });
     await expect(review).toContainText("只检查声明结构");
     await expect(review).toContainText("不判定回退错误");
     await expect(review.locator("[data-rule-code=causal-cycle]")).toHaveCount(
@@ -197,10 +197,10 @@ test("原冻结规则定位的准确方向／作者解释／完整证据、后�
     await launch();
     await open(query);
     panel = page.getByLabel("认知与因果声明工作台", { exact: true });
-    frozen = panel.getByLabel("冻结人工声明快照", { exact: true });
+    frozen = panel.getByLabel("锁定人工声明快照", { exact: true });
     await expect(
-      frozen.getByLabel("原冻结规则定位", { exact: true }),
-    ).toContainText("当前冻结声明范围");
+      frozen.getByLabel("本次参考的规则定位", { exact: true }),
+    ).toContainText("当前锁定声明范围");
     await expect(frozen.getByRole("checkbox")).not.toBeChecked();
     expect(await api(snapshotPath)).toEqual(original);
     expect(
@@ -225,7 +225,7 @@ test("原冻结规则定位的准确方向／作者解释／完整证据、后�
       panel.getByRole("alert").filter({ hasText: "原快照／推演无法核对" }),
     ).toContainText("规则定位");
     await expect(
-      panel.getByLabel("原冻结规则定位", { exact: true }),
+      panel.getByLabel("本次参考的规则定位", { exact: true }),
     ).toHaveCount(0);
     await expect(
       panel.getByRole("button", {
@@ -252,13 +252,13 @@ test("原冻结规则定位的准确方向／作者解释／完整证据、后�
       panel.getByLabel("历史规则边界", { exact: true }),
     ).toContainText("未回填新版定位");
     await expect(
-      panel.getByLabel("原冻结规则定位", { exact: true }),
+      panel.getByLabel("本次参考的规则定位", { exact: true }),
     ).toHaveCount(0);
     await page.unroute(route);
     await open(`projectId=${other.id}`);
     await open(query);
     await expect(
-      panel.getByLabel("原冻结规则定位", { exact: true }),
+      panel.getByLabel("本次参考的规则定位", { exact: true }),
     ).toBeVisible();
     await createEdge(event.id, secret.id, "depends_on");
     await expect(frozen).toContainText("原声明快照已失效");

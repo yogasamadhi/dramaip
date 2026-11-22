@@ -60,6 +60,7 @@ import {
   WRITING_CHAPTER_SERVICE,
   WRITING_RESOURCE_SERVICE,
 } from "@dramaip/contracts/writing";
+import { chapterKeyPoints, chapterOutlineFor } from "./chapter-plan.js";
 import { AGENT_CONTEXT_SERVICE } from "@dramaip/contracts/agent-context";
 import type {
   PluginContext,
@@ -438,6 +439,17 @@ export function registerWritingCreation(context: PluginContext) {
               ),
             )
           : [];
+      // What the author planned for this chapter reaches the prompt.
+      const keyPoints =
+        input.operation === "chapter" && chapter
+          ? chapterKeyPoints(
+              chapter,
+              chapterOutlineFor(
+                materials.filter((item) => item.domain === "outlines"),
+                position,
+              ),
+            )
+          : "";
       const formats: Record<string, string> = {
         chapter: CHAPTER_WRITING_METHOD,
         "story-setup": STORY_SETUP_FORMAT,
@@ -469,7 +481,7 @@ export function registerWritingCreation(context: PluginContext) {
         ),
       ];
       return {
-        prompt: `${planning?.basis.sourceBasis.story?.length || novel?.basis.story?.length ? "本轮明确纳入的叙事声明是作者采用的来源锚定解释，含声明文本、实际端点名称／版本和来源身份，不附带原文引文或端点摘要；源指针不证明已提供原文。作者推断不能升级为原文事实，不按声明数量认证连续性或文学质量。\n" : ""}${formats[input.operation]}\n${planning ? `本轮规划来源范围=${planning.basis.request.chapterScope.mode}，实际表达覆盖 ${planning.basis.coverage.included.length} 章，目录未纳入 ${planning.basis.coverage.excluded.length} 章。只有明确原文是权威文本；采用摘要是派生概括，段落是片段，不冒充全文或语义保证。高层摘要仅代表实际冻结范围，未选内容不声称已读；不补整章或旧记忆。人物、大纲、故事弧是待审阅方案，不是已发生事实；无正文可以独立规划，不制造小说目标或改编任务。` : novel ? novelContextNote(novel.basis) : "引用资料中已采用章节与故事记忆是事实；大纲是未来规划，历史设定必须核对。"}${intent.authorIntent.state === "adopted" ? `\n${AUTHOR_INTENT_CREATION_PROMPT}` : ""}`,
+        prompt: `${planning?.basis.sourceBasis.story?.length || novel?.basis.story?.length ? "本轮明确纳入的叙事声明是作者采用的来源锚定解释，含声明文本、实际端点名称／版本和来源身份，不附带原文引文或端点摘要；源指针不证明已提供原文。作者推断不能升级为原文事实，不按声明数量认证连续性或文学质量。\n" : ""}${formats[input.operation]}\n${planning ? `本轮规划来源范围=${planning.basis.request.chapterScope.mode}，实际表达覆盖 ${planning.basis.coverage.included.length} 章，目录未纳入 ${planning.basis.coverage.excluded.length} 章。只有明确原文是权威文本；采用摘要是派生概括，段落是片段，不冒充全文或语义保证。高层摘要仅代表实际冻结范围，未选内容不声称已读；不补整章或旧记忆。人物、大纲、故事弧是待审阅方案，不是已发生事实；无正文可以独立规划，不制造小说目标或改编任务。` : novel ? novelContextNote(novel.basis) : "引用资料中已采用章节与故事记忆是事实；大纲是未来规划，历史设定必须核对。"}${intent.authorIntent.state === "adopted" ? `\n${AUTHOR_INTENT_CREATION_PROMPT}` : ""}${keyPoints ? `\n${keyPoints}` : ""}`,
         authorIntent: intent.authorIntent,
         ...(formalPrevious && previous && chapter
           ? {

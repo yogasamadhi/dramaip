@@ -169,7 +169,7 @@ test("delivery view keeps novel/adaptation units, unknown history and exact vers
       />,
     );
   expect(markup).toContain("小说章节版本 → 已保存稿件");
-  expect(markup).toContain("改编剧本版本 → 已保存内部试制包");
+  expect(markup).toContain("改编剧本版本 → 已保存样片包");
   expect(markup).toContain("2/3");
   expect(markup).toContain("1/1");
   expect(markup).toContain("缺此前采用");

@@ -617,6 +617,68 @@ function buildPackage(
   };
 }
 
+const STORYBOARD_COLUMNS = [
+  "镜头描述",
+  "构图",
+  "机位",
+  "运镜",
+  "时长",
+  "声音",
+  "生成提示",
+  "负面提示",
+] as const;
+
+const csvCell = (value: unknown): string => {
+  const text =
+    value === undefined || value === null
+      ? ""
+      : typeof value === "string"
+        ? value
+        : JSON.stringify(value);
+  // A leading formula character is neutralised so a sheet never runs it.
+  const safe = /^[=+\-@\t\r]/u.test(text) ? `'${text}` : text;
+  return /[",\r\n]/u.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+};
+
+/**
+ * The shots as a storyboard sheet: one row per shot, grouped by scene in
+ * the scenes' order, with a BOM so spreadsheet apps read it as UTF-8.
+ */
+export function storyboardCsv(
+  resources: readonly {
+    id: string;
+    kind: string;
+    parentId?: string;
+    title?: string;
+    payload: Record<string, unknown>;
+  }[],
+): string {
+  const scenes = resources.filter((item) => item.kind === "scenes");
+  const shots = resources.filter((item) => item.kind === "shots");
+  const sceneOrder = new Map(scenes.map((scene, index) => [scene.id, index]));
+  const sceneTitle = new Map(scenes.map((scene) => [scene.id, scene.title]));
+  const ordered = [...shots].sort(
+    (a, b) =>
+      (sceneOrder.get(a.parentId ?? "") ?? Number.MAX_SAFE_INTEGER) -
+      (sceneOrder.get(b.parentId ?? "") ?? Number.MAX_SAFE_INTEGER),
+  );
+  const counts = new Map<string, number>();
+  const rows = ordered.map((shot) => {
+    const scene = shot.parentId ?? "";
+    const number = (counts.get(scene) ?? 0) + 1;
+    counts.set(scene, number);
+    return [
+      sceneTitle.get(scene) ?? "",
+      number,
+      shot.title ?? "",
+      ...STORYBOARD_COLUMNS.map((column) => shot.payload[column]),
+    ];
+  });
+  return `\uFEFF${[["场景", "镜号", "镜头", ...STORYBOARD_COLUMNS], ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\r\n")}\r\n`;
+}
+
 function exportPackageDocument(
   snapshot: ProjectPackage,
   format: z.infer<typeof exportParams>["format"],
@@ -630,18 +692,22 @@ function exportPackageDocument(
       mimeType: "application/json",
       content: JSON.stringify(snapshot, null, 2),
     };
+  if (format === "storyboard")
+    return {
+      fileName: `${safeTitle}-分镜表.csv`,
+      mimeType: "text/csv",
+      content: storyboardCsv(snapshot.resources),
+    };
   const selected =
     format === "script"
       ? snapshot.resources.filter((record) => record.kind === "scripts")
-      : format === "storyboard"
-        ? snapshot.resources.filter((record) => record.kind === "shots")
-        : format === "delivery"
-          ? snapshot.resources.filter((record) =>
-              ["delivery", "localization", "compliance", "review"].includes(
-                record.kind,
-              ),
-            )
-          : snapshot.resources;
+      : format === "delivery"
+        ? snapshot.resources.filter((record) =>
+            ["delivery", "localization", "compliance", "review"].includes(
+              record.kind,
+            ),
+          )
+        : snapshot.resources;
   if (format === "submission-json" || format === "delivery")
     return {
       fileName: `${safeTitle}-${format}.json`,

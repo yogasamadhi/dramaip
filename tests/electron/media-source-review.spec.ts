@@ -192,7 +192,7 @@ test("人工时间线换源／移除在后台逐片段确认，重启清空声�
       }
     }
     await panel()
-      .getByRole("button", { name: "冻结人工换源差异预览", exact: true })
+      .getByRole("button", { name: "锁定人工换源差异预览", exact: true })
       .click();
     await expect(panel().getByTestId("audio-resolution-diff")).toContainText(
       "明确处理 5 个片段",
@@ -462,7 +462,7 @@ test("音轨人工修订在后台冻结完整差异、重启清空声明、生�
       .last()
       .fill("明确新增的纯文本片段");
     await panel()
-      .getByRole("button", { name: "冻结音轨修订预览", exact: true })
+      .getByRole("button", { name: "锁定音轨修订预览", exact: true })
       .click();
     await expect(
       panel().getByText("旧→新映射 1 项 · 明确删除 1 项 · 新增 1 项", {

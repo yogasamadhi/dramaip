@@ -255,17 +255,11 @@ test("普通保存剧本与独立场景质量：明确指纹、源禁发零分�
       capture.waitForEvent("close"),
       capture.getByRole("button", { name: "安全保存", exact: true }).click(),
     ]);
-    await page
-      .getByLabel("模型服务商 后台受控保存来源接口", { exact: true })
-      .getByRole("button", { name: "设为智能助手模型", exact: true })
-      .click();
-    await expect(page.getByText(/后台受控保存来源接口：.*已/)).toBeVisible();
-
-    await page
-      .getByRole("button", { name: "保存全局默认值", exact: true })
-      .click();
+    // Saving a language model connects it and makes it the default.
     await expect(
-      page.getByText("全局默认模型已保存", { exact: true }),
+      page.getByText(
+        "已连接「后台受控保存来源接口」，现在可以开始用 AI 写作了。",
+      ),
     ).toBeVisible();
     const { project } = await api<{ project: { id: string } }>(
       "projects",

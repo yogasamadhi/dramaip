@@ -375,6 +375,9 @@ export interface ProviderCatalogPreset {
   baseUrl?: string;
   /** Page where the user applies for a key. */
   apiKeyUrl?: string;
+  subscriptionLabel?: string;
+  subscriptionLoginLabel?: string;
+  subscriptionOnly?: boolean;
   /** Page the models were checked against. */
   sourceUrl: string;
   /** Models to pick, in display order. */

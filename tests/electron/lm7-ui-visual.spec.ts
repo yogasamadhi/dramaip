@@ -178,7 +178,7 @@ test("小说正文界面等待实际创作操作就绪后比较明暗视觉基�
       page.getByRole("button", { name: "续写本章", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "生成并检查本章正文", exact: true }),
+      page.getByRole("button", { name: "写这一章", exact: true }),
     ).toBeVisible();
     const overflow = await page.evaluate(
       () =>

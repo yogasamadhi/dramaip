@@ -7,7 +7,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { preparePiModelData } from "../../../scripts/prepare-pi-model-data.mjs";
 
-const PI_VERSION = "1.5.0";
+const PI_VERSION = "1.5.2";
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopApp = resolve(here, "..");
 const desktop = resolve(desktopApp, "../..");
@@ -102,6 +102,10 @@ await esbuild.build({
     ),
     "@earendil-works/pi-ai/compat": join(source, "packages/ai/src/compat.ts"),
     "@earendil-works/pi-ai": join(source, "packages/ai/src/index.ts"),
+    "@earendil-works/pi-ai/utils/retry": join(
+      source,
+      "packages/ai/src/utils/retry.ts",
+    ),
     "@earendil-works/pi-schema": join(source, "packages/schema/src/index.ts"),
     "@earendil-works/pi-schema/formats": join(
       source,

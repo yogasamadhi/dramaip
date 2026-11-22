@@ -53,7 +53,7 @@ export function episodeDevelopmentNavigationError(
         (key) => params.has(key),
       ))
   )
-    return "试制包链接必须精确返回原包，不能混入其他结果或模型运行。";
+    return "样片包链接必须精确返回原包，不能混入其他结果或模型运行。";
   if (
     params.has("shotAttributionId") &&
     (!z.string().uuid().safeParse(params.get("shotAttributionId")).success ||

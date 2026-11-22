@@ -204,7 +204,7 @@ test("人工认知因果声明使用页内表单、明确快照与独立规则�
     await panel
       .getByRole("button", { name: "明确创建新声明快照", exact: true })
       .click();
-    const frozen = panel.getByLabel("冻结人工声明快照", { exact: true });
+    const frozen = panel.getByLabel("锁定人工声明快照", { exact: true });
     await expect(frozen).toContainText(
       "冻结人工确认节点 2／关系 1／认知声明 1",
     );
@@ -244,7 +244,7 @@ test("人工认知因果声明使用页内表单、明确快照与独立规则�
     ).toHaveAttribute("data-simulation-id", simulationId);
     await expect(
       panel
-        .getByLabel("冻结人工声明快照", { exact: true })
+        .getByLabel("锁定人工声明快照", { exact: true })
         .getByRole("checkbox"),
     ).not.toBeChecked();
     expect(
@@ -279,10 +279,10 @@ test("人工认知因果声明使用页内表单、明确快照与独立规则�
       confirmed: true,
     });
     await expect(
-      panel.getByLabel("冻结人工声明快照", { exact: true }),
+      panel.getByLabel("锁定人工声明快照", { exact: true }),
     ).toContainText("原声明快照已失效");
     await expect(
-      panel.getByLabel("冻结人工声明快照", { exact: true }),
+      panel.getByLabel("锁定人工声明快照", { exact: true }),
     ).not.toContainText("原声明来源变化");
     expect(await json(`projects/${first.id}/ip-twins/${snapshotId}`)).toEqual({
       ...originalSnapshot,

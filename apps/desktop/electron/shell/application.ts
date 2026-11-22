@@ -72,6 +72,11 @@ if (!isolatedTestUserData)
 app.setPath("userData", electronData);
 app.setPath("sessionData", electronData);
 app.setPath("logs", electronLogs);
+// Electron would otherwise label the application menu, About panel and
+// notifications with the package name ("@dramaip/desktop"). The packaged name
+// is English, and the profile paths are pinned above, so setting the display
+// name here cannot relocate user data.
+app.setName("DramaIP");
 
 registerAppScheme();
 
@@ -286,7 +291,7 @@ async function recover(reason: HostFailure): Promise<void> {
     minimizable: false,
     maximizable: false,
     show: false,
-    title: "尽意 DramaIP 恢复",
+    title: "DramaIP 恢复",
     ...(background ? { focusable: false, skipTaskbar: true } : {}),
     ...(window() ? { parent: window()! } : {}),
     webPreferences: {
@@ -418,7 +423,7 @@ if (!app.requestSingleInstanceLock()) {
       console.error("DramaIP shell failed to start", error);
       // An installation has no terminal; say why before quitting.
       if (app.isPackaged)
-        dialog.showErrorBox("尽意 DramaIP 无法启动", String(error));
+        dialog.showErrorBox("DramaIP 无法启动", String(error));
       app.quit();
     });
 

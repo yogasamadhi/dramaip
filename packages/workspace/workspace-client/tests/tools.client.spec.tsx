@@ -394,15 +394,15 @@ describe("the pilot tool", () => {
       writing: writing as never,
     });
     render(<PilotTool {...tool} />);
-    const wizard = await screen.findByLabelText("试制向导");
+    const wizard = await screen.findByLabelText("样片向导");
     const sources = await screen.findAllByRole("checkbox");
     expect(sources).toHaveLength(2);
     await waitFor(() => expect(sources[0]!).toHaveProperty("checked", true));
     fireEvent.click(sources[1]!);
-    fireEvent.change(screen.getByRole("combobox", { name: "试制集数" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "样片集数" }), {
       target: { value: "2" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "建立试制计划" }));
+    fireEvent.click(screen.getByRole("button", { name: "建立样片计划" }));
     await waitFor(() =>
       expect(automation.pilotPlansCreate).toHaveBeenCalledWith(
         { projectId: PROJECT, chapterIds: ["c1", "c2"], episodeCount: 2 },
@@ -413,8 +413,8 @@ describe("the pilot tool", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "确认来源并生成首集" }),
     );
-    expect(await screen.findByText("当前阶段：采用试制剧本")).toBeTruthy();
-    expect(wizard.textContent).toContain("2 集试制");
+    expect(await screen.findByText("当前阶段：采用样片剧本")).toBeTruthy();
+    expect(wizard.textContent).toContain("2 集样片");
     expect(
       screen.getByRole("link", { name: "前往唯一待办" }).getAttribute("href"),
     ).toBe(

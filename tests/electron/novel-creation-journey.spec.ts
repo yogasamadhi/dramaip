@@ -564,7 +564,10 @@ async function localModelFixture(
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
         model: string;
         stream: boolean;
-        messages: Array<{ role: string; content: string }>;
+        messages: Array<{
+          role: string;
+          content: string | Array<{ type: string; text?: string }>;
+        }>;
       };
       if (body.model !== MODEL || body.stream !== true)
         throw new Error(
@@ -572,7 +575,11 @@ async function localModelFixture(
         );
       const prompt = body.messages
         .filter((message) => message.role === "user")
-        .map((message) => message.content)
+        .map((message) =>
+          typeof message.content === "string"
+            ? message.content
+            : message.content.map((part) => part.text ?? "").join("\n"),
+        )
         .join("\n");
       let kind: string;
       let output: unknown;
@@ -1716,6 +1723,20 @@ async function localModelFixture(
   };
 }
 
+/** Opens a novel section; 人物、设定 and 故事记忆 sit under 资料. */
+async function openNovelTab(page: Page, tab: string) {
+  if (["人物", "设定", "故事记忆"].includes(tab)) {
+    await page
+      .getByRole("navigation", { name: "小说创作入口" })
+      .getByRole("button", { name: "资料", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "资料分类" })
+      .getByRole("button", { name: tab, exact: true })
+      .click();
+  } else await page.getByRole("button", { name: tab, exact: true }).click();
+}
+
 async function configureLocalModel(running: RunningApp, url: string) {
   const { application, page } = running;
   await page.getByRole("link", { name: "设置", exact: true }).click();
@@ -1729,6 +1750,10 @@ async function configureLocalModel(running: RunningApp, url: string) {
     .getByRole("textbox", { name: "模型名称", exact: true })
     .fill(MODEL);
   await page.getByRole("textbox", { name: "服务地址", exact: true }).fill(url);
+  // The credential store opens a moment after the app starts.
+  await expect(
+    page.getByRole("button", { name: "保存时在独立安全窗口输入密钥" }),
+  ).toBeEnabled({ timeout: 30_000 });
   const capturePromise = application.waitForEvent("window");
   await page
     .getByRole("button", { name: "添加模型服务商", exact: true })
@@ -1760,19 +1785,11 @@ async function configureLocalModel(running: RunningApp, url: string) {
     capture.waitForEvent("close"),
     capture.getByRole("button", { name: "安全保存", exact: true }).click(),
   ]);
-  const provider = page.getByLabel("模型服务商 本地受控小说验收接口", {
-    exact: true,
-  });
-  await provider
-    .getByRole("button", { name: "设为智能助手模型", exact: true })
-    .click();
-  await expect(page.getByText(/本地受控小说验收接口：.*已/)).toBeVisible();
-
-  await page
-    .getByRole("button", { name: "保存全局默认值", exact: true })
-    .click();
+  // Saving a language model connects it and makes it the default.
   await expect(
-    page.getByText("全局默认模型已保存", { exact: true }),
+    page.getByText(
+      "已连接「本地受控小说验收接口」，现在可以开始用 AI 写作了。",
+    ),
   ).toBeVisible();
 }
 
@@ -2085,7 +2102,7 @@ test("灵感整理保留自己的原运行报告，字符预算不冒充 token�
       }),
     ).toBeVisible();
     await expect(
-      running.page.getByLabel("引擎用量观测", { exact: true }),
+      running.page.getByLabel("AI 用量", { exact: true }),
     ).toHaveCount(0);
     await running.page
       .getByRole("button", { name: "查看原运行用量报告", exact: true })
@@ -2287,7 +2304,7 @@ for (const contextRevision of [false, true])
         await context
           .getByRole("button", { name: "查看此阶段原上下文", exact: true })
           .click();
-        const actual = context.getByLabel("原阶段上下文快照", { exact: true });
+        const actual = context.getByLabel("原阶段参考资料", { exact: true });
         const original = originalContexts.get(runId)!;
         await expect(actual).toContainText(original.id);
         await expect(actual).toContainText(original.finalPromptSha256);
@@ -2323,7 +2340,7 @@ for (const contextRevision of [false, true])
         "不显示旧缓存，不补造已读或覆盖率",
       );
       await expect(
-        firstContext.getByLabel("原阶段上下文快照", { exact: true }),
+        firstContext.getByLabel("原阶段参考资料", { exact: true }),
       ).toHaveCount(0);
       await running.page.unroute(contextFailurePattern);
       await readOriginalPhaseContext(firstPhase.runId);
@@ -2393,7 +2410,7 @@ for (const contextRevision of [false, true])
         await expect(
           stages()
             .getByLabel(`阶段原上下文 ${run.runId}`, { exact: true })
-            .getByLabel("原阶段上下文快照", { exact: true }),
+            .getByLabel("原阶段参考资料", { exact: true }),
         ).toHaveCount(0);
         await readOriginalPhaseContext(run.runId);
       }
@@ -2403,9 +2420,9 @@ for (const contextRevision of [false, true])
           exact: true,
         }),
       ).toBeVisible();
-      await expect(
-        usage().getByLabel("引擎用量观测", { exact: true }),
-      ).toHaveCount(0);
+      await expect(usage().getByLabel("AI 用量", { exact: true })).toHaveCount(
+        0,
+      );
       await usage()
         .getByRole("button", { name: "查看原运行用量报告", exact: true })
         .click();
@@ -2705,12 +2722,10 @@ test("五类规划独立确认实际段落、不隐式读正文，目录失败�
         await navigate(`/create?projectId=${project.id}`);
       else {
         await navigate(`/projects/${project.id}`);
-        await running!.page
-          .getByRole("button", {
-            name: operation === "characters" ? "人物" : "大纲",
-            exact: true,
-          })
-          .click();
+        await openNovelTab(
+          running!.page,
+          operation === "characters" ? "人物" : "大纲",
+        );
         if (operation !== "characters")
           await running!.page
             .getByRole("button", {
@@ -3390,7 +3405,10 @@ test("普通导入的新建回复丢失和项目内最终保存故障都按冻�
     await running.page
       .getByRole("button", { name: "创建系列长篇并导入", exact: true })
       .click();
-    await expect(running.page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+    // A recovered novel import lands on 构思, like a fresh one.
+    await expect(running.page).toHaveURL(
+      new RegExp(`/projects/${projectId}\\?section=plan$`),
+    );
     expect(retried).toBe(1);
     expect(await get<Chapter[]>(`projects/${projectId}/chapters`)).toEqual(
       originalChapters,
@@ -3491,8 +3509,9 @@ test("普通导入的新建回复丢失和项目内最终保存故障都按冻�
     await panel()
       .getByRole("button", { name: "恢复同一次导入", exact: true })
       .click();
+    // A recovered novel import goes on to the breakdown in 构思.
     await expect(running.page).toHaveURL(
-      new RegExp(`/projects/${projectId}/tools/review$`),
+      new RegExp(`/projects/${projectId}(/tools/review|\\?section=plan)$`),
     );
     expect(panelCommits).toBe(1);
     expect(await get<Chapter[]>(`projects/${projectId}/chapters`)).toEqual(
@@ -3905,7 +3924,7 @@ test("明确初始目标在回复丢失后按冻结原请求恢复，旧默认�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const oldId = running.page.url().split("/").at(-1)!;
+    const oldId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     expect(oldId).not.toBe(projectId);
     expect(
       (
@@ -3959,7 +3978,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     const chapterWrites: Array<{ method: string; version?: number }> = [];
     running.page.on("request", (observed) => {
       const request = legacyRequestOf(observed);
@@ -4011,9 +4030,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
       ["人物", "人物方案", "characters", "characters", "小禾"],
       ["大纲", "全书大纲", "book-outline", "outlines", "旧书店两章规划"],
     ]) {
-      await running.page
-        .getByRole("button", { name: tab, exact: true })
-        .click();
+      await openNovelTab(running.page, tab!);
       const workbench = running.page.getByLabel(`AI ${label}`, { exact: true });
       const planning = running.page.getByLabel("本轮规划来源确认", {
         exact: true,
@@ -4079,7 +4096,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
       .getByRole("spinbutton", { name: "目标字数", exact: true })
       .fill("300");
     await workbench()
-      .getByRole("button", { name: "生成并检查本章正文", exact: true })
+      .getByRole("button", { name: "写这一章", exact: true })
       .click();
     await expect(workbench().locator("header").getByRole("status")).toHaveText(
       "等待审阅采用",
@@ -4115,8 +4132,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     });
     const firstWorkflow = await currentWorkflow("chapter", initial.id);
     expect(JSON.stringify(firstWorkflow)).not.toContain(KEY);
-    await openProjectTool(running.page, "项目驾驶舱");
-    let cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    let cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByRole("link", { name: "审阅小说候选", exact: true }),
     ).toBeVisible();
@@ -4161,8 +4178,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
       evidence: FIRST_FACT,
     });
     await expect(workbench()).toContainText("已按采用版本更新");
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByRole("link", { name: "继续下一章", exact: true }),
     ).toBeVisible();
@@ -4256,8 +4273,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     running = await launch(userData);
     get = await runtimeReader(running.page);
     await running.page.getByRole("link", { name: TITLE }).click();
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByRole("link", { name: "审阅小说候选", exact: true }),
     ).toBeVisible();
@@ -4853,8 +4870,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
         }),
       ]),
     );
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByLabel("连续性事实记忆", { exact: true }),
     ).toHaveAttribute("data-gate-status", "ready");
@@ -4875,8 +4892,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     await manuscriptDialog()
       .getByRole("button", { name: "关闭稿件预览", exact: true })
       .click();
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await cockpit.screenshot({
       path: test.info().outputPath("novel-cockpit-gates.png"),
     });
@@ -4906,8 +4923,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     expect((await get<Chapter>(`chapters/${second.id}`)).content).toContain(
       "作者修订：小禾把铜钥匙留在柜台抽屉",
     );
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByLabel("正文与章节采用", { exact: true }),
     ).toHaveAttribute("data-gate-status", "stale");
@@ -4973,8 +4990,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     expect(await readFile(savedPath, "utf8")).toBe(exported);
     // A selected-range JSON manuscript restores its actual format/range;
     // reopening never restores rights consent or silently exports the whole book.
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await cockpit
       .getByLabel("正文与章节采用", { exact: true })
       .getByRole("link", { name: "返回相关稿件与资料", exact: true })
@@ -5020,8 +5037,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     await manuscriptDialog()
       .getByRole("button", { name: "关闭稿件预览", exact: true })
       .click();
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await cockpit
       .getByRole("link", { name: "核对稿件交付", exact: true })
       .click();
@@ -5062,8 +5079,8 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     await manuscriptDialog()
       .getByRole("button", { name: "关闭稿件预览", exact: true })
       .click();
-    await openProjectTool(running.page, "项目驾驶舱");
-    cockpit = running.page.getByLabel("项目驾驶舱", { exact: true });
+    await openProjectTool(running.page, "项目概览");
+    cockpit = running.page.getByLabel("项目概览", { exact: true });
     await expect(
       cockpit.getByLabel("稿件与投稿导出", { exact: true }),
     ).toContainText("所选范围已核验保存");
@@ -5110,7 +5127,7 @@ test("fresh profile 完成小说规划、两章候选显式采用、事实记忆
     const summaryAttention = running.page.locator(
       `[data-confirmation-key="narrative-summary:${savedSummary.id}"]`,
     );
-    await expect(summaryAttention).toContainText("冻结摘要来源不可用，需复核");
+    await expect(summaryAttention).toContainText("锁定摘要来源不可用，需复核");
     await expect(summaryAttention).not.toContainText(
       savedSummary.content.summary,
     );
@@ -5228,7 +5245,7 @@ for (const independentEpisode of [false, true]) {
         .getByRole("button", { name: "创建系列长篇并导入", exact: true })
         .click();
       await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-      const projectId = running.page.url().split("/").at(-1)!;
+      const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
       let get = await runtimeReader(running.page);
       const originals = await get<Chapter[]>(`projects/${projectId}/chapters`);
       expect(originals).toHaveLength(2);
@@ -5357,7 +5374,7 @@ for (const independentEpisode of [false, true]) {
         exact: true,
       });
       await higher
-        .getByRole("button", { name: "读取此摘要的冻结范围", exact: true })
+        .getByRole("button", { name: "读取此摘要的锁定范围", exact: true })
         .click();
       await higher
         .getByLabel(`纳入高层摘要 ${adopted.id}`, { exact: true })
@@ -5611,7 +5628,7 @@ for (const independentEpisode of [false, true]) {
         })
         .click();
       await qualitySources()
-        .getByRole("button", { name: "读取此摘要的冻结范围", exact: true })
+        .getByRole("button", { name: "读取此摘要的锁定范围", exact: true })
         .click();
       await expect(
         qualitySources().getByLabel(`纳入高层摘要 ${adopted.id}`, {
@@ -5825,7 +5842,7 @@ for (const independentEpisode of [false, true]) {
         })
         .click();
       await aiExpressions()
-        .getByRole("button", { name: "读取此摘要的冻结范围", exact: true })
+        .getByRole("button", { name: "读取此摘要的锁定范围", exact: true })
         .click();
       await expect(
         aiExpressions().getByLabel(`纳入高层摘要 ${adopted.id}`, {
@@ -5840,7 +5857,7 @@ for (const independentEpisode of [false, true]) {
         .getByRole("button", { name: "确认 AI 意图来源", exact: true })
         .click();
       await expect(aiIntent()).toContainText(
-        "实际表达另行冻结，不代表全文已读",
+        "实际表达另行锁定，不代表全文已读",
       );
       await aiIntent()
         .getByRole("button", { name: "生成并检查作者意图建议", exact: true })
@@ -5985,7 +6002,7 @@ for (const independentEpisode of [false, true]) {
         })
         .click();
       await diagnosisSources()
-        .getByRole("button", { name: "读取此摘要的冻结范围", exact: true })
+        .getByRole("button", { name: "读取此摘要的锁定范围", exact: true })
         .click();
       await expect(
         diagnosisSources().getByLabel(`纳入高层摘要 ${adopted.id}`, {
@@ -6488,11 +6505,11 @@ for (const independentEpisode of [false, true]) {
       }, pilotPath);
       await developmentPanel()
         .getByLabel("正式分镜包 v1", { exact: true })
-        .getByRole("button", { name: "预览内部试制包", exact: true })
+        .getByRole("button", { name: "预览样片包", exact: true })
         .click();
       const pilotDialog = () =>
         running!.page.getByRole("dialog", {
-          name: "核验并保存内部试制包",
+          name: "核验并保存样片包",
           exact: true,
         });
       const workflowChoice = pilotDialog().getByLabel(
@@ -6504,20 +6521,20 @@ for (const independentEpisode of [false, true]) {
       await workflowChoice.check();
       expect(fixture.calls).toHaveLength(callsBeforeWorkflowChoice);
       await pilotDialog()
-        .getByRole("button", { name: "生成统一试制包预览", exact: true })
+        .getByRole("button", { name: "生成统一样片包预览", exact: true })
         .click();
       await expect(pilotDialog()).toContainText("待明确确认");
       for (const name of [
-        "我确认这些正式版本，并有权导出这份试制包",
-        "我确认此包仅用于内部试制审阅，不作为发行就绪证明",
+        "我确认这些正式版本，并有权导出这份样片包",
+        "我确认此包仅用于内部审看，不作为发行就绪证明",
         "我已知悉质量、授权范围、费用与上述缺失项尚未全部核验",
       ])
         await pilotDialog().getByLabel(name, { exact: true }).check();
       const callsBeforePilot = fixture.calls.length;
       await pilotDialog()
-        .getByRole("button", { name: "确认并保存 ZIP 试制包", exact: true })
+        .getByRole("button", { name: "确认并保存 ZIP 样片包", exact: true })
         .click();
-      await expect(pilotDialog()).toContainText("试制包已保存并核验。");
+      await expect(pilotDialog()).toContainText("样片包已保存并核验。");
       const pilotSummary = (
         await get<{ items: PilotPackagePreview[] }>(
           `projects/${projectId}/pilot-packages`,
@@ -6648,7 +6665,7 @@ for (const independentEpisode of [false, true]) {
         ).toBe(file.sha256);
       }
       await running.page
-        .getByRole("button", { name: "关闭试制预览", exact: true })
+        .getByRole("button", { name: "关闭样片预览", exact: true })
         .click();
       const episodeKey = `dramaip-episode-development-basis:${projectId}`;
       const savedEpisode = await running.page.evaluate(
@@ -6778,24 +6795,33 @@ for (const { novelMode, sourceChange } of [
       await running.page
         .getByRole("button", { name: "创建单季短剧并导入", exact: true })
         .click();
-      await expect(running.page).toHaveURL(/\/projects\/[^/]+$/u);
-      const projectId = new URL(running.page.url()).hash.split("/").at(-1)!;
+      // An imported novel goes straight on to the adaptation guide.
+      await expect(running.page).toHaveURL(/\/adapt\?.*projectId=/u);
+      const projectId = new URLSearchParams(
+        new URL(running.page.url()).hash.split("?")[1],
+      ).get("projectId")!;
       let get = await runtimeReader(running.page);
       let chapters = await get<Chapter[]>(`projects/${projectId}/chapters`);
       let importedChapters = chapters.filter((chapter) =>
         chapter.content.trim(),
       );
       expect(importedChapters).toHaveLength(2);
+      // No empty placeholder chapter is created next to the imported ones.
       expect(
         chapters
           .filter((chapter) => !chapter.content.trim())
           .map((chapter) => chapter.title),
-      ).toEqual(["单季故事母稿"]);
+      ).toEqual([]);
       let summaryTarget = `book:${projectId}`,
         summaryTitle = `小说新来源正式确认 ${novelMode}`;
       if (novelMode === "volume" || novelMode === "story-arc") {
         summaryTitle = `作者实际${novelMode === "volume" ? "卷" : "故事弧"}来源`;
         if (novelMode === "story-arc") {
+          // The import landed on the adaptation guide; the outline is on
+          // the project page.
+          await running.page.evaluate((id) => {
+            window.location.hash = `#/projects/${id}`;
+          }, projectId);
           await running.page
             .getByRole("button", { name: "大纲", exact: true })
             .click();
@@ -7830,7 +7856,7 @@ for (const { novelMode, sourceChange } of [
             exact: true,
           });
           await higher
-            .getByRole("button", { name: "读取此摘要的冻结范围", exact: true })
+            .getByRole("button", { name: "读取此摘要的锁定范围", exact: true })
             .click();
           await expect(
             higher.getByLabel(`纳入高层摘要 ${higherSummary!.id}`, {
@@ -8433,10 +8459,10 @@ for (const { novelMode, sourceChange } of [
       ])
         await composer().getByLabel(label, { exact: true }).check();
       await composer()
-        .getByRole("button", { name: "冻结本次完整来源审阅", exact: true })
+        .getByRole("button", { name: "锁定本次完整来源审阅", exact: true })
         .click();
       await expect(composer().getByRole("status")).toContainText(
-        "完整来源审阅已冻结",
+        "完整来源审阅已锁定",
       );
       await panel()
         .getByRole("button", { name: "确认本轮单集基准", exact: true })
@@ -8668,27 +8694,27 @@ for (const { novelMode, sourceChange } of [
       }, pilotPath);
       await panel()
         .getByLabel("正式分镜包 v2", { exact: true })
-        .getByRole("button", { name: "预览内部试制包", exact: true })
+        .getByRole("button", { name: "预览样片包", exact: true })
         .click();
       const pilot = () =>
         running!.page.getByRole("dialog", {
-          name: "核验并保存内部试制包",
+          name: "核验并保存样片包",
           exact: true,
         });
       await pilot()
-        .getByRole("button", { name: "生成统一试制包预览", exact: true })
+        .getByRole("button", { name: "生成统一样片包预览", exact: true })
         .click();
       await expect(pilot()).toContainText("待明确确认");
       for (const label of [
-        "我确认这些正式版本，并有权导出这份试制包",
-        "我确认此包仅用于内部试制审阅，不作为发行就绪证明",
+        "我确认这些正式版本，并有权导出这份样片包",
+        "我确认此包仅用于内部审看，不作为发行就绪证明",
         "我已知悉质量、授权范围、费用与上述缺失项尚未全部核验",
       ])
         await pilot().getByLabel(label, { exact: true }).check();
       await pilot()
-        .getByRole("button", { name: "确认并保存 ZIP 试制包", exact: true })
+        .getByRole("button", { name: "确认并保存 ZIP 样片包", exact: true })
         .click();
-      await expect(pilot()).toContainText("试制包已保存并核验。");
+      await expect(pilot()).toContainText("样片包已保存并核验。");
       const summary = (
         await get<{ items: PilotPackagePreview[] }>(
           `projects/${projectId}/pilot-packages`,
@@ -9967,38 +9993,38 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
       await navigate(route);
       await panel()
         .getByLabel("正式分镜包 v1", { exact: true })
-        .getByRole("button", { name: "预览内部试制包", exact: true })
+        .getByRole("button", { name: "预览样片包", exact: true })
         .click();
       const pilot = () =>
         running!.page.getByRole("dialog", {
-          name: "核验并保存内部试制包",
+          name: "核验并保存样片包",
           exact: true,
         });
       await expect(
-        pilot().getByLabel("试制包明确镜头关联", { exact: true }),
+        pilot().getByLabel("样片包明确镜头关联", { exact: true }),
       ).toHaveValue("");
       await expect(
         pilot()
-          .getByLabel("试制包明确镜头关联", { exact: true })
+          .getByLabel("样片包明确镜头关联", { exact: true })
           .locator(`option[value="${adopted.id}"]`),
       ).toHaveCount(1);
       await pilot()
-        .getByLabel("试制包明确镜头关联", { exact: true })
+        .getByLabel("样片包明确镜头关联", { exact: true })
         .selectOption(adopted.id);
       await pilot()
-        .getByRole("button", { name: "生成统一试制包预览", exact: true })
+        .getByRole("button", { name: "生成统一样片包预览", exact: true })
         .click();
       await expect(pilot()).toContainText("待明确确认");
       for (const label of [
-        "我确认这些正式版本，并有权导出这份试制包",
-        "我确认此包仅用于内部试制审阅，不作为发行就绪证明",
+        "我确认这些正式版本，并有权导出这份样片包",
+        "我确认此包仅用于内部审看，不作为发行就绪证明",
         "我已知悉质量、授权范围、费用与上述缺失项尚未全部核验",
       ])
         await pilot().getByLabel(label, { exact: true }).check();
       await pilot()
-        .getByRole("button", { name: "确认并保存 ZIP 试制包", exact: true })
+        .getByRole("button", { name: "确认并保存 ZIP 样片包", exact: true })
         .click();
-      await expect(pilot()).toContainText("试制包已保存并核验。");
+      await expect(pilot()).toContainText("样片包已保存并核验。");
       const saved = (
         await get<{ items: PilotPackagePreview[] }>(
           `projects/${projectId}/pilot-packages`,
@@ -10053,7 +10079,7 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
         ).toBe("stale");
         expect(unzipSync(await readFile(pilotPath))).toEqual(archive);
         await pilot()
-          .getByRole("button", { name: "关闭试制预览", exact: true })
+          .getByRole("button", { name: "关闭样片预览", exact: true })
           .click();
         await navigate(exactRoute);
         await expect(
@@ -10110,7 +10136,7 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
       expect(fixture.errors).toEqual([]);
       if (sourceReviewUi) {
         await pilot()
-          .getByRole("button", { name: "关闭试制预览", exact: true })
+          .getByRole("button", { name: "关闭样片预览", exact: true })
           .click();
         let confirmedSource: EpisodeSourceRevision | undefined;
         if (sourceConfirmationUi) {
@@ -10435,7 +10461,7 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
             await composer().getByLabel(label, { exact: true }).check();
           await expect(
             composer().getByRole("button", {
-              name: "冻结本次完整来源审阅",
+              name: "锁定本次完整来源审阅",
               exact: true,
             }),
           ).toBeDisabled();
@@ -10443,10 +10469,10 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
             .getByLabel(reviewLabels[4]!, { exact: true })
             .check();
           await composer()
-            .getByRole("button", { name: "冻结本次完整来源审阅", exact: true })
+            .getByRole("button", { name: "锁定本次完整来源审阅", exact: true })
             .click();
           await expect(composer().getByRole("status")).toContainText(
-            "完整来源审阅已冻结",
+            "完整来源审阅已锁定",
           );
         };
         for (const actual of impactOriginal.shots)
@@ -10759,7 +10785,7 @@ for (const { entryPath, sourceReviewUi, sourceConfirmationUi } of [
           }),
         ).toBeChecked();
         await expect(
-          workbench().getByLabel("冻结完整来源审阅", { exact: true }),
+          workbench().getByLabel("锁定完整来源审阅", { exact: true }),
         ).toContainText(adopted.id);
         const commitPattern = `**/api/v2/change-previews/${workflow.previewId}/commit`;
         let committed = false;
@@ -11443,8 +11469,13 @@ for (const independentStrategy of [false, true]) {
       await running.page
         .getByRole("button", { name: "创建单季短剧并导入", exact: true })
         .click();
-      await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-      const projectId = running.page.url().split("/").at(-1)!;
+      // An adaptation import lands on the adaptation guide.
+      await expect(running.page).toHaveURL(
+        /#\/adapt\?projectId=[^&]+&stage=adaptations$/,
+      );
+      const projectId = new URL(
+        running.page.url().replace("#/", ""),
+      ).searchParams.get("projectId")!;
       let get = await runtimeReader(running.page);
       const chapters = await get<Chapter[]>(`projects/${projectId}/chapters`);
       const source = chapters.find((item) => item.title === "第二章 失联电话")!;
@@ -11756,12 +11787,12 @@ for (const independentStrategy of [false, true]) {
         );
       }
       const cockpit = () =>
-        running!.page.getByLabel("项目驾驶舱", { exact: true });
+        running!.page.getByLabel("项目概览", { exact: true });
       const next = () =>
         cockpit().getByLabel("唯一推荐下一步", { exact: true });
       let legacyPlanStarted = false;
       const assertGates = async (states: string[]) => {
-        await openProjectTool(running!.page, "项目驾驶舱");
+        await openProjectTool(running!.page, "项目概览");
         const gates = cockpit()
           .getByLabel("改编结果 Gate", { exact: true })
           .getByRole("article");
@@ -12529,7 +12560,7 @@ for (const independentStrategy of [false, true]) {
       });
       await assertGates(["ready", "ready", "ready", "ready", "pending"]);
       await expect(
-        next().getByRole("link", { name: "核验并保存内部试制包", exact: true }),
+        next().getByRole("link", { name: "核验并保存样片包", exact: true }),
       ).toBeVisible();
       await cockpit().screenshot({
         path: test.info().outputPath("adaptation-cockpit-formal-chain.png"),
@@ -12631,27 +12662,27 @@ for (const independentStrategy of [false, true]) {
       const callsBeforePilot = fixture.calls.length;
       const pilotDialog = () =>
         running!.page.getByRole("dialog", {
-          name: "核验并保存内部试制包",
+          name: "核验并保存样片包",
           exact: true,
         });
       const openPilot = async () => {
         await developmentPanel()
           .getByLabel("正式分镜包 v1", { exact: true })
-          .getByRole("button", { name: "预览内部试制包", exact: true })
+          .getByRole("button", { name: "预览样片包", exact: true })
           .click();
         await pilotDialog()
-          .getByRole("button", { name: "生成统一试制包预览", exact: true })
+          .getByRole("button", { name: "生成统一样片包预览", exact: true })
           .click();
         await expect(pilotDialog()).toContainText("待明确确认");
       };
       const confirmPilot = async () => {
         await pilotDialog()
-          .getByLabel("我确认这些正式版本，并有权导出这份试制包", {
+          .getByLabel("我确认这些正式版本，并有权导出这份样片包", {
             exact: true,
           })
           .check();
         await pilotDialog()
-          .getByLabel("我确认此包仅用于内部试制审阅，不作为发行就绪证明", {
+          .getByLabel("我确认此包仅用于内部审看，不作为发行就绪证明", {
             exact: true,
           })
           .check();
@@ -12663,7 +12694,7 @@ for (const independentStrategy of [false, true]) {
       };
       await openPilot();
       await expect(
-        pilotDialog().getByLabel("试制交付预检", { exact: true }),
+        pilotDialog().getByLabel("样片交付预检", { exact: true }),
       ).toContainText("未处理错误");
       await expect(
         pilotDialog().locator(
@@ -12703,12 +12734,12 @@ for (const independentStrategy of [false, true]) {
       await confirmPilot();
       await expect(
         pilotDialog().getByRole("button", {
-          name: "确认并保存 ZIP 试制包",
+          name: "确认并保存 ZIP 样片包",
           exact: true,
         }),
       ).toBeDisabled();
       await pilotDialog()
-        .getByLabel("试制交付预检", { exact: true })
+        .getByLabel("样片交付预检", { exact: true })
         .scrollIntoViewIfNeeded();
       await running.page.screenshot({
         path: test.info().outputPath("pilot-quality-blocked.png"),
@@ -12784,7 +12815,7 @@ for (const independentStrategy of [false, true]) {
       await running.page
         .getByRole("option", { name: /^source-context\.json · /u })
         .click();
-      const actualContextFile = pilotDialog().getByLabel("实际试制文件内容", {
+      const actualContextFile = pilotDialog().getByLabel("实际样片文件内容", {
         exact: true,
       });
       await expect(actualContextFile).toContainText(
@@ -12805,7 +12836,7 @@ for (const independentStrategy of [false, true]) {
         .click();
       await expect(
         pilotDialog().getByRole("button", {
-          name: "确认并保存 ZIP 试制包",
+          name: "确认并保存 ZIP 样片包",
           exact: true,
         }),
       ).toBeDisabled();
@@ -12835,12 +12866,12 @@ for (const independentStrategy of [false, true]) {
           .getByRole("button", { name: "刷新同一交付记录", exact: true })
           .click();
         await expect(pilotDialog()).toContainText(
-          "已显示的冻结版本仅供历史查看，不能确认保存",
+          "已显示的锁定版本仅供历史查看，不能确认保存",
         );
         expect(failedReads).toBeGreaterThan(0);
         await expect(
           pilotDialog().getByRole("button", {
-            name: "确认并保存 ZIP 试制包",
+            name: "确认并保存 ZIP 样片包",
             exact: true,
           }),
         ).toBeDisabled();
@@ -12856,13 +12887,13 @@ for (const independentStrategy of [false, true]) {
         ).toHaveCount(0);
         await expect(
           pilotDialog().getByRole("button", {
-            name: "确认并保存 ZIP 试制包",
+            name: "确认并保存 ZIP 样片包",
             exact: true,
           }),
         ).toBeEnabled();
       }
       await pilotDialog()
-        .getByRole("button", { name: "确认并保存 ZIP 试制包", exact: true })
+        .getByRole("button", { name: "确认并保存 ZIP 样片包", exact: true })
         .click();
       await expect(pilotDialog()).toContainText("已取消保存，未记录成功交付");
       const canceledPilot = (
@@ -12881,7 +12912,7 @@ for (const independentStrategy of [false, true]) {
       }, pilotPath);
       await openPilot();
       await expect(
-        pilotDialog().getByLabel("我确认这些正式版本，并有权导出这份试制包", {
+        pilotDialog().getByLabel("我确认这些正式版本，并有权导出这份样片包", {
           exact: true,
         }),
       ).not.toBeChecked();
@@ -12890,9 +12921,9 @@ for (const independentStrategy of [false, true]) {
       });
       await confirmPilot();
       await pilotDialog()
-        .getByRole("button", { name: "确认并保存 ZIP 试制包", exact: true })
+        .getByRole("button", { name: "确认并保存 ZIP 样片包", exact: true })
         .click();
-      await expect(pilotDialog()).toContainText("试制包已保存并核验。");
+      await expect(pilotDialog()).toContainText("样片包已保存并核验。");
       const savedPilotSummary = (
         await get<{ items: PilotPackagePreview[] }>(
           `projects/${projectId}/pilot-packages`,
@@ -12971,7 +13002,7 @@ for (const independentStrategy of [false, true]) {
         .getByRole("button", { name: "关闭", exact: true })
         .click();
       await assertGates(["ready", "ready", "ready", "ready", "ready"]);
-      await expect(cockpit()).toContainText("内部试制包已保存，发行仍待核验");
+      await expect(cockpit()).toContainText("样片包已保存，发行仍待核验");
       await expect(
         cockpit().getByText("当前正式 Gate", { exact: true }).locator(".."),
       ).toContainText(independentStrategy ? "6/6" : "5/5");
@@ -12979,9 +13010,9 @@ for (const independentStrategy of [false, true]) {
         path: test.info().outputPath("adaptation-cockpit-saved-receipt.png"),
       });
       await next()
-        .getByRole("link", { name: "查看内部试制包回执", exact: true })
+        .getByRole("link", { name: "查看样片包回执", exact: true })
         .click();
-      await expect(pilotDialog()).toContainText("试制包已保存并核验。");
+      await expect(pilotDialog()).toContainText("样片包已保存并核验。");
       await pilotDialog()
         .getByRole("button", { name: "关闭", exact: true })
         .click();
@@ -13342,7 +13373,7 @@ for (const independentStrategy of [false, true]) {
         },
         { projectId, previewId: savedPilot.id },
       );
-      await expect(pilotDialog()).toContainText("试制包已保存并核验。");
+      await expect(pilotDialog()).toContainText("样片包已保存并核验。");
       await expect(pilotDialog()).toContainText(
         "来源已变化，此包只代表历史版本",
       );
@@ -13435,7 +13466,7 @@ for (const independentStrategy of [false, true]) {
       await expect(
         developmentPanel()
           .getByLabel("正式分镜包 v1", { exact: true })
-          .getByRole("button", { name: "预览内部试制包", exact: true }),
+          .getByRole("button", { name: "预览样片包", exact: true }),
       ).toBeDisabled();
       await impactPanel().screenshot({
         path: test
@@ -13627,7 +13658,7 @@ test("独立小说质量报告经真实证据、精确待确认、人工风险�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     let get = await runtimeReader(running.page);
     const chapters = await get<Chapter[]>(`projects/${projectId}/chapters`);
     const chapterId = chapters[0]!.id;
@@ -13675,7 +13706,7 @@ test("独立小说质量报告经真实证据、精确待确认、人工风险�
       version: before.version,
     });
     expect(old.content.issues[0]!.evidence[0]!.quote).toBe(FIRST_FACT);
-    await expect(panel()).toContainText("引擎 pi");
+    await expect(panel()).toContainText("AI 服务 pi");
     await running.page
       .getByRole("link", { name: "待确认", exact: true })
       .click();
@@ -14670,11 +14701,11 @@ for (const { entryPath, nativeSource, intakeSource } of [
       let importedOriginal: RecordEntity | undefined;
       let importedAst: ScreenplayDocument | undefined;
       const cockpit = () =>
-        running!.page.getByLabel("项目驾驶舱", { exact: true });
+        running!.page.getByLabel("项目概览", { exact: true });
       const next = () =>
         cockpit().getByLabel("唯一推荐下一步", { exact: true });
       const assertGates = async (states: string[]) => {
-        await openProjectTool(running!.page, "项目驾驶舱");
+        await openProjectTool(running!.page, "项目概览");
         const gates = cockpit()
           .getByLabel("直写结果 Gate", { exact: true })
           .getByRole("article");
@@ -14699,7 +14730,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
       });
       await assertGates(["pending", "pending", "pending", "pending"]);
       await next()
-        .getByRole("link", { name: "采用正式故事圣经", exact: true })
+        .getByRole("link", { name: "采用故事记忆", exact: true })
         .click();
       const panel = () =>
         running!.page.getByLabel("单集开发工作台", { exact: true });
@@ -15161,15 +15192,15 @@ for (const { entryPath, nativeSource, intakeSource } of [
       }, pilotPath);
       await panel()
         .getByLabel("正式分镜包 v1", { exact: true })
-        .getByRole("button", { name: "预览内部试制包", exact: true })
+        .getByRole("button", { name: "预览样片包", exact: true })
         .click();
       const pilotDialog = () =>
         running!.page.getByRole("dialog", {
-          name: "核验并保存内部试制包",
+          name: "核验并保存样片包",
           exact: true,
         });
       await pilotDialog()
-        .getByRole("button", { name: "生成统一试制包预览", exact: true })
+        .getByRole("button", { name: "生成统一样片包预览", exact: true })
         .click();
       await expect(pilotDialog()).toContainText("待明确确认");
       await expect(pilotDialog()).toContainText("没有小说、诊断或季纲版本");
@@ -15179,7 +15210,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         )
       ).items[0]!;
       await running.page
-        .getByRole("button", { name: "关闭试制预览", exact: true })
+        .getByRole("button", { name: "关闭样片预览", exact: true })
         .click();
       await assertGates(["ready", "ready", "ready", "needs-human"]);
       await expect(next().getByRole("link")).toHaveAttribute(
@@ -15187,13 +15218,13 @@ for (const { entryPath, nativeSource, intakeSource } of [
         new RegExp(`pilotPackageId=${preview.id}`),
       );
       await next()
-        .getByRole("link", { name: "核验并保存内部试制包", exact: true })
+        .getByRole("link", { name: "核验并保存样片包", exact: true })
         .click();
       await expect(pilotDialog()).toContainText("待明确确认");
       // M1: the same owner package is reachable from the unified rights
       // worklist. Listing never saves/authorizes it or creates another preview.
       await running.page
-        .getByRole("button", { name: "关闭试制预览", exact: true })
+        .getByRole("button", { name: "关闭样片预览", exact: true })
         .click();
       await running.page.evaluate((id) => {
         window.location.hash = `#/pending?projectId=${id}`;
@@ -15219,7 +15250,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
       );
       await expect(pilotDialog()).toContainText("待明确确认");
       await expect(
-        pilotDialog().getByLabel("我确认这些正式版本，并有权导出这份试制包", {
+        pilotDialog().getByLabel("我确认这些正式版本，并有权导出这份样片包", {
           exact: true,
         }),
       ).not.toBeChecked();
@@ -15227,15 +15258,15 @@ for (const { entryPath, nativeSource, intakeSource } of [
         path: testInfo.outputPath("m1-original-pilot-rights.png"),
       });
       for (const name of [
-        "我确认这些正式版本，并有权导出这份试制包",
-        "我确认此包仅用于内部试制审阅，不作为发行就绪证明",
+        "我确认这些正式版本，并有权导出这份样片包",
+        "我确认此包仅用于内部审看，不作为发行就绪证明",
         "我已知悉质量、授权范围、费用与上述缺失项尚未全部核验",
       ])
         await pilotDialog().getByLabel(name, { exact: true }).check();
       await pilotDialog()
-        .getByRole("button", { name: "确认并保存 ZIP 试制包", exact: true })
+        .getByRole("button", { name: "确认并保存 ZIP 样片包", exact: true })
         .click();
-      await expect(pilotDialog()).toContainText("试制包已保存并核验。");
+      await expect(pilotDialog()).toContainText("样片包已保存并核验。");
       const savedSummary = (
         await get<{ items: PilotPackagePreview[] }>(
           `projects/${projectId}/pilot-packages`,
@@ -15275,10 +15306,10 @@ for (const { entryPath, nativeSource, intakeSource } of [
         path: test.info().outputPath(`direct-${entryPath}-saved-receipt.png`),
       });
       await running.page
-        .getByRole("button", { name: "关闭试制预览", exact: true })
+        .getByRole("button", { name: "关闭样片预览", exact: true })
         .click();
       await assertGates(["ready", "ready", "ready", "ready"]);
-      await expect(cockpit()).toContainText("内部试制包已保存，发行仍待核验");
+      await expect(cockpit()).toContainText("样片包已保存，发行仍待核验");
       await expect(next().getByRole("link")).toHaveAttribute(
         "href",
         new RegExp(`pilotPackageId=${saved.id}`),
@@ -15291,7 +15322,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
       });
       await expect(
         running.page.getByLabel("继续当前项目", { exact: true }),
-      ).toContainText("内部试制包已保存，发行仍待核验");
+      ).toContainText("样片包已保存，发行仍待核验");
       await running.application.close();
       running = await launch(userData);
       get = await runtimeReader(running.page);
@@ -15300,10 +15331,10 @@ for (const { entryPath, nativeSource, intakeSource } of [
       });
       await expect(
         running.page.getByLabel("继续当前项目", { exact: true }),
-      ).toContainText("内部试制包已保存，发行仍待核验");
+      ).toContainText("样片包已保存，发行仍待核验");
       await running.page
         .getByLabel("继续当前项目", { exact: true })
-        .getByRole("link", { name: "查看内部试制包回执", exact: true })
+        .getByRole("link", { name: "查看样片包回执", exact: true })
         .click();
       await expect(pilotDialog()).toContainText("已保存并核验");
       expect(
@@ -15311,7 +15342,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
       ).toEqual(saved.receipt);
       expect(fixture.calls).toHaveLength(callsBefore);
       await running.page
-        .getByRole("button", { name: "关闭试制预览", exact: true })
+        .getByRole("button", { name: "关闭样片预览", exact: true })
         .click();
       if (entryPath === "script" && !nativeSource && !intakeSource) {
         const originalFormal = adopted.find(
@@ -15373,7 +15404,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           })
           .click();
         const frozen = () =>
-          manual().getByLabel("冻结人工剧本确认预览", { exact: true });
+          manual().getByLabel("锁定人工剧本确认预览", { exact: true });
         await expect(frozen()).toContainText(actualText);
         await expect(
           frozen().getByRole("button", {
@@ -15628,7 +15659,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           await route.abort("failed");
         });
         await actualFields()
-          .getByRole("button", { name: "冻结字段选择并复检", exact: true })
+          .getByRole("button", { name: "锁定字段选择并复检", exact: true })
           .click();
         await running.page
           .getByRole("dialog", { name: "冻结字段合并并另行复检", exact: true })
@@ -15687,10 +15718,10 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
-          redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
+          redoWorkbench().getByLabel("锁定实际字段选择", { exact: true }),
         ).toContainText("人工字段选择保留：先核实警告");
         await redoWorkbench()
-          .getByLabel("冻结实际字段选择", { exact: true })
+          .getByLabel("锁定实际字段选择", { exact: true })
           .scrollIntoViewIfNeeded();
         await running.page.screenshot({
           path: testInfo.outputPath("storyboard-record-field-merge-frozen.png"),
@@ -15842,14 +15873,14 @@ for (const { entryPath, nativeSource, intakeSource } of [
           redoWorkbench().getByText("等待审阅采用", { exact: true }),
         ).toBeVisible({ timeout: 60_000 });
         await expect(
-          redoWorkbench().getByLabel("冻结块结构映射", { exact: true }),
+          redoWorkbench().getByLabel("锁定块结构映射", { exact: true }),
         ).toContainText(currentDoc.blocks[1]!.id);
         await expect(
           redoWorkbench().getByLabel("选中镜头局部候选", { exact: true }),
         ).toContainText("已确认新块结构接续");
         expect(await get(`shots?projectId=${projectId}`)).toEqual(changedShots);
         await redoWorkbench()
-          .getByLabel("冻结块结构映射", { exact: true })
+          .getByLabel("锁定块结构映射", { exact: true })
           .scrollIntoViewIfNeeded();
         await running.page.screenshot({
           path: testInfo.outputPath("confirmed-block-structure-preview.png"),
@@ -15865,7 +15896,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         );
         await expect(structuralChoice()).toBeChecked();
         await expect(
-          redoWorkbench().getByLabel("冻结块结构映射", { exact: true }),
+          redoWorkbench().getByLabel("锁定块结构映射", { exact: true }),
         ).toContainText(currentDoc.blocks[1]!.id);
         const structuralRuns = await get<{ items: CreationWorkflow[] }>(
           `workflows/creation?projectId=${projectId}`,
@@ -15923,7 +15954,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("button", { name: "比较实际字段", exact: true })
           .click();
         await expect(
-          structuralReview().getByLabel("字段合并冻结块映射", { exact: true }),
+          structuralReview().getByLabel("字段合并锁定块映射", { exact: true }),
         ).toContainText(currentDoc.blocks[1]!.id);
         expect(
           structuralComparison.units.some(
@@ -15959,7 +15990,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("checkbox", { name: /^我已逐项核对/u })
           .check();
         await structuralReview()
-          .getByRole("button", { name: "冻结字段选择并复检", exact: true })
+          .getByRole("button", { name: "锁定字段选择并复检", exact: true })
           .click();
         await running.page
           .getByRole("dialog", { name: "冻结字段合并并另行复检", exact: true })
@@ -15998,10 +16029,10 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
-          redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
+          redoWorkbench().getByLabel("锁定实际字段选择", { exact: true }),
         ).toContainText("结构合并作者标题");
         await expect(
-          redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
+          redoWorkbench().getByLabel("锁定实际字段选择", { exact: true }),
         ).not.toContainText("结构私有旁注不发模型");
         await running.application.close();
         running = await launch(userData);
@@ -16017,14 +16048,14 @@ for (const { entryPath, nativeSource, intakeSource } of [
           },
         );
         await expect(
-          redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
+          redoWorkbench().getByLabel("锁定实际字段选择", { exact: true }),
         ).toContainText("结构候选采用前作者仍保留核实警告");
         await expect(
-          redoWorkbench().getByLabel("冻结块结构映射", { exact: true }),
+          redoWorkbench().getByLabel("锁定块结构映射", { exact: true }),
         ).toContainText(currentDoc.blocks[1]!.id);
         expect(fixture.calls).toHaveLength(callsBeforeStructureMerge + 1);
         await redoWorkbench()
-          .getByLabel("冻结实际字段选择", { exact: true })
+          .getByLabel("锁定实际字段选择", { exact: true })
           .scrollIntoViewIfNeeded();
         await running.page.screenshot({
           path: testInfo.outputPath(
@@ -16126,7 +16157,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           redoWorkbench().getByText("等待审阅采用", { exact: true }),
         ).toBeVisible({ timeout: 60_000 });
         const frozenPlan = () =>
-          redoWorkbench().getByLabel("冻结作者镜头计划", { exact: true });
+          redoWorkbench().getByLabel("锁定作者镜头计划", { exact: true });
         await expect(frozenPlan()).toContainText("新增");
         await expect(frozenPlan()).toContainText("复用");
         await expect(
@@ -16285,7 +16316,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("button", { name: "比较实际字段", exact: true })
           .click();
         const planProof = () =>
-          shotPlanReview().getByLabel("字段合并冻结镜头计划", { exact: true });
+          shotPlanReview().getByLabel("字段合并锁定镜头计划", { exact: true });
         await expect(planProof()).toContainText(`退役镜头 ${newIdentity}`);
         await expect(planProof()).toContainText("当前 v1");
         const planComparison = await get<ProductionRecordMergeComparison>(
@@ -16335,7 +16366,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         });
         const callsBeforePlanMerge = fixture.calls.length;
         await shotPlanReview()
-          .getByRole("button", { name: "冻结字段选择并复检", exact: true })
+          .getByRole("button", { name: "锁定字段选择并复检", exact: true })
           .click();
         await running.page
           .getByRole("dialog", { name: "冻结字段合并并另行复检", exact: true })
@@ -16396,7 +16427,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
-          redoWorkbench().getByLabel("冻结实际字段选择", { exact: true }),
+          redoWorkbench().getByLabel("锁定实际字段选择", { exact: true }),
         ).toBeVisible();
         await redoWorkbench()
           .getByRole("button", { name: "采用", exact: true })
@@ -16541,7 +16572,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("button", { name: "确认继续", exact: true })
           .click();
         await topology()
-          .getByRole("button", { name: "冻结双正式确认预览", exact: true })
+          .getByRole("button", { name: "锁定双正式确认预览", exact: true })
           .click();
         const topologyPreview = () =>
           topology().getByLabel("原场景拓扑确认预览", { exact: true });
@@ -16774,7 +16805,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
         );
         expect(comparison.format).toBe("storyboard-record-field-comparison-v4");
         await expect(
-          topologyReview().getByLabel("字段合并冻结场景拓扑计划", {
+          topologyReview().getByLabel("字段合并锁定场景拓扑计划", {
             exact: true,
           }),
         ).toContainText("明确退役场景");
@@ -16805,7 +16836,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           await route.abort("failed");
         });
         await topologyReview()
-          .getByRole("button", { name: "冻结字段选择并复检", exact: true })
+          .getByRole("button", { name: "锁定字段选择并复检", exact: true })
           .click();
         await running.page
           .getByRole("dialog", { name: "冻结字段合并并另行复检", exact: true })
@@ -16850,7 +16881,7 @@ for (const { entryPath, nativeSource, intakeSource } of [
           .getByRole("link", { name: "打开字段合并草稿", exact: true })
           .click();
         await expect(
-          redoWorkbench().getByLabel("冻结作者场景拓扑计划", { exact: true }),
+          redoWorkbench().getByLabel("锁定作者场景拓扑计划", { exact: true }),
         ).toBeVisible();
         await redoWorkbench().screenshot({
           path: testInfo.outputPath("author-topology-v4-restored.png"),
@@ -17069,7 +17100,7 @@ test("小说跨章范围明确选择第一与第四章、全书不能漏读，�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     let get = await runtimeReader(running.page);
     const bodies = [
       FIRST_TEXT,
@@ -17401,7 +17432,7 @@ test("全书非空章节范围新增后，专用诊断拒绝保留原候选集�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     let get = await runtimeReader(running.page);
     const original = (
       await get<Chapter[]>(`projects/${projectId}/chapters`)
@@ -17646,7 +17677,7 @@ test("明确段落续写的原章节改稿后只记录准确版本冲突，保�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     let get = await runtimeReader(running.page);
     const first = (await get<Chapter[]>(`projects/${projectId}/chapters`))[0]!;
     await running.page.getByText("更多操作", { exact: true }).click();
@@ -17875,7 +17906,7 @@ test("明确采用章摘要记录改稿而原章不变，只记原记录准确�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     let get = await runtimeReader(running.page);
     const first = (await get<Chapter[]>(`projects/${projectId}/chapters`))[0]!;
     const initialWorkbench = running.page.getByLabel("AI 本章正文", {
@@ -17889,7 +17920,7 @@ test("明确采用章摘要记录改稿而原章不变，只记原记录准确�
       .getByRole("spinbutton", { name: "目标字数", exact: true })
       .fill("300");
     await initialWorkbench
-      .getByRole("button", { name: "生成并检查本章正文", exact: true })
+      .getByRole("button", { name: "写这一章", exact: true })
       .click();
     await expect(
       initialWorkbench.locator("header").getByRole("status"),
@@ -18154,7 +18185,7 @@ test("正式作者意图替换后，桌面中的旧小说候选采用冲突且�
       .getByRole("button", { name: "创建系列长篇", exact: true })
       .click();
     await expect(running.page).toHaveURL(/\/projects\/[^/]+$/);
-    const projectId = running.page.url().split("/").at(-1)!;
+    const projectId = running.page.url().split("/").at(-1)!.split("?")[0]!;
     const get = await runtimeReader(running.page);
     await adoptIntentInUi(running.page, INTENT);
     const first = (
@@ -18173,7 +18204,7 @@ test("正式作者意图替换后，桌面中的旧小说候选采用冲突且�
       .getByRole("spinbutton", { name: "目标字数", exact: true })
       .fill("300");
     await workbench
-      .getByRole("button", { name: "生成并检查本章正文", exact: true })
+      .getByRole("button", { name: "写这一章", exact: true })
       .click();
     await expect(workbench.locator("header").getByRole("status")).toHaveText(
       "等待审阅采用",

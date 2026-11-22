@@ -59,9 +59,8 @@ function run(args) {
   });
 }
 
-// The shell serves the built web entry; the Host runs its sources through tsx,
-// so the web entry is the only thing to build before electron-vite starts.
-await run(["--filter", "@dramaip/web", "run", "build"]);
+// Build the web entry and its client modules before Electron serves them.
+await run(["run", "build:infra"]);
 // electron-vite and the Electron app it starts run in their own process
 // group, and stopping this script signals the whole group: electron-vite
 // alone exits without stopping Electron, and pnpm exec passes nothing on.

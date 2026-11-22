@@ -497,6 +497,7 @@ export const AGENT_TASK_TYPES = [
   "enhance_episode_hook",
   "enhance_episode_visuals",
   "analyze_first_10_episodes",
+  "review_opening",
   "generate_ai_drama_script",
   "split_script_to_scenes",
   "review_ai_drama_script",

@@ -21,6 +21,7 @@ import type {} from "@dramaip/writing-quality/remote";
 import type {} from "./contract.ts";
 import { AiSection } from "./AiSection.tsx";
 import { InspirationPage } from "./InspirationPage.tsx";
+import { ProviderSetupDialog } from "./ProviderSetupDialog.tsx";
 import { en, zh } from "./locale.ts";
 import { TaskConfig } from "./task-config/TaskConfig.tsx";
 
@@ -111,5 +112,17 @@ export function apply(ctx: Context): void {
       }),
     },
     TaskConfig,
+  );
+  ctx.slots.registerFactory(
+    {
+      name: "agents.provider-setup",
+      scope: "root",
+      locale: "agents",
+      inject: () => ({
+        agents: ctx.remote.agents,
+        system: ctx.remote.system,
+      }),
+    },
+    ProviderSetupDialog,
   );
 }

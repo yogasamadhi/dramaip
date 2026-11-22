@@ -32,8 +32,29 @@ export const PLANNING_STEPS = [
   },
 ] as const;
 
-export type PlanningStep = (typeof PLANNING_STEPS)[number];
+/**
+ * The optional step after planning: chapter outlines for the first chapters,
+ * which each new chapter then follows. It is not part of the progress.
+ */
+export const CHAPTER_PLAN_STEP = {
+  key: "chapter-plan",
+  operation: "chapter-outline",
+  label: "前 10 章章节大纲",
+  section: "outlines",
+  ask: "要不要先把前 10 章的章节大纲排出来？之后每写一章，AI 都会按对应的章节大纲来写。",
+  action: "规划前 10 章",
+  base: "根据已采用的故事设定、主要人物和全书大纲，规划前 10 章的章节大纲：每章一条，标题写章名，「排序」从 1 到 10，「内容」写清本章发生什么、主要冲突和章末悬念。开篇三章要尽快抛出冲突和悬念。",
+} as const;
+
+export type PlanningStep =
+  (typeof PLANNING_STEPS)[number] | typeof CHAPTER_PLAN_STEP;
 export type PlanningStepKey = PlanningStep["key"];
+
+/** Every step the planning conversation can be on, the optional one last. */
+export const ALL_PLANNING_STEPS: readonly PlanningStep[] = [
+  ...PLANNING_STEPS,
+  CHAPTER_PLAN_STEP,
+];
 
 /** Creation stages in which a draft is still being written. */
 export const ACTIVE_CREATION_STAGES: ReadonlySet<string> = new Set([
@@ -101,14 +122,21 @@ export function planningProgress(input: {
     ),
     characters: input.characters.length > 0,
     outline: input.outlines.some((item) => {
-      const payload =
-        item.payload && typeof item.payload === "object"
-          ? (item.payload as Record<string, unknown>)
-          : {};
-      const level = String(payload["大纲层级"] ?? "");
+      const level = outlineLevel(item);
       return level === "全书" || !level;
     }),
+    "chapter-plan": input.outlines.some(
+      (item) => outlineLevel(item) === "章节",
+    ),
   };
+}
+
+function outlineLevel(item: DomainEntity): string {
+  const payload =
+    item.payload && typeof item.payload === "object"
+      ? (item.payload as Record<string, unknown>)
+      : {};
+  return String(payload["大纲层级"] ?? "");
 }
 
 /** The first step still to do, or `undefined` when planning is complete. */
@@ -142,9 +170,15 @@ export function planningInstruction(input: {
   authorLines: readonly string[];
   previous?: CreationWorkflow["output"];
   feedback?: string;
+  /** Imported manuscript text to work from, when the book already exists. */
+  source?: string;
 }): string {
   const said = input.authorLines.map((line) => line.trim()).filter(Boolean);
   const parts: string[] = [input.step.base];
+  if (input.source?.trim())
+    parts.push(
+      `作者已经导入了小说原文，下面是原文节选。请只从原文中提取和归纳，原文没有写到的设定、人物或情节不要编造；拿不准的地方如实标注「原文未明确」。\n\n${input.source.trim()}`,
+    );
   if (said.length)
     parts.push(
       `${input.step.key === "setup" ? "作者的想法" : "作者的要求"}：\n${said.join("\n")}`,
@@ -175,7 +209,7 @@ export function readPlanningMessages(projectId: string): PlanningMessage[] {
             typeof item === "object" &&
             typeof (item as PlanningMessage).id === "string" &&
             typeof (item as PlanningMessage).text === "string" &&
-            PLANNING_STEPS.some(
+            ALL_PLANNING_STEPS.some(
               (step) => step.key === (item as PlanningMessage).step,
             ),
         )
@@ -197,4 +231,34 @@ export function savePlanningMessages(
   } catch {
     // The conversation is a convenience; saved materials live in the project.
   }
+}
+
+/**
+ * The imported chapters as source text for planning: every chapter's
+ * opening, in reading order, within `budget` characters in all, so a long
+ * book still fits and each chapter is represented.
+ */
+export function importedExcerpt(
+  chapters: readonly { title: string; content: string; orderIndex: number }[],
+  budget = 30_000,
+): string {
+  const filled = [...chapters]
+    .filter((chapter) => chapter.content.trim())
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+  if (!filled.length) return "";
+  const share = Math.max(400, Math.floor(budget / filled.length));
+  const parts: string[] = [];
+  let used = 0;
+  for (const chapter of filled) {
+    const body = chapter.content.trim();
+    const room = Math.min(share, budget - used);
+    if (room < 200) {
+      parts.push(`（后面还有 ${filled.length - parts.length} 章未列出）`);
+      break;
+    }
+    const piece = body.length > room ? `${body.slice(0, room)}…` : body;
+    parts.push(`【${chapter.title}】\n${piece}`);
+    used += piece.length;
+  }
+  return parts.join("\n\n");
 }

@@ -1291,7 +1291,7 @@ export function createKnowledgePlugin(host?: DesktopHost) {
         id: "knowledge.inspector.story-bible",
         pluginId: "knowledge",
         kind: "inspector",
-        metadata: { target: "chapter", title: "故事圣经侧栏" },
+        metadata: { target: "chapter", title: "故事记忆侧栏" },
       },
     ],
     migrations: [

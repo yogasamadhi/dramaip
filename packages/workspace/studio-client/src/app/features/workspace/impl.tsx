@@ -586,7 +586,7 @@ function projectStartOptions(mode: ProjectMode): readonly ProjectStartOption[] {
       {
         source: "inspiration",
         title: "从灵感开始",
-        description: "先建立长篇母本和第一章，再逐步完善人物、卷纲与故事圣经。",
+        description: "先建立长篇小说和第一章，再逐步完善人物、卷纲与故事记忆。",
         outcome: "创建后进入母本写作",
         recommended: true,
       },
@@ -602,7 +602,7 @@ function projectStartOptions(mode: ProjectMode): readonly ProjectStartOption[] {
       {
         source: "inspiration",
         title: "从创意开始",
-        description: "从一个精简故事开始，建立故事母稿、人物、季纲和第一集。",
+        description: "从一个精简故事开始，建立故事、人物、季纲和第一集。",
         outcome: "创建后进入单季故事规划",
         recommended: true,
       },
@@ -1256,7 +1256,7 @@ export function ProjectHome() {
       pendingImport?.preview.contentKind === "script"
     ) {
       setError(
-        "这是已有剧本，请从“导入已有剧本”入口开始；不会将其误初始化为小说母稿。",
+        "这是已有剧本，请从“导入已有剧本”入口开始；不会将其误初始化为小说。",
       );
       return;
     }
@@ -1363,6 +1363,13 @@ export function ProjectHome() {
         // setup, characters and outline, then the first chapter.
         else if (quick && target.projectMode === "series_longform")
           destination = `/projects/${encodeURIComponent(project.id)}?section=plan`;
+        // An imported novel goes on to the AI breakdown: 构思 for a novel
+        // project, the adaptation guide for a novel turned into a script.
+        else if (sourceFile && pendingImport?.preview.contentKind === "novel")
+          destination =
+            target.projectMode === "series_longform"
+              ? `/projects/${encodeURIComponent(project.id)}?section=plan`
+              : `/adapt?${new URLSearchParams({ projectId: project.id, stage: "adaptations" })}`;
         persistCreationDraft(
           { ...draftFields, initializationSteps: initialized.steps },
           true,
@@ -3292,13 +3299,13 @@ export function StoryBibleSidecar(props: {
   const undo = async (item: StoryBibleChangeSet) => {
     if (
       !(await confirmDialog(
-        "撤销会删除此变更集创建的章节记忆，不会修改正文。确定撤销吗？",
+        "撤销会删除此更新草案创建的章节记忆，不会修改正文。确定撤销吗？",
       ))
     )
       return;
     try {
       await client.storyBible.undo(item.id);
-      setNotice("已撤销此变更集创建的资料。");
+      setNotice("已撤销此更新草案创建的资料。");
       await refresh();
     } catch (cause) {
       setNotice(message(cause));

@@ -3,7 +3,7 @@
     "kind": "pi",
     "role": "embedded-default",
     "name": "Pi",
-    "version": "1.5.0",
+    "version": "1.5.2",
     "capabilities": {
       "prompt": true,
       "streaming": true,
